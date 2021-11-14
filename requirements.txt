@@ -1,0 +1,7 @@
+Jinja2==3.0.2
+PyYAML==6.0
+ansible-runner==2.0.3
+celery[redis]==5.2.0
+cliff==3.9.0
+oslo.config==8.7.1
+oslo.service==2.7.0

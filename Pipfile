@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+ansible-runner = "==2.0.3"
+celery = {version = "==5.2.0", extras = ["redis"]}
+"oslo.config" = "==8.7.1"
+"oslo.service" = "==2.7.0"
+Jinja2 = "==3.0.2"
+PyYAML = "==6.0"
+cliff = "==3.9.0"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
