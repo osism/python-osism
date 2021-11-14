@@ -14,6 +14,9 @@ class Run(Command):
         return parser
 
     def take_action(self, parsed_args):
+        queue = parsed_args.type[0]
+        tasks = queue[:-8]
+
         # NOTE: use python interface in the future, works for the moment
-        p = subprocess.Popen("celery -A osism.tasks.ansible worker --loglevel=INFO -Q ansible", shell=True)
+        p = subprocess.Popen(f"celery -A osism.tasks.{tasks} worker --loglevel=INFO -Q {queue}", shell=True)
         p.wait()

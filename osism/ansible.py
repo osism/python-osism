@@ -2,7 +2,7 @@ import logging
 
 from cliff.command import Command
 
-from osism.tasks import ansible
+from osism.tasks import ceph, kolla, osism
 
 
 class Run(Command):
@@ -20,4 +20,10 @@ class Run(Command):
         environment = parsed_args.environment[0]
         playbook = parsed_args.playbook[0]
         arguments = parsed_args.arguments
-        ansible.run.delay(environment, playbook, arguments)
+
+        if environment == "ceph":
+            ceph.run.delay(environment, playbook, arguments)
+        elif environment == "kolla":
+            kolla.run.delay(environment, playbook, arguments)
+        else:
+            osism.run.delay(environment, playbook, arguments)
