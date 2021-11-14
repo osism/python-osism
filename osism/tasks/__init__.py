@@ -35,6 +35,10 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
         "ENVIRONMENTS_DIRECTORY": "/opt/configuration/environments"
     }
 
+    if environment == "kolla":
+        envvars["CONFIG_DIR"] = f"/opt/configuration/environments/{environment}"
+        envvars["kolla_action"] = "deploy"
+
     cmdline = [
         f"-e @/opt/configuration/environments/{environment}/configuration.yml",
         f"-e @/opt/configuration/environments/{environment}/secrets.yml",
