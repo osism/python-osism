@@ -37,10 +37,6 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
 
     extravars = {}
 
-    if environment == "kolla":
-        extravars["CONFIG_DIR"] = f"/opt/configuration/environments/{environment}"
-        extravars["kolla_action"] = "deploy"
-
     cmdline = [
         "--vault-password-file /opt/configuration/environments/.vault_pass",
         f"-e @/opt/configuration/environments/{environment}/configuration.yml",
@@ -49,6 +45,13 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
         "-e @images.yml",
         "-e @configuration.yml"
     ]
+
+    if environment == "kolla":
+        extravars["CONFIG_DIR"] = f"/opt/configuration/environments/{environment}"
+        extravars["kolla_action"] = "deploy"
+
+    if environment == "ceph":
+        cmdline.append("--skip-tags=with_pkg")
 
     ansible_runner.interface.run(
         private_data_dir=f"/tmp/{request_id}",
