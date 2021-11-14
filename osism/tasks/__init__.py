@@ -35,9 +35,11 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
         "ENVIRONMENTS_DIRECTORY": "/opt/configuration/environments"
     }
 
+    extravars = {}
+
     if environment == "kolla":
-        envvars["CONFIG_DIR"] = f"/opt/configuration/environments/{environment}"
-        envvars["kolla_action"] = "deploy"
+        extravars["CONFIG_DIR"] = f"/opt/configuration/environments/{environment}"
+        extravars["kolla_action"] = "deploy"
 
     cmdline = [
         "--vault-password-file /opt/configuration/environments/.vault_pass",
@@ -55,5 +57,6 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
         inventory="/ansible/inventory",
         playbook=f"/ansible/{environment}-{playbook}.yml",
         envvars=envvars,
+        extravars=extravars,
         cmdline=" ".join(cmdline + arguments)
     )
