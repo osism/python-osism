@@ -32,7 +32,10 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
         "ANSIBLE_DIRECTORY": "/ansible",
         "ANSIBLE_INVENTORY": "/ansible/inventory",
         "CONFIGURATION_DIRECTORY": "/opt/configuration",
-        "ENVIRONMENTS_DIRECTORY": "/opt/configuration/environments"
+        "ENVIRONMENTS_DIRECTORY": "/opt/configuration/environments",
+        "ANSIBLE_CALLBACK_PLUGINS": "/usr/local/lib/python3.8/dist-packages/ara/plugins/callback",
+        "ANSIBLE_ACTION_PLUGINS": "/usr/local/lib/python3.8/dist-packages/ara/plugins/action",
+        "ANSIBLE_LOOKUP_PLUGINS": "/usr/local/lib/python3.8/dist-packages/ara/plugins/lookup"
     }
 
     extravars = {}
