@@ -40,6 +40,7 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
         envvars["kolla_action"] = "deploy"
 
     cmdline = [
+        "--vault-password-file /opt/configuration/environments/.vault_pass",
         f"-e @/opt/configuration/environments/{environment}/configuration.yml",
         f"-e @/opt/configuration/environments/{environment}/secrets.yml",
         "-e @secrets.yml",
