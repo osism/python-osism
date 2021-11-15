@@ -1,6 +1,7 @@
-import os
+# import os
+import subprocess
 
-import ansible_runner
+# import ansible_runner
 
 
 class Config:
@@ -23,6 +24,17 @@ class Config:
 
 
 def run_ansible_in_environment(request_id, environment, playbook, arguments):
+    # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
+    #       not working out of the box
+
+    if environment == "kolla":
+        p = subprocess.Popen(f"/run.sh deploy {playbook}", shell=True)
+    else:
+        p = subprocess.Popen(f"/run.sh {playbook}", shell=True)
+    p.wait()
+
+
+""" def run_ansible_in_environment(request_id, environment, playbook, arguments):
     os.mkdir(f"/tmp/{request_id}")
 
     # NOTE: check for existence of ansible.cfg inside the used environment
@@ -77,3 +89,4 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
         cmdline=" ".join(cmdline + arguments),
         settings=settings
     )
+ """
