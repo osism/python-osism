@@ -52,6 +52,7 @@ setup(
         ],
         'osism.commands': [
             'deploy = osism.deploy:Run',
+            'flower= osism.flower:Run',
             'worker= osism.worker:Run',
         ]
     },
