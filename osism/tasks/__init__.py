@@ -29,8 +29,10 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
 
     if environment == "kolla":
         p = subprocess.Popen(f"/run.sh deploy {playbook}", shell=True)
-    else:
+    elif environment == "ceph":
         p = subprocess.Popen(f"/run.sh {playbook}", shell=True)
+    else:
+        p = subprocess.Popen(f"/run-{environment}.sh {playbook}", shell=True)
     p.wait()
 
 
