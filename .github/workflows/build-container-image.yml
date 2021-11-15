@@ -1,0 +1,42 @@
+---
+name: Build container image
+
+"on":
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8-22 * * *"
+  push:
+    paths:
+      - .github/workflows/build-container-image.yml
+      - Containerfile
+      - osism/**
+      - requirements.txt
+      - scripts/**
+  pull_request:
+    paths:
+      - .github/workflows/build-container-image.yml
+      - Containerfile
+      - osism/**
+      - requirements.txt
+      - scripts/**
+
+jobs:
+  build-container-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker/setup-buildx-action@v1
+      - run: scripts/build.sh
+        env:
+          DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+          REPOSITORY: osism/osism
+      - run: |
+          scripts/push.sh
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          REPOSITORY: osism/osism
+        if: |
+          github.repository == 'osism/python-osism' &&
+          github.ref == 'refs/heads/main'
