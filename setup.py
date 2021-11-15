@@ -51,9 +51,7 @@ setup(
             'osism = osism.main:main'
         ],
         'osism.commands': [
-            'deploy = osism.ansible:Run',
-            'ceph = osism.ceph:Run',
-            'kolla = osism.kolla:Run',
+            'deploy = osism.deploy:Run',
             'worker= osism.worker:Run',
         ]
     },
