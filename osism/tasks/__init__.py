@@ -27,10 +27,14 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
 
     # NOTE: check for existence of ansible.cfg inside the used environment
 
+    # NOTE: https://docs.ansible.com/ansible/latest/reference_appendices/config.html
     envvars = {
         "ANSIBLE_CONFIG": "/opt/configuration/environments/ansible.cfg",
         "ANSIBLE_DIRECTORY": "/ansible",
         "ANSIBLE_INVENTORY": "/ansible/inventory",
+        "CACHE_PLUGIN": "redis",
+        "CACHE_PLUGIN_CONNECTION": "cache:6379:0",
+        "CACHE_PLUGIN_TIMEOUT": "86400",
         "CONFIGURATION_DIRECTORY": "/opt/configuration",
         "ENVIRONMENTS_DIRECTORY": "/opt/configuration/environments",
         "ANSIBLE_CALLBACK_PLUGINS": "/usr/local/lib/python3.8/dist-packages/ara/plugins/callback",
@@ -39,6 +43,11 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
     }
 
     extravars = {}
+
+    # NOTE: https://ansible-runner.readthedocs.io/en/stable/intro.html#env-settings-settings-for-runner-itself
+    settings = {
+        "fact_cache_type": "json"
+    }
 
     cmdline = [
         "--vault-password-file /opt/configuration/environments/.vault_pass",
@@ -56,6 +65,7 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
     if environment == "ceph":
         cmdline.append("--skip-tags=with_pkg")
 
+    # NOTE: https://github.com/ansible/ansible-runner/blob/devel/ansible_runner/interface.py
     ansible_runner.interface.run(
         private_data_dir=f"/tmp/{request_id}",
         ident=request_id,
@@ -64,5 +74,6 @@ def run_ansible_in_environment(request_id, environment, playbook, arguments):
         playbook=f"/ansible/{environment}-{playbook}.yml",
         envvars=envvars,
         extravars=extravars,
-        cmdline=" ".join(cmdline + arguments)
+        cmdline=" ".join(cmdline + arguments),
+        settings=settings
     )
