@@ -17,7 +17,7 @@ class Config:
         'osism.tasks.kolla.*': {
             'queue': 'kolla-ansible'
         },
-        'osism.tasks.osism.*': {
+        'osism.tasks.ansible.*': {
             'queue': 'osism-ansible'
         }
     }
