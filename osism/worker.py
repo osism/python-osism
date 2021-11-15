@@ -19,7 +19,7 @@ class Run(Command):
 
         # NOTE: use python interface in the future, works for the moment
         if tasks == "osism":
-            p = subprocess.Popen(f"celery -A osism.tasks.ansible worker --loglevel=INFO -Q {queue}", shell=True)
+            p = subprocess.Popen(f"celery -A osism.tasks.ansible worker -n {queue} --loglevel=INFO -Q {queue}", shell=True)
         else:
-            p = subprocess.Popen(f"celery -A osism.tasks.{tasks} worker --loglevel=INFO -Q {queue}", shell=True)
+            p = subprocess.Popen(f"celery -A osism.tasks.{tasks} worker -n {queue} --loglevel=INFO -Q {queue}", shell=True)
         p.wait()
