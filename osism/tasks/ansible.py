@@ -1,10 +1,10 @@
 from celery import Celery
-from celery.schedules import crontab
 
 from osism.tasks import Config, run_ansible_in_environment
 
 app = Celery('ansible')
 app.config_from_object(Config)
+
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):

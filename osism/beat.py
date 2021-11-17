@@ -9,5 +9,12 @@ class Run(Command):
     log = logging.getLogger(__name__)
 
     def take_action(self, parsed_args):
-        p = subprocess.Popen(f"celery -A osism.tasks.ansible --broker=redis://redis beat -s /tmp/celerybeat-schedule.db", shell=True)
-        p.wait()
+        ts = [
+            "osism.tasks.ansible",
+            "osism.tasks.ceph",
+            "osism.tasks.kolla"
+        ]
+        ps = [subprocess.Popen(f"celery -A {t} --broker=redis://redis beat -s /tmp/celerybeat-schedule-{t}.db", shell=True) for t in ts]
+
+        for p in ps:
+            p.wait()
