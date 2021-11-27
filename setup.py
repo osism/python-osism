@@ -54,6 +54,7 @@ setup(
             'beat = osism.beat:Run',
             'deploy = osism.deploy:Run',
             'flower = osism.flower:Run',
+            'reconciler = osism.reconciler:Run',
             'worker = osism.worker:Run'
         ]
     },

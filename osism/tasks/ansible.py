@@ -11,7 +11,7 @@ def setup_periodic_tasks(sender, **kwargs):
     sender.add_periodic_task(600.0, gather_facts.s(), expires=10)
 
 
-@app.task(bind=True, name="osism.tasks.ansible.run")
+@app.task(bind=True, name="osism.tasks.ansible.gather_facts")
 def gather_facts(self):
     run_ansible_in_environment(self.request.id, "generic", "facts", [])
 
