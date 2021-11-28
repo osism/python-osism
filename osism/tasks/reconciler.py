@@ -1,4 +1,5 @@
 from celery import Celery
+import subprocess
 
 from osism.tasks import Config
 
