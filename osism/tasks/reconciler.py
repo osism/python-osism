@@ -1,5 +1,7 @@
 from celery import Celery
 
+from osism.tasks import Config
+
 app = Celery('reconciler')
 app.config_from_object(Config)
 
