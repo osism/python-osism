@@ -19,6 +19,9 @@ class Config:
         },
         'osism.tasks.ansible.*': {
             'queue': 'osism-ansible'
+        },
+        'osism.tasks.reconciler.*': {
+            'queue': 'reconciler'
         }
     }
 
