@@ -1,6 +1,7 @@
 import logging
 
 from cliff.command import Command
+import redis
 
 from osism.tasks import ansible, ceph, kolla
 
@@ -261,12 +262,14 @@ class Run(Command):
         parser.add_argument('--environment', type=str, help='Environment that is to be used explicitly')
         parser.add_argument('arguments', nargs='*', help='Other arguments for Ansible')
         parser.add_argument('role', nargs=1, type=str, help='Role to be applied')
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
         return parser
 
     def take_action(self, parsed_args):
-        role = parsed_args.role[0]
         arguments = parsed_args.arguments
         environment = parsed_args.environment
+        role = parsed_args.role[0]
+        wait = not parsed_args.no_wait
 
         if not environment:
             try:
@@ -275,8 +278,19 @@ class Run(Command):
                 environment = "custom"
 
         if environment == "ceph":
-            ceph.run.delay(role, arguments)
+            t = ceph.run.delay(role, arguments)
         elif environment == "kolla":
-            kolla.run.delay(role, arguments)
+            t = kolla.run.delay(role, arguments)
         else:
-            ansible.run.delay(environment, role, arguments)
+            t = ansible.run.delay(environment, role, arguments)
+
+        if wait:
+            r = redis.Redis(host="redis", port="6379")
+            p = r.pubsub()
+
+            # NOTE: use task_id or request_id in future
+            p.subscribe(f"{environment}-{role}")
+
+            while True:
+                for m in p.listen():
+                    print(m)

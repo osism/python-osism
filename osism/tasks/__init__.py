@@ -1,7 +1,9 @@
 # import os
+import io
 import subprocess
 
 # import ansible_runner
+import redis
 
 
 class Config:
@@ -26,17 +28,25 @@ class Config:
     }
 
 
-def run_ansible_in_environment(request_id, environment, playbook, arguments):
+def run_ansible_in_environment(request_id, environment, role, arguments):
+    r = redis.Redis(host="redis", port="6379")
+
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
     #       not working out of the box
 
     if environment == "kolla":
-        p = subprocess.Popen(f"/run.sh deploy {playbook}", shell=True)
+        p = subprocess.Popen(f"/run.sh deploy {role}", shell=True, stdout=subprocess.PIPE)
     elif environment == "ceph":
-        p = subprocess.Popen(f"/run.sh {playbook}", shell=True)
+        p = subprocess.Popen(f"/run.sh {role}", shell=True, stdout=subprocess.PIPE)
     else:
-        p = subprocess.Popen(f"/run-{environment}.sh {playbook}", shell=True)
-    p.wait()
+        p = subprocess.Popen(f"/run-{environment}.sh {role}", shell=True, stdout=subprocess.PIPE)
+
+    for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+        # NOTE: use task_id or request_id in future
+        r.publish(f"{environment}-{role}", line)
+
+    # NOTE: use task_id or request_id in future
+    r.publish(f"{environment}-{role}", "quit")
 
 
 """ def run_ansible_in_environment(request_id, environment, playbook, arguments):
