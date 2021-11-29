@@ -278,9 +278,15 @@ class Run(Command):
                 environment = "custom"
 
         if environment == "ceph":
-            t = ceph.run.delay(role, arguments)
+            if role.startswith("ceph-"):
+                t = ceph.run.delay(role[5:], arguments)
+            else:
+                t = ceph.run.delay(role, arguments)
         elif environment == "kolla":
-            t = kolla.run.delay(role, arguments)
+            if role.startswith("kolla-"):
+                t = kolla.run.delay(role[6:], arguments)
+            else:
+                t = kolla.run.delay(role, arguments)
         else:
             t = ansible.run.delay(environment, role, arguments)
 
