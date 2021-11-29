@@ -293,4 +293,8 @@ class Run(Command):
 
             while True:
                 for m in p.listen():
-                    print(m)
+                    if type(m["data"]) == bytes:
+                        if m["data"].decode("utf-8") == "quit":
+                            # NOTE: Use better solution
+                            return
+                        print(m["data"].decode("utf-8"), end="")
