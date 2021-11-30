@@ -48,7 +48,8 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
         r.publish(f"{environment}-{role}", line)
 
     # NOTE: use task_id or request_id in future
-    r.publish(f"{environment}-{role}", "quit")
+    r.publish(f"{environment}-{role}", "QUIT")
+    r.close()
 
 
 """ def run_ansible_in_environment(request_id, environment, playbook, arguments):
