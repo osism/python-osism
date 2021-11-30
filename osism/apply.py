@@ -8,7 +8,7 @@ from osism.tasks import ansible, ceph, kolla
 # NOTE: Can be made more elegant later
 MAP_ROLE2ENVIRONMENT = {
 
-    ### GENERIC
+    # GENERIC
 
     "auditd": "generic",
     "backup-mariadb": "generic",
@@ -25,9 +25,7 @@ MAP_ROLE2ENVIRONMENT = {
     "cleanup-queues": "generic",
     "cleanup-sosreport": "generic",
     "cockpit": "generic",
-    "common": "generic",
     "configfs": "generic",
-    "configuration": "generic",
     "docker": "generic",
     "docker-compose": "generic",
     "dotfiles": "generic",
@@ -81,7 +79,7 @@ MAP_ROLE2ENVIRONMENT = {
     "wait-for-connection": "generic",
     "write-facts": "generic",
 
-    ### INFRASTRUCTURE
+    # INFRASTRUCTURE
 
     "adminer": "infrastructure",
     "boundary": "infrastructure",
@@ -94,7 +92,6 @@ MAP_ROLE2ENVIRONMENT = {
     "minikube": "infrastructure",
     "mirror-images": "infrastructure",
     "mirror": "infrastructure",
-    "netbox": "infrastructure",
     "nexus": "infrastructure",
     "openldap": "infrastructure",
     "openstackclient": "infrastructure",
@@ -106,19 +103,19 @@ MAP_ROLE2ENVIRONMENT = {
     "virtualbmc": "infrastructure",
     "zuul": "infrastructure",
 
-    ### MANAGER
+    # MANAGER
 
     "configuration": "manager",
     "manager": "manager",
     "netbox": "manager",
-    "network": "manager",
-    "operator": "manager",
+    "manager-network": "manager",
+    "manager-operator": "manager",
     "vault-import": "manager",
     "vault-init": "manager",
     "vault-seal": "manager",
     "vault-unseal": "manager",
 
-    ### CEPH
+    # CEPH
 
     "ceph-add-mon": "ceph",
     "ceph-ceph-keys": "ceph",
@@ -162,7 +159,7 @@ MAP_ROLE2ENVIRONMENT = {
     "ceph-take-over-existing-cluster": "ceph",
     "ceph-testbed": "ceph",
 
-    ### KOLLA
+    # KOLLA
 
     "aodh": "kolla",
     "barbican": "kolla",
@@ -172,7 +169,7 @@ MAP_ROLE2ENVIRONMENT = {
     "ceilometer": "kolla",
     "certificates": "kolla",
     "chrony-cleanup": "kolla",
-    "chrony": "kolla",
+    # "chrony": "kolla",
     "cinder": "kolla",
     "cloudkitty": "kolla",
     "collectd": "kolla",
@@ -274,21 +271,21 @@ class Run(Command):
         if not environment:
             try:
                 environment = MAP_ROLE2ENVIRONMENT[role]
-            except:
+            except:  # noqa: E722
                 environment = "custom"
 
         if environment == "ceph":
             if role.startswith("ceph-"):
-                t = ceph.run.delay(role[5:], arguments)
+                ceph.run.delay(role[5:], arguments)
             else:
-                t = ceph.run.delay(role, arguments)
+                ceph.run.delay(role, arguments)
         elif environment == "kolla":
             if role.startswith("kolla-"):
-                t = kolla.run.delay(role[6:], arguments)
+                kolla.run.delay(role[6:], arguments)
             else:
-                t = kolla.run.delay(role, arguments)
+                kolla.run.delay(role, arguments)
         else:
-            t = ansible.run.delay(environment, role, arguments)
+            ansible.run.delay(environment, role, arguments)
 
         if wait:
             r = redis.Redis(host="redis", port="6379")

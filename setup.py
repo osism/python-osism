@@ -52,7 +52,7 @@ setup(
         ],
         'osism.commands': [
             'beat = osism.beat:Run',
-            'deploy = osism.deploy:Run',
+            'apply= osism.apply:Run',
             'flower = osism.flower:Run',
             'reconciler = osism.reconciler:Run',
             'worker = osism.worker:Run'
