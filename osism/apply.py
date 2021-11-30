@@ -1,3 +1,4 @@
+import argparse
 import logging
 
 from cliff.command import Command
@@ -257,8 +258,8 @@ class Run(Command):
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument('--environment', type=str, help='Environment that is to be used explicitly')
-        parser.add_argument('arguments', nargs='*', help='Other arguments for Ansible')
         parser.add_argument('role', nargs=1, type=str, help='Role to be applied')
+        parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
         return parser
 
