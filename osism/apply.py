@@ -293,7 +293,10 @@ class Run(Command):
             p = r.pubsub()
 
             # NOTE: use task_id or request_id in future
-            p.subscribe(f"{environment}-{role}")
+            if environment == "ceph":
+                p.subscribe(f"{role}")
+            else:
+                p.subscribe(f"{environment}-{role}")
 
             while True:
                 for m in p.listen():
