@@ -37,11 +37,11 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
     #       not working out of the box
 
     if environment == "kolla":
-        p = subprocess.Popen(f"/run.sh deploy {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE)
+        p = subprocess.Popen(f"/run.sh deploy {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     elif environment == "ceph":
-        p = subprocess.Popen(f"/run.sh {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE)
+        p = subprocess.Popen(f"/run.sh {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     else:
-        p = subprocess.Popen(f"/run-{environment}.sh {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE)
+        p = subprocess.Popen(f"/run-{environment}.sh {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
