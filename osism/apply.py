@@ -9,6 +9,10 @@ from osism.tasks import ansible, ceph, kolla
 # NOTE: Can be made more elegant later
 MAP_ROLE2ENVIRONMENT = {
 
+    # MONITORING
+
+    "netdata": "monitoring",
+
     # GENERIC
 
     "auditd": "generic",
