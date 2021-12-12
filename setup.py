@@ -51,9 +51,10 @@ setup(
             'osism = osism.main:main'
         ],
         'osism.commands': [
-            'beat = osism.beat:Run',
             'apply= osism.apply:Run',
+            'beat = osism.beat:Run',
             'flower = osism.flower:Run',
+            'netbox = osism.netbox:Run',
             'reconciler = osism.reconciler:Run',
             'worker = osism.worker:Run'
         ]
