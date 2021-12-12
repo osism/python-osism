@@ -8,5 +8,7 @@ flower==1.0.0
 hiredis==2.0.0
 oslo.config==8.7.1
 oslo.service==2.7.0
+pottery==2.0.1
 pynetbox==6.4.0
 transitions==0.8.10
+watchdog==2.1.6

@@ -56,6 +56,7 @@ setup(
             'flower = osism.flower:Run',
             'netbox = osism.netbox:Run',
             'reconciler = osism.reconciler:Run',
+            'watchdog = osism.watchdog:Run',
             'worker = osism.worker:Run'
         ]
     },

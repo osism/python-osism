@@ -1,5 +1,9 @@
-from celery import Celery
 import subprocess
+import time
+
+from celery import Celery
+from pottery import Redlock
+import redis
 
 from osism.tasks import Config
 
@@ -15,11 +19,35 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
 def run(self):
-    p = subprocess.Popen("/run.sh", shell=True)
-    p.wait()
+    r = redis.Redis(host="redis", port="6379")
+    lock = Redlock(key="lock_osism_tasks_reconciler_run",
+                   masters={r},
+                   auto_release_time=60*1000)
+
+    if lock.acquire(blocking=False):
+
+        # NOTE: Synthetic pause to wait for synchronization
+        time.sleep(10)
+
+        p = subprocess.Popen("/run.sh", shell=True)
+        p.wait()
+
+    r.close()
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.sync_inventory_with_netbox")
 def sync_inventory_with_netbox(self):
-    p = subprocess.Popen("/sync-inventory-with-netbox.sh.sh", shell=True)
-    p.wait()
+    r = redis.Redis(host="redis", port="6379")
+    lock = Redlock(key="lock_osism_tasks_reconciler_sync_inventory_with_netbox",
+                   masters={r},
+                   auto_release_time=60*1000)
+
+    if lock.acquire(blocking=False):
+
+        # NOTE: Synthetic pause to wait for synchronization
+        time.sleep(10)
+
+        p = subprocess.Popen("/sync-inventory-with-netbox.sh", shell=True)
+        p.wait()
+
+    r.close()
