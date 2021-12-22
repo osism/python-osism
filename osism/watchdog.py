@@ -26,4 +26,5 @@ class Run(Command):
             observer.join()
 
     def on_any_event(self, event):
-        reconciler.run.delay()
+        pass
+        # reconciler.run.delay()

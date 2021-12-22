@@ -19,6 +19,9 @@ class Config:
         'osism.tasks.kolla.*': {
             'queue': 'kolla-ansible'
         },
+        'osism.tasks.netbox.*': {
+            'queue': 'netbox'
+        },
         'osism.tasks.ansible.*': {
             'queue': 'osism-ansible'
         },
