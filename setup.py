@@ -51,7 +51,7 @@ setup(
             'osism = osism.main:main'
         ],
         'osism.commands': [
-            'apply= osism.apply:Run',
+            'apply = osism.apply:Run',
             'beat = osism.beat:Run',
             'flower = osism.flower:Run',
             'netbox = osism.netbox:Run',
