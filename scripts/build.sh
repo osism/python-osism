@@ -21,9 +21,20 @@ if [[ -n $DOCKER_REGISTRY ]]; then
 fi
 
 buildah build-using-dockerfile \
+    --target osism \
     --format docker \
     --build-arg "VERSION=$VERSION" \
     --tag "$REPOSITORY:$REVISION" \
+    --label "org.opencontainers.image.created=$CREATED" \
+    --label "org.opencontainers.image.revision=$REVISION" \
+    --label "org.opencontainers.image.version=$VERSION" \
+    $BUILD_OPTS .
+
+buildah build-using-dockerfile \
+    --target osism-netbox \
+    --format docker \
+    --build-arg "VERSION=$VERSION" \
+    --tag "$REPOSITORY-netbox:$REVISION" \
     --label "org.opencontainers.image.created=$CREATED" \
     --label "org.opencontainers.image.revision=$REVISION" \
     --label "org.opencontainers.image.version=$VERSION" \

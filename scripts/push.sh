@@ -19,3 +19,6 @@ buildah login --password $DOCKER_PASSWORD --username $DOCKER_USERNAME $DOCKER_RE
 
 buildah tag "$REPOSITORY:$REVISION" "$REPOSITORY:$VERSION"
 buildah push "$REPOSITORY:$VERSION"
+
+buildah tag "$REPOSITORY:$REVISION" "$REPOSITORY-netbox:$VERSION"
+buildah push "$REPOSITORY-netbox:$VERSION"
