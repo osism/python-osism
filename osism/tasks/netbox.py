@@ -70,3 +70,21 @@ def disable(self, name):
     # NOTE: use task_id or request_id in future
     r.publish(f"netbox-disable-{name}", "QUIT")
     r.close()
+
+
+@app.task(bind=True, name="osism.tasks.netbox.generate")
+def generate(self, name, template=None):
+    r = redis.Redis(host="redis", port="6379")
+
+    if template:
+        p = subprocess.Popen(f"python3 /generate/main.py --template {template}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    else:
+        p = subprocess.Popen("python3 /generate/main.py", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+        # NOTE: use task_id or request_id in future
+        r.publish(f"netbox-generate-{name}", line)
+
+    # NOTE: use task_id or request_id in future
+    r.publish(f"netbox-generate-{name}", "QUIT")
+    r.close()

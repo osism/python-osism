@@ -38,6 +38,7 @@ RUN apt-get update \
     && mkdir -p \
       /connect \
       /disable \
+      /generate \
       /import \
     && git clone https://github.com/netbox-community/devicetype-library /devicetype-library \
     && apt-get remove -y git \
@@ -46,4 +47,5 @@ RUN apt-get update \
 
 COPY files/connect/* /connect
 COPY files/disable/* /disable
+COPY files/generate/* /generate
 COPY files/import/* /import
