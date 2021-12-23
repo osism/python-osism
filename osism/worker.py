@@ -15,7 +15,11 @@ class Run(Command):
 
     def take_action(self, parsed_args):
         queue = parsed_args.type[0]
-        tasks = queue[:-8]
+
+        if queue in ["netbox"]:
+            tasks = queue
+        else:
+            tasks = queue[:-8]
 
         # NOTE: use python interface in the future, works for the moment
         if tasks == "osism":

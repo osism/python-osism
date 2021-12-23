@@ -1,6 +1,4 @@
 import os
-from dotenv import load_dotenv
-load_dotenv()
 
 # Read secret from file
 def read_secret(secret_name):

@@ -4,7 +4,7 @@ import logging
 from cliff.command import Command
 import redis
 
-from osism.tasks import ansible, ceph, kolla, reconciler
+from osism.tasks import ansible, ceph, kolla
 
 # NOTE: Can be made more elegant later
 MAP_ROLE2ENVIRONMENT = {
@@ -254,11 +254,6 @@ MAP_ROLE2ENVIRONMENT = {
     "watcher": "kolla",
     "zookeeper": "kolla",
     "zun": "kolla",
-
-
-    # NETBOX
-
-    "netbox-init": "netbox",
 }
 
 
@@ -291,11 +286,6 @@ class Run(Command):
                 ceph.run.delay(role[5:], arguments)
             else:
                 ceph.run.delay(role, arguments)
-        elif environment == "netbox":
-            if role == "netbox-init":
-                ansible.run.delay("netbox", "init", arguments)
-            elif role == "netbox-sync":
-                reconciler.sync_inventory_with_netbox.delay()
         elif environment == "kolla":
             if role.startswith("kolla-"):
                 kolla.run.delay(role[6:], arguments)

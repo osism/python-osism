@@ -35,10 +35,11 @@ FROM osism as osism-netbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       git \
-    && mkdir -p /import \
+    && mkdir -p /import /connect \
     && git clone https://github.com/netbox-community/devicetype-library /devicetype-library \
     && apt-get remove -y git \
     && apt-get clean \
     && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-COPY files/* /import
+COPY files/connect/* /connect
+COPY files/import/* /import

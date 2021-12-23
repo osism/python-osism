@@ -1,14 +1,172 @@
+import argparse
 import logging
-import subprocess
 
 from cliff.command import Command
+import redis
+
+from osism.tasks import ansible, netbox
 
 
 class Run(Command):
 
     log = logging.getLogger(__name__)
 
+    def get_parser(self, prog_name):
+        parser = super(Run, self).get_parser(prog_name)
+        parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
+        return parser
+
     def take_action(self, parsed_args):
-        # NOTE: use python interface in the future, works for the moment
-        p = subprocess.Popen("celery -A osism.tasks.netbox worker -n netbox --loglevel=INFO -Q netbox", shell=True)
-        p.wait()
+        # arguments = parsed_args.arguments
+        # wait = not parsed_args.no_wait
+        pass
+        # if action == "init":
+        #     ansible.run.delay("netbox", "init", arguments)
+        # elif action == "sync":
+        #     reconciler.sync_inventory_with_netbox.delay()
+
+
+class Init(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Init, self).get_parser(prog_name)
+        parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
+        return parser
+
+    def take_action(self, parsed_args):
+        arguments = parsed_args.arguments
+        wait = not parsed_args.no_wait
+
+        ansible.run.delay("netbox", "init", arguments)
+
+        if wait:
+            r = redis.Redis(host="redis", port="6379")
+            p = r.pubsub()
+
+            # NOTE: use task_id or request_id in future
+            p.subscribe("netbox-init")
+
+            while True:
+                for m in p.listen():
+                    if type(m["data"]) == bytes:
+                        if m["data"].decode("utf-8") == "QUIT":
+                            r.close()
+                            # NOTE: Use better solution
+                            return
+                        print(m["data"].decode("utf-8"), end="")
+
+
+class Import(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Import, self).get_parser(prog_name)
+        parser.add_argument('--vendors', help='Vendors from which all available device types are to be imported', required=False)
+        parser.add_argument(
+            '--no-library',
+            default=False,
+            help='Do not import device types from the device type library, use the config repository',
+            action='store_true'
+        )
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
+        return parser
+
+    def take_action(self, parsed_args):
+        vendors = parsed_args.vendors
+        wait = not parsed_args.no_wait
+        library = not parsed_args.no_library
+
+        netbox.import_device_types.delay(vendors, library)
+
+        if wait:
+            r = redis.Redis(host="redis", port="6379")
+            p = r.pubsub()
+
+            # NOTE: use task_id or request_id in future
+            p.subscribe("netbox-import-device-types")
+
+            while True:
+                for m in p.listen():
+                    if type(m["data"]) == bytes:
+                        if m["data"].decode("utf-8") == "QUIT":
+                            r.close()
+                            # NOTE: Use better solution
+                            return
+                        print(m["data"].decode("utf-8"), end="")
+
+
+class Manage(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Manage, self).get_parser(prog_name)
+        parser.add_argument('--type', type=str, help='Type of the resource to manage', required=False, default='rack')
+        parser.add_argument('name', nargs=1, type=str, help='Name of the resource to manage')
+        parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
+        return parser
+
+    def take_action(self, parsed_args):
+        arguments = parsed_args.arguments
+        name = parsed_args.name[0]
+        wait = not parsed_args.no_wait
+        type_of_resource = parsed_args.type
+
+        ansible.run.delay("netbox", f"{type_of_resource}-{name}", arguments)
+
+        if wait:
+            r = redis.Redis(host="redis", port="6379")
+            p = r.pubsub()
+
+            # NOTE: use task_id or request_id in future
+            p.subscribe(f"netbox-{type_of_resource}-{name}")
+
+            while True:
+                for m in p.listen():
+                    if type(m["data"]) == bytes:
+                        if m["data"].decode("utf-8") == "QUIT":
+                            r.close()
+                            # NOTE: Use better solution
+                            return
+                        print(m["data"].decode("utf-8"), end="")
+
+
+class Connect(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Connect, self).get_parser(prog_name)
+        parser.add_argument('--type', type=str, help='Type of the resource to connect', required=False, default='rack')
+        parser.add_argument('name', nargs=1, type=str, help='Name of the resource to connect')
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
+        return parser
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name[0]
+        wait = not parsed_args.no_wait
+        type_of_resource = parsed_args.type
+
+        netbox.connect.delay(name, type_of_resource)
+
+        if wait:
+            r = redis.Redis(host="redis", port="6379")
+            p = r.pubsub()
+
+            # NOTE: use task_id or request_id in future
+            p.subscribe(f"netbox-connect-{type_of_resource}-{name}")
+
+            while True:
+                for m in p.listen():
+                    if type(m["data"]) == bytes:
+                        if m["data"].decode("utf-8") == "QUIT":
+                            r.close()
+                            # NOTE: Use better solution
+                            return
+                        print(m["data"].decode("utf-8"), end="")

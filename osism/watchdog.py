@@ -5,7 +5,7 @@ from cliff.command import Command
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-from osism.tasks import reconciler
+# from osism.tasks import reconciler
 
 
 class Run(Command):

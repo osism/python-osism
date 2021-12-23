@@ -55,6 +55,10 @@ setup(
             'beat = osism.beat:Run',
             'flower = osism.flower:Run',
             'netbox = osism.netbox:Run',
+            'netbox connect = osism.netbox:Connect',
+            'netbox import = osism.netbox:Import',
+            'netbox init = osism.netbox:Init',
+            'netbox manage = osism.netbox:Manage',
             'reconciler = osism.reconciler:Run',
             'watchdog = osism.watchdog:Run',
             'worker = osism.worker:Run'
