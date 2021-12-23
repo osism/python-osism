@@ -56,3 +56,17 @@ def connect(self, name, type_of_resource):
     # NOTE: use task_id or request_id in future
     r.publish(f"netbox-connect-{type_of_resource}-{name}", "QUIT")
     r.close()
+
+
+@app.task(bind=True, name="osism.tasks.netbox.disable")
+def disable(self, name):
+    r = redis.Redis(host="redis", port="6379")
+    p = subprocess.Popen("python3 /disable/main.py", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+        # NOTE: use task_id or request_id in future
+        r.publish(f"netbox-disable-{name}", line)
+
+    # NOTE: use task_id or request_id in future
+    r.publish(f"netbox-disable-{name}", "QUIT")
+    r.close()

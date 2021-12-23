@@ -56,6 +56,7 @@ setup(
             'flower = osism.flower:Run',
             'netbox = osism.netbox:Run',
             'netbox connect = osism.netbox:Connect',
+            'netbox disable = osism.netbox:Disable',
             'netbox import = osism.netbox:Import',
             'netbox init = osism.netbox:Init',
             'netbox manage = osism.netbox:Manage',
