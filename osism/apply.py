@@ -48,6 +48,7 @@ MAP_ROLE2ENVIRONMENT = {
     "ipmitool": "generic",
     "journald": "generic",
     "kernel-modules": "generic",
+    "known-hosts": "generic",
     "kompose": "generic",
     "lldpd": "generic",
     "lynis": "generic",
