@@ -4,13 +4,21 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-ansible-runner = "==2.0.3"
-celery = {version = "==5.2.0", extras = ["redis"]}
+Jinja2 = "==3.0.3"
+PyYAML = "==6.0"
+ansible-runner = "==2.1.1"
+celery = {version = "==5.2.2", extras = ["redis"]}
+cliff = "==3.10.0"
+deepdiff = "==5.7.0"
+flower = "==1.0.0"
+hiredis = "==2.0.0"
 "oslo.config" = "==8.7.1"
 "oslo.service" = "==2.7.0"
-Jinja2 = "==3.0.2"
-PyYAML = "==6.0"
-cliff = "==3.9.0"
+pottery = "==1.4.7"
+pynetbox = "==6.4.1"
+sushy = "==4.0.0"
+transitions = "==0.8.10"
+watchdog = "==2.1.6"
 
 [dev-packages]
 
