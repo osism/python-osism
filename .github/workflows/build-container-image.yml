@@ -12,6 +12,8 @@ name: Build container image
       - osism/**
       - requirements.txt
       - scripts/**
+    branches:
+      - main
   pull_request:
     paths:
       - .github/workflows/build-container-image.yml
