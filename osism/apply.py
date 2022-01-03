@@ -21,6 +21,7 @@ MAP_ROLE2ENVIRONMENT = {
     "check-reboot": "generic",
     "chrony": "generic",
     "chrony-force-sync": "generic",
+    "clamav": "generic",
     "cleanup": "generic",
     "cleanup-backup-mariadb": "generic",
     "cleanup-databases": "generic",
