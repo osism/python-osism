@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from setuptools import find_packages
 from setuptools import setup
 
@@ -19,8 +17,11 @@ setup(
     description='OSISM manager interface',
     long_description=long_description,
 
-    author='Christian Berendt',
-    author_email='berendt@osism.tech',
+    author='OSISM GmbH',
+    author_email='info@osism.tech',
+
+    maintainer='OSISM GmbH',
+    maintainer_email='info@osism.tech',
 
     url='https://github.com/osism/python-osism',
     download_url='https://github.com/osism/python-osism/tarball/main',
