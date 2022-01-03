@@ -4,7 +4,7 @@ import logging
 from cliff.command import Command
 import redis
 
-from osism.tasks import ansible, netbox
+from osism.tasks import ansible, netbox, reconciler
 
 
 class Run(Command):
@@ -18,13 +18,38 @@ class Run(Command):
         return parser
 
     def take_action(self, parsed_args):
-        # arguments = parsed_args.arguments
-        # wait = not parsed_args.no_wait
         pass
-        # if action == "init":
-        #     ansible.run.delay("netbox", "init", arguments)
-        # elif action == "sync":
-        #     reconciler.sync_inventory_with_netbox.delay()
+
+
+class Sync(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Sync, self).get_parser(prog_name)
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the sync has been completed', action='store_true')
+        return parser
+
+    def take_action(self, parsed_args):
+        wait = not parsed_args.no_wait
+
+        reconciler.sync_inventory_with_netbox.delay()
+
+        if wait:
+            r = redis.Redis(host="redis", port="6379")
+            p = r.pubsub()
+
+            # NOTE: use task_id or request_id in future
+            p.subscribe("netbox-sync-inventory-with-netbox")
+
+            while True:
+                for m in p.listen():
+                    if type(m["data"]) == bytes:
+                        if m["data"].decode("utf-8") == "QUIT":
+                            r.close()
+                            # NOTE: Use better solution
+                            return
+                        print(m["data"].decode("utf-8"), end="")
 
 
 class Init(Command):

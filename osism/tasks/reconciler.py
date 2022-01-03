@@ -1,3 +1,4 @@
+import io
 import subprocess
 import time
 
@@ -14,7 +15,7 @@ app.config_from_object(Config)
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
     sender.add_periodic_task(600.0, run.s(), expires=10)
-    # sender.add_periodic_task(600.0, sync_inventory_with_netbox.s(), expires=10)
+    sender.add_periodic_task(600.0, sync_inventory_with_netbox.s(), expires=10)
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
@@ -29,7 +30,7 @@ def run(self):
         # NOTE: Synthetic pause to wait for synchronization
         time.sleep(10)
 
-        p = subprocess.Popen("/run.sh", shell=True)
+        p = subprocess.Popen("/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         p.wait()
 
     r.close()
@@ -47,7 +48,13 @@ def sync_inventory_with_netbox(self):
         # NOTE: Synthetic pause to wait for synchronization
         time.sleep(10)
 
-        p = subprocess.Popen("/sync-inventory-with-netbox.sh", shell=True)
-        p.wait()
+        p = subprocess.Popen("/sync-inventory-with-netbox.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+            # NOTE: use task_id or request_id in future
+            r.publish("netbox-sync-inventory-with-netbox", line)
+
+        # NOTE: use task_id or request_id in future
+        r.publish("netbox-sync-inventory-with-netbox", "QUIT")
 
     r.close()
