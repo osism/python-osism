@@ -205,6 +205,7 @@ MAP_ROLE2ENVIRONMENT = {
     "keystone": "kolla",
     "kibana": "kolla",
     "kuryr": "kolla",
+    "loadbalancer": "kolla",
     "magnum": "kolla",
     "manila": "kolla",
     "mariadb-dynamic-rows": "kolla",
