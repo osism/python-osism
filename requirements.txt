@@ -4,6 +4,7 @@ ansible-runner==2.1.1
 celery[redis]==5.2.2
 cliff==3.10.0
 deepdiff==5.7.0
+fastapi==0.71.0
 flower==1.0.0
 hiredis==2.0.0
 oslo.config==8.7.1
@@ -12,4 +13,5 @@ pottery==1.4.7
 pynetbox==6.4.1
 sushy==4.0.0
 transitions==0.8.10
+uvicorn[standard]==0.16.0
 watchdog==2.1.6
