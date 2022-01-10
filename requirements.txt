@@ -12,6 +12,7 @@ oslo.service==2.7.0
 pottery==1.4.7
 pynetbox==6.4.1
 sushy==4.0.0
+tabulate==0.8.9
 transitions==0.8.10
 uvicorn[standard]==0.16.0
 watchdog==2.1.6

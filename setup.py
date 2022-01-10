@@ -64,6 +64,7 @@ setup(
             'netbox manage = osism.netbox:Manage',
             'netbox sync = osism.netbox:Sync',
             'reconciler = osism.reconciler:Run',
+            'status = osism.status:Run',
             'watchdog = osism.watchdog:Run',
             'worker = osism.worker:Run'
         ]

@@ -12,7 +12,7 @@ def read_secret(secret_name):
 
 NETBOX_URL = os.getenv("NETBOX_API")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))
-IGNORE_SSL_ERRORS = (os.getenv("IGNORE_SSL_ERRORS", "False") == "True")
+IGNORE_SSL_ERRORS = (os.getenv("IGNORE_SSL_ERRORS", "True") == "True")
 
 BASE_PATH = os.getenv("BASE_PATH", "/devicetype-library/device-types/")
 

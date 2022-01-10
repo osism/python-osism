@@ -12,7 +12,7 @@ MAP_ROLE2ENVIRONMENT = {
     # MONITORING
 
     "netdata": "monitoring",
-    "opentack-health-monitor": "monitoring",
+    "openstack-health-monitor": "monitoring",
 
     # GENERIC
 
@@ -93,6 +93,7 @@ MAP_ROLE2ENVIRONMENT = {
     "adminer": "infrastructure",
     "boundary": "infrastructure",
     "cephclient": "infrastructure",
+    "dnsdist": "infrastructure",
     "helper": "infrastructure",
     "homer": "infrastructure",
     "jenkins": "infrastructure",
