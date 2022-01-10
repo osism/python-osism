@@ -12,6 +12,7 @@ MAP_ROLE2ENVIRONMENT = {
     # MONITORING
 
     "netdata": "monitoring",
+    "opentack-health-monitor": "monitoring",
 
     # GENERIC
 
