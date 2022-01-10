@@ -7,6 +7,7 @@ app.add_middleware(
     CORSMiddleware
 )
 
+
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
