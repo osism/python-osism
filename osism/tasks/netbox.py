@@ -45,23 +45,23 @@ def import_device_types(self, vendors, library=False):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.connect")
-def connect(self, name, type_of_resource):
+def connect(self, name):
     r = redis.Redis(host="redis", port="6379")
-    p = subprocess.Popen("python3 /connect/main.py", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    p = subprocess.Popen(f"python3 /connect/main.py --collection {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
-        r.publish(f"netbox-connect-{type_of_resource}-{name}", line)
+        r.publish(f"netbox-connect-{name}", line)
 
     # NOTE: use task_id or request_id in future
-    r.publish(f"netbox-connect-{type_of_resource}-{name}", "QUIT")
+    r.publish(f"netbox-connect-{name}", "QUIT")
     r.close()
 
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")
 def disable(self, name):
     r = redis.Redis(host="redis", port="6379")
-    p = subprocess.Popen("python3 /disable/main.py", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    p = subprocess.Popen(f"python3 /disable/main.py {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future

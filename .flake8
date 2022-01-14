@@ -1,4 +1,4 @@
 [flake8]
-max-line-length = 150
+max-line-length = 200
 exclude =
     files

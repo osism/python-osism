@@ -168,7 +168,6 @@ class Connect(Command):
 
     def get_parser(self, prog_name):
         parser = super(Connect, self).get_parser(prog_name)
-        parser.add_argument('--type', type=str, help='Type of the resource to connect', required=False, default='rack')
         parser.add_argument('name', nargs=1, type=str, help='Name of the resource to connect')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
         return parser
@@ -176,16 +175,15 @@ class Connect(Command):
     def take_action(self, parsed_args):
         name = parsed_args.name[0]
         wait = not parsed_args.no_wait
-        type_of_resource = parsed_args.type
 
-        netbox.connect.delay(name, type_of_resource)
+        netbox.connect.delay(name)
 
         if wait:
             r = redis.Redis(host="redis", port="6379")
             p = r.pubsub()
 
             # NOTE: use task_id or request_id in future
-            p.subscribe(f"netbox-connect-{type_of_resource}-{name}")
+            p.subscribe(f"netbox-connect-{name}")
 
             while True:
                 for m in p.listen():

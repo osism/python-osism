@@ -2,11 +2,13 @@
 
 from collections import Counter
 from datetime import datetime
-import yaml
-import pynetbox
-import glob
 import argparse
+import glob
 import os
+
+import pynetbox
+import yaml
+
 import settings
 
 
