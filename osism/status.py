@@ -6,6 +6,29 @@ from tabulate import tabulate
 
 from osism.tasks import Config
 
+# https://stackoverflow.com/questions/4048651/python-function-to-convert-seconds-into-minutes-hours-and-days/4048773
+
+INTERVALS = (
+    ('weeks', 604800),  # 60 * 60 * 24 * 7
+    ('days', 86400),    # 60 * 60 * 24
+    ('hours', 3600),    # 60 * 60
+    ('minutes', 60),
+    ('seconds', 1),
+)
+
+
+def display_time(seconds, granularity=2):
+    result = []
+
+    for name, count in INTERVALS:
+        value = seconds // count
+        if value:
+            seconds -= value * count
+            if value == 1:
+                name = name.rstrip('s')
+            result.append("{} {}".format(value, name))
+    return ', '.join(result[:granularity])
+
 
 class Run(Command):
 
@@ -26,10 +49,10 @@ class Run(Command):
             table = []
             i = app.control.inspect()
             s = i.stats()
-            for node, nodestats in s.items():
+            for node in sorted(s.keys()):
                 table.append([
                     node,
-                    s["uptime"]
+                    display_time(s[node]["uptime"])
                 ])
 
             print(tabulate(table, headers=["Name", "Uptime"], tablefmt="psql"))
