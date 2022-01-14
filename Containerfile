@@ -18,6 +18,7 @@ FROM python:${PYTHON_VERSION} as osism
 
 COPY --from=builder /wheels /wheels
 COPY . /src
+COPY files/change.sh /change.sh
 
 RUN python3 -m pip --no-cache-dir install -U 'pip==21.3.1' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
