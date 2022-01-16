@@ -270,21 +270,27 @@ class Deploy(Command):
     def get_parser(self, prog_name):
         parser = super(Deploy, self).get_parser(prog_name)
         parser.add_argument('name', nargs=1, type=str, help='Name of the device to check for unused interfaces')
+        parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
         return parser
 
     def take_action(self, parsed_args):
         name = parsed_args.name[0]
+        arguments = parsed_args.arguments
         wait = not parsed_args.no_wait
 
-        netbox.deploy.delay(name)
+        arguments.append(f"-e device={name}")
+        arguments.append(f"-l {name}")
+
+        # netbox.deploy.delay(name)
+        ansible.run.delay("netbox", "deploy", arguments)
 
         if wait:
             r = redis.Redis(host="redis", port="6379")
             p = r.pubsub()
 
             # NOTE: use task_id or request_id in future
-            p.subscribe(f"netbox-deploy-{name}")
+            p.subscribe("netbox-deploy")
 
             while True:
                 for m in p.listen():
