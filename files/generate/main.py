@@ -95,15 +95,24 @@ for interface in interfaces:
         interfaces_ethernet.append(interface)
 
 # Port-Channel10 + Vlan4094 are always used as MLAG
-mlag = nb.dcim.interfaces.get(device=device, name="Port-Channel10")
-mlag_vlan = nb.dcim.interfaces.get(device=device, name="Vlan4094")
-mlag_address = nb.ipam.ip_addresses.get(device=device, interface="Vlan4094")
+try:
+    mlag = nb.dcim.interfaces.get(device=device, name="Port-Channel10")
+    mlag_vlan = nb.dcim.interfaces.get(device=device, name="Vlan4094")
+    mlag_address = nb.ipam.ip_addresses.get(device=device, interface="Vlan4094")
+except:
+    mlag = None
+    mlag_vlan = None
+    mlag_address = None
 
 # NOTE: only work with /30
-x = list(ipaddress.ip_interface(mlag_address.address).network.hosts())
-x.remove(ipaddress.ip_interface(mlag_address.address).ip)
+try:
+    x = list(ipaddress.ip_interface(mlag_address.address).network.hosts())
+    x.remove(ipaddress.ip_interface(mlag_address.address).ip)
+    mlag_peer_address = x[0]
+except:
+    mlag_peer_address = None
 
-y = device.name.split("-")[1]
+mlag_domain_id = device.name.split("-")[1]
 
 # repo = git.Repo()
 
@@ -119,8 +128,8 @@ data = {
     "vlans_as_string": vlans_as_string,
     "mlag": mlag,
     "mlag_vlan": mlag_vlan,
-    "mlag_peer_address": x[0],
-    "mlag_domain_id": y,
+    "mlag_peer_address": mlag_peer_address,
+    "mlag_domain_id": mlag_domain_id,
     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     # "repo": repo,
     "device_type": device.device_type.model,

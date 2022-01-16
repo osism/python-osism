@@ -77,9 +77,9 @@ def generate(self, name, template=None):
     r = redis.Redis(host="redis", port="6379")
 
     if template:
-        p = subprocess.Popen(f"python3 /generate/main.py --template {template}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(f"python3 /generate/main.py --template {template} --device {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     else:
-        p = subprocess.Popen("python3 /generate/main.py", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(f"python3 /generate/main.py --device {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
