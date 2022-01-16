@@ -48,6 +48,7 @@ PROJECT_NAME = 'build'
 CONF = cfg.CONF
 opts = [
     cfg.BoolOpt('debug', help='Enable debug logging', default=False),
+    cfg.BoolOpt('stdout', help='Print configuration on stdout', default=False),
     cfg.StrOpt('device', help='Device', required=True),
     cfg.StrOpt('template', help='Template', required=False),
 ]
@@ -140,4 +141,9 @@ loader = jinja2.FileSystemLoader(searchpath="/netbox/templates/")
 environment = jinja2.Environment(loader=loader)
 template = environment.get_template(template)
 result = template.render(data)
-print(os.linesep.join([s for s in result.splitlines() if s]))
+
+with open(f"/state/{device.name}.cfg.j2", "w+") as fp:
+    fp.write(os.linesep.join([s for s in result.splitlines() if s]))
+
+if CONF.stdout:
+    print(os.linesep.join([s for s in result.splitlines() if s]))
