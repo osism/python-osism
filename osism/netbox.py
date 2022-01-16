@@ -66,14 +66,14 @@ class Init(Command):
         arguments = parsed_args.arguments
         wait = not parsed_args.no_wait
 
-        ansible.run.delay("netbox", "init", arguments)
+        ansible.run.delay("netbox-local", "init", arguments)
 
         if wait:
             r = redis.Redis(host="redis", port="6379")
             p = r.pubsub()
 
             # NOTE: use task_id or request_id in future
-            p.subscribe("netbox-init")
+            p.subscribe("netbox-local-init")
 
             while True:
                 for m in p.listen():
@@ -143,14 +143,14 @@ class Manage(Command):
         wait = not parsed_args.no_wait
         type_of_resource = parsed_args.type
 
-        ansible.run.delay("netbox", f"{type_of_resource}-{name}", arguments)
+        ansible.run.delay("netbox-local", f"{type_of_resource}-{name}", arguments)
 
         if wait:
             r = redis.Redis(host="redis", port="6379")
             p = r.pubsub()
 
             # NOTE: use task_id or request_id in future
-            p.subscribe(f"netbox-{type_of_resource}-{name}")
+            p.subscribe(f"netbox-local-{type_of_resource}-{name}")
 
             while True:
                 for m in p.listen():
