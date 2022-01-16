@@ -261,3 +261,36 @@ class Generate(Command):
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
+
+
+class Deploy(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Deploy, self).get_parser(prog_name)
+        parser.add_argument('name', nargs=1, type=str, help='Name of the device to check for unused interfaces')
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
+        return parser
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name[0]
+        wait = not parsed_args.no_wait
+
+        netbox.deploy.delay(name)
+
+        if wait:
+            r = redis.Redis(host="redis", port="6379")
+            p = r.pubsub()
+
+            # NOTE: use task_id or request_id in future
+            p.subscribe(f"netbox-deploy-{name}")
+
+            while True:
+                for m in p.listen():
+                    if type(m["data"]) == bytes:
+                        if m["data"].decode("utf-8") == "QUIT":
+                            r.close()
+                            # NOTE: Use better solution
+                            return
+                        print(m["data"].decode("utf-8"), end="")

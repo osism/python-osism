@@ -8,6 +8,7 @@ deepdiff==5.7.0
 fastapi==0.71.0
 flower==1.0.0
 hiredis==2.0.0
+netmiko==3.4.0
 oslo.config==8.7.1
 oslo.service==2.7.0
 pottery==1.4.7

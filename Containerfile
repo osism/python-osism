@@ -38,6 +38,7 @@ RUN apt-get update \
       git \
     && mkdir -p \
       /connect \
+      /deploy \
       /disable \
       /generate \
       /import \
@@ -47,6 +48,7 @@ RUN apt-get update \
     && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY files/connect/* /connect
+COPY files/deploy/* /deploy
 COPY files/disable/* /disable
 COPY files/generate/* /generate
 COPY files/import/* /import

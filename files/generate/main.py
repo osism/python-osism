@@ -44,7 +44,7 @@ def vlans_as_string(untagged_vlan, tagged_vlans):
         vlans = vlans + [str(untagged_vlan.vid)]
     return ",".join(sorted(vlans))
 
-PROJECT_NAME = 'build'
+PROJECT_NAME = 'generate'
 CONF = cfg.CONF
 opts = [
     cfg.BoolOpt('debug', help='Enable debug logging', default=False),
