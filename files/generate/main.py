@@ -5,7 +5,7 @@ import glob
 import os
 import sys
 
-import git
+# import git
 import jinja2
 from oslo_config import cfg
 import pynetbox
@@ -105,7 +105,7 @@ x.remove(ipaddress.ip_interface(mlag_address.address).ip)
 
 y = device.name.split("-")[1]
 
-repo = git.Repo()
+# repo = git.Repo()
 
 data = {
     "hostname": device.name,
@@ -122,7 +122,7 @@ data = {
     "mlag_peer_address": x[0],
     "mlag_domain_id": y,
     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    "repo": repo,
+    # "repo": repo,
     "device_type": device.device_type.model,
     "device_manufacturer": device.device_type.manufacturer.name
 }
