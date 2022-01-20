@@ -5,7 +5,7 @@ import glob
 import os
 import sys
 
-# import git
+import git
 import jinja2
 from oslo_config import cfg
 import pynetbox
@@ -115,7 +115,9 @@ except:
 
 mlag_domain_id = device.name.split("-")[1]
 
-# repo = git.Repo()
+repo = git.Repo.init(path="/state")
+repo.config_writer().set_value("user", "name", "Netbox Generator").release()
+repo.config_writer().set_value("user", "email", "netbox-generator@reconciler.local").release()
 
 data = {
     "hostname": device.name,
@@ -132,7 +134,6 @@ data = {
     "mlag_peer_address": mlag_peer_address,
     "mlag_domain_id": mlag_domain_id,
     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    # "repo": repo,
     "device_type": device.device_type.model,
     "device_manufacturer": device.device_type.manufacturer.name
 }
@@ -144,6 +145,9 @@ result = template.render(data)
 
 with open(f"/state/{device.name}.cfg.j2", "w+") as fp:
     fp.write(os.linesep.join([s for s in result.splitlines() if s]))
+
+repo.index.add([f"/state/{device.name}.cfg.j2"])
+repo.index.commit(f"Update {device.name}")
 
 if CONF.stdout:
     print(os.linesep.join([s for s in result.splitlines() if s]))

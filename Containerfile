@@ -43,7 +43,6 @@ RUN apt-get update \
       /generate \
       /import \
     && git clone https://github.com/netbox-community/devicetype-library /devicetype-library \
-    && apt-get remove -y git \
     && apt-get clean \
     && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
