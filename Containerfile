@@ -20,9 +20,15 @@ COPY --from=builder /wheels /wheels
 COPY . /src
 COPY files/change.sh /change.sh
 
+# hadolint ignore=DL3008
 RUN python3 -m pip --no-cache-dir install -U 'pip==21.3.1' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
-    && python3 -m pip --no-cache-dir install --no-index /src
+    && python3 -m pip --no-cache-dir install --no-index /src \
+    && apt-get install -y --no-install-recommends \
+        git \
+    && git clone https://github.com/osism/mappings /mappings \
+    && apt-get clean \
+    && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 LABEL "org.opencontainers.image.documentation"="https://docs.osism.tech" \
       "org.opencontainers.image.licenses"="ASL 2.0" \
