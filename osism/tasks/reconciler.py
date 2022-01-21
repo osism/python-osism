@@ -54,7 +54,8 @@ def sync_inventory_with_netbox(self):
             # NOTE: use task_id or request_id in future
             r.publish("netbox-sync-inventory-with-netbox", line)
 
-        # NOTE: use task_id or request_id in future
-        r.publish("netbox-sync-inventory-with-netbox", "QUIT")
+        lock.release()
 
+    # NOTE: use task_id or request_id in future
+    r.publish("netbox-sync-inventory-with-netbox", "QUIT")
     r.close()

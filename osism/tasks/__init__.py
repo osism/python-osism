@@ -4,6 +4,7 @@ import subprocess
 
 # import ansible_runner
 import redis
+from pottery import Redlock
 
 
 class Config:
@@ -32,9 +33,14 @@ class Config:
 
 
 def run_ansible_in_environment(request_id, environment, role, arguments):
-    r = redis.Redis(host="redis", port="6379")
-
     joined_arguments = " ".join(arguments)
+
+    r = redis.Redis(host="redis", port="6379")
+    # NOTE: Consider arguments in the future
+    lock = Redlock(key=f"lock_ansible_{environment}_{role}",
+                   masters={r},
+                   auto_release_time=3600*1000)
+    lock.acquire()
 
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
     #       not working out of the box
@@ -49,6 +55,8 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
         r.publish(f"{environment}-{role}", line)
+
+    lock.release()
 
     # NOTE: use task_id or request_id in future
     r.publish(f"{environment}-{role}", "QUIT")
