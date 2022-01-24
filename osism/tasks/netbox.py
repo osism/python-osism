@@ -45,15 +45,26 @@ def import_device_types(self, vendors, library=False):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.connect")
-def connect(self, name):
-    p = subprocess.Popen(f"python3 /connect/main.py --collection {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+def connect(self, collection, device=None):
 
-    for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+    if device:
+        p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+            # NOTE: use task_id or request_id in future
+            redis.publish(f"netbox-connect-{collection}-{device}", line)
+
         # NOTE: use task_id or request_id in future
-        redis.publish(f"netbox-connect-{name}", line)
+        redis.publish(f"netbox-connect-{collection}-{device}", "QUIT")
+    else:
+        p = subprocess.Popen(f"python3 /connect/main.py --collection {collection}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-    # NOTE: use task_id or request_id in future
-    redis.publish(f"netbox-connect-{name}", "QUIT")
+        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+            # NOTE: use task_id or request_id in future
+            redis.publish(f"netbox-connect-{collection}", line)
+
+        # NOTE: use task_id or request_id in future
+        redis.publish(f"netbox-connect-{collection}", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")
