@@ -4,12 +4,14 @@ import time
 
 from celery import Celery
 from pottery import Redlock
-import redis
+from redis import Redis
 
 from osism.tasks import Config
 
 app = Celery('reconciler')
 app.config_from_object(Config)
+
+redis = Redis(host="redis", port="6379")
 
 
 @app.on_after_configure.connect
@@ -20,9 +22,8 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
 def run(self):
-    r = redis.Redis(host="redis", port="6379")
     lock = Redlock(key="lock_osism_tasks_reconciler_run",
-                   masters={r},
+                   masters={redis},
                    auto_release_time=60*1000)
 
     if lock.acquire(blocking=False):
@@ -33,14 +34,11 @@ def run(self):
         p = subprocess.Popen("/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         p.wait()
 
-    r.close()
-
 
 @app.task(bind=True, name="osism.tasks.reconciler.sync_inventory_with_netbox")
 def sync_inventory_with_netbox(self):
-    r = redis.Redis(host="redis", port="6379")
     lock = Redlock(key="lock_osism_tasks_reconciler_sync_inventory_with_netbox",
-                   masters={r},
+                   masters={redis},
                    auto_release_time=60*1000)
 
     if lock.acquire(blocking=False):
@@ -52,10 +50,9 @@ def sync_inventory_with_netbox(self):
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             # NOTE: use task_id or request_id in future
-            r.publish("netbox-sync-inventory-with-netbox", line)
+            redis.publish("netbox-sync-inventory-with-netbox", line)
 
         lock.release()
 
     # NOTE: use task_id or request_id in future
-    r.publish("netbox-sync-inventory-with-netbox", "QUIT")
-    r.close()
+    redis.publish("netbox-sync-inventory-with-netbox", "QUIT")

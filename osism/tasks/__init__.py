@@ -3,8 +3,11 @@ import io
 import subprocess
 
 # import ansible_runner
-import redis
+from redis import Redis
 from pottery import Redlock
+
+
+redis = Redis(host="redis", port="6379")
 
 
 class Config:
@@ -35,10 +38,9 @@ class Config:
 def run_ansible_in_environment(request_id, environment, role, arguments):
     joined_arguments = " ".join(arguments)
 
-    r = redis.Redis(host="redis", port="6379")
     # NOTE: Consider arguments in the future
     lock = Redlock(key=f"lock_ansible_{environment}_{role}",
-                   masters={r},
+                   masters={redis},
                    auto_release_time=3600*1000)
     lock.acquire()
 
@@ -54,13 +56,12 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
-        r.publish(f"{environment}-{role}", line)
+        redis.publish(f"{environment}-{role}", line)
 
     lock.release()
 
     # NOTE: use task_id or request_id in future
-    r.publish(f"{environment}-{role}", "QUIT")
-    r.close()
+    redis.publish(f"{environment}-{role}", "QUIT")
 
 
 """ def run_ansible_in_environment(request_id, environment, playbook, arguments):

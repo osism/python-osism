@@ -2,9 +2,12 @@ import argparse
 import logging
 
 from cliff.command import Command
-import redis
+from redis import Redis
 
 from osism.tasks import ansible, ceph, kolla
+
+redis = Redis(host="redis", port="6379")
+
 
 # NOTE: Can be made more elegant later
 MAP_ROLE2ENVIRONMENT = {
@@ -300,8 +303,7 @@ class Run(Command):
             ansible.run.delay(environment, role, arguments)
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             if environment == "ceph":
@@ -313,7 +315,7 @@ class Run(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
+                            redis.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")

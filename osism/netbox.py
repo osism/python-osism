@@ -2,9 +2,12 @@ import argparse
 import logging
 
 from cliff.command import Command
-import redis
+from redis import Redis
 
 from osism.tasks import ansible, netbox, reconciler
+
+
+redis = Redis(host="redis", port="6379")
 
 
 class Run(Command):
@@ -36,8 +39,7 @@ class Sync(Command):
         reconciler.sync_inventory_with_netbox.delay()
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             p.subscribe("netbox-sync-inventory-with-netbox")
@@ -46,7 +48,6 @@ class Sync(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
@@ -69,8 +70,7 @@ class Init(Command):
         ansible.run.delay("netbox-local", "init", arguments)
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             p.subscribe("netbox-local-init")
@@ -79,7 +79,6 @@ class Init(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
@@ -109,8 +108,7 @@ class Import(Command):
         netbox.import_device_types.delay(vendors, library)
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             p.subscribe("netbox-import-device-types")
@@ -119,7 +117,6 @@ class Import(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
@@ -146,8 +143,7 @@ class Manage(Command):
         ansible.run.delay("netbox-local", f"{type_of_resource}-{name}", arguments)
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             p.subscribe(f"netbox-local-{type_of_resource}-{name}")
@@ -156,7 +152,6 @@ class Manage(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
@@ -179,8 +174,7 @@ class Connect(Command):
         netbox.connect.delay(name)
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             p.subscribe(f"netbox-connect-{name}")
@@ -189,7 +183,6 @@ class Connect(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
@@ -212,8 +205,7 @@ class Disable(Command):
         netbox.disable.delay(name)
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             p.subscribe(f"netbox-disable-{name}")
@@ -222,7 +214,6 @@ class Disable(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
@@ -247,8 +238,7 @@ class Generate(Command):
         netbox.generate.delay(name, template)
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             p.subscribe(f"netbox-generate-{name}")
@@ -257,7 +247,6 @@ class Generate(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
@@ -286,8 +275,7 @@ class Deploy(Command):
         ansible.run.delay("netbox", "deploy", arguments)
 
         if wait:
-            r = redis.Redis(host="redis", port="6379")
-            p = r.pubsub()
+            p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             p.subscribe("netbox-deploy")
@@ -296,7 +284,6 @@ class Deploy(Command):
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         if m["data"].decode("utf-8") == "QUIT":
-                            r.close()
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")

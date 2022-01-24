@@ -3,12 +3,14 @@ import os
 import subprocess
 
 from celery import Celery
-import redis
+from redis import Redis
 
 from osism.tasks import Config
 
 app = Celery('kolla')
 app.config_from_object(Config)
+
+redis = Redis(host="redis", port="6379")
 
 
 @app.on_after_configure.connect
@@ -23,8 +25,6 @@ def run(self, action, arguments):
 
 @app.task(bind=True, name="osism.tasks.netbox.import_device_types")
 def import_device_types(self, vendors, library=False):
-    r = redis.Redis(host="redis", port="6379")
-
     if library:
         env = {**os.environ, "BASE_PATH": "/devicetype-library/device-types/"}
     else:
@@ -37,45 +37,38 @@ def import_device_types(self, vendors, library=False):
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
-        r.publish("netbox-import-device-types", line)
+        redis.publish("netbox-import-device-types", line)
 
     # NOTE: use task_id or request_id in future
-    r.publish("netbox-import-device-types", "QUIT")
-    r.close()
+    redis.publish("netbox-import-device-types", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.connect")
 def connect(self, name):
-    r = redis.Redis(host="redis", port="6379")
     p = subprocess.Popen(f"python3 /connect/main.py --collection {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
-        r.publish(f"netbox-connect-{name}", line)
+        redis.publish(f"netbox-connect-{name}", line)
 
     # NOTE: use task_id or request_id in future
-    r.publish(f"netbox-connect-{name}", "QUIT")
-    r.close()
+    redis.publish(f"netbox-connect-{name}", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")
 def disable(self, name):
-    r = redis.Redis(host="redis", port="6379")
     p = subprocess.Popen(f"python3 /disable/main.py {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
-        r.publish(f"netbox-disable-{name}", line)
+        redis.publish(f"netbox-disable-{name}", line)
 
     # NOTE: use task_id or request_id in future
-    r.publish(f"netbox-disable-{name}", "QUIT")
-    r.close()
+    redis.publish(f"netbox-disable-{name}", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.generate")
 def generate(self, name, template=None):
-    r = redis.Redis(host="redis", port="6379")
-
     if template:
         p = subprocess.Popen(f"python3 /generate/main.py --template {template} --device {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     else:
@@ -83,23 +76,19 @@ def generate(self, name, template=None):
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
-        r.publish(f"netbox-generate-{name}", line)
+        redis.publish(f"netbox-generate-{name}", line)
 
     # NOTE: use task_id or request_id in future
-    r.publish(f"netbox-generate-{name}", "QUIT")
-    r.close()
+    redis.publish(f"netbox-generate-{name}", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.deploy")
 def deploy(self, name):
-    r = redis.Redis(host="redis", port="6379")
-
     p = subprocess.Popen(f"python3 /deploy/main.py --device {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
         # NOTE: use task_id or request_id in future
-        r.publish(f"netbox-deploy-{name}", line)
+        redis.publish(f"netbox-deploy-{name}", line)
 
     # NOTE: use task_id or request_id in future
-    r.publish(f"netbox-deploy-{name}", "QUIT")
-    r.close()
+    redis.publish(f"netbox-deploy-{name}", "QUIT")
