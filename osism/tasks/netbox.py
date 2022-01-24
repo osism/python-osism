@@ -45,10 +45,13 @@ def import_device_types(self, vendors, library=False):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.connect")
-def connect(self, collection, device=None):
+def connect(self, collection, device=None, state=None):
 
     if device:
-        p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if state:
+            p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        else:
+            p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             # NOTE: use task_id or request_id in future
@@ -57,7 +60,10 @@ def connect(self, collection, device=None):
         # NOTE: use task_id or request_id in future
         redis.publish(f"netbox-connect-{collection}-{device}", "QUIT")
     else:
-        p = subprocess.Popen(f"python3 /connect/main.py --collection {collection}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if state:
+            p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        else:
+            p = subprocess.Popen(f"python3 /connect/main.py --collection {collection}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             # NOTE: use task_id or request_id in future

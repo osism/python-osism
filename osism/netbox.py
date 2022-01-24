@@ -165,24 +165,26 @@ class Connect(Command):
         parser = super(Connect, self).get_parser(prog_name)
         parser.add_argument('name', nargs=1, type=str, help='Name of the collection to connect')
         parser.add_argument('--device', type=str, help='Name of the device in the collection to connect', required=False)
+        parser.add_argument('--state', type=str, help='State to use', required=False)
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
         return parser
 
     def take_action(self, parsed_args):
         name = parsed_args.name[0]
         device = parsed_args.device
+        state = parsed_args.state
         wait = not parsed_args.no_wait
 
-        netbox.connect.delay(name, device)
+        netbox.connect.delay(name, device, state)
 
         if wait:
             p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
             if device:
-                p.subscribe(f"netbox-connect-{name}")
-            else:
                 p.subscribe(f"netbox-connect-{name}-{device}")
+            else:
+                p.subscribe(f"netbox-connect-{name}")
 
             while True:
                 for m in p.listen():
