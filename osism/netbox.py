@@ -4,7 +4,7 @@ import logging
 from cliff.command import Command
 from redis import Redis
 
-from osism.tasks import ansible, netbox, reconciler
+from osism.tasks import netbox, reconciler, ansible
 
 
 redis = Redis(host="redis", port="6379")
@@ -67,7 +67,7 @@ class Init(Command):
         arguments = parsed_args.arguments
         wait = not parsed_args.no_wait
 
-        ansible.run.delay("netbox-local", "init", arguments)
+        netbox.init.delay(arguments)
 
         if wait:
             p = redis.pubsub()

@@ -3,9 +3,10 @@ import os
 import subprocess
 
 from celery import Celery
+from pottery import synchronize
 from redis import Redis
 
-from osism.tasks import Config
+from osism.tasks import Config, ansible
 
 app = Celery('kolla')
 app.config_from_object(Config)
@@ -92,3 +93,9 @@ def deploy(self, name):
 
     # NOTE: use task_id or request_id in future
     redis.publish(f"netbox-deploy-{name}", "QUIT")
+
+
+@app.task(bind=True, name="osism.tasks.netbox.init")
+@synchronize(key='netbox-init', masters={redis}, auto_release_time=600*1000, blocking=True, timeout=-1)
+def init(self, arguments):
+    ansible.run.delay("netbox-local", "init", arguments)
