@@ -40,4 +40,5 @@ async def webhook(
     content_length: int = Header(...),
     x_hook_signature: str = Header(None)
 ):
+    print(webhook_input)
     return {"result": "ok"}
