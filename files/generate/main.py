@@ -74,11 +74,20 @@ if settings.IGNORE_SSL_ERRORS:
     nb.http_session = session
 
 device = nb.dcim.devices.get(name=CONF.device)
+logging.info(f"Generating configuration for device {device.name}")
 
 if CONF.template:
     template = CONF.template
 else:
-    template = f"{device.device_type.manufacturer.name}.cfg.j2"
+    template = f"{device.name}.cfg.j2"
+    
+    if not os.path.isfile(f"/netbox/templates/{template}"):
+        template = f"{device.device_type.manufacturer.name}.cfg.j2"
+
+    if not os.path.isfile(f"/netbox/templates/{template}"):
+        template = "default.cfg.j2"
+
+logging.info(f"Using template {template}")
 
 vlans = nb.ipam.vlans.filter(available_on_device=device.id)
 interfaces = nb.dcim.interfaces.filter(device=device)
@@ -143,11 +152,14 @@ environment = jinja2.Environment(loader=loader)
 template = environment.get_template(template)
 result = template.render(data)
 
+logging.info(f"Writing generated configuration to /state/{device.name}.cfg.j2")
 with open(f"/state/{device.name}.cfg.j2", "w+") as fp:
     fp.write(os.linesep.join([s for s in result.splitlines() if s]))
 
-repo.index.add([f"/state/{device.name}.cfg.j2"])
-repo.index.commit(f"Update {device.name}")
+repo.git.add(f"/state/{device.name}.cfg.j2")
+if len(repo.index.diff("HEAD")) > 0:
+    logging.info(f"Committing changes in /state/{device.name}.cfg.j2")
+    repo.git.commit(message=f"Update {device.name}")
 
 if CONF.stdout:
     print(os.linesep.join([s for s in result.splitlines() if s]))

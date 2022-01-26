@@ -86,6 +86,7 @@ def disable(self, name):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.generate")
+@synchronize(key='netbox-generate', masters={redis}, auto_release_time=60*1000, blocking=True, timeout=-1)
 def generate(self, name, template=None):
     if template:
         p = subprocess.Popen(f"python3 /generate/main.py --template {template} --device {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
