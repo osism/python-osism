@@ -96,6 +96,7 @@ MAP_ROLE2ENVIRONMENT = {
     "adminer": "infrastructure",
     "boundary": "infrastructure",
     "cephclient": "infrastructure",
+    "cgit": "infrastructure",
     "dnsdist": "infrastructure",
     "helper": "infrastructure",
     "homer": "infrastructure",
