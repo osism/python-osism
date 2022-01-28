@@ -200,6 +200,17 @@ for device in data:
             except pynetbox.core.query.RequestError as e:
                 logging.error(f"ERROR --> {e}")
 
+        # ensure that all interfaces are enabled
+        if not interface_a.enabled:
+            interface_a.enabled = True
+            interface_a.save()
+            logging.info(f"{device_a} # {interface_a} --> enabled")
+
+        if not interface_b.enabled:
+            interface_b.enabled = True
+            interface_b.save()
+            logging.info(f"{device_b} # {interface_b} --> enabled")
+
         if "vlans" in data[device][interface]:
             tagged = False
             interface_a.untagged_vlan = None
