@@ -8,6 +8,7 @@ import sys
 import git
 import jinja2
 from oslo_config import cfg
+from osism.tasks import ansible
 import pynetbox
 import yaml
 
@@ -160,6 +161,11 @@ repo.git.add(f"/state/{device.name}.cfg.j2")
 if len(repo.index.diff("HEAD")) > 0:
     logging.info(f"Committing changes in /state/{device.name}.cfg.j2")
     repo.git.commit(message=f"Update {device.name}")
+
+    arguments = []
+    arguments.append(f"-e device={device.name}")
+    arguments.append(f"-l {device.name}")
+    ansible.run.delay("netbox", "deploy", arguments)
 
 if CONF.stdout:
     print(os.linesep.join([s for s in result.splitlines() if s]))
