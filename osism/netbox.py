@@ -163,28 +163,34 @@ class Connect(Command):
 
     def get_parser(self, prog_name):
         parser = super(Connect, self).get_parser(prog_name)
-        parser.add_argument('name', nargs=1, type=str, help='Name of the collection to connect')
-        parser.add_argument('--device', type=str, help='Name of the device in the collection to connect', required=False)
-        parser.add_argument('--state', type=str, help='State to use', required=False)
+        parser.add_argument('name', nargs='?', type=str, help='Name of the resource (a collection or a device) to connect')
+        parser.add_argument('--collection', type=str, help='Name of the collection to connect', required=False),
+        parser.add_argument('--device', type=str, help='Name of the device to connect', required=False)
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
+        parser.add_argument('--state', type=str, help='State to use', required=False)
+        parser.add_argument('--type', type=str, default='collection', help='Type of the resource to connection (when not using --collection or --device)', required=False)
         return parser
 
     def take_action(self, parsed_args):
-        name = parsed_args.name[0]
+        name = parsed_args.name
+        collection = parsed_args.device
         device = parsed_args.device
         state = parsed_args.state
+        type_of_resource = parsed_args.type
         wait = not parsed_args.no_wait
 
-        netbox.connect.delay(name, device, state)
+        if name:
+            if type_of_resource == "collection":
+                netbox.connect.delay(name, "", state)
+            elif type_of_resource == "device":
+                netbox.connect.delay("", name, state)
+        else:
+            netbox.connect.delay(collection, device, state)
+            name = f"{collection}-{device}"
 
         if wait:
             p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            if device:
-                p.subscribe(f"netbox-connect-{name}-{device}")
-            else:
-                p.subscribe(f"netbox-connect-{name}")
+            p.subscribe(f"netbox-connect-{name}")
 
             while True:
                 for m in p.listen():

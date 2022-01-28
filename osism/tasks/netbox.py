@@ -47,18 +47,31 @@ def import_device_types(self, vendors, library=False):
 @app.task(bind=True, name="osism.tasks.netbox.connect")
 def connect(self, collection, device=None, state=None):
 
+    if collection and device:
+        name = f"{collection}-{device}"
+    elif collection:
+        name = collection
+    else:
+        name = device
+
     if device:
         if state:
-            p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            if collection:
+                p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            else:
+                p = subprocess.Popen(f"python3 /connect/main.py --device={device} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         else:
-            p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            if collection:
+                p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            else:
+                p = subprocess.Popen(f"python3 /connect/main.py --device={device}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             # NOTE: use task_id or request_id in future
-            redis.publish(f"netbox-connect-{collection}-{device}", line)
+            redis.publish(f"netbox-connect-{name}", line)
 
         # NOTE: use task_id or request_id in future
-        redis.publish(f"netbox-connect-{collection}-{device}", "QUIT")
+        redis.publish(f"netbox-connect-{name}", "QUIT")
     else:
         if state:
             p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -67,10 +80,10 @@ def connect(self, collection, device=None, state=None):
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             # NOTE: use task_id or request_id in future
-            redis.publish(f"netbox-connect-{collection}", line)
+            redis.publish(f"netbox-connect-{name}", line)
 
         # NOTE: use task_id or request_id in future
-        redis.publish(f"netbox-connect-{collection}", "QUIT")
+        redis.publish(f"netbox-connect-{name}", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")

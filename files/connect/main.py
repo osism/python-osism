@@ -4,6 +4,7 @@
 import glob
 import logging
 import os
+import re
 import sys
 
 import pynetbox
@@ -17,7 +18,7 @@ CONF = cfg.CONF
 opts = [
     cfg.BoolOpt('debug', help='Enable debug logging', default=False),
     cfg.StrOpt('state', help='State', default='a', required=False),
-    cfg.StrOpt('collection', help='Collection', required=True),
+    cfg.StrOpt('collection', help='Collection', default=None, required=False),
     cfg.StrOpt('device', help='device', default=None, required=False)
 ]
 CONF.register_cli_opts(opts)
@@ -31,21 +32,41 @@ logging.basicConfig(format='%(asctime)s - %(message)s', level=level, datefmt='%Y
 
 if not CONF.device:
     logging.info(f"Processing collection {CONF.collection}")
-    with open(f"/netbox/{CONF.collection}/{CONF.state}.yaml") as fp:
-        data = yaml.load(fp, Loader=yaml.SafeLoader)
 
-    if not data:
-        data = {}
+    data = {}
+
+    if os.path.isfile("/netbox/{CONF.collection}/{CONF.state}.yaml"):
+        with open(f"/netbox/{CONF.collection}/{CONF.state}.yaml") as fp:
+            data = yaml.load(fp, Loader=yaml.SafeLoader)
 
     for directory in glob.glob(f"/netbox/{CONF.collection}/*/"):
         with open(f"{directory}{CONF.state}.yaml") as fp:
             data_a = yaml.load(fp, Loader=yaml.SafeLoader)
         # data = data | data_a
         data = {**data_a, **data}
-else:
+elif CONF.device and CONF.collection:
+    if not os.path.isfile("/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml"):
+        logging.error(f"State {CONF.state} for device {CONF.device} in collection {CONF.collection} is not available")
+        sys.exit(1)
+
     logging.info(f"Processing device {CONF.device} in collection {CONF.collection}")
+
     with open(f"/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml") as fp:
         data = yaml.load(fp, Loader=yaml.SafeLoader)
+elif CONF.device:
+    # Try to find the collection of the specified device
+    # A device can be in exactly one collection
+    result = [x[0] for x in os.walk("/netbox") if CONF.device in x[0]]
+    if result:
+        logging.info(f"Processing device {CONF.device}")
+        with open(f"{result[0]}/{CONF.state}.yaml") as fp:
+            data = yaml.load(fp, Loader=yaml.SafeLoader)
+    else:
+        logging.error(f"Device {CONF.device} is not defined in any collection")
+
+else:
+    logging.error("Specify at least a collection or a device")
+    sys.exit(1)
 
 nb = pynetbox.api(
     settings.NETBOX_URL,
