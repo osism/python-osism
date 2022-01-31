@@ -17,6 +17,7 @@ PROJECT_NAME = 'connect'
 CONF = cfg.CONF
 opts = [
     cfg.BoolOpt('debug', help='Enable debug logging', default=False),
+    cfg.BoolOpt('enforce', help='Enforce', default=False),
     cfg.StrOpt('state', help='State', default='a', required=False),
     cfg.StrOpt('collection', help='Collection', default=None, required=False),
     cfg.StrOpt('device', help='device', default=None, required=False)
@@ -80,8 +81,15 @@ if settings.IGNORE_SSL_ERRORS:
     session.verify = False
     nb.http_session = session
 
-# Mark interfaces that are part of a LAG
+# Get current device state
+logging.info("Get current device state")
+current_state = {}
+for device in data:
+    device_a = nb.dcim.devices.get(name=device)
+    current_state[device] = device_a.custom_fields["device_state"]
 
+# Mark interfaces that are part of a LAG
+logging.info("Mark interfaces that are part of a LAG")
 lag_interfaces = {}
 for device in data:
     lag_interfaces[device] = []
@@ -92,9 +100,13 @@ for device in data:
                     lag_interfaces[device].append(interface)
 
 # Manage interfaces
-
+logging.info("Manage interfaces")
 for device in data:
-    logging.info(f"Connecting {device}")
+    logging.info(f"Checking {device} for state {CONF.state}")
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        logging.info(f"Device {device} is already in state {CONF.state}")
+        continue
 
     primary_address = None
     for interface in data[device]:
@@ -285,8 +297,13 @@ for device in data:
 
 
 # Manage port channels (not MLAGs)
-
+logging.info("Manage port channels (not MLAGs)")
 for device in data:
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        logging.info(f"Device {device} is already in state {CONF.state}")
+        continue
+
     for interface in data[device]:
         if data[device][interface]["type"] == "port-channel":
             logging.info(f"Local port channel {device} # {interface} -> {data[device][interface]['interfaces']}")
@@ -419,7 +436,13 @@ for device in data:
             port_channel_b.save()
 
 # Remove local and remote port channels that no longer exist
+logging.info("Remove local and remote port channels that no longer exist")
 for device in data:
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        logging.info(f"Device {device} is already in state {CONF.state}")
+        continue
+
     for interface in nb.dcim.interfaces.filter(device=device, type="lag"):
         delete = True
         for interface_a in data[device]:
@@ -434,8 +457,13 @@ for device in data:
 
 
 # Manage virtual interfaces
-
+logging.info("Manage virtual interfaces")
 for device in data:
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        logging.info(f"Device {device} is already in state {CONF.state}")
+        continue
+
     for interface in data[device]:
         if data[device][interface]["type"] == "virtual":
             logging.info(f"Virtual interface {interface} for {device}")
@@ -512,7 +540,13 @@ for device in data:
                 interface_a.save()
 
 # Remove virtual interfaces that no longer exist
+logging.info("Remove virtual interfaces that no longer exist")
 for device in data:
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        logging.info(f"Device {device} is already in state {CONF.state}")
+        continue
+
     for interface in nb.dcim.interfaces.filter(device=device, type="virtual"):
         delete = True
         for interface_a in data[device]:
@@ -524,8 +558,13 @@ for device in data:
 
 
 # Manage MLAG devices (not port channels)
-
+logging.info("Manage MLAG devices (not port channels)")
 for device in data:
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        logging.info(f"Device {device} is already in state {CONF.state}")
+        continue
+
     for interface in data[device]:
         if data[device][interface]["type"] == "mlag":
             data_a = data[device][interface]["data"]
@@ -569,8 +608,13 @@ for device in data:
 
 
 # Manage device states
-
+logging.info("Manage device states")
 for device in data:
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        logging.info(f"Device {device} is already in state {CONF.state}")
+        continue
+
     logging.info(f"State of device {device} = {CONF.state}")
     device_a = nb.dcim.devices.get(name=device)
 
