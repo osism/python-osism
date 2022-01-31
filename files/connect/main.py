@@ -60,8 +60,13 @@ elif CONF.device:
     result = [x[0] for x in os.walk("/netbox") if CONF.device in x[0]]
     if result:
         logging.info(f"Processing device {CONF.device}")
-        with open(f"{result[0]}/{CONF.state}.yaml") as fp:
-            data = yaml.load(fp, Loader=yaml.SafeLoader)
+
+        try:
+            with open(f"{result[0]}/{CONF.state}.yaml") as fp:
+                data = yaml.load(fp, Loader=yaml.SafeLoader)
+        except:
+            logging.error(f"State {CONF.state} for device {CONF.device} is not available")
+            sys.exit(1)
     else:
         logging.error(f"Device {CONF.device} is not defined in any collection")
 
