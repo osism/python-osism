@@ -3,6 +3,7 @@ from logging.config import dictConfig
 import logging
 from uuid import UUID
 
+from celery.signals import worker_process_init
 from fastapi import FastAPI, Header, Request, Response
 from pydantic import BaseModel
 import pynetbox
@@ -65,17 +66,24 @@ app.add_middleware(
 dictConfig(LogConfig().dict())
 logger = logging.getLogger("api")
 
-nb = pynetbox.api(
-    settings.NETBOX_URL,
-    token=settings.NETBOX_TOKEN
-)
+nb = None
 
-if settings.IGNORE_SSL_ERRORS:
-    import requests
-    requests.packages.urllib3.disable_warnings()
-    session = requests.Session()
-    session.verify = False
-    nb.http_session = session
+
+@worker_process_init.connect
+def celery_init_worker(**kwargs):
+    global nb
+
+    nb = pynetbox.api(
+        settings.NETBOX_URL,
+        token=settings.NETBOX_TOKEN
+    )
+
+    if settings.IGNORE_SSL_ERRORS:
+        import requests
+        requests.packages.urllib3.disable_warnings()
+        session = requests.Session()
+        session.verify = False
+        nb.http_session = session
 
 
 @app.get("/")
@@ -91,6 +99,8 @@ async def webhook(
     content_length: int = Header(...),
     x_hook_signature: str = Header(None)
 ):
+    global nb
+
     data = webhook_input.data
     url = data['url']
     name = data['name']

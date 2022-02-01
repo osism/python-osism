@@ -3,11 +3,12 @@ import io
 import subprocess
 
 # import ansible_runner
+from celery.signals import worker_process_init
 from redis import Redis
 from pottery import Redlock
 
 
-redis = Redis(host="redis", port="6379")
+redis = None
 
 
 class Config:
@@ -33,6 +34,13 @@ class Config:
             'queue': 'reconciler'
         }
     }
+
+
+@worker_process_init.connect
+def celery_init_worker(**kwargs):
+    global redis
+
+    redis = Redis(host="redis", port="6379")
 
 
 def run_ansible_in_environment(request_id, environment, role, arguments):
