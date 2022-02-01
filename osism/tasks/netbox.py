@@ -4,12 +4,11 @@ import subprocess
 
 from celery import Celery
 from celery.signals import worker_process_init
-from pottery import synchronize
 import pynetbox
 from redis import Redis
 
 from osism import settings
-from osism import actions
+from osism.actions import generate_configuration
 from osism.tasks import Config, ansible
 
 app = Celery('kolla')
@@ -140,11 +139,10 @@ def disable(self, name):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.generate")
-@synchronize(key='netbox-generate', masters={redis}, auto_release_time=60*1000, blocking=True, timeout=-1)
 def generate(self, name, template=None):
     global redis
 
-    actions.generate(name, template)
+    generate_configuration.for_device(name, template)
 
     # NOTE: use task_id or request_id in future
     redis.publish(f"netbox-generate-{name}", "QUIT")
@@ -161,6 +159,5 @@ def deploy(self, name):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.init")
-@synchronize(key='netbox-init', masters={redis}, auto_release_time=600*1000, blocking=True, timeout=-1)
 def init(self, arguments):
     ansible.run.delay("netbox-local", "init", arguments)
