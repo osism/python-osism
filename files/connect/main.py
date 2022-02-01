@@ -40,7 +40,7 @@ setup_logging()
 
 def load_data_from_filesystem():
     if not CONF.device:
-        logging.info(f"Processing collection {CONF.collection}")
+        logging.info(f"Loading collection {CONF.collection}")
 
         data = {}
 
@@ -59,7 +59,7 @@ def load_data_from_filesystem():
             logging.error(f"State {CONF.state} for device {CONF.device} in collection {CONF.collection} is not available")
             sys.exit(1)
 
-        logging.info(f"Processing device {CONF.device} in collection {CONF.collection}")
+        logging.info(f"Loading device {CONF.device} from collection {CONF.collection}")
 
         with open(f"/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml") as fp:
             data = yaml.load(fp, Loader=yaml.SafeLoader)
@@ -69,7 +69,7 @@ def load_data_from_filesystem():
         # A device can be in exactly one collection
         result = [x[0] for x in os.walk("/netbox") if CONF.device in x[0]]
         if result:
-            logging.info(f"Processing device {CONF.device}")
+            logging.info(f"Loading device {CONF.device}")
 
             try:
                 with open(f"{result[0]}/{CONF.state}.yaml") as fp:
