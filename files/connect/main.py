@@ -137,18 +137,6 @@ def get_lag_interfaces():
     return result
 
 
-# Manage device transition
-def manage_device_transition(device):
-    device_a = nb.dcim.devices.get(name=device)
-    transition_a = f"from_{current_state[device]}_to_{CONF.state}"
-    logging.info(f"State of device {device} should be {CONF.state} -> {transition_a}")
-
-    device_a.custom_fields = {
-        "device_transition": transition_a
-    }
-    device_a.save()
-
-
 # Manage interfaces
 def manage_interfaces(device):
     primary_address = None
@@ -622,13 +610,22 @@ def manage_mlag_devices(device):
                 )
 
 
-# Manage device states
-def manage_device_state(device):
-    logging.info(f"State of device {device} = {CONF.state}")
-    device_a = nb.dcim.devices.get(name=device)
+def set_device_state(device, state):
+    logging.info(f"Set state of device {device} = {state}")
 
+    device_a = nb.dcim.devices.get(name=device)
     device_a.custom_fields = {
-        "device_state": CONF.state
+        "device_state": state
+    }
+    device_a.save()
+
+
+def set_device_transition(device, transition):
+    logging.info(f"Set transition of device {device} = {transition}")
+
+    device_a = nb.dcim.devices.get(name=device)
+    device_a.custom_fields = {
+        "device_transition": transition
     }
     device_a.save()
 
@@ -657,14 +654,24 @@ counter = get_redis_counter()
 
 for device in data:
 
+    # Device is already in the target state, no transition necessary
     if not CONF.enforce and current_state[device] == CONF.state:
         continue
 
-    manage_device_transition(device)
+    # transition: from-to, phase 1
+    transition = f"from_{current_state[device]}-to_{CONF.state}-phase_1"
+    set_device_transition(device, transition)
+
     manage_interfaces(device)
     manage_port_channels(device)
     remove_port_channels(device)
     manage_virtual_interfaces(device)
     remove_virtual_interfaces(device)
     manage_mlag_devices(device)
-    manage_device_state(device)
+
+    # transition: from-to, phase 2
+    transition = f"from_{current_state[device]}-to_{CONF.state}-phase_2"
+    set_device_transition(device, transition)
+
+    # NOTE: will be moved to the deploy action later
+    set_device_state(device, CONF.state)
