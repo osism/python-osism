@@ -12,7 +12,7 @@ import pynetbox
 from redis import Redis
 import yaml
 
-import settings
+from osism import settings
 
 
 def setup_logging():

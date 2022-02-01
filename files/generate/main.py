@@ -13,7 +13,7 @@ from osism.utils import first
 import pynetbox
 import yaml
 
-import settings
+from osism import settings
 
 
 def vlans_as_string(untagged_vlan, tagged_vlans):

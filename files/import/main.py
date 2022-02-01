@@ -9,7 +9,7 @@ import os
 import pynetbox
 import yaml
 
-import settings
+from osism import settings
 
 
 counter = Counter(added=0, updated=0, manufacturer=0)
