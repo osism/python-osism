@@ -116,8 +116,6 @@ def get_redis_counter():
 
 
 def get_current_state():
-    logging.info("Get current device state")
-
     result = {}
     for device in data:
         device_a = nb.dcim.devices.get(name=device)
@@ -127,8 +125,6 @@ def get_current_state():
 
 
 def get_lag_interfaces():
-    logging.info("Mark interfaces that are part of a LAG")
-
     result = {}
     for device in data:
         result[device] = []
@@ -141,22 +137,8 @@ def get_lag_interfaces():
     return result
 
 
-nb = get_netbox_connection()
-redis = get_redis_connection()
-
-data = load_data_from_filesystem()
-current_state = get_current_state()
-lag_interfaces = get_lag_interfaces()
-
-counter = get_redis_counter()
-
-# Manage device transitions
-logging.info("Manage device transitions")
-for device in data:
-
-    if not CONF.enforce and current_state[device] == CONF.state:
-        continue
-
+# Manage device transition
+def manage_device_transition(device):
     device_a = nb.dcim.devices.get(name=device)
     transition_a = f"from_{current_state[device]}_to_{CONF.state}"
     logging.info(f"State of device {device} should be {CONF.state} -> {transition_a}")
@@ -166,15 +148,9 @@ for device in data:
     }
     device_a.save()
 
+
 # Manage interfaces
-logging.info("Manage interfaces")
-for device in data:
-    logging.info(f"Checking {device} for state {CONF.state}")
-
-    if not CONF.enforce and current_state[device] == CONF.state:
-        logging.info(f"Device {device} is already in state {CONF.state}")
-        continue
-
+def manage_interfaces(device):
     primary_address = None
     for interface in data[device]:
 
@@ -364,13 +340,7 @@ for device in data:
 
 
 # Manage port channels (not MLAGs)
-logging.info("Manage port channels (not MLAGs)")
-for device in data:
-
-    if not CONF.enforce and current_state[device] == CONF.state:
-        logging.info(f"Device {device} is already in state {CONF.state}")
-        continue
-
+def manage_port_channels(device):
     for interface in data[device]:
         if data[device][interface]["type"] == "port-channel":
             logging.info(f"Local port channel {device} # {interface} -> {data[device][interface]['interfaces']}")
@@ -502,14 +472,9 @@ for device in data:
             port_channel_a.save()
             port_channel_b.save()
 
+
 # Remove local and remote port channels that no longer exist
-logging.info("Remove local and remote port channels that no longer exist")
-for device in data:
-
-    if not CONF.enforce and current_state[device] == CONF.state:
-        logging.info(f"Device {device} is already in state {CONF.state}")
-        continue
-
+def remove_port_channels(device):
     for interface in nb.dcim.interfaces.filter(device=device, type="lag"):
         delete = True
         for interface_a in data[device]:
@@ -524,13 +489,7 @@ for device in data:
 
 
 # Manage virtual interfaces
-logging.info("Manage virtual interfaces")
-for device in data:
-
-    if not CONF.enforce and current_state[device] == CONF.state:
-        logging.info(f"Device {device} is already in state {CONF.state}")
-        continue
-
+def manage_virtual_interfaces(device):
     for interface in data[device]:
         if data[device][interface]["type"] == "virtual":
             logging.info(f"Virtual interface {interface} for {device}")
@@ -606,14 +565,9 @@ for device in data:
                     interface_a.mode = 'access'
                 interface_a.save()
 
+
 # Remove virtual interfaces that no longer exist
-logging.info("Remove virtual interfaces that no longer exist")
-for device in data:
-
-    if not CONF.enforce and current_state[device] == CONF.state:
-        logging.info(f"Device {device} is already in state {CONF.state}")
-        continue
-
+def remove_virtual_interfaces(device):
     for interface in nb.dcim.interfaces.filter(device=device, type="virtual"):
         delete = True
         for interface_a in data[device]:
@@ -625,13 +579,7 @@ for device in data:
 
 
 # Manage MLAG devices (not port channels)
-logging.info("Manage MLAG devices (not port channels)")
-for device in data:
-
-    if not CONF.enforce and current_state[device] == CONF.state:
-        logging.info(f"Device {device} is already in state {CONF.state}")
-        continue
-
+def manage_mlag_devices(device):
     for interface in data[device]:
         if data[device][interface]["type"] == "mlag":
             data_a = data[device][interface]["data"]
@@ -675,13 +623,7 @@ for device in data:
 
 
 # Manage device states
-logging.info("Manage device states")
-for device in data:
-
-    if not CONF.enforce and current_state[device] == CONF.state:
-        logging.info(f"Device {device} is already in state {CONF.state}")
-        continue
-
+def manage_device_state(device):
     logging.info(f"State of device {device} = {CONF.state}")
     device_a = nb.dcim.devices.get(name=device)
 
@@ -689,3 +631,40 @@ for device in data:
         "device_state": CONF.state
     }
     device_a.save()
+
+
+# Prepare required connections
+
+nb = get_netbox_connection()
+redis = get_redis_connection()
+
+# Get & prepare required data
+
+logging.info("Load data from filesystem")
+data = load_data_from_filesystem()
+
+logging.info("Get current device state from Netbox")
+current_state = get_current_state()
+
+logging.info("Identify interfaces that are part of a LAG")
+lag_interfaces = get_lag_interfaces()
+
+# Get required helpers
+
+counter = get_redis_counter()
+
+# Manage all defined devices
+
+for device in data:
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        continue
+
+    manage_device_transition(device)
+    manage_interfaces(device)
+    manage_port_channels(device)
+    remove_port_channels(device)
+    manage_virtual_interfaces(device)
+    remove_virtual_interfaces(device)
+    manage_mlag_devices(device)
+    manage_device_state(device)
