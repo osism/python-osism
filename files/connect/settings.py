@@ -1,5 +1,6 @@
 import os
 
+
 # Read secret from file
 def read_secret(secret_name):
     try:
@@ -9,6 +10,7 @@ def read_secret(secret_name):
     else:
         with f:
             return f.readline().strip()
+
 
 NETBOX_URL = os.getenv("NETBOX_API")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))

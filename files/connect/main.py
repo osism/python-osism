@@ -4,14 +4,24 @@
 import glob
 import logging
 import os
-import re
 import sys
 
-import pynetbox
 from oslo_config import cfg
+from pottery import RedisCounter
+import pynetbox
+from redis import Redis
 import yaml
 
 import settings
+
+
+def setup_logging():
+    if CONF.debug:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    logging.basicConfig(format='%(asctime)s - %(message)s', level=level, datefmt='%Y-%m-%d %H:%M:%S')
+
 
 PROJECT_NAME = 'connect'
 CONF = cfg.CONF
@@ -25,84 +35,120 @@ opts = [
 CONF.register_cli_opts(opts)
 CONF(sys.argv[1:], project=PROJECT_NAME)
 
-if CONF.debug:
-    level = logging.DEBUG
-else:
-    level = logging.INFO
-logging.basicConfig(format='%(asctime)s - %(message)s', level=level, datefmt='%Y-%m-%d %H:%M:%S')
+setup_logging()
 
-if not CONF.device:
-    logging.info(f"Processing collection {CONF.collection}")
 
-    data = {}
+def load_data_from_filesystem():
+    if not CONF.device:
+        logging.info(f"Processing collection {CONF.collection}")
 
-    if os.path.isfile("/netbox/{CONF.collection}/{CONF.state}.yaml"):
-        with open(f"/netbox/{CONF.collection}/{CONF.state}.yaml") as fp:
+        data = {}
+
+        if os.path.isfile("/netbox/{CONF.collection}/{CONF.state}.yaml"):
+            with open(f"/netbox/{CONF.collection}/{CONF.state}.yaml") as fp:
+                data = yaml.load(fp, Loader=yaml.SafeLoader)
+
+        for directory in glob.glob(f"/netbox/{CONF.collection}/*/"):
+            with open(f"{directory}{CONF.state}.yaml") as fp:
+                data_a = yaml.load(fp, Loader=yaml.SafeLoader)
+            # data = data | data_a
+            data = {**data_a, **data}
+
+    elif CONF.device and CONF.collection:
+        if not os.path.isfile("/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml"):
+            logging.error(f"State {CONF.state} for device {CONF.device} in collection {CONF.collection} is not available")
+            sys.exit(1)
+
+        logging.info(f"Processing device {CONF.device} in collection {CONF.collection}")
+
+        with open(f"/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml") as fp:
             data = yaml.load(fp, Loader=yaml.SafeLoader)
 
-    for directory in glob.glob(f"/netbox/{CONF.collection}/*/"):
-        with open(f"{directory}{CONF.state}.yaml") as fp:
-            data_a = yaml.load(fp, Loader=yaml.SafeLoader)
-        # data = data | data_a
-        data = {**data_a, **data}
-elif CONF.device and CONF.collection:
-    if not os.path.isfile("/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml"):
-        logging.error(f"State {CONF.state} for device {CONF.device} in collection {CONF.collection} is not available")
+    elif CONF.device:
+        # Try to find the collection of the specified device
+        # A device can be in exactly one collection
+        result = [x[0] for x in os.walk("/netbox") if CONF.device in x[0]]
+        if result:
+            logging.info(f"Processing device {CONF.device}")
+
+            try:
+                with open(f"{result[0]}/{CONF.state}.yaml") as fp:
+                    data = yaml.load(fp, Loader=yaml.SafeLoader)
+            except:  # noqa
+                logging.error(f"State {CONF.state} for device {CONF.device} is not available")
+                sys.exit(1)
+        else:
+            logging.error(f"Device {CONF.device} is not defined in any collection")
+
+    else:
+        logging.error("Specify at least a collection or a device")
         sys.exit(1)
 
-    logging.info(f"Processing device {CONF.device} in collection {CONF.collection}")
+    return data
 
-    with open(f"/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml") as fp:
-        data = yaml.load(fp, Loader=yaml.SafeLoader)
-elif CONF.device:
-    # Try to find the collection of the specified device
-    # A device can be in exactly one collection
-    result = [x[0] for x in os.walk("/netbox") if CONF.device in x[0]]
-    if result:
-        logging.info(f"Processing device {CONF.device}")
 
-        try:
-            with open(f"{result[0]}/{CONF.state}.yaml") as fp:
-                data = yaml.load(fp, Loader=yaml.SafeLoader)
-        except:
-            logging.error(f"State {CONF.state} for device {CONF.device} is not available")
-            sys.exit(1)
-    else:
-        logging.error(f"Device {CONF.device} is not defined in any collection")
+def get_netbox_connection():
+    result = pynetbox.api(
+        settings.NETBOX_URL,
+        token=settings.NETBOX_TOKEN
+    )
 
-else:
-    logging.error("Specify at least a collection or a device")
-    sys.exit(1)
+    if settings.IGNORE_SSL_ERRORS:
+        import requests
+        requests.packages.urllib3.disable_warnings()
+        session = requests.Session()
+        session.verify = False
+        result.http_session = session
 
-nb = pynetbox.api(
-    settings.NETBOX_URL,
-    token=settings.NETBOX_TOKEN
-)
+    return result
 
-if settings.IGNORE_SSL_ERRORS:
-    import requests
-    requests.packages.urllib3.disable_warnings()
-    session = requests.Session()
-    session.verify = False
-    nb.http_session = session
 
-# Get current device state
-logging.info("Get current device state")
-current_state = {}
-for device in data:
-    device_a = nb.dcim.devices.get(name=device)
-    current_state[device] = device_a.custom_fields["device_state"]
+def get_redis_connection():
+    result = Redis(host="redis", port="6379")
 
-# Mark interfaces that are part of a LAG
-logging.info("Mark interfaces that are part of a LAG")
-lag_interfaces = {}
-for device in data:
-    lag_interfaces[device] = []
-    for interface in data[device]:
-        if data[device][interface]["type"] == "port-channel":
-            for interface in data[device][interface]["interfaces"]:
-                if interface not in lag_interfaces[device]:
-                    lag_interfaces[device].append(interface)
+    return result
+
+
+def get_redis_counter():
+    result = RedisCounter(redis=redis, key='connect')
+
+    return result
+
+
+def get_current_state():
+    logging.info("Get current device state")
+
+    result = {}
+    for device in data:
+        device_a = nb.dcim.devices.get(name=device)
+        result[device] = device_a.custom_fields["device_state"]
+
+    return result
+
+
+def get_lag_interfaces():
+    logging.info("Mark interfaces that are part of a LAG")
+
+    result = {}
+    for device in data:
+        result[device] = []
+        for interface in data[device]:
+            if data[device][interface]["type"] == "port-channel":
+                for interface in data[device][interface]["interfaces"]:
+                    if interface not in result[device]:
+                        result[device].append(interface)
+
+    return result
+
+
+nb = get_netbox_connection()
+redis = get_redis_connection()
+
+data = load_data_from_filesystem()
+current_state = get_current_state()
+lag_interfaces = get_lag_interfaces()
+
+counter = get_redis_counter()
 
 # Manage interfaces
 logging.info("Manage interfaces")
