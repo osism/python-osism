@@ -160,11 +160,7 @@ def generate(self, name, template=None):
 def deploy(self, name):
     global redis
 
-    p = subprocess.Popen(f"python3 /deploy/main.py --device {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-    for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-        # NOTE: use task_id or request_id in future
-        redis.publish(f"netbox-deploy-{name}", line)
+    redis.publish(f"netbox-deploy-{name}", "Not yet implemented")
 
     # NOTE: use task_id or request_id in future
     redis.publish(f"netbox-deploy-{name}", "QUIT")
