@@ -1,3 +1,20 @@
+from osism import settings
+import pynetbox
+
+
+nb = pynetbox.api(
+    settings.NETBOX_URL,
+    token=settings.NETBOX_TOKEN
+)
+
+if settings.IGNORE_SSL_ERRORS:
+    import requests
+    requests.packages.urllib3.disable_warnings()
+    session = requests.Session()
+    session.verify = False
+    nb.http_session = session
+
+
 # https://stackoverflow.com/questions/2361426/get-the-first-item-from-an-iterable-that-matches-a-condition
 def first(iterable, condition=lambda x: True):
     """

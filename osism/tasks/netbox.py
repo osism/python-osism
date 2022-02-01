@@ -9,6 +9,7 @@ import pynetbox
 from redis import Redis
 
 from osism import settings
+from osism import actions
 from osism.tasks import Config, ansible
 
 app = Celery('kolla')
@@ -143,14 +144,7 @@ def disable(self, name):
 def generate(self, name, template=None):
     global redis
 
-    if template:
-        p = subprocess.Popen(f"python3 /generate/main.py --template {template} --device {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    else:
-        p = subprocess.Popen(f"python3 /generate/main.py --device {name}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-    for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-        # NOTE: use task_id or request_id in future
-        redis.publish(f"netbox-generate-{name}", line)
+    actions.generate(name, template)
 
     # NOTE: use task_id or request_id in future
     redis.publish(f"netbox-generate-{name}", "QUIT")

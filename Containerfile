@@ -44,12 +44,10 @@ RUN apt-get update \
       git \
     && mkdir -p \
       /connect \
-      /generate \
       /import \
     && git clone https://github.com/netbox-community/devicetype-library /devicetype-library \
     && apt-get clean \
     && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY files/connect/* /connect
-COPY files/generate/* /generate
 COPY files/import/* /import
