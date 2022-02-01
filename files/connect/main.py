@@ -150,6 +150,22 @@ lag_interfaces = get_lag_interfaces()
 
 counter = get_redis_counter()
 
+# Manage device transitions
+logging.info("Manage device transitions")
+for device in data:
+
+    if not CONF.enforce and current_state[device] == CONF.state:
+        continue
+
+    device_a = nb.dcim.devices.get(name=device)
+    transition_a = f"from_{current_state[device]}_to_{CONF.state}"
+    logging.info(f"State of device {device} should be {CONF.state} -> {transition_a}")
+
+    device_a.custom_fields = {
+        "device_transition": transition_a
+    }
+    device_a.save()
+
 # Manage interfaces
 logging.info("Manage interfaces")
 for device in data:

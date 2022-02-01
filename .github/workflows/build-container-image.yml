@@ -9,6 +9,7 @@ name: Build container image
     paths:
       - .github/workflows/build-container-image.yml
       - Containerfile
+      - files/**
       - osism/**
       - requirements.txt
       - scripts/**
@@ -18,6 +19,7 @@ name: Build container image
     paths:
       - .github/workflows/build-container-image.yml
       - Containerfile
+      - files/**
       - osism/**
       - requirements.txt
       - scripts/**
