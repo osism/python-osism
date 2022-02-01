@@ -3,7 +3,6 @@ from logging.config import dictConfig
 import logging
 from uuid import UUID
 
-from celery.signals import worker_process_init
 from fastapi import FastAPI, Header, Request, Response
 from pydantic import BaseModel
 import pynetbox
@@ -69,8 +68,8 @@ logger = logging.getLogger("api")
 nb = None
 
 
-@worker_process_init.connect
-def celery_init_worker(**kwargs):
+@app.on_event("startup")
+async def startup_event():
     global nb
 
     nb = pynetbox.api(
