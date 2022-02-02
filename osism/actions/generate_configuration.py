@@ -8,6 +8,7 @@ import jinja2
 from osism.tasks import ansible
 from osism.utils import first
 from osism import utils
+from pottery import Redlock
 
 
 def vlans_as_string(untagged_vlan, tagged_vlans):
@@ -96,6 +97,9 @@ def for_device(name, template=None):
     with open(f"/state/{device.name}.cfg.j2", "w+") as fp:
         fp.write(os.linesep.join([s for s in result.splitlines() if s]))
 
+    lock = Redlock(key="lock_osism_generate_configuration", masters={utils.redis}, auto_release_time=1000)
+
+    lock.acquire()
     repo.git.add(f"/state/{device.name}.cfg.j2")
     if len(repo.index.diff("HEAD")) > 0:
         logging.info(f"Committing changes in /state/{device.name}.cfg.j2")
@@ -105,3 +109,5 @@ def for_device(name, template=None):
         arguments.append(f"-e device={device.name}")
         arguments.append(f"-l {device.name}")
         ansible.run.delay("netbox", "deploy", arguments)
+
+    lock.release()

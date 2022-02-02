@@ -4,11 +4,12 @@ import subprocess
 
 from celery import Celery
 from celery.signals import worker_process_init
+from pottery import Redlock
 import pynetbox
 from redis import Redis
 
 from osism import settings
-from osism.actions import generate_configuration
+from osism.actions import generate_configuration, manage_device
 from osism.tasks import Config, ansible
 
 app = Celery('kolla')
@@ -70,8 +71,41 @@ def import_device_types(self, vendors, library=False):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.connect")
-def connect(self, collection, device=None, state=None):
+def connect(self, collection, device=None, state=None, enforce=False):
     global redis
+
+    data = manage_device.load_data_from_filesystem(collection, device, state)
+    current_state = manage_device.get_current_state(data)
+
+    for device in data:
+
+        # Device is already in the target state, no transition necessary
+        if not enforce and current_state[device] == state:
+            continue
+
+        # Allow only one status change per device
+        lock = Redlock(key="lock_netbox_connect_{device}", masters={redis})
+        lock.acquire()
+
+        # transition: from-to, phase 1
+        transition = f"from_{current_state[device]}-to_{state}-phase_1"
+        manage_device.set_device_transition(device, transition)
+
+        manage_device.manage_interfaces(device, data)
+        manage_device.manage_port_channels(device, data)
+        manage_device.remove_port_channels(device, data)
+        manage_device.manage_virtual_interfaces(device, data)
+        manage_device.remove_virtual_interfaces(device, data)
+        manage_device.manage_mlag_devices(device, data)
+
+        # transition: from-to, phase 2
+        transition = f"from_{current_state[device]}-to_{state}-phase_2"
+        manage_device.set_device_transition(device, transition)
+
+        # NOTE: will be moved to the deploy action later
+        manage_device.set_device_state(device, state)
+
+        lock.release()
 
     if collection and device:
         name = f"{collection}-{device}"
@@ -80,36 +114,8 @@ def connect(self, collection, device=None, state=None):
     else:
         name = device
 
-    if device:
-        if state:
-            if collection:
-                p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            else:
-                p = subprocess.Popen(f"python3 /connect/main.py --device={device} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        else:
-            if collection:
-                p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --device={device}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            else:
-                p = subprocess.Popen(f"python3 /connect/main.py --device={device}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-            # NOTE: use task_id or request_id in future
-            redis.publish(f"netbox-connect-{name}", line)
-
-        # NOTE: use task_id or request_id in future
-        redis.publish(f"netbox-connect-{name}", "QUIT")
-    else:
-        if state:
-            p = subprocess.Popen(f"python3 /connect/main.py --collection {collection} --state {state}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        else:
-            p = subprocess.Popen(f"python3 /connect/main.py --collection {collection}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-            # NOTE: use task_id or request_id in future
-            redis.publish(f"netbox-connect-{name}", line)
-
-        # NOTE: use task_id or request_id in future
-        redis.publish(f"netbox-connect-{name}", "QUIT")
+    # NOTE: use task_id or request_id in future
+    redis.publish(f"netbox-connect-{name}", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")

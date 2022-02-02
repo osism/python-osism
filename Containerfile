@@ -43,11 +43,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       git \
     && mkdir -p \
-      /connect \
       /import \
     && git clone https://github.com/netbox-community/devicetype-library /devicetype-library \
     && apt-get clean \
     && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-COPY files/connect/* /connect
 COPY files/import/* /import
