@@ -1,4 +1,3 @@
-import io
 import os
 import subprocess
 
@@ -62,12 +61,7 @@ def import_device_types(self, vendors, library=False):
     else:
         p = subprocess.Popen("python3 /import/main.py", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
 
-    for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-        # NOTE: use task_id or request_id in future
-        redis.publish("netbox-import-device-types", line)
-
-    # NOTE: use task_id or request_id in future
-    redis.publish("netbox-import-device-types", "QUIT")
+    p.communicate()
 
 
 @app.task(bind=True, name="osism.tasks.netbox.connect")
@@ -107,21 +101,10 @@ def connect(self, collection, device=None, state=None, enforce=False):
 
         lock.release()
 
-    if collection and device:
-        name = f"{collection}-{device}"
-    elif collection:
-        name = collection
-    else:
-        name = device
-
-    # NOTE: use task_id or request_id in future
-    redis.publish(f"netbox-connect-{name}", "QUIT")
-
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")
 def disable(self, name):
     global nb
-    global redis
 
     for interface in nb.dcim.interfaces.filter(device=name):
         if str(interface.type) in ["Virtual"]:
@@ -131,37 +114,22 @@ def disable(self, name):
             continue
 
         if not interface.connected_endpoint and interface.enabled:
-            redis.publish(f"netbox-disable-{name}", f"{interface} --> disabled")
             interface.enabled = False
             interface.save()
 
         if interface.connected_endpoint and not interface.enabled:
-            redis.publish(f"netbox-disable-{name}", f"{interface} --> enabled")
             interface.enabled = True
             interface.save()
-
-    # NOTE: use task_id or request_id in future
-    redis.publish(f"netbox-disable-{name}", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.generate")
 def generate(self, name, template=None):
-    global redis
-
     generate_configuration.for_device(name, template)
-
-    # NOTE: use task_id or request_id in future
-    redis.publish(f"netbox-generate-{name}", "QUIT")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.deploy")
 def deploy(self, name):
-    global redis
-
-    redis.publish(f"netbox-deploy-{name}", "Not yet implemented")
-
-    # NOTE: use task_id or request_id in future
-    redis.publish(f"netbox-deploy-{name}", "QUIT")
+    return
 
 
 @app.task(bind=True, name="osism.tasks.netbox.init")

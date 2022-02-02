@@ -36,21 +36,9 @@ class Sync(Command):
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
 
-        reconciler.sync_inventory_with_netbox.delay()
-
+        task = reconciler.sync_inventory_with_netbox.delay()
         if wait:
-            p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            p.subscribe("netbox-sync-inventory-with-netbox")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+            task.wait(timeout=None, interval=0.5)
 
 
 class Init(Command):
@@ -67,21 +55,10 @@ class Init(Command):
         arguments = parsed_args.arguments
         wait = not parsed_args.no_wait
 
-        netbox.init.delay(arguments)
+        task = netbox.init.delay(arguments)
 
         if wait:
-            p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            p.subscribe("netbox-local-init")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+            task.wait(timeout=None, interval=0.5)
 
 
 class Import(Command):
@@ -105,21 +82,10 @@ class Import(Command):
         wait = not parsed_args.no_wait
         library = not parsed_args.no_library
 
-        netbox.import_device_types.delay(vendors, library)
+        task = netbox.import_device_types.delay(vendors, library)
 
         if wait:
-            p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            p.subscribe("netbox-import-device-types")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+            task.wait(timeout=None, interval=0.5)
 
 
 class Manage(Command):
@@ -140,21 +106,10 @@ class Manage(Command):
         wait = not parsed_args.no_wait
         type_of_resource = parsed_args.type
 
-        ansible.run.delay("netbox-local", f"{type_of_resource}-{name}", arguments)
+        task = ansible.run.delay("netbox-local", f"{type_of_resource}-{name}", arguments)
 
         if wait:
-            p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            p.subscribe(f"netbox-local-{type_of_resource}-{name}")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+            task.wait(timeout=None, interval=0.5)
 
 
 class Connect(Command):
@@ -179,26 +134,19 @@ class Connect(Command):
         type_of_resource = parsed_args.type
         wait = not parsed_args.no_wait
 
+        task = None
+
         if name:
             if type_of_resource == "collection":
-                netbox.connect.delay(name, "", state)
+                task = netbox.connect.delay(name, "", state)
             elif type_of_resource == "device":
-                netbox.connect.delay("", name, state)
+                task = netbox.connect.delay("", name, state)
         else:
-            netbox.connect.delay(collection, device, state)
+            task = netbox.connect.delay(collection, device, state)
             name = f"{collection}-{device}"
 
         if wait:
-            p = redis.pubsub()
-            p.subscribe(f"netbox-connect-{name}")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+            task.wait(timeout=None, interval=0.5)
 
 
 class Disable(Command):
@@ -215,21 +163,10 @@ class Disable(Command):
         name = parsed_args.name[0]
         wait = not parsed_args.no_wait
 
-        netbox.disable.delay(name)
+        task = netbox.disable.delay(name)
 
         if wait:
-            p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            p.subscribe(f"netbox-disable-{name}")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+            task.wait(timeout=None, interval=0.5)
 
 
 class Generate(Command):
@@ -248,21 +185,10 @@ class Generate(Command):
         template = parsed_args.template
         wait = not parsed_args.no_wait
 
-        netbox.generate.delay(name, template)
+        task = netbox.generate.delay(name, template)
 
         if wait:
-            p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            p.subscribe(f"netbox-generate-{name}")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+            task.wait(timeout=None, interval=0.5)
 
 
 class Deploy(Command):
@@ -285,18 +211,7 @@ class Deploy(Command):
         arguments.append(f"-l {name}")
 
         # netbox.deploy.delay(name)
-        ansible.run.delay("netbox", "deploy", arguments)
+        task = ansible.run.delay("netbox", "deploy", arguments)
 
         if wait:
-            p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            p.subscribe("netbox-deploy")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+            task.wait(timeout=None, interval=0.5)
