@@ -16,6 +16,7 @@ setup(
 
     description='OSISM manager interface',
     long_description=long_description,
+    long_description_content_type='text/markdown'
 
     author='OSISM GmbH',
     author_email='info@osism.tech',
