@@ -5,6 +5,7 @@ import glob
 import os
 import sys
 
+from pottery import Redlock
 import pynetbox
 import yaml
 
@@ -582,3 +583,28 @@ def set_device_transition(device, transition):
         "device_transition": transition
     }
     device_a.save()
+
+
+def run(device, state, data, current_states, enforce=False):
+    # Device is already in the target state, no transition necessary
+    if not enforce and current_states[device] == state:
+        return
+
+    # Allow only one status change per device
+    lock = Redlock(key="lock_{device}", masters={utils.redis})
+    lock.acquire()
+
+    # transition: from-to, phase 1
+    transition = f"from_{current_states[device]}-to_{state}-phase_1"
+    set_device_transition(device, transition)
+
+    manage_interfaces(device, data)
+    manage_port_channels(device, data)
+    remove_port_channels(device, data)
+    manage_virtual_interfaces(device, data)
+    remove_virtual_interfaces(device, data)
+    manage_mlag_devices(device, data)
+
+    set_device_state(device, f"{state}-phase_1")
+
+    lock.release()

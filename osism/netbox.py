@@ -138,11 +138,11 @@ class Connect(Command):
 
         if name:
             if type_of_resource == "collection":
-                task = netbox.connect.delay(name, "", state, wait=wait)
+                task = netbox.connect.delay(name, "", state)
             elif type_of_resource == "device":
-                task = netbox.connect.delay("", name, state, wait=wait)
+                task = netbox.connect.delay("", name, state)
         else:
-            task = netbox.connect.delay(collection, device, state, wait=wait)
+            task = netbox.connect.delay(collection, device, state)
             name = f"{collection}-{device}"
 
         if wait:

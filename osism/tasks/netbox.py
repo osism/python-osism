@@ -3,7 +3,6 @@ import subprocess
 
 from celery import Celery
 from celery.signals import worker_process_init
-from pottery import Redlock
 import pynetbox
 from redis import Redis
 
@@ -64,46 +63,13 @@ def import_device_types(self, vendors, library=False):
     p.communicate()
 
 
-def connect_device(self, device, state, data, current_states, enforce=False):
-    global redis
-
-    # Device is already in the target state, no transition necessary
-    if not enforce and current_states[device] == state:
-        return
-
-    # Allow only one status change per device
-    lock = Redlock(key="lock_{device}", masters={redis})
-    lock.acquire()
-
-    # transition: from-to, phase 1
-    transition = f"from_{current_states[device]}-to_{state}-phase_1"
-    manage_device.set_device_transition(device, transition)
-
-    manage_device.manage_interfaces(device, data)
-    manage_device.manage_port_channels(device, data)
-    manage_device.remove_port_channels(device, data)
-    manage_device.manage_virtual_interfaces(device, data)
-    manage_device.remove_virtual_interfaces(device, data)
-    manage_device.manage_mlag_devices(device, data)
-
-    manage_device.set_device_state(device, f"{state}-phase_1")
-
-    lock.release()
-
-
 @app.task(bind=True, name="osism.tasks.netbox.connect")
-def connect(self, collection, device=None, state=None, enforce=False, wait=False):
+def connect(self, collection, device=None, state=None, enforce=False):
     data = manage_device.load_data_from_filesystem(collection, device, state)
     current_states = manage_device.get_current_states(data)
 
-    tasks = []
     for device in data:
-        task = connect_device.delay(device, state, data, current_states, enforce)
-        tasks.append(task)
-
-    if wait:
-        for task in task:
-            task.wait(timeout=None, interval=0.5)
+        manage_device.run(device, state, data, current_states, enforce)
 
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")
