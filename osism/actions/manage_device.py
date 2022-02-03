@@ -58,7 +58,7 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
     return data
 
 
-def get_current_state(data):
+def get_current_states(data):
     result = {}
     for device in data:
         device_a = utils.nb.dcim.devices.get(name=device)
