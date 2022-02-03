@@ -3,7 +3,7 @@ from setuptools import setup
 
 PROJECT = 'osism'
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 
 try:
     long_description = open('README.md', 'rt').read()
@@ -16,7 +16,7 @@ setup(
 
     description='OSISM manager interface',
     long_description=long_description,
-    long_description_content_type='text/markdown'
+    long_description_content_type='text/markdown',
 
     author='OSISM GmbH',
     author_email='info@osism.tech',
