@@ -14,7 +14,7 @@ oslo.config==8.7.1
 oslo.service==2.7.0
 pottery==1.4.7
 pydantic==1.9.0
-pynetbox==6.4.1
+pynetbox==6.5.0
 sushy==4.0.0
 tabulate==0.8.9
 transitions==0.8.10
