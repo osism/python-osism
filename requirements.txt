@@ -2,7 +2,7 @@ GitPython==3.1.26
 Jinja2==3.0.3
 PyYAML==6.0
 ansible-runner==2.1.1
-celery[redis]==5.2.2
+celery[redis]==5.2.3
 cliff==3.10.0
 deepdiff==5.7.0
 fastapi==0.71.0
