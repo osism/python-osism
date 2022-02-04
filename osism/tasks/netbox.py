@@ -63,13 +63,21 @@ def import_device_types(self, vendors, library=False):
     p.communicate()
 
 
-@app.task(bind=True, name="osism.tasks.netbox.connect")
-def connect(self, collection, device=None, state=None, enforce=False):
-    data = manage_device.load_data_from_filesystem(collection, device, state)
-    current_states = manage_device.get_current_states(data)
+@app.task(bind=True, name="osism.tasks.netbox.states")
+def states(self, data):
+    result = manage_device.get_current_states(data)
+    return result
 
-    for device in data:
-        manage_device.run(device, state, data, current_states, enforce)
+
+@app.task(bind=True, name="osism.tasks.netbox.data")
+def data(self, collection, device, state):
+    result = manage_device.load_data_from_filesystem(collection, device, state)
+    return result
+
+
+@app.task(bind=True, name="osism.tasks.netbox.connect")
+def connect(self, device=None, state=None, data={}, states={}, enforce=False):
+    manage_device.run(device, state, data, states, enforce)
 
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")

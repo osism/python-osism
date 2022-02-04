@@ -132,21 +132,28 @@ class Connect(Command):
         device = parsed_args.device
         state = parsed_args.state
         type_of_resource = parsed_args.type
-        wait = not parsed_args.no_wait
+        # wait = not parsed_args.no_wait
 
         task = None
 
         if name:
             if type_of_resource == "collection":
-                task = netbox.connect.delay(name, "", state)
+                task = netbox.data.delay(name, "", state)
             elif type_of_resource == "device":
-                task = netbox.connect.delay("", name, state)
+                task = netbox.data.delay("", name, state)
         else:
-            task = netbox.connect.delay(collection, device, state)
+            task = netbox.data.delay(collection, device, state)
             name = f"{collection}-{device}"
 
-        if wait:
-            task.wait(timeout=None, interval=0.5)
+        task.wait(timeout=None, interval=0.5)
+        data = task.get()
+
+        task = netbox.states.delay(data)
+        task.wait(timeout=None, interval=0.5)
+        states = task.get()
+
+        for device in data:
+            netbox.connect.delay(device, state, data, states)
 
 
 class Disable(Command):
