@@ -13,6 +13,10 @@ from osism import utils
 
 
 def load_data_from_filesystem(collection=None, device=None, state=None):
+    """Loads all known data for a given device or an entire collection
+    from the file system (/netbox) in a given state.
+    """
+
     data = {}
     if not device:
         # logging.info(f"Loading collection {collection}")
@@ -60,6 +64,8 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
 
 
 def get_states(devices):
+    """Gets the state (device_state) stored in the Netbox for a list of devices."""
+
     result = {}
     for device in devices:
         device_a = utils.nb.dcim.devices.get(name=device)
@@ -69,6 +75,8 @@ def get_states(devices):
 
 
 def get_transitions(devices):
+    """Gets the transition (device_transition) stored in the Netbox for a list of devices."""
+
     result = {}
     for device in devices:
         device_a = utils.nb.dcim.devices.get(name=device)
@@ -78,6 +86,8 @@ def get_transitions(devices):
 
 
 def get_lag_interfaces(data):
+    """Returns all defined LAGs."""
+
     result = {}
     for device in data:
         result[device] = []
@@ -90,8 +100,8 @@ def get_lag_interfaces(data):
     return result
 
 
-# Manage interfaces
 def manage_interfaces(device, data):
+    """Manage interfaces."""
     primary_address = None
     lag_interfaces = get_lag_interfaces(data)
 
@@ -284,8 +294,9 @@ def manage_interfaces(device, data):
         device_a.save()
 
 
-# Manage port channels (not MLAGs)
 def manage_port_channels(device, data):
+    """Manage port channels (not MLAGs)."""
+
     for interface in data[device]:
         if data[device][interface]["type"] == "port-channel":
             # logging.info(f"Local port channel {device} # {interface} -> {data[device][interface]['interfaces']}")
@@ -421,8 +432,9 @@ def manage_port_channels(device, data):
             port_channel_b.save()
 
 
-# Remove local and remote port channels that no longer exist
 def remove_port_channels(device, data):
+    """Remove local and remote port channels that no longer exist."""
+
     for interface in utils.nb.dcim.interfaces.filter(device=device, type="lag"):
         delete = True
         for interface_a in data[device]:
@@ -436,8 +448,9 @@ def remove_port_channels(device, data):
             interface.delete()
 
 
-# Manage virtual interfaces
 def manage_virtual_interfaces(device, data):
+    """Manage virtual interfaces."""
+
     for interface in data[device]:
         if data[device][interface]["type"] == "virtual":
             # logging.info(f"Virtual interface {interface} for {device}")
@@ -516,8 +529,9 @@ def manage_virtual_interfaces(device, data):
                 interface_a.save()
 
 
-# Remove virtual interfaces that no longer exist
 def remove_virtual_interfaces(device, data):
+    """Remove virtual interfaces that no longer exist."""
+
     for interface in utils.nb.dcim.interfaces.filter(device=device, type="virtual"):
         delete = True
         for interface_a in data[device]:
@@ -528,8 +542,9 @@ def remove_virtual_interfaces(device, data):
             interface.delete()
 
 
-# Manage MLAG devices (not port channels)
 def manage_mlag_devices(device, data):
+    """Manage MLAG devices (not port channels)."""
+
     for interface in data[device]:
         if data[device][interface]["type"] == "mlag":
             data_a = data[device][interface]["data"]
@@ -575,6 +590,8 @@ def manage_mlag_devices(device, data):
 
 
 def set_device_state(device, state):
+    """Set the state (device_state) for a device in the Netbox."""
+
     # logging.info(f"Set state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
@@ -585,6 +602,8 @@ def set_device_state(device, state):
 
 
 def set_device_transition(device, transition):
+    """Set the transition (device_transition) for a device in the Netbox."""
+
     # logging.info(f"Set transition of device {device} = {transition}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
@@ -595,14 +614,19 @@ def set_device_transition(device, transition):
 
 
 def get_device_state(device, states):
+    """Get the state (device_state) for a device in the Netbox."""
+
     return states[device]
 
 
 def get_device_transition(device, transitions):
+    """Get the transition (device_transition) for a device in the Netbox."""
+
     return transitions[device]
 
 
 def run(device, state, data, enforce=False):
+    """Transition a device to a specific state."""
 
     states = get_states(data.keys())
     current_state = get_device_state(device, states)
