@@ -594,15 +594,29 @@ def set_device_transition(device, transition):
     device_a.save()
 
 
+def get_device_state(device, states):
+    return states[device]
+
+
+def get_device_transition(device, transitions):
+    return transitions[device]
+
+
 def run(device, state, data, enforce=False):
 
     states = get_states(data.keys())
+    current_state = get_device_state(device, states)
 
     # Device is already in the target state, no transition necessary
-    if not enforce and states[device] == state:
+    if not enforce and current_state == state:
         return
 
-    # transitions = get_transitions(data.keys())
+    transitions = get_transitions(data.keys())
+    current_transition = get_device_transition(device, transitions)
+
+    # One transition is already running, no second transition possible
+    if current_transition:
+        return
 
     # Allow only one active action per device
     lock = Redlock(key="lock_{device}", masters={utils.redis})
