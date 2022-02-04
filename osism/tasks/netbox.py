@@ -65,7 +65,13 @@ def import_device_types(self, vendors, library=False):
 
 @app.task(bind=True, name="osism.tasks.netbox.states")
 def states(self, data):
-    result = manage_device.get_current_states(data)
+    result = manage_device.get_states(data.keys())
+    return result
+
+
+@app.task(bind=True, name="osism.tasks.netbox.transitions")
+def transitions(self, data):
+    result = manage_device.get_transitions(data.keys())
     return result
 
 
@@ -76,8 +82,8 @@ def data(self, collection, device, state):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.connect")
-def connect(self, device=None, state=None, data={}, states={}, enforce=False):
-    manage_device.run(device, state, data, states, enforce)
+def connect(self, device=None, state=None, data={}, enforce=False):
+    manage_device.run(device, state, data, enforce)
 
 
 @app.task(bind=True, name="osism.tasks.netbox.disable")

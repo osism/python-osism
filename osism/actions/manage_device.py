@@ -59,11 +59,20 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
     return data
 
 
-def get_current_states(data):
+def get_states(devices):
     result = {}
-    for device in data:
+    for device in devices:
         device_a = utils.nb.dcim.devices.get(name=device)
         result[device] = device_a.custom_fields["device_state"]
+
+    return result
+
+
+def get_transitions(devices):
+    result = {}
+    for device in devices:
+        device_a = utils.nb.dcim.devices.get(name=device)
+        result[device] = device_a.custom_fields["device_transition"]
 
     return result
 
@@ -585,17 +594,22 @@ def set_device_transition(device, transition):
     device_a.save()
 
 
-def run(device, state, data, current_states, enforce=False):
+def run(device, state, data, enforce=False):
+
+    states = get_states(data.keys())
+
     # Device is already in the target state, no transition necessary
-    if not enforce and current_states[device] == state:
+    if not enforce and states[device] == state:
         return
 
-    # Allow only one status change per device
+    # transitions = get_transitions(data.keys())
+
+    # Allow only one active action per device
     lock = Redlock(key="lock_{device}", masters={utils.redis})
     lock.acquire()
 
     # transition: from-to, phase 1
-    transition = f"from_{current_states[device]}-to_{state}-phase_1"
+    transition = f"from_{states[device]}-to_{state}-phase_1"
     set_device_transition(device, transition)
 
     manage_interfaces(device, data)

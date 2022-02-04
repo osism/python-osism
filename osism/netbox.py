@@ -148,12 +148,8 @@ class Connect(Command):
         task.wait(timeout=None, interval=0.5)
         data = task.get()
 
-        task = netbox.states.delay(data)
-        task.wait(timeout=None, interval=0.5)
-        states = task.get()
-
         for device in data:
-            netbox.connect.delay(device, state, data, states)
+            netbox.connect.delay(device, state, data)
 
 
 class Disable(Command):

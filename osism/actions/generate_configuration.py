@@ -103,7 +103,7 @@ def for_device(name, template=None):
     with open(f"/state/{device.name}.cfg.j2", "w+") as fp:
         fp.write(os.linesep.join([s for s in result.splitlines() if s]))
 
-    # Allow only one change
+    # Allow only one change per time in the state repository
     lock_repository.acquire()
 
     repo.git.add(f"/state/{device.name}.cfg.j2")
