@@ -5,10 +5,10 @@ import os
 
 import git
 import jinja2
-from osism.tasks import ansible
+from pottery import Redlock
+
 from osism.utils import first
 from osism import utils
-from pottery import Redlock
 
 
 def vlans_as_string(untagged_vlan, tagged_vlans):
@@ -20,12 +20,6 @@ def vlans_as_string(untagged_vlan, tagged_vlans):
 
 def for_device(name, template=None):
     device = utils.nb.dcim.devices.get(name=name)
-
-    lock = Redlock(key="lock_{device}", masters={utils.redis})
-    lock_repository = Redlock(key="lock_repository", masters={utils.redis})
-
-    # Allow only one active action per device
-    lock.acquire()
 
     if not template:
         template = f"{device.name}.cfg.j2"
@@ -103,8 +97,9 @@ def for_device(name, template=None):
     with open(f"/state/{device.name}.cfg.j2", "w+") as fp:
         fp.write(os.linesep.join([s for s in result.splitlines() if s]))
 
-    # Allow only one change per time in the state repository
-    lock_repository.acquire()
+    # Allow only one change per time
+    lock = Redlock(key=f"lock_repository", masters={utils.redis})
+    lock.acquire()
 
     repo.git.add(f"/state/{device.name}.cfg.j2")
     if len(repo.index.diff("HEAD")) > 0:
@@ -114,7 +109,5 @@ def for_device(name, template=None):
         arguments = []
         arguments.append(f"-e device={device.name}")
         arguments.append(f"-l {device.name}")
-        ansible.run.delay("netbox", "deploy", arguments)
 
-    lock_repository.release()
     lock.release()

@@ -2,6 +2,7 @@
 # LICENSE: CC BY-NC 4.0
 
 import glob
+import logging
 import os
 import sys
 
@@ -10,6 +11,7 @@ import pynetbox
 import yaml
 
 from osism import utils
+from osism.actions import generate_configuration
 
 
 def load_data_from_filesystem(collection=None, device=None, state=None):
@@ -19,7 +21,7 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
 
     data = {}
     if not device:
-        # logging.info(f"Loading collection {collection}")
+        logging.info(f"Loading collection {collection}")
 
         if os.path.isfile("/netbox/{CONF.collection}/{CONF.state}.yaml"):
             with open(f"/netbox/{collection}/{state}.yaml") as fp:
@@ -33,10 +35,10 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
 
     elif device and collection:
         if not os.path.isfile("/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml"):
-            # logging.error(f"State {state} for device {device} in collection {collection} is not available")
+            logging.error(f"State {state} for device {device} in collection {collection} is not available")
             return data
 
-        # logging.info(f"Loading device {device} from collection {collection}")
+        logging.info(f"Loading device {device} from collection {collection}")
 
         with open(f"/netbox/{collection}/{device}/{state}.yaml") as fp:
             data = yaml.load(fp, Loader=yaml.SafeLoader)
@@ -46,19 +48,19 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
         # A device can be in exactly one collection
         result = [x[0] for x in os.walk("/netbox") if device in x[0]]
         if result:
-            # logging.info(f"Loading device {device}")
+            logging.info(f"Loading device {device}")
 
             try:
                 with open(f"{result[0]}/{state}.yaml") as fp:
                     data = yaml.load(fp, Loader=yaml.SafeLoader)
             except:  # noqa
-                # logging.error(f"State {state} for device {device} is not available")
+                logging.error(f"State {state} for device {device} is not available")
                 sys.exit(1)
-        # else:
-        #     logging.error(f"Device {device} is not defined in any collection")
+        else:
+            logging.error(f"Device {device} is not defined in any collection")
 
-    # else:
-    #     logging.error("Specify at least a collection or a device")
+    else:
+        logging.error("Specify at least a collection or a device")
 
     return data
 
@@ -130,7 +132,7 @@ def manage_interfaces(device, data):
                 address_a = utils.nb.ipam.ip_addresses.get(address=address)
                 if type(address) == str:
                     address_a = utils.nb.ipam.ip_addresses.get(address=address)
-                    # logging.info(f"Address {address} -> {interface}")
+                    logging.info(f"Address {address} -> {interface}")
                     if not address_a:
                         utils.nb.ipam.ip_addresses.create(
                             address=address,
@@ -139,7 +141,7 @@ def manage_interfaces(device, data):
                         )
                 else:
                     address_a = utils.nb.ipam.ip_addresses.get(address=address["address"])
-                    # logging.info(f"Address {address['address']} -> {interface}")
+                    logging.info(f"Address {address['address']} -> {interface}")
                     if not address_a:
                         address_a = utils.nb.ipam.ip_addresses.create(
                             assigned_object_type="dcim.interface",
@@ -164,7 +166,7 @@ def manage_interfaces(device, data):
             if delete:
                 address.delete()
 
-        # logging.info(f"{interface_a} -> {device_target} # {interface_b}")
+        logging.info(f"{interface_a} -> {device_target} # {interface_b}")
 
         # EthernetXX/Y
         if "Ethernet" in interface_a.name:
@@ -226,20 +228,20 @@ def manage_interfaces(device, data):
                     termination_b_id=interface_b.id,
                     type=data[device][interface]["type"]
                 )
-            except pynetbox.core.query.RequestError:
+            except pynetbox.core.query.RequestError as e:
+                logging.error(f"ERROR --> {e}")
                 pass
-                # logging.error(f"ERROR --> {e}")
 
         # ensure that all interfaces are enabled
         if not interface_a.enabled:
             interface_a.enabled = True
             interface_a.save()
-            # logging.info(f"{device_a} # {interface_a} --> enabled")
+            logging.info(f"{device_a} # {interface_a} --> enabled")
 
         if not interface_b.enabled:
             interface_b.enabled = True
             interface_b.save()
-            # logging.info(f"{device_b} # {interface_b} --> enabled")
+            logging.info(f"{device_b} # {interface_b} --> enabled")
 
         if "vlans" in data[device][interface]:
             tagged = False
@@ -250,24 +252,24 @@ def manage_interfaces(device, data):
                 if not vlan_a:
                     try:
                         vlan_a = utils.nb.ipam.vlans.create(name=f"VLAN {vlan}", vid=vlan)
-                    except pynetbox.core.query.RequestError:
+                    except pynetbox.core.query.RequestError as e:
+                        logging.error(f"ERROR --> {e}")
                         pass
-                        # logging.error(f"ERROR --> {e}")
 
                 if data[device][interface]["vlans"][vlan] == "untagged":
-                    # logging.info(f"Untagged VLAN {vlan_a.vid} -> {interface_a.name}")
+                    logging.info(f"Untagged VLAN {vlan_a.vid} -> {interface_a.name}")
                     interface_a.untagged_vlan = vlan_a.id
 
                     if interface_a.name not in lag_interfaces[device]:
-                        # logging.info(f"Tagged VLAN {vlan_a.vid} -> {interface_b.name}")
+                        logging.info(f"Tagged VLAN {vlan_a.vid} -> {interface_b.name}")
                         interface_b.untagged_vlan = vlan_a.id
 
                 elif vlan_a.id not in interface_a.tagged_vlans:
-                    # logging.info(f"Tagged VLAN {vlan_a.vid} -> {interface_a.name}")
+                    logging.info(f"Tagged VLAN {vlan_a.vid} -> {interface_a.name}")
                     interface_a.tagged_vlans.append(vlan_a.id)
 
                     if interface_a.name not in lag_interfaces[device]:
-                        # logging.info(f"Tagged VLAN {vlan_a.vid} -> {interface_b.name}")
+                        logging.info(f"Tagged VLAN {vlan_a.vid} -> {interface_b.name}")
                         interface_b.tagged_vlans.append(vlan_a.id)
 
                     tagged = True
@@ -299,7 +301,7 @@ def manage_port_channels(device, data):
 
     for interface in data[device]:
         if data[device][interface]["type"] == "port-channel":
-            # logging.info(f"Local port channel {device} # {interface} -> {data[device][interface]['interfaces']}")
+            logging.info(f"Local port channel {device} # {interface} -> {data[device][interface]['interfaces']}")
             device_a = utils.nb.dcim.devices.get(name=device)
 
             # Create the local port channel
@@ -307,9 +309,9 @@ def manage_port_channels(device, data):
             if not port_channel_a:
                 try:
                     port_channel_a = utils.nb.dcim.interfaces.create(name=interface, device=device_a.id, type="lag")
-                except pynetbox.core.query.RequestError:
+                except pynetbox.core.query.RequestError as e:
+                    logging.error(f"ERROR --> {e}")
                     pass
-                    # logging.error(f"ERROR --> {e}")
 
             # Create the remote port channels and add the local interfaces to the local port channel
             remote_port_channels = []
@@ -330,15 +332,15 @@ def manage_port_channels(device, data):
                 interface_b.untagged_vlan = None
                 interface_b.tagged_vlans = []
 
-                # logging.info(f"Remote port channel {interface_b.device.name} # {port_channel_b_name} -> {interface_b.device.name} # {interface_b.name} ({interface_a.name})")
+                logging.info(f"Remote port channel {interface_b.device.name} # {port_channel_b_name} -> {interface_b.device.name} # {interface_b.name} ({interface_a.name})")
 
                 port_channel_b = utils.nb.dcim.interfaces.get(name=port_channel_b_name, device=interface_b.device)
                 if not port_channel_b:
                     try:
                         port_channel_b = utils.nb.dcim.interfaces.create(name=port_channel_b_name, device=interface_b.device.id, type="lag")
-                    except pynetbox.core.query.RequestError:
+                    except pynetbox.core.query.RequestError as e:
+                        logging.error(f"ERROR --> {e}")
                         pass
-                        # logging.error(f"ERROR --> {e}")
 
                 interface_b.lag = port_channel_b
                 interface_b.save()
@@ -351,7 +353,7 @@ def manage_port_channels(device, data):
                     address_a = utils.nb.ipam.ip_addresses.get(address=address)
                     if type(address) == str:
                         address_a = utils.nb.ipam.ip_addresses.get(address=address)
-                        # logging.info(f"Address {address} -> {interface}")
+                        logging.info(f"Address {address} -> {interface}")
                         if not address_a:
                             utils.nb.ipam.ip_addresses.create(
                                 address=address,
@@ -360,7 +362,7 @@ def manage_port_channels(device, data):
                             )
                     else:
                         address_a = utils.nb.ipam.ip_addresses.get(address=address["address"])
-                        # logging.info(f"Address {address['address']} -> {interface}")
+                        logging.info(f"Address {address['address']} -> {interface}")
                         if not address_a:
                             address_a = utils.nb.ipam.ip_addresses.create(
                                 assigned_object_type="dcim.interface",
@@ -397,24 +399,24 @@ def manage_port_channels(device, data):
                     if not vlan_a:
                         try:
                             vlan_a = utils.nb.ipam.vlans.create(name=f"VLAN {vlan}", vid=vlan)
-                        except pynetbox.core.query.RequestError:
+                        except pynetbox.core.query.RequestError as e:
+                            logging.error(f"ERROR --> {e}")
                             pass
-                            # logging.error(f"ERROR --> {e}")
 
                     if data[device][interface]["vlans"][vlan] == "untagged":
-                        # logging.info(f"Untagged VLAN {vlan_a.vid} -> {port_channel_a.name}")
+                        logging.info(f"Untagged VLAN {vlan_a.vid} -> {port_channel_a.name}")
                         port_channel_a.untagged_vlan = vlan_a.id
 
                         for port_channel_b in remote_port_channels:
-                            # logging.info(f"Untagged VLAN {vlan_a.vid} -> {port_channel_b.name}")
+                            logging.info(f"Untagged VLAN {vlan_a.vid} -> {port_channel_b.name}")
                             port_channel_b.untagged_vlan = vlan_a.id
                     elif vlan_a.id not in port_channel_a.tagged_vlans:
-                        # logging.info(f"Tagged VLAN {vlan_a.vid} -> {port_channel_a.name}")
+                        logging.info(f"Tagged VLAN {vlan_a.vid} -> {port_channel_a.name}")
                         port_channel_a.tagged_vlans.append(vlan_a.id)
                         tagged = True
 
                         for port_channel_b in remote_port_channels:
-                            # logging.info(f"Tagged VLAN {vlan_a.vid} -> {port_channel_b.name}")
+                            logging.info(f"Tagged VLAN {vlan_a.vid} -> {port_channel_b.name}")
                             port_channel_b.tagged_vlans.append(vlan_a.id)
 
                 if tagged:
@@ -453,7 +455,7 @@ def manage_virtual_interfaces(device, data):
 
     for interface in data[device]:
         if data[device][interface]["type"] == "virtual":
-            # logging.info(f"Virtual interface {interface} for {device}")
+            logging.info(f"Virtual interface {interface} for {device}")
 
             device_a = utils.nb.dcim.devices.get(name=device)
 
@@ -461,16 +463,16 @@ def manage_virtual_interfaces(device, data):
             if not interface_a:
                 try:
                     interface_a = utils.nb.dcim.interfaces.create(name=interface, device=device_a.id, type="virtual", **data[device][interface]["data"])
-                except pynetbox.core.query.RequestError:
+                except pynetbox.core.query.RequestError as e:
+                    logging.error(f"ERROR --> {e}")
                     pass
-                    # logging.error(f"ERROR --> {e}")
 
             if "addresses" in data[device][interface]:
                 for address in data[device][interface]["addresses"]:
                     address_a = utils.nb.ipam.ip_addresses.get(address=address)
                     if type(address) == str:
                         address_a = utils.nb.ipam.ip_addresses.get(address=address)
-                        # logging.info(f"Address {address} -> {interface}")
+                        logging.info(f"Address {address} -> {interface}")
                         if not address_a:
                             utils.nb.ipam.ip_addresses.create(
                                 address=address,
@@ -479,7 +481,7 @@ def manage_virtual_interfaces(device, data):
                             )
                     else:
                         address_a = utils.nb.ipam.ip_addresses.get(address=address["address"])
-                        # logging.info(f"Address {address['address']} -> {interface}")
+                        logging.info(f"Address {address['address']} -> {interface}")
                         if not address_a:
                             address_a = utils.nb.ipam.ip_addresses.create(
                                 assigned_object_type="dcim.interface",
@@ -512,9 +514,9 @@ def manage_virtual_interfaces(device, data):
                     if not vlan_a:
                         try:
                             vlan_a = utils.nb.ipam.vlans.create(name=f"VLAN {vlan}", vid=vlan)
-                        except pynetbox.core.query.RequestError:
+                        except pynetbox.core.query.RequestError as e:
+                            logging.error(f"ERROR --> {e}")
                             pass
-                            # logging.error(f"ERROR --> {e}")
 
                     if data[device][interface]["vlans"][vlan] == "untagged":
                         interface_a.untagged_vlan = vlan_a.id
@@ -550,14 +552,14 @@ def manage_mlag_devices(device, data):
             data_a = data[device][interface]["data"]
             device_a = utils.nb.dcim.devices.get(name=device)
 
-            # logging.info(f"Local port channel {device} # Port-Channel{data_a['channel']}")
+            logging.info(f"Local port channel {device} # Port-Channel{data_a['channel']}")
 
             port_channel_a = utils.nb.dcim.interfaces.get(name=f"Port-Channel{data_a['channel']}", device=device)
             if not port_channel_a:
                 try:
                     port_channel_a = utils.nb.dcim.interfaces.create(name=f"Port-Channel{data_a['channel']}", device=device_a.id, type="lag")
-                except pynetbox.core.query.RequestError:
-                    # logging.error(f"ERROR --> {e}")
+                except pynetbox.core.query.RequestError as e:
+                    logging.error(f"ERROR --> {e}")
                     pass
 
             for interface_x in data[device][interface]["interfaces"]:
@@ -565,14 +567,14 @@ def manage_mlag_devices(device, data):
                 interface_a.lag = port_channel_a
                 interface_a.save()
 
-            # logging.info(f"Virtual interface {data_a['vlan']} for {device}")
+            logging.info(f"Virtual interface {data_a['vlan']} for {device}")
             interface_a = utils.nb.dcim.interfaces.get(name=f"Vlan{data_a['vlan']}", device=device)
             if not interface_a:
                 try:
                     interface_a = utils.nb.dcim.interfaces.create(name=f"Vlan{data_a['vlan']}", device=device_a.id, type="virtual")
-                except pynetbox.core.query.RequestError:
+                except pynetbox.core.query.RequestError as e:
+                    logging.error(f"ERROR --> {e}")
                     pass
-                    # logging.error(f"ERROR --> {e}")
 
             vlan_a = utils.nb.ipam.vlans.get(vid=data_a['vlan'])
             interface_a.untagged_vlan = vlan_a
@@ -592,7 +594,7 @@ def manage_mlag_devices(device, data):
 def set_device_state(device, state):
     """Set the state (device_state) for a device in the Netbox."""
 
-    # logging.info(f"Set state of device {device} = {state}")
+    logging.info(f"Set state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
     device_a.custom_fields = {
@@ -604,7 +606,7 @@ def set_device_state(device, state):
 def set_device_transition(device, transition):
     """Set the transition (device_transition) for a device in the Netbox."""
 
-    # logging.info(f"Set transition of device {device} = {transition}")
+    logging.info(f"Set transition of device {device} = {transition}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
     device_a.custom_fields = {
@@ -625,6 +627,18 @@ def get_device_transition(device, transitions):
     return transitions[device]
 
 
+def get_connected_devices(device, data):
+    """Get all devices that are connected to a device in a certain state."""
+
+    result = []
+
+    for interface in data[device]:
+        if "device" in data[device][interface]:
+            result.append(data[device][interface]["device"])
+
+    return result
+
+
 def run(device, state, data, enforce=False):
     """Transition a device to a specific state."""
 
@@ -633,20 +647,28 @@ def run(device, state, data, enforce=False):
 
     # Device is already in the target state, no transition necessary
     if not enforce and current_state == state:
+        logging.info(f"Device {device} is already in state {state}")
         return
 
     transitions = get_transitions(data.keys())
     current_transition = get_device_transition(device, transitions)
 
+    current_data = load_data_from_filesystem(None, device, current_state)
+
     # One transition is already running, no second transition possible
     if current_transition:
+        logging.info(f"{device} is already in transit")
         return
 
-    # Allow only one active action per device
-    lock = Redlock(key="lock_{device}", masters={utils.redis})
+    # Get connected devices in source and target state
+    connected_devices = set(get_connected_devices(device, current_data) + get_connected_devices(device, data))
+    logging.info(connected_devices)
+
+    # Allow only one active transition per device
+    lock = Redlock(key=f"lock_{device}", masters={utils.redis}, auto_release_time=120*1000)
     lock.acquire()
 
-    # transition: from-to, phase 1
+    # transition: from-to, phase 1 (modifications in the Netbox)
     transition = f"from_{states[device]}-to_{state}-phase_1"
     set_device_transition(device, transition)
 
@@ -658,5 +680,38 @@ def run(device, state, data, enforce=False):
     manage_mlag_devices(device, data)
 
     set_device_state(device, f"{state}-phase_1")
+
+    # transition: from-to, phase 2 (generate the new configuration)
+    transition = f"from_{states[device]}-to_{state}-phase_2"
+    set_device_transition(device, transition)
+
+    for connected_device in [x for x in connected_devices if x]:
+        logging.info(f"Generate configuration for connected device {connected_device}")
+        generate_configuration.for_device(connected_device)
+
+    set_device_state(device, f"{state}-phase_2")
+
+    # transition: from-to, phase 3 (deploy the new configuration)
+    transition = f"from_{states[device]}-to_{state}-phase_3"
+
+    # for connected_device in connected_devices:
+    #     deploy_configuration.for_device(connected_device)
+
+    set_device_transition(device, transition)
+    set_device_state(device, f"{state}-phase_3")
+
+    # transition: from-to, phase 4 (validate the deployed configuration)
+    transition = f"from_{states[device]}-to_{state}-phase_4"
+    set_device_transition(device, transition)
+
+    # for connected_device in connected_devices:
+    #     validate_configuration.for_device(connected_device)
+
+    set_device_state(device, f"{state}-phase_4")
+
+    # target state reached
+    transition = ""
+    set_device_transition(device, transition)
+    set_device_state(device, f"{state}")
 
     lock.release()
