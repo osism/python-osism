@@ -21,6 +21,8 @@ def vlans_as_string(untagged_vlan, tagged_vlans):
 def for_device(name, template=None):
     device = utils.nb.dcim.devices.get(name=name)
 
+    logging.info(f"Generate configuration for device {device.name}")
+
     if not template:
         template = f"{device.name}.cfg.j2"
 
@@ -98,16 +100,12 @@ def for_device(name, template=None):
         fp.write(os.linesep.join([s for s in result.splitlines() if s]))
 
     # Allow only one change per time
-    lock = Redlock(key=f"lock_repository", masters={utils.redis})
+    lock = Redlock(key="lock_repository", masters={utils.redis})
     lock.acquire()
 
     repo.git.add(f"/state/{device.name}.cfg.j2")
     if len(repo.index.diff("HEAD")) > 0:
         logging.info(f"Committing changes in /state/{device.name}.cfg.j2")
         repo.git.commit(message=f"Update {device.name}")
-
-        arguments = []
-        arguments.append(f"-e device={device.name}")
-        arguments.append(f"-l {device.name}")
 
     lock.release()

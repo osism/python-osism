@@ -11,7 +11,7 @@ import pynetbox
 import yaml
 
 from osism import utils
-from osism.actions import generate_configuration
+from osism.actions import generate_configuration, deploy_configuration
 
 
 def load_data_from_filesystem(collection=None, device=None, state=None):
@@ -686,7 +686,6 @@ def run(device, state, data, enforce=False):
     set_device_transition(device, transition)
 
     for connected_device in [x for x in connected_devices if x]:
-        logging.info(f"Generate configuration for connected device {connected_device}")
         generate_configuration.for_device(connected_device)
 
     set_device_state(device, f"{state}-phase_2")
@@ -694,8 +693,8 @@ def run(device, state, data, enforce=False):
     # transition: from-to, phase 3 (deploy the new configuration)
     transition = f"from_{states[device]}-to_{state}-phase_3"
 
-    # for connected_device in connected_devices:
-    #     deploy_configuration.for_device(connected_device)
+    for connected_device in [x for x in connected_devices if x]:
+        deploy_configuration.for_device(connected_device)
 
     set_device_transition(device, transition)
     set_device_state(device, f"{state}-phase_3")
