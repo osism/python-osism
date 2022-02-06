@@ -632,6 +632,9 @@ def get_connected_devices(device, data):
 
     result = []
 
+    if device not in data:
+        return result
+
     for interface in data[device]:
         if "device" in data[device][interface]:
             result.append(data[device][interface]["device"])
@@ -653,10 +656,13 @@ def run(device, state, data, enforce=False):
     transitions = get_transitions(data.keys())
     current_transition = get_device_transition(device, transitions)
 
-    current_data = load_data_from_filesystem(None, device, current_state)
+    if current_state != "0":
+        current_data = load_data_from_filesystem(None, device, current_state)
+    else:
+        current_data = {}
 
     # One transition is already running, no second transition possible
-    if current_transition:
+    if current_transition and current_transition != "0":
         logging.info(f"{device} is already in transit")
         return
 

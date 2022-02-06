@@ -12,6 +12,8 @@
 
 ### States
 
+The state 0 is reserved. Newly added devices are always in state 0.
+
 The transfer of a device from a state a to a new state b takes place in 4 phases.
 
 In phase 1 the state of a device in the Netbox is changed.
