@@ -10,6 +10,7 @@ flower==1.0.0
 hiredis==2.0.0
 napalm==3.3.1
 netmiko==3.4.0
+openstacksdk==0.61.0
 pottery==1.4.7
 pydantic==1.9.0
 pynetbox==6.4.1
