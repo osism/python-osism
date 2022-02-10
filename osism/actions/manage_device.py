@@ -656,7 +656,7 @@ def run(device, state, data, enforce=False):
     transitions = get_transitions(data.keys())
     current_transition = get_device_transition(device, transitions)
 
-    if current_state != "0":
+    if current_state and current_state not in ["0", "None"]:
         current_data = load_data_from_filesystem(None, device, current_state)
     else:
         current_data = {}
