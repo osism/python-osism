@@ -4,7 +4,6 @@
 import glob
 import logging
 import os
-import sys
 
 from pottery import Redlock
 import pynetbox
@@ -55,7 +54,7 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
                     data = yaml.load(fp, Loader=yaml.SafeLoader)
             except:  # noqa
                 logging.error(f"State {state} for device {device} is not available")
-                sys.exit(1)
+                return data
         else:
             logging.error(f"Device {device} is not defined in any collection")
 
