@@ -174,6 +174,12 @@ def manage_interfaces(device, data):
         # etherXX
         elif "ether" in interface_a.name:
             port_a = interface_a.name[5:]
+        # sfp-sfpplusXX
+        elif "sfp-sfpplus" in interface_a.name:
+            port_a = interface_a.name[12:]
+        # qsfp-qsfpplusXX
+        elif "qsfp-qsfpplus" in interface_a.name:
+            port_a = interface_a.name[14:]
         else:
             port_a = interface_a.name
 
@@ -183,6 +189,12 @@ def manage_interfaces(device, data):
         # etherXX
         elif "ether" in interface_b.name:
             port_b = interface_b.name[5:]
+        # sfp-sfpplusXX
+        elif "sfp-sfpplus" in interface_b.name:
+            port_b = interface_b.name[12:]
+        # qsfp-qsfpplusXX
+        elif "qsfp-qsfpplus" in interface_b.name:
+            port_b = interface_b.name[14:]
         else:
             port_b = interface_b.name
 
