@@ -122,7 +122,7 @@ class Connect(Command):
         parser.add_argument('--collection', type=str, help='Name of the collection to connect', required=False),
         parser.add_argument('--device', type=str, help='Name of the device to connect', required=False)
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
-        parser.add_argument('--state', type=str, help='State to use', required=False)
+        parser.add_argument('--state', type=str, help='State to use', default='a', required=False)
         parser.add_argument('--type', type=str, default='collection', help='Type of the resource to connection (when not using --collection or --device)', required=False)
         return parser
 
