@@ -674,7 +674,7 @@ def run(device, state, data, enforce=False):
         current_data = {}
 
     # One transition is already running, no second transition possible
-    if current_transition and current_transition != "0":
+    if not enforce and current_transition and current_transition != "0":
         logging.info(f"{device} is already in transit")
         return
 

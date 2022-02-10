@@ -121,7 +121,7 @@ class Connect(Command):
         parser.add_argument('name', nargs='?', type=str, help='Name of the resource (a collection or a device) to connect')
         parser.add_argument('--collection', type=str, help='Name of the collection to connect', required=False),
         parser.add_argument('--device', type=str, help='Name of the device to connect', required=False)
-        parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
+        parser.add_argument('--enforce', default=False, help='Ignore the current transition of a device', action='store_true')
         parser.add_argument('--state', type=str, help='State to use', default='a', required=False)
         parser.add_argument('--type', type=str, default='collection', help='Type of the resource to connection (when not using --collection or --device)', required=False)
         return parser
@@ -132,7 +132,7 @@ class Connect(Command):
         device = parsed_args.device
         state = parsed_args.state
         type_of_resource = parsed_args.type
-        # wait = not parsed_args.no_wait
+        enforce = parsed_args.enforce
 
         task = None
 
@@ -149,7 +149,7 @@ class Connect(Command):
         data = task.get()
 
         for device in data:
-            netbox.connect.delay(device, state, data)
+            netbox.connect.delay(device, state, data, enforce)
 
 
 class Disable(Command):
