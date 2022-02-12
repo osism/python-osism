@@ -10,7 +10,7 @@ from osism import settings
 from osism.actions import generate_configuration, manage_device
 from osism.tasks import Config, ansible
 
-app = Celery('kolla')
+app = Celery('netbox')
 app.config_from_object(Config)
 
 redis = None
