@@ -3,8 +3,8 @@ import subprocess
 import time
 
 from cliff.command import Command
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
+# from watchdog.observers import Observer
+# from watchdog.events import FileSystemEventHandler
 
 
 class Run(Command):
@@ -45,17 +45,20 @@ class Run(Command):
             p.wait()
 
         elif service == "watchdog":
-            event_handler = FileSystemEventHandler()
-            event_handler.on_any_event = self.on_any_event
-            observer = Observer()
-            observer.schedule(event_handler, "/opt/configuration", recursive=True)
-            observer.start()
-            try:
-                while True:
-                    time.sleep(1)
-            finally:
-                observer.stop()
-                observer.join()
+            p = subprocess.Popen("sleep infinity", shell=True)
+            p.wait()
+
+            # event_handler = FileSystemEventHandler()
+            # event_handler.on_any_event = self.on_any_event
+            # observer = Observer()
+            # observer.schedule(event_handler, "/opt/configuration", recursive=True)
+            # observer.start()
+            # try:
+            #     while True:
+            #         time.sleep(1)
+            # finally:
+            #     observer.stop()
+            #     observer.join()
 
     def on_any_event(self, event):
         # reconciler.run.delay()

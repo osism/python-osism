@@ -58,18 +58,18 @@ setup(
             'flower = osism.services.flower:Run',  # deprecated in favor of service
             'netbox = osism.netbox:Run',
             'netbox connect = osism.netbox:Connect',
+            'netbox deploy= osism.netbox:Deploy',
             'netbox disable = osism.netbox:Disable',
             'netbox generate = osism.netbox:Generate',
             'netbox import = osism.netbox:Import',
             'netbox init = osism.netbox:Init',
             'netbox manage = osism.netbox:Manage',
             'netbox sync = osism.netbox:Sync',
-            'netbox deploy= osism.netbox:Deploy',
             'reconciler = osism.reconciler:Run',
+            'service = osism.service:Run',
             'status = osism.status:Run',
             'watchdog = osism.services.watchdog:Run',  # deprecated in favor of service
             'worker = osism.worker:Run'
-            'service = osism.service:Run'
         ]
     },
 
