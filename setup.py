@@ -54,8 +54,8 @@ setup(
         ],
         'osism.commands': [
             'apply = osism.apply:Run',
-            'beat = osism.beat:Run',  # deprecated in favor of service
-            'flower = osism.flower:Run',  # deprecated in favor of service
+            'beat = osism.services.beat:Run',  # deprecated in favor of service
+            'flower = osism.services.flower:Run',  # deprecated in favor of service
             'netbox = osism.netbox:Run',
             'netbox connect = osism.netbox:Connect',
             'netbox disable = osism.netbox:Disable',
@@ -67,7 +67,7 @@ setup(
             'netbox deploy= osism.netbox:Deploy',
             'reconciler = osism.reconciler:Run',
             'status = osism.status:Run',
-            'watchdog = osism.watchdog:Run',  # deprecated in favor of service
+            'watchdog = osism.services.watchdog:Run',  # deprecated in favor of service
             'worker = osism.worker:Run'
             'service = osism.service:Run'
         ]
