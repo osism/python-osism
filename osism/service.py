@@ -19,7 +19,11 @@ class Run(Command):
     def take_action(self, parsed_args):
         service = parsed_args.type[0]
 
-        if service == "beat":
+        if service == "api":
+            p = subprocess.Popen("uvicorn osism.api:app --host 0.0.0.0 --port 8000", shell=True)
+            p.wait()
+
+        elif service == "beat":
             ts = [
                 "osism.tasks.ansible",
                 "osism.tasks.ceph",
