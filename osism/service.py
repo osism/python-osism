@@ -23,6 +23,10 @@ class Run(Command):
             p = subprocess.Popen("uvicorn osism.api:app --host 0.0.0.0 --port 8000", shell=True)
             p.wait()
 
+        elif service == "listener":
+            p = subprocess.Popen("python3 -c 'import osism; osism.listener.main()'", shell=True)
+            p.wait()
+
         elif service == "beat":
             ts = [
                 "osism.tasks.ansible",
