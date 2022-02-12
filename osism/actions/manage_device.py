@@ -608,6 +608,52 @@ def manage_mlag_devices(device, data):
                 )
 
 
+def set_maintenance(device, state):
+    """Set the maintenance state for a device in the Netbox."""
+
+    logging.info(f"Set maintenance state of device {device} = {state}")
+
+    device_a = utils.nb.dcim.devices.get(name=device)
+    device_a.custom_fields = {
+        "maintenance": state
+    }
+    device_a.save()
+
+
+def set_state(device, state, state_type):
+    """Set the state for a device in the Netbox."""
+    if state_type == "power":
+        set_power_state(device, state)
+    elif state_type == "provision":
+        set_provision_state(device, state)
+    else:
+        set_device_state(device, state)
+
+
+def set_provision_state(device, state):
+    """Set the provision state (provision_state) for a device in the Netbox."""
+
+    logging.info(f"Set provision state of device {device} = {state}")
+
+    device_a = utils.nb.dcim.devices.get(name=device)
+    device_a.custom_fields = {
+        "provision_state": state
+    }
+    device_a.save()
+
+
+def set_power_state(device, state):
+    """Set the power state (power_state) for a device in the Netbox."""
+
+    logging.info(f"Set power state of device {device} = {state}")
+
+    device_a = utils.nb.dcim.devices.get(name=device)
+    device_a.custom_fields = {
+        "power_state": state
+    }
+    device_a.save()
+
+
 def set_device_state(device, state):
     """Set the state (device_state) for a device in the Netbox."""
 

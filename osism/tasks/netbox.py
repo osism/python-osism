@@ -86,6 +86,16 @@ def connect(self, device=None, state=None, data={}, enforce=False):
     manage_device.run(device, state, data, enforce)
 
 
+@app.task(bind=True, name="osism.tasks.netbox.set_state")
+def set_state(self, device=None, state=None, state_type=None):
+    manage_device.set_state(device, state, state_type)
+
+
+@app.task(bind=True, name="osism.tasks.netbox.set_maintenance")
+def set_maintenance(self, device=None, state=None):
+    manage_device.set_maintenance(device, state)
+
+
 @app.task(bind=True, name="osism.tasks.netbox.disable")
 def disable(self, name):
     global nb
