@@ -1,3 +1,5 @@
+# NOTE: will be removed in the future, use the service command from now on
+
 import logging
 import time
 
