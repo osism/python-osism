@@ -16,7 +16,7 @@ class Run(Command):
     def take_action(self, parsed_args):
         queue = parsed_args.type[0]
 
-        if queue in ["ironic", "netbox"]:
+        if queue in ["openstack", "netbox"]:
             tasks = queue
         else:
             tasks = queue[:-8]

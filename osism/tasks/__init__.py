@@ -32,6 +32,9 @@ class Config:
         },
         'osism.tasks.reconciler.*': {
             'queue': 'reconciler'
+        },
+        'osism.tasks.openstack.*': {
+            'queue': 'openstack'
         }
     }
 

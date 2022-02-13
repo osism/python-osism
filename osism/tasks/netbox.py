@@ -7,7 +7,7 @@ import pynetbox
 from redis import Redis
 
 from osism import settings
-from osism.actions import generate_configuration, manage_device
+from osism.actions import generate_configuration, manage_device, manage_interface
 from osism.tasks import Config, ansible
 
 app = Celery('netbox')
@@ -44,6 +44,11 @@ def setup_periodic_tasks(sender, **kwargs):
 @app.task(bind=True, name="osism.tasks.netbox.run")
 def run(self, action, arguments):
     pass
+
+
+@app.task(bind=True, name="osism.tasks.netbox.update_network_interface_name")
+def update_network_interface_name(self, mac_address, network_interface_name):
+    manage_interface.update_network_interface_name(mac_address, network_interface_name)
 
 
 @app.task(bind=True, name="osism.tasks.netbox.import_device_types")

@@ -7,7 +7,8 @@ from kombu import Exchange
 from kombu import Queue
 from kombu.mixins import ConsumerMixin
 
-from osism.tasks import netbox
+from osism import utils
+from osism.tasks import netbox, openstack
 
 EXCHANGE_NAME = "ironic"
 ROUTING_KEY = "ironic_versioned_notifications.info"
@@ -35,6 +36,7 @@ class NotificationsDump(ConsumerMixin):
         event_type = data["event_type"]
         payload = data["payload"]
         object_data = payload["ironic_object.data"]
+
         name = object_data["name"]
 
         # https://docs.openstack.org/ironic/latest/admin/notifications.html#available-notifications
@@ -54,13 +56,26 @@ class NotificationsDump(ConsumerMixin):
             logging.info(f"baremetal.node.provision_set.end ## {name} ## {object_data['provision_state']}")
             netbox.set_state.delay(name, object_data['provision_state'], "provision")
 
-        else:
-            logging.info(event_type)
-            logging.info(name)
-            logging.info(object_data)
+        elif event_type == "baremetal.port.create.end":
+            logging.info(f"baremetal.port.create.end ## {object_data['uuid']}")
+            netbox.update_network_interface_name.delay(object_data["address"])
 
-        # baremetal.node.provision_set.start
-        # baremetal.node.provision_set.end
+        elif event_type == "baremetal.port.update.end":
+            logging.info(f"baremetal.port.update.end ## {object_data['uuid']}")
+
+            mac_address = object_data["address"]
+            interface_a = utils.nb.dcim.interfaces.get(mac_address=mac_address)
+            device_a = interface_a.device
+
+            task = openstack.baremetal_get_network_interface_name.delay(device_a.name, mac_address)
+            task.wait(timeout=None, interval=0.5)
+            network_interface_name = task.get()
+            netbox.update_network_interface_name.delay(object_data["address"], network_interface_name)
+
+        else:
+            logging.info(f"{event_type} ## {name}")
+
+        logging.info(object_data)
 
 
 def main():
