@@ -24,7 +24,7 @@ class Run(Command):
             p.wait()
 
         elif service == "listener":
-            p = subprocess.Popen("python3 -c 'from osism import listener; listener.main()'", shell=True)
+            p = subprocess.Popen("python3 -c 'from osism.services import listener; listener.main()'", shell=True)
             p.wait()
 
         elif service == "beat":

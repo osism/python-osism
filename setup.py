@@ -53,23 +53,23 @@ setup(
             'osism = osism.main:main'
         ],
         'osism.commands': [
-            'apply = osism.apply:Run',
+            'apply = osism.commands.apply:Run',
             'beat = osism.services.beat:Run',  # deprecated in favor of service
             'flower = osism.services.flower:Run',  # deprecated in favor of service
-            'netbox = osism.netbox:Run',
-            'netbox connect = osism.netbox:Connect',
-            'netbox deploy= osism.netbox:Deploy',
-            'netbox disable = osism.netbox:Disable',
-            'netbox generate = osism.netbox:Generate',
-            'netbox import = osism.netbox:Import',
-            'netbox init = osism.netbox:Init',
-            'netbox manage = osism.netbox:Manage',
-            'netbox sync = osism.netbox:Sync',
-            'reconciler = osism.reconciler:Run',
-            'service = osism.service:Run',
-            'status = osism.status:Run',
+            'netbox = osism.commands.netbox:Run',
+            'netbox connect = osism.commands.netbox:Connect',
+            'netbox deploy= osism.commands.netbox:Deploy',
+            'netbox disable = osism.commands.netbox:Disable',
+            'netbox generate = osism.commands.netbox:Generate',
+            'netbox import = osism.commands.netbox:Import',
+            'netbox init = osism.commands.netbox:Init',
+            'netbox manage = osism.commands.netbox:Manage',
+            'netbox sync = osism.commands.netbox:Sync',
+            'reconciler = osism.commands.reconciler:Run',
+            'service = osism.commands.service:Run',
+            'status = osism.commands.status:Run',
             'watchdog = osism.services.watchdog:Run',  # deprecated in favor of service
-            'worker = osism.worker:Run'
+            'worker = osism.commands.worker:Run'
         ]
     },
 
