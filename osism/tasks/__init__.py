@@ -1,5 +1,6 @@
-# import os
 import io
+import os
+from pathlib import Path
 import subprocess
 
 # import ansible_runner
@@ -47,32 +48,57 @@ def celery_init_worker(**kwargs):
 
 
 def run_ansible_in_environment(request_id, environment, role, arguments):
+    result = None
     joined_arguments = " ".join(arguments)
 
     # NOTE: Consider arguments in the future
-    lock = Redlock(key=f"lock_ansible_{environment}_{role}",
+    lock = Redlock(key=f"lock-ansible-{environment}-{role}",
                    masters={redis},
                    auto_release_time=3600*1000)
-    lock.acquire()
 
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
     #       not working out of the box
 
+    # execute roles from Kolla
     if environment == "kolla":
+        lock.acquire()
         p = subprocess.Popen(f"/run.sh deploy {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    # execute roles from Ceph
     elif environment == "ceph":
+        lock.acquire()
         p = subprocess.Popen(f"/run.sh {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    # execute the bifrost-command role
+    elif environment == "manager" and role == "bifrost-command":
+        p = subprocess.Popen(f"/run-manager.sh bifrost-command \"-e bifrost_arguments='{joined_arguments}'\" \"-e bifrost_result_id={request_id}\"",
+                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    # execute all other roles
     else:
+        lock.acquire()
         p = subprocess.Popen(f"/run-{environment}.sh {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-    for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+    # process the bifrost-command result
+    if environment == "manager" and role == "bifrost-command":
+        p.wait()
+
+        resultpath = f"/tmp/bifrost-command-{request_id}.json"
+        if os.path.exists(resultpath):
+            result = Path(resultpath).read_text()
+            os.remove(resultpath)
+
+    # process all other results
+    else:
+        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+            # NOTE: use task_id or request_id in future
+            redis.publish(f"{environment}-{role}", line)
+
         # NOTE: use task_id or request_id in future
-        redis.publish(f"{environment}-{role}", line)
+        redis.publish(f"{environment}-{role}", "QUIT")
+        lock.release()
 
-    lock.release()
-
-    # NOTE: use task_id or request_id in future
-    redis.publish(f"{environment}-{role}", "QUIT")
+    return result
 
 
 """ def run_ansible_in_environment(request_id, environment, playbook, arguments):
