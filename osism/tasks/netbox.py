@@ -3,6 +3,7 @@ import subprocess
 
 from celery import Celery
 from celery.signals import worker_process_init
+import json
 import pynetbox
 from redis import Redis
 
@@ -66,6 +67,15 @@ def import_device_types(self, vendors, library=False):
         p = subprocess.Popen("python3 /import/main.py", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
 
     p.communicate()
+
+
+@app.task(bind=True, name="osism.tasks.netbox.synchronize_bifrost")
+def synchronize_bifrost(self, data):
+    """Synchronize the state of Bifrost with Netbox"""
+
+    for device in json.loads(data):
+        manage_device.set_provision_state(device["Name"], device["Provisioning State"])
+        manage_device.set_power_state(device["Name"], device["Power State"])
 
 
 @app.task(bind=True, name="osism.tasks.netbox.states")

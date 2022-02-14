@@ -66,6 +66,7 @@ setup(
             'netbox init = osism.commands.netbox:Init',
             'netbox manage = osism.commands.netbox:Manage',
             'netbox sync = osism.commands.netbox:Sync',
+            'netbox sync bifrost = osism.commands.netbox:Bifrost',
             'reconciler = osism.commands.reconciler:Run',
             'service = osism.commands.service:Run',
             'status = osism.commands.status:Run',

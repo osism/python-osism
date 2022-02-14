@@ -49,7 +49,11 @@ def celery_init_worker(**kwargs):
 
 def run_ansible_in_environment(request_id, environment, role, arguments):
     result = None
-    joined_arguments = " ".join(arguments)
+
+    if type(arguments) == list:
+        joined_arguments = " ".join(arguments)
+    else:
+        joined_arguments = arguments
 
     # NOTE: Consider arguments in the future
     lock = Redlock(key=f"lock-ansible-{environment}-{role}",
