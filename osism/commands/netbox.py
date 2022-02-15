@@ -33,7 +33,7 @@ class Bifrost(Command):
         return parser
 
     def take_action(self, parsed_args):
-        ansible.run.apply_async(("manager", "bifrost-command", "baremetal node list"), link=netbox.synchronize_bifrost.s())
+        ansible.run.apply_async(("manager", "bifrost-command", "baremetal node list -f json"), link=netbox.synchronize_bifrost.s())
 
 
 class Sync(Command):

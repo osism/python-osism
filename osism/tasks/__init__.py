@@ -87,7 +87,14 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
     if environment == "manager" and role == "bifrost-command":
         p.wait()
 
+        # Check for JSON result
         resultpath = f"/tmp/bifrost-command-{request_id}.json"
+        if os.path.exists(resultpath):
+            result = Path(resultpath).read_text()
+            os.remove(resultpath)
+
+        # Check for non-JSON result
+        resultpath = f"/tmp/bifrost-command-{request_id}.log"
         if os.path.exists(resultpath):
             result = Path(resultpath).read_text()
             os.remove(resultpath)
