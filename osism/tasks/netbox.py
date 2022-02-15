@@ -39,7 +39,14 @@ def celery_init_worker(**kwargs):
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    pass
+    # Synchronize the status of Bifrost with Netbox every 5 minutes
+    sender.add_periodic_task(300.0, periodic_synchronize_bifrost.s(), expires=10)
+
+
+@app.task(bind=True, name="osism.tasks.netbox.periodic_synchronize_bifrost")
+def periodic_synchronize_bifrost(self):
+    """Synchronize the state of Bifrost with Netbox"""
+    ansible.run.apply_async(("manager", "bifrost-command", "baremetal node list -f json"), link=synchronize_bifrost.s())
 
 
 @app.task(bind=True, name="osism.tasks.netbox.run")
