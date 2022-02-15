@@ -56,6 +56,7 @@ setup(
             'apply = osism.commands.apply:Run',
             'beat = osism.services.beat:Run',  # deprecated in favor of service
             'bifrost = osism.commands.bifrost:Run',
+            'bifrost deploy = osism.commands.bifrost:Deploy',
             'flower = osism.services.flower:Run',  # deprecated in favor of service
             'netbox = osism.commands.netbox:Run',
             'netbox connect = osism.commands.netbox:Connect',
