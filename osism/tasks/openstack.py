@@ -1,11 +1,16 @@
+import ipaddress
+
 from celery import Celery
 from celery.signals import worker_process_init
+import jinja2
+import keystoneauth1
 import openstack
 from redis import Redis
 
 from osism.tasks import Config
+from osism import utils
 
-app = Celery('netbox')
+app = Celery('openstack')
 app.config_from_object(Config)
 
 redis = None
@@ -20,7 +25,10 @@ def celery_init_worker(**kwargs):
     redis = Redis(host="redis", port="6379")
 
     # Parameters come from the environment, OS_*
-    conn = openstack.connect()
+    try:
+        conn = openstack.connect()
+    except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions:
+        pass
 
 
 @app.on_after_configure.connect
@@ -36,6 +44,25 @@ def baremetal_node_create(self):
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_show")
 def baremetal_node_show(self, node_id_or_name):
     result = conn.baremetal.find_node(node_id_or_name)
+    return result
+
+
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_node_list")
+def baremetal_node_list(self):
+    nodes = conn.baremetal.nodes()
+    result = []
+
+    # Simulate the output of the OpenStack CLI with -f json and without --long
+    for node in nodes:
+        result.append({
+            "UUID": node.id,
+            "Name": node.name,
+            "Instance UUID": node.instance_id,
+            "Power State": node.power_state,
+            "Provisioning State": node.provision_state,
+            "Maintenance": node.is_maintenance
+        })
+
     return result
 
 
@@ -68,3 +95,39 @@ def baremetal_get_network_interface_name(self, node_name, mac_address):
             result = interface["name"]
 
     return result
+
+
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_create_nodes")
+def baremetal_create_nodes(self, nodes, ironic_parameters):
+    global conn
+
+    for node in nodes:
+        # TODO: Filter on mgmt_only
+        address_a = utils.nb.ipam.ip_addresses.get(device=node, interface="Ethernet0")
+
+        node_parameters = ironic_parameters.copy()
+
+        if node_parameters["driver"] == "redfish":
+            remote_board_address = str(ipaddress.ip_interface(address_a["address"]).ip)
+            t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(node_parameters["driver_info"]["redfish_address"])
+            node_parameters["driver_info"]["redfish_address"] = t.render(remote_board_address=remote_board_address)
+
+            # remote_board_password = "password"
+            # t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(node_parameters["driver_info"]["redfish_password"])
+            # node_parameters["driver_info"]["redfish_password"] = t.render(remote_board_password=remote_board_password)
+
+        try:
+            conn.baremetal.create_node(name=node, provision_state="manageable", **node_parameters)
+            # conn.baremetal.wait_for_nodes_provision_state([node], 'manageable')
+            # conn.baremetal.set_node_provision_state(node, 'inspect')
+
+            # TODO: Check if the system has been registered correctly
+            device_a = utils.nb.dcim.devices.get(name=node)
+            device_a.custom_fields = {
+                "ironic_state": "registered",
+            }
+            device_a.save()
+
+        except openstack.exceptions.ResourceFailure:
+            # TODO: Do something useful here
+            pass

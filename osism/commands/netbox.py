@@ -4,7 +4,7 @@ import logging
 from cliff.command import Command
 from redis import Redis
 
-from osism.tasks import netbox, reconciler, ansible
+from osism.tasks import conductor, netbox, reconciler, ansible, openstack
 
 
 redis = Redis(host="redis", port="6379")
@@ -33,7 +33,30 @@ class Bifrost(Command):
         return parser
 
     def take_action(self, parsed_args):
-        ansible.run.apply_async(("manager", "bifrost-command", "baremetal node list -f json"), link=netbox.synchronize_bifrost.s())
+        ansible.run.apply_async(("manager", "bifrost-command", "baremetal node list -f json"), link=netbox.synchronize_device_state.s())
+
+
+class Ironic(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Ironic, self).get_parser(prog_name)
+        return parser
+
+    def take_action(self, parsed_args):
+        # Get Ironic parameters from the conductor
+        task = ironic_parameters = conductor.get_ironic_parameters.delay()
+        task.wait(timeout=None, interval=0.5)
+        ironic_parameters = task.get()
+
+        # Add all unregistered systems from the Netbox in Ironic
+        netbox.devices.apply_async((), link=openstack.baremetal_create_nodes.s(ironic_parameters))
+
+        # Synchronize the current status in Ironic with the Netbox
+        # openstack.baremetal_node_list.apply_async((), link=netbox.synchronize_device_state.s())
+
+        # Remove systems from Ironic that are no longer present in the Netbox
 
 
 class Sync(Command):

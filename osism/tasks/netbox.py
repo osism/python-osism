@@ -9,7 +9,7 @@ from redis import Redis
 
 from osism import settings
 from osism.actions import generate_configuration, manage_device, manage_interface
-from osism.tasks import Config, ansible
+from osism.tasks import Config, ansible, openstack
 
 app = Celery('netbox')
 app.config_from_object(Config)
@@ -46,7 +46,13 @@ def setup_periodic_tasks(sender, **kwargs):
 @app.task(bind=True, name="osism.tasks.netbox.periodic_synchronize_bifrost")
 def periodic_synchronize_bifrost(self):
     """Synchronize the state of Bifrost with Netbox"""
-    ansible.run.apply_async(("manager", "bifrost-command", "baremetal node list -f json"), link=synchronize_bifrost.s())
+    openstack.baremetal_node_list.apply_async((), link=synchronize_device_state.s())
+
+
+@app.task(bind=True, name="osism.tasks.netbox.periodic_synchronize_ironic")
+def periodic_synchronize_ironic(self):
+    """Synchronize the state of Ironic with Netbox"""
+    ansible.run.apply_async(("manager", "bifrost-command", "baremetal node list -f json"), link=synchronize_device_state.s())
 
 
 @app.task(bind=True, name="osism.tasks.netbox.run")
@@ -76,9 +82,9 @@ def import_device_types(self, vendors, library=False):
     p.communicate()
 
 
-@app.task(bind=True, name="osism.tasks.netbox.synchronize_bifrost")
-def synchronize_bifrost(self, data):
-    """Synchronize the state of Bifrost with Netbox"""
+@app.task(bind=True, name="osism.tasks.netbox.synchronize_device_state")
+def synchronize_device_state(self, data):
+    """Synchronize the state of Bifrost or Ironic with Netbox"""
 
     for device in json.loads(data):
         manage_device.set_provision_state(device["Name"], device["Provisioning State"])
@@ -151,3 +157,21 @@ def deploy(self, name):
 @app.task(bind=True, name="osism.tasks.netbox.init")
 def init(self, arguments):
     ansible.run.delay("netbox-local", "init", arguments)
+
+
+@app.task(bind=True, name="osism.tasks.netbox.devices")
+def devices(self, status="active", tags=["managed-by-ironic"], ironic_state="unregistered"):
+    global nb
+
+    devices = nb.dcim.devices.filter(
+        tag=tags,
+        status=status,
+        cf_ironic_state=[ironic_state]
+    )
+
+    result = []
+
+    for device in devices:
+        result.append(device.name)
+
+    return result
