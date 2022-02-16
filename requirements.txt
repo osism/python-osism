@@ -18,5 +18,5 @@ pynetbox==6.6.0
 sushy==4.0.0
 tabulate==0.8.9
 transitions==0.8.10
-uvicorn[standard]==0.17.4
+uvicorn[standard]==0.17.5
 watchdog==2.1.6
