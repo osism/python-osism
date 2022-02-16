@@ -112,9 +112,10 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
             t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(node_parameters["driver_info"]["redfish_address"])
             node_parameters["driver_info"]["redfish_address"] = t.render(remote_board_address=remote_board_address)
 
-            # remote_board_password = "password"
-            # t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(node_parameters["driver_info"]["redfish_password"])
-            # node_parameters["driver_info"]["redfish_password"] = t.render(remote_board_password=remote_board_password)
+        elif node_parameters["driver"] == "ipmi":
+            remote_board_address = str(ipaddress.ip_interface(address_a["address"]).ip)
+            t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(node_parameters["driver_info"]["ipmi_address"])
+            node_parameters["driver_info"]["ipmi_address"] = t.render(remote_board_address=remote_board_address)
 
         try:
             conn.baremetal.create_node(name=node, provision_state="manageable", **node_parameters)
