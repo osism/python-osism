@@ -1,3 +1,4 @@
+import copy
 import ipaddress
 
 from celery import Celery
@@ -105,7 +106,7 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
         # TODO: Filter on mgmt_only
         address_a = utils.nb.ipam.ip_addresses.get(device=node, interface="Ethernet0")
 
-        node_parameters = ironic_parameters.copy()
+        node_parameters = copy.deepcopy(ironic_parameters)
 
         if node_parameters["driver"] == "redfish":
             remote_board_address = str(ipaddress.ip_interface(address_a["address"]).ip)
