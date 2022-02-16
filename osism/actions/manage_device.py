@@ -622,12 +622,24 @@ def set_maintenance(device, state):
 
 def set_state(device, state, state_type):
     """Set the state for a device in the Netbox."""
+
+    lock = Redlock(key=f"lock_state_{device}", masters={utils.redis})
+    lock.acquire()
+
     if state_type == "power":
         set_power_state(device, state)
     elif state_type == "provision":
         set_provision_state(device, state)
+    elif state_type == "introspection":
+        set_introspection_state(device, state)
+    elif state_type == "ironic":
+        set_ironic_state(device, state)
+    elif state_type == "deployment":
+        set_deployment_state(device, state)
     else:
         set_device_state(device, state)
+
+    lock.release()
 
 
 def set_provision_state(device, state):
@@ -638,6 +650,42 @@ def set_provision_state(device, state):
     device_a = utils.nb.dcim.devices.get(name=device)
     device_a.custom_fields = {
         "provision_state": state
+    }
+    device_a.save()
+
+
+def set_ironic_state(device, state):
+    """Set the ironic state (ironic_state) for a device in the Netbox."""
+
+    logging.info(f"Set ironic state of device {device} = {state}")
+
+    device_a = utils.nb.dcim.devices.get(name=device)
+    device_a.custom_fields = {
+        "ironic_state": state
+    }
+    device_a.save()
+
+
+def set_introspection_state(device, state):
+    """Set the introspection state (introspection_state) for a device in the Netbox."""
+
+    logging.info(f"Set introspection state of device {device} = {state}")
+
+    device_a = utils.nb.dcim.devices.get(name=device)
+    device_a.custom_fields = {
+        "introspection_state": state
+    }
+    device_a.save()
+
+
+def set_deployment_state(device, state):
+    """Set the deployment state (deployment_state) for a device in the Netbox."""
+
+    logging.info(f"Set deployment state of device {device} = {state}")
+
+    device_a = utils.nb.dcim.devices.get(name=device)
+    device_a.custom_fields = {
+        "deployment_state": state
     }
     device_a.save()
 

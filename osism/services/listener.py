@@ -76,6 +76,14 @@ class NotificationsDump(ConsumerMixin):
             network_interface_name = task.get()
             netbox.update_network_interface_name.delay(object_data["address"], network_interface_name)
 
+        elif event_type == "baremetal.node.delete.end":
+            logging.info(f"baremetal.node.delete.end ## {name}")
+            netbox.set_state.delay(name, "unregistered", "ironic")
+            netbox.set_state.delay(name, None, "provision")
+            netbox.set_state.delay(name, None, "power")
+            netbox.set_state.delay(name, None, "introspection")
+            netbox.set_state.delay(name, None, "deployment")
+
         else:
             logging.info(f"{event_type} ## {name}")
 
