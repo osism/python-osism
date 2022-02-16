@@ -44,6 +44,10 @@ class NotificationsDump(ConsumerMixin):
             logging.info(f"baremetal.node.power_set.end ## {name} ## {object_data['power_state']}")
             netbox.set_state.delay(name, object_data['power_state'], "power")
 
+        elif event_type == "baremetal.node.power_state_corrected.success":
+            logging.info(f"baremetal.node.power_state_corrected.success ## {name} ## {object_data['power_state']}")
+            netbox.set_state.delay(name, object_data['power_state'], "power")
+
         elif event_type == "baremetal.node.maintenance_set.end":
             logging.info(f"baremetal.node.maintenance_set.end ## {name} ## {object_data['maintenance']}")
             netbox.set_maintenance.delay(name, object_data['maintenance'])
