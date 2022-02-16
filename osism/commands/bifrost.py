@@ -38,13 +38,13 @@ class Deploy(Command):
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
 
-        ansible.run.delay("manager", "bifrost-deploy-servers", [])
+        ansible.run.delay("manager", "bifrost-deploy", [])
 
         if wait:
             p = redis.pubsub()
 
             # NOTE: use task_id or request_id in future
-            p.subscribe("manager-bifrost-deploy-servers")
+            p.subscribe("manager-bifrost-deploy")
 
             while True:
                 for m in p.listen():
