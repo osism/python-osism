@@ -22,6 +22,9 @@ class Config:
         'osism.tasks.ceph.*': {
             'queue': 'ceph-ansible'
         },
+        'osism.tasks.conductor.*': {
+            'queue': 'conductor'
+        },
         'osism.tasks.kolla.*': {
             'queue': 'kolla-ansible'
         },

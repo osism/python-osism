@@ -14,6 +14,7 @@ class Run(Command):
         ts = [
             "osism.tasks.ansible",
             "osism.tasks.ceph",
+            "osism.tasks.conductor",
             "osism.tasks.kolla",
             "osism.tasks.netbox",
             "osism.tasks.reconciler"
