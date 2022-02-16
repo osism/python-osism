@@ -4,13 +4,49 @@
 
 ``python-osism`` is responsible for controlling and providing various APIs within OSISM.
 
-## Ansible
+## Services
 
-## API
+### API
 
-## Netbox
+### Beat
 
-### States
+### Listener
+
+### Watchdog
+
+## Workers
+
+### Ansible
+
+### Ceph
+
+### Conductor
+
+### Kolla
+
+### Netbox
+
+### OpenStack
+
+### Reconciler
+
+## Commands
+
+### apply
+
+### bifrost
+
+### netbox
+
+### reconciler
+
+### service
+
+### status
+
+### worker
+
+## States & Transitions
 
 The state 0 is reserved. Newly added devices are always in state 0.
 
