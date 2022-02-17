@@ -60,6 +60,9 @@ class NotificationsDump(ConsumerMixin):
             logging.info(f"baremetal.node.provision_set.end ## {name} ## {object_data['provision_state']}")
             netbox.set_state.delay(name, object_data['provision_state'], "provision")
 
+            if object_data["previous_provision_state"] == "inspect wait":
+                netbox.set_state.delay(name, "introspected", "introspection")
+
         elif event_type == "baremetal.port.create.end":
             logging.info(f"baremetal.port.create.end ## {object_data['uuid']}")
 
