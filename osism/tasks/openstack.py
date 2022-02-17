@@ -120,8 +120,8 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
 
         try:
             conn.baremetal.create_node(name=node, provision_state="manageable", **node_parameters)
-            # conn.baremetal.wait_for_nodes_provision_state([node], 'manageable')
-            # conn.baremetal.set_node_provision_state(node, 'inspect')
+            conn.baremetal.wait_for_nodes_provision_state([node], 'manageable')
+            conn.baremetal.set_node_provision_state(node, 'inspect')
 
             # TODO: Check if the system has been registered correctly
             device_a = utils.nb.dcim.devices.get(name=node)
@@ -133,3 +133,10 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
         except openstack.exceptions.ResourceFailure:
             # TODO: Do something useful here
             pass
+        except openstack.exceptions.ConflictException:
+            # The node already exists and has a wronge state in the Netbox
+            device_a = utils.nb.dcim.devices.get(name=node)
+            device_a.custom_fields = {
+                "ironic_state": "registered",
+            }
+            device_a.save()
