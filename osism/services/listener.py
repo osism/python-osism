@@ -62,7 +62,16 @@ class NotificationsDump(ConsumerMixin):
 
         elif event_type == "baremetal.port.create.end":
             logging.info(f"baremetal.port.create.end ## {object_data['uuid']}")
-            netbox.update_network_interface_name.delay(object_data["address"])
+
+            mac_address = object_data["address"]
+            interface_a = utils.nb.dcim.interfaces.get(mac_address=mac_address)
+            device_a = interface_a.device
+
+            task = openstack.baremetal_get_network_interface_name.delay(device_a.name, mac_address)
+            task.wait(timeout=None, interval=0.5)
+            network_interface_name = task.get()
+
+            netbox.update_network_interface_name.delay(object_data["address"], network_interface_name)
 
         elif event_type == "baremetal.port.update.end":
             logging.info(f"baremetal.port.update.end ## {object_data['uuid']}")
@@ -74,6 +83,7 @@ class NotificationsDump(ConsumerMixin):
             task = openstack.baremetal_get_network_interface_name.delay(device_a.name, mac_address)
             task.wait(timeout=None, interval=0.5)
             network_interface_name = task.get()
+
             netbox.update_network_interface_name.delay(object_data["address"], network_interface_name)
 
         elif event_type == "baremetal.node.delete.end":
