@@ -62,6 +62,7 @@ class NotificationsDump(ConsumerMixin):
 
             if object_data["previous_provision_state"] == "inspect wait":
                 netbox.set_state.delay(name, "introspected", "introspection")
+                openstack.baremetal_set_node_provision_state.delay(name, "provide")
 
         elif event_type == "baremetal.port.create.end":
             logging.info(f"baremetal.port.create.end ## {object_data['uuid']}")

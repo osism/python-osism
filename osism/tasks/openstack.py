@@ -98,6 +98,12 @@ def baremetal_get_network_interface_name(self, node_name, mac_address):
     return result
 
 
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_set_node_provision_state")
+def baremetal_set_node_provision_state(self, node, state):
+    global conn
+    conn.baremetal.set_node_provision_state(node, state)
+
+
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_create_nodes")
 def baremetal_create_nodes(self, nodes, ironic_parameters):
     global conn
