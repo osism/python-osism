@@ -37,9 +37,16 @@ def setup_periodic_tasks(sender, **kwargs):
     pass
 
 
-@app.task(bind=True, name="osism.tasks.openstack.baremetal_node_create")
-def baremetal_node_create(self):
-    pass
+@app.task(bind=True, name="osism.tasks.openstack.image_get")
+def image_get(self, image_name):
+    result = conn.image.find_image(image_name)
+    return result.id
+
+
+@app.task(bind=True, name="osism.tasks.openstack.network_get")
+def network_get(self, network_name):
+    result = conn.network.find_network(network_name)
+    return result.id
 
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_show")
