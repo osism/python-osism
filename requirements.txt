@@ -3,7 +3,7 @@ Jinja2==3.0.3
 PyYAML==6.0
 ansible-runner==2.1.1
 celery[redis]==5.2.2
-cliff==3.10.0
+cliff==3.10.1
 deepdiff==5.7.0
 fastapi==0.73.0
 flower==1.0.0
