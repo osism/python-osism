@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b8837dcb90f8fcb217bfd0027d715360f7a6050d057700b83354891feb5c0136"
+            "sha256": "f8bf4300ece2f22ca121db81aba6e4ae787e9bd52fcbdb261f71d51d050783d9"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -161,11 +161,11 @@
         },
         "ciscoconfparse": {
             "hashes": [
-                "sha256:7754970482360887e332b3cb8cd767483c59c5cc8b8bd69ef46f7d7a4d37cecb",
-                "sha256:ac58e3219d4f107be5efe0a64c598fabcb71d5813efa58ef54a5aee76ea9e96d"
+                "sha256:24a5f1ffe3f23c077e743d17ceca622aaaf555be0702b903f954169dc8c739ab",
+                "sha256:822d121b3f5476448da1633a8d54fef266322567b51ab804ca5ece778419de0e"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==1.6.34"
+            "version": "==1.6.35"
         },
         "click": {
             "hashes": [
@@ -304,11 +304,11 @@
         },
         "gitpython": {
             "hashes": [
-                "sha256:26ac35c212d1f7b16036361ca5cff3ec66e11753a0d677fb6c48fa4e1a9dd8d6",
-                "sha256:fc8868f63a2e6d268fb25f481995ba185a85a66fcad126f039323ff6635669ee"
+                "sha256:1c885ce809e8ba2d88a29befeb385fcea06338d3640712b59ca623c220bb5704",
+                "sha256:5b68b000463593e05ff2b261acff0ff0972df8ab1b70d3cdbd41b546c8b8fc3d"
             ],
             "index": "pypi",
-            "version": "==3.1.26"
+            "version": "==3.1.27"
         },
         "hiredis": {
             "hashes": [
@@ -446,11 +446,11 @@
         },
         "loguru": {
             "hashes": [
-                "sha256:b28e72ac7a98be3d28ad28570299a393dfcd32e5e3f6a353dec94675767b6319",
-                "sha256:f8087ac396b5ee5f67c963b495d615ebbceac2796379599820e324419d53667c"
+                "sha256:066bd06758d0a513e9836fd9c6b5a75bfb3fd36841f4b996bc60b547a309d41c",
+                "sha256:4e2414d534a2ab57573365b3e6d0234dfb1d84b68b7f3b948e6fb743860a77c3"
             ],
             "markers": "python_version >= '3.5'",
-            "version": "==0.5.3"
+            "version": "==0.6.0"
         },
         "lxml": {
             "hashes": [
