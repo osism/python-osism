@@ -14,14 +14,15 @@ deepdiff = "==5.7.0"
 flower = "==1.0.0"
 hiredis = "==2.0.0"
 napalm = "==3.3.1"
+kombu = "==5.2.3"
 openstacksdk = "==0.61.0"
 pottery = "==1.4.7"
 pydantic = "==1.9.0"
 pynetbox = "==6.6.1"
+routeros-diff = "==0.5.3"
 sushy = "==4.1.0"
 transitions = "==0.8.10"
 watchdog = "==2.1.6"
-kombu = "==5.2.3"
 
 [dev-packages]
 
