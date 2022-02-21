@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "f8bf4300ece2f22ca121db81aba6e4ae787e9bd52fcbdb261f71d51d050783d9"
+            "sha256": "3efc624ff5bcc7e0412c0aa86e8f935ac2081e4073ca6cadd5a7093a6217d355"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -161,11 +161,11 @@
         },
         "ciscoconfparse": {
             "hashes": [
-                "sha256:24a5f1ffe3f23c077e743d17ceca622aaaf555be0702b903f954169dc8c739ab",
-                "sha256:822d121b3f5476448da1633a8d54fef266322567b51ab804ca5ece778419de0e"
+                "sha256:aaa9da01b56ceda47d5ab32f2916067704e0bfb23bd67863748c0ec122fd9319",
+                "sha256:bfbd720898c1a04df213deea4eb2de1ced8deac2b299e848d3bdb9e37f36742d"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==1.6.35"
+            "version": "==1.6.36"
         },
         "click": {
             "hashes": [
@@ -837,11 +837,11 @@
         },
         "pynetbox": {
             "hashes": [
-                "sha256:92426bdf3cbca31912fa836c7d4677a4440d2c254384964b95bd23a42e33dbec",
-                "sha256:fba839db4b48fcebf3fcf17fec4e2ee5950ceb60e701eef88a527264b2dd70d0"
+                "sha256:17b5754c607cc9f6befe39e39a188cf9d8c9ffcbf636fb75c5985bb8d01a0324",
+                "sha256:b88fb5a05d91b628aa6aa8c297a30fa18c945aabc9315ebc5025f835a2aac5d3"
             ],
             "index": "pypi",
-            "version": "==6.6.0"
+            "version": "==6.6.1"
         },
         "pyparsing": {
             "hashes": [
