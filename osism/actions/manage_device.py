@@ -118,12 +118,16 @@ def manage_interfaces(device, data):
         interface_a = utils.nb.dcim.interfaces.get(name=interface, device=device)
         interface_b = utils.nb.dcim.interfaces.get(name=data[device][interface]["interface"], device=data[device][interface]["device"])
 
-        if "mac_address" in data[device][interface]:
-            interface_a.mac_address = data[device][interface]["mac_address"]
-            interface_a.save()
-        elif interface_a.mac_address:
-            interface_a.mac_address = None
-            interface_a.save()
+        # Ignore interfaces without an mac address
+        try:
+            if "mac_address" in data[device][interface]:
+                interface_a.mac_address = data[device][interface]["mac_address"]
+                interface_a.save()
+            elif interface_a.mac_address:
+                interface_a.mac_address = None
+                interface_a.save()
+        except:  # noqa E722
+            pass
 
         # Add all addresses to the interface
         if "addresses" in data[device][interface]:
