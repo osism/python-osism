@@ -118,6 +118,12 @@ def manage_interfaces(device, data):
         interface_a = utils.nb.dcim.interfaces.get(name=interface, device=device)
         interface_b = utils.nb.dcim.interfaces.get(name=data[device][interface]["interface"], device=data[device][interface]["device"])
 
+        if not interface_a:
+            logging.error(f"{device} # {interface} --> not found")
+
+        if not interface_b:
+            logging.error(f"{data[device][interface]['device']} # {data[device][interface]['interface']} --> not found")
+
         # Ignore interfaces without an mac address
         try:
             if "mac_address" in data[device][interface]:
