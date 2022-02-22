@@ -67,3 +67,10 @@ After phase 4 is completed, the device is in the new state b.
 ```
 dot -Tpng contrib/netbox-state-machine.dot -o contrib/netbox-state-machine.png
 ```
+
+### Pre-defined states
+
+* State 0: new device
+* State a: unprovisioned device, ready for introspection
+* State b: introspected device, ready for cleaning or provisioning
+* State c: provisioned device

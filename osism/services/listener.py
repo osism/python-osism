@@ -52,6 +52,12 @@ class NotificationsDump(ConsumerMixin):
             logging.info(f"baremetal.node.maintenance_set.end ## {name} ## {object_data['maintenance']}")
             netbox.set_maintenance.delay(name, object_data['maintenance'])
 
+        # A system is provisioned for Nova
+        elif event_type == "baremetal.node.provision_set.start":
+            logging.info(f"baremetal.node.provision_set.start ## {name} ## {object_data['provision_state']}")
+            if object_data["target_provision_state"] == "active":
+                pass
+
         elif event_type == "baremetal.node.provision_set.success":
             logging.info(f"baremetal.node.provision_set.success ## {name} ## {object_data['provision_state']}")
             netbox.set_state.delay(name, object_data['provision_state'], "provision")
@@ -63,6 +69,9 @@ class NotificationsDump(ConsumerMixin):
             if object_data["previous_provision_state"] == "inspect wait":
                 netbox.set_state.delay(name, "introspected", "introspection")
                 openstack.baremetal_set_node_provision_state.delay(name, "provide")
+
+            elif object_data["previous_provision_state"] == "wait call-back":
+                pass
 
         elif event_type == "baremetal.port.create.end":
             logging.info(f"baremetal.port.create.end ## {object_data['uuid']}")
