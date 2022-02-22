@@ -23,6 +23,7 @@ routeros-diff = "==0.5.3"
 sushy = "==4.1.0"
 transitions = "==0.8.10"
 watchdog = "==2.1.6"
+netmiko = {git = "git+https://github.com/ktbyers/netmiko.git", editable = true, ref = "develop"}
 
 [dev-packages]
 

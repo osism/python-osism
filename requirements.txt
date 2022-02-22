@@ -10,7 +10,6 @@ flower==1.0.0
 hiredis==2.0.0
 kombu==5.2.3
 napalm==3.3.1
-netmiko==3.4.0
 openstacksdk==0.61.0
 pottery==1.4.7
 pydantic==1.9.0
@@ -21,3 +20,6 @@ tabulate==0.8.9
 transitions==0.8.10
 uvicorn[standard]==0.17.5
 watchdog==2.1.6
+
+# https://github.com/ktbyers/netmiko/pull/2362
+git+https://github.com/ktbyers/netmiko.git@develop
