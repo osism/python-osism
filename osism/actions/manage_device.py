@@ -792,7 +792,7 @@ def run(device, state, data, enforce=False):
     logging.info(connected_devices)
 
     # Allow only one active transition per device
-    lock = Redlock(key=f"lock_{device}", masters={utils.redis}, auto_release_time=120*1000)
+    lock = Redlock(key=f"lock_{device}", masters={utils.redis}, auto_release_time=120)
     lock.acquire()
 
     # transition: from-to, phase 1 (modifications in the Netbox)

@@ -21,6 +21,12 @@ def vlans_as_string(untagged_vlan, tagged_vlans):
 def for_device(name, template=None):
     device = utils.nb.dcim.devices.get(name=name)
 
+    if "device_type" not in device.custom_fields or device.custom_fields["device_type"] != "switch":
+        return
+
+    if "Managed by OSISM" not in [str(x) for x in device.tags]:
+        return
+
     logging.info(f"Generate configuration for device {device.name}")
 
     if not template:

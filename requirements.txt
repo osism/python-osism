@@ -2,7 +2,7 @@ GitPython==3.1.27
 Jinja2==3.0.3
 PyYAML==6.0
 ansible-runner==2.1.1
-celery[redis]==5.2.2
+celery[redis]==5.2.3
 cliff==3.10.1
 deepdiff==5.7.0
 fastapi==0.74.1
@@ -11,7 +11,7 @@ hiredis==2.0.0
 kombu==5.2.3
 napalm==3.3.1
 openstacksdk==0.61.0
-pottery==1.4.7
+pottery==3.0.0
 pydantic==1.9.0
 pynetbox==6.6.1
 routeros-diff==0.5.3

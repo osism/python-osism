@@ -8,7 +8,7 @@ import pynetbox
 from redis import Redis
 
 from osism import settings
-from osism.actions import generate_configuration, manage_device, manage_interface
+from osism.actions import deploy_configuration, generate_configuration, manage_device, manage_interface
 from osism.tasks import Config, ansible, openstack
 
 app = Celery('netbox')
@@ -86,7 +86,10 @@ def import_device_types(self, vendors, library=False):
 def synchronize_device_state(self, data):
     """Synchronize the state of Bifrost or Ironic with Netbox"""
 
-    for device in json.loads(data):
+    if type(data) == str:
+        data = json.loads(data)
+
+    for device in data:
         manage_device.set_provision_state(device["Name"], device["Provisioning State"])
         manage_device.set_power_state(device["Name"], device["Power State"])
 
@@ -151,7 +154,7 @@ def generate(self, name, template=None):
 
 @app.task(bind=True, name="osism.tasks.netbox.deploy")
 def deploy(self, name):
-    return
+    deploy_configuration.for_device(name)
 
 
 @app.task(bind=True, name="osism.tasks.netbox.init")

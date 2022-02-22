@@ -32,7 +32,7 @@ def setup_periodic_tasks(sender, **kwargs):
 def run(self):
     lock = Redlock(key="lock_osism_tasks_reconciler_run",
                    masters={redis},
-                   auto_release_time=60*1000)
+                   auto_release_time=60)
 
     if lock.acquire(blocking=False):
 
@@ -47,7 +47,7 @@ def run(self):
 def sync_inventory_with_netbox(self):
     lock = Redlock(key="lock_osism_tasks_reconciler_sync_inventory_with_netbox",
                    masters={redis},
-                   auto_release_time=60*1000)
+                   auto_release_time=60)
 
     if lock.acquire(blocking=False):
 

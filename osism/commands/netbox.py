@@ -242,14 +242,10 @@ class Deploy(Command):
 
     def take_action(self, parsed_args):
         name = parsed_args.name[0]
-        arguments = parsed_args.arguments
+        # arguments = parsed_args.arguments
         wait = not parsed_args.no_wait
 
-        arguments.append(f"-e device={name}")
-        arguments.append(f"-l {name}")
-
-        # netbox.deploy.delay(name)
-        task = ansible.run.delay("netbox", "deploy", arguments)
+        task = netbox.deploy.delay(name)
 
         if wait:
             task.wait(timeout=None, interval=0.5)

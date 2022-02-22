@@ -24,6 +24,7 @@ COPY files/change.sh /change.sh
 RUN python3 -m pip --no-cache-dir install -U 'pip==21.3.1' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
     && python3 -m pip --no-cache-dir install --no-index /src \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
     && git clone https://github.com/osism/mappings /mappings \
@@ -42,6 +43,7 @@ FROM osism as osism-netbox
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       git \
+      git-annex \
     && mkdir -p \
       /import \
     && git clone https://github.com/netbox-community/devicetype-library /devicetype-library \

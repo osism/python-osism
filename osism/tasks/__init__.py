@@ -61,7 +61,7 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
     # NOTE: Consider arguments in the future
     lock = Redlock(key=f"lock-ansible-{environment}-{role}",
                    masters={redis},
-                   auto_release_time=3600*1000)
+                   auto_release_time=3600)
 
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
     #       not working out of the box
