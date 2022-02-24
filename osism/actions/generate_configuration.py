@@ -4,6 +4,7 @@ import logging
 import os
 
 import git
+import gitdb
 import jinja2
 from pottery import Redlock
 
@@ -110,8 +111,15 @@ def for_device(name, template=None):
     lock.acquire()
 
     repo.git.add(f"/state/{device.name}.cfg.j2")
-    if len(repo.index.diff("HEAD")) > 0:
-        logging.info(f"Committing changes in /state/{device.name}.cfg.j2")
-        repo.git.commit(message=f"Update {device.name}")
+
+    try:
+        if len(repo.index.diff("HEAD")) > 0:
+            logging.info(f"Committing changes in /state/{device.name}.cfg.j2")
+            repo.git.commit(message=f"Update {device.name}")
+
+    # Ref 'HEAD' did not resolve to an object
+    except gitdb.exc.BadName:
+        logging.info(f"Initial commit")
+        repo.git.commit(message=f"Initial commit")
 
     lock.release()
