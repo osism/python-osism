@@ -39,7 +39,12 @@ class NotificationsDump(ConsumerMixin):
 
         name = object_data["name"]
 
-        # https://docs.openstack.org/ironic/latest/admin/notifications.html#available-notifications
+        # References:
+        #
+        # * https://docs.openstack.org/ironic/latest/admin/notifications.html#available-notifications
+        # * https://docs.openstack.org/ironic/latest/user/states.html
+        # * https://docs.openstack.org/ironic/latest/_images/states.svg
+
         if event_type == "baremetal.node.power_set.end":
             logging.info(f"baremetal.node.power_set.end ## {name} ## {object_data['power_state']}")
             netbox.set_state.delay(name, object_data['power_state'], "power")
@@ -52,26 +57,49 @@ class NotificationsDump(ConsumerMixin):
             logging.info(f"baremetal.node.maintenance_set.end ## {name} ## {object_data['maintenance']}")
             netbox.set_maintenance.delay(name, object_data['maintenance'])
 
-        # A system is provisioned for Nova
         elif event_type == "baremetal.node.provision_set.start":
             logging.info(f"baremetal.node.provision_set.start ## {name} ## {object_data['provision_state']}")
+
+            if object_data["event"] == "inspect":
+                # system should be in state a
+                netbox.connect.delay(name, "a")
+
+            if object_data["provision_state"] == "cleaning":
+                # system should be in state b
+                netbox.connect.delay(name, "b")
+
+            if object_data["provision_state"] == "available":
+                # system should be in state c
+                netbox.connect.delay(name, "c")
+
             if object_data["target_provision_state"] == "active":
                 pass
 
+        # A provision status was successfully set, update it in the netbox
         elif event_type == "baremetal.node.provision_set.success":
             logging.info(f"baremetal.node.provision_set.success ## {name} ## {object_data['provision_state']}")
             netbox.set_state.delay(name, object_data['provision_state'], "provision")
+
+            if object_data["provision_state"] == "manageable":
+                # system should be in state c
+                netbox.connect.delay(name, "c")
 
         elif event_type == "baremetal.node.provision_set.end":
             logging.info(f"baremetal.node.provision_set.end ## {name} ## {object_data['provision_state']}")
             netbox.set_state.delay(name, object_data['provision_state'], "provision")
 
-            if object_data["previous_provision_state"] == "inspect wait":
+            if object_data["previous_provision_state"] == "inspect wait" and \
+               object_data["event"] == "done":
                 netbox.set_state.delay(name, "introspected", "introspection")
                 openstack.baremetal_set_node_provision_state.delay(name, "provide")
 
             elif object_data["previous_provision_state"] == "wait call-back":
                 pass
+
+            elif object_data["previous_provision_state"] == "cleaning" and \
+                 object_data["provision_state"] == "available":  # noqa
+                # system should be in state c
+                netbox.connect.delay(name, "c")
 
         elif event_type == "baremetal.port.create.end":
             logging.info(f"baremetal.port.create.end ## {object_data['uuid']}")
@@ -106,6 +134,9 @@ class NotificationsDump(ConsumerMixin):
             netbox.set_state.delay(name, None, "power")
             netbox.set_state.delay(name, None, "introspection")
             netbox.set_state.delay(name, None, "deployment")
+
+            # system should be in state a
+            netbox.connect.delay(name, "a")
 
         else:
             logging.info(f"{event_type} ## {name}")

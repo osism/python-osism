@@ -119,7 +119,7 @@ def for_device(name, template=None):
 
     # Ref 'HEAD' did not resolve to an object
     except gitdb.exc.BadName:
-        logging.info(f"Initial commit")
-        repo.git.commit(message=f"Initial commit")
+        logging.info("Initial commit")
+        repo.git.commit(message="Initial commit")
 
     lock.release()

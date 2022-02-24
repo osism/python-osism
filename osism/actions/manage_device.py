@@ -786,8 +786,11 @@ def get_connected_devices(device, data):
     return result
 
 
-def run(device, state, data, enforce=False):
+def run(device, state, data={}, enforce=False):
     """Transition a device to a specific state."""
+
+    if not data:
+        data = load_data_from_filesystem(None, device, state)
 
     states = get_states(data.keys())
     current_state = get_device_state(device, states)
