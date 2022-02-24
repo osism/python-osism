@@ -169,7 +169,8 @@ def devices(self, status="active", tags=["managed-by-ironic"], ironic_state="unr
     devices = nb.dcim.devices.filter(
         tag=tags,
         status=status,
-        cf_ironic_state=[ironic_state]
+        cf_ironic_state=[ironic_state],
+        cf_ironic_enabled=[True]
     )
 
     result = []
