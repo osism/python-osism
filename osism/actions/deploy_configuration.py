@@ -18,6 +18,9 @@ def for_device(name, parameters={}):
     if "Managed by OSISM" not in [str(x) for x in device.tags]:
         return
 
+    if "deployment_enabled" in device.custom_fields and not bool(device.custom_fields["deployment_enabled"]):
+        return
+
     # Allow only one change per time
     lock = Redlock(key=f"lock_deploy_{name}", masters={utils.redis}, auto_release_time=120)
     lock.acquire()
