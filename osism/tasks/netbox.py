@@ -142,6 +142,7 @@ def disable(self, name):
             interface.enabled = False
             interface.save()
 
+        # FIXME: only enable devices that are not disabled by configuration
         if interface.connected_endpoint and not interface.enabled:
             interface.enabled = True
             interface.save()
