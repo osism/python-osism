@@ -281,7 +281,7 @@ def manage_interfaces(device, data):
             interface_a.save()
 
         if not interface_b.enabled:
-            if "enabled" in data[device][interface]["data"]:
+            if "data" in data[device][interface] and "enabled" in data[device][interface]["data"]:
                 interface_b.enabled = bool(data[device][interface]["data"]["enabled"])
             else:
                 interface_b.enabled = True
