@@ -135,6 +135,12 @@ def manage_interfaces(device, data):
         except:  # noqa E722
             pass
 
+        if interface_a and "data" in data[device][interface]:
+            interface_a.update(data[device][interface]["data"])
+
+            if "enabled" in data[device][interface]["data"] and interface_b:
+                interface_b.enabled = bool(data[device][interface]["data"]["enabled"])
+
         # Add all addresses to the interface
         if "addresses" in data[device][interface]:
             for address in data[device][interface]["addresses"]:
@@ -259,16 +265,33 @@ def manage_interfaces(device, data):
                 logging.error(f"ERROR --> {e}")
                 pass
 
-        # ensure that all interfaces are enabled
+        # ensure that all interfaces are enabled that should be enabled
         if not interface_a.enabled:
-            interface_a.enabled = True
+
+            if "enabled" in data[device][interface]["data"]:
+                interface_a.enabled = bool(data[device][interface]["data"]["enabled"])
+            else:
+                interface_a.enabled = True
+
+            if interface_a.enabled:
+                logging.info(f"{device_a} # {interface_a} --> enabled")
+            else:
+                logging.info(f"{device_a} # {interface_a} --> disabled")
+
             interface_a.save()
-            logging.info(f"{device_a} # {interface_a} --> enabled")
 
         if not interface_b.enabled:
-            interface_b.enabled = True
+            if "enabled" in data[device][interface]["data"]:
+                interface_b.enabled = bool(data[device][interface]["data"]["enabled"])
+            else:
+                interface_b.enabled = True
+
+            if interface_b.enabled:
+                logging.info(f"{device_b} # {interface_b} --> enabled")
+            else:
+                logging.info(f"{device_b} # {interface_b} --> disabled")
+
             interface_b.save()
-            logging.info(f"{device_b} # {interface_b} --> enabled")
 
         if "vlans" in data[device][interface]:
             tagged = False
