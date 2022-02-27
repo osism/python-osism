@@ -18,6 +18,9 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
     from the file system (/netbox) in a given state.
     """
 
+    if not state or state in ["0", "None"]:
+        state = "a"
+
     data = {}
     if not device:
         logging.info(f"Loading collection {collection}")
@@ -62,6 +65,16 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
         logging.error("Specify at least a collection or a device")
 
     return data
+
+
+def get_state(device):
+    """Gets the state (device_state) stored in the Netbox for a  device."""
+
+    result = None
+    device_a = utils.nb.dcim.devices.get(name=device)
+    result = device_a.custom_fields["device_state"]
+
+    return result
 
 
 def get_states(devices):
@@ -786,8 +799,16 @@ def get_connected_devices(device, data):
     return result
 
 
-def run(device, state, data={}, enforce=False):
+def run(device, state=None, data={}, enforce=False):
     """Transition a device to a specific state."""
+
+    # If no state is specified use the state that is stored in the Netbox
+    if not state or state in ["0", "None"]:
+        state = get_state(device)
+
+        # If the state in the Netbox is 0/None then set the state to a
+        if state in ["0", "None"]:
+            state = "a"
 
     if not data:
         data = load_data_from_filesystem(None, device, state)
