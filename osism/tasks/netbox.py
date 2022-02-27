@@ -163,20 +163,20 @@ def init(self, arguments):
     ansible.run.delay("netbox-local", "init", arguments)
 
 
-@app.task(bind=True, name="osism.tasks.netbox.devices")
-def devices(self, status="active", tags=["managed-by-ironic"], ironic_state="unregistered"):
+@app.task(bind=True, name="osism.tasks.netbox.devices_not_registered_in_ironic")
+def devices_not_registered_in_ironic(self, status="active", tags=["managed-by-ironic"], ironic_enabled=True):
     global nb
 
     devices = nb.dcim.devices.filter(
         tag=tags,
         status=status,
-        cf_ironic_state=[ironic_state],
-        cf_ironic_enabled=[True]
+        cf_ironic_enabled=[ironic_enabled]
     )
 
     result = []
 
     for device in devices:
-        result.append(device.name)
+        if "ironic_state" in device.custom_fields and device.custom_fields["ironic_state"] != "registered":
+            result.append(device.name)
 
     return result
