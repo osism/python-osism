@@ -4,6 +4,8 @@
 
 ``python-osism`` is responsible for controlling and providing various APIs within OSISM.
 
+![Overview](https://raw.githubusercontent.com/osism/python-osism/main/contrib/python-osism.drawio.png)
+
 ## Services
 
 ### API
