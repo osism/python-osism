@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "4d15021229cd6a9ef5427d4da949d4244e69362b7ce790d3968f3e9acf64213b"
+            "sha256": "d23201282f8d71934e9a01fd61dcc13ca337f8ad2b660847df4de53605a4efd9"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -671,7 +671,7 @@
         "netmiko": {
             "editable": true,
             "git": "https://github.com/ktbyers/netmiko.git",
-            "ref": "4e0928e0413bad8fcd41e1a1454da48e42aa32fa"
+            "ref": "03bd1d24110b4ba4a05386defc2736f13d8b4f0c"
         },
         "ntc-templates": {
             "hashes": [
@@ -944,7 +944,7 @@
                 "sha256:04629f8e42be942c4f7d1812f2094568f04c612865ad19ad3ace3005da70631a",
                 "sha256:1d9a0cdf89fdd93f84261733e24f55a7bbd413a9b219fdaf56e3e728ca9a2306"
             ],
-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'",
+            "markers": "python_version >= '3.6'",
             "version": "==4.1.4"
         },
         "requests": {
@@ -1089,11 +1089,11 @@
         },
         "transitions": {
             "hashes": [
-                "sha256:2e9de3c453fafe3a8afef2c2bdc47e30a7a73e32d88f793ad4c1b6246f0cc364",
-                "sha256:b0385975a842e885c1a55c719d2f90164471665794d39d51f9eb3f11e1d9c8ac"
+                "sha256:7b20d32906ea4d60ee6f6c1f5dc9c9f178802425c5b155213eb0f25c277f04e4",
+                "sha256:9525dd9b708b0a54bb4562a06a483d237e75c94547ba9831c81c6872d0ea1522"
             ],
             "index": "pypi",
-            "version": "==0.8.10"
+            "version": "==0.8.11"
         },
         "typing-extensions": {
             "hashes": [
