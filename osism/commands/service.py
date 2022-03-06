@@ -1,10 +1,12 @@
 import logging
 import subprocess
-# import time
+import time
 
 from cliff.command import Command
-# from watchdog.observers import Observer
-# from watchdog.events import FileSystemEventHandler
+from watchdog.observers.polling import PollingObserver
+from watchdog.events import FileSystemEventHandler
+
+from osism.tasks import reconciler
 
 
 class Run(Command):
@@ -45,21 +47,23 @@ class Run(Command):
             p.wait()
 
         elif service == "watchdog":
-            p = subprocess.Popen("sleep infinity", shell=True)
-            p.wait()
+            event_handler_inventory = FileSystemEventHandler()
+            event_handler_inventory.on_any_event = self.watchdog_inventory_on_any_event
 
-            # event_handler = FileSystemEventHandler()
-            # event_handler.on_any_event = self.on_any_event
-            # observer = Observer()
-            # observer.schedule(event_handler, "/opt/configuration", recursive=True)
-            # observer.start()
-            # try:
-            #     while True:
-            #         time.sleep(1)
-            # finally:
-            #     observer.stop()
-            #     observer.join()
+            # We are not interested in being notified directly of any changes.
+            # Therefore not the Inotify Observer but the Polling Observer. It
+            # checks for changes every 10 seconds.
 
-    def on_any_event(self, event):
-        # reconciler.run.delay()
-        pass
+            observer = PollingObserver(10.0)
+            observer.schedule(event_handler_inventory, "/opt/configuration/inventory", recursive=True)
+            observer.start()
+
+            try:
+                while True:
+                    time.sleep(1)
+            finally:
+                observer.stop()
+                observer.join()
+
+    def watchdog_inventory_on_any_event(self, event):
+        reconciler.run.delay()
