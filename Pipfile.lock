@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "0e8366b27264c1c69fe7228af7221ba5c3ef74cbeadd333b84238122936ab54e"
+            "sha256": "457d27589ba79254bf5a234b64449070f2a599afa151c2c045dc3d7e58e75f0b"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -265,11 +265,11 @@
         },
         "dnspython": {
             "hashes": [
-                "sha256:081649da27ced5e75709a1ee542136eaba9842a0fe4c03da4fb0a3d3ed1f3c44",
-                "sha256:e79351e032d0b606b98d38a4b0e6e2275b31a5b85c873e587cc11b73aca026d6"
+                "sha256:0f7569a4a6ff151958b64304071d370daa3243d15941a7beedf0c9fe5105603e",
+                "sha256:a851e51367fb93e9e1361732c1d60dab63eff98712e503ea7d92e6eccb109b4f"
             ],
             "markers": "python_version >= '3.6' and python_version < '4.0'",
-            "version": "==2.2.0"
+            "version": "==2.2.1"
         },
         "docutils": {
             "hashes": [
@@ -431,11 +431,11 @@
         },
         "keystoneauth1": {
             "hashes": [
-                "sha256:34662a6be67ab29424aabe6f99a8d7eb6b88d293109a07e60fea123ebffb314f",
-                "sha256:7604fdec5ac70ef5f75caf0751e33e0859229b5275e504e4e4ad51652f407f00"
+                "sha256:47b526d2e813482bd1018916a1c768a5ac6d83c0865a4dc904cb8d6ffd530f1c",
+                "sha256:49b3488966a43eeb0200ea511b997e6403c25d563a984c6330e82a0ebfc4540c"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==4.4.0"
+            "version": "==4.5.0"
         },
         "kombu": {
             "hashes": [
@@ -750,11 +750,11 @@
         },
         "prettytable": {
             "hashes": [
-                "sha256:43c9e23272ca253d038ae76fe3adde89794e92e7fcab2ddf5b94b38642ef4f21",
-                "sha256:f546d42de21ac14d791c91e4e9814f02271f4a5bf27b894457914be7513dc92b"
+                "sha256:ae7d96c64100543dc61662b40a28f3b03c0f94a503ed121c6fca2782c5816f81",
+                "sha256:f6c5ec87c3ef9df5bba1d32d826c1b862ecad0344dddb6082e3562caf71fe085"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==3.1.1"
+            "version": "==3.2.0"
         },
         "prometheus-client": {
             "hashes": [
@@ -1011,11 +1011,11 @@
         },
         "sushy": {
             "hashes": [
-                "sha256:47e461ed32c64ee15f625f4f98606dbc796a937811b41b5e99b24f6dc809a102",
-                "sha256:7c52b4846ee5b2d9c4808cc0b8e28a98c1c81184af507d30a0fcd09160b8c299"
+                "sha256:daa6bf1bd5ca6437ebdadb3321995327eab6eff87e6ada93716d969f75924793",
+                "sha256:f4cb802c84d8fcf10c8e7027312515225975f3421919077c58ae21d169d06e3d"
             ],
             "index": "pypi",
-            "version": "==4.1.0"
+            "version": "==4.1.1"
         },
         "tenacity": {
             "hashes": [
