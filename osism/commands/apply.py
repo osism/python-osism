@@ -122,7 +122,6 @@ MAP_ROLE2ENVIRONMENT = {
     # MANAGER
 
     "configuration": "manager",
-    "manager": "manager",
     "manager-network": "manager",
     "manager-operator": "manager",
     "vault-import": "manager",
