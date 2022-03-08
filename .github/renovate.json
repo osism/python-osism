@@ -1,6 +1,3 @@
 {
-  "extends": [
-    "config:base"
-  ],
-  "commitBody": "Signed-off-by: Renovate Bot <bot@osism.tech>"
+  "extends": ["github>osism/renovate-config"]
 }
