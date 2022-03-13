@@ -90,7 +90,7 @@ class Init(Command):
         arguments = parsed_args.arguments
         wait = not parsed_args.no_wait
 
-        task = netbox.init.delay(arguments)
+        task = ansible.run.delay("netbox-local", "init", arguments)
 
         if wait:
             task.wait(timeout=None, interval=0.5)

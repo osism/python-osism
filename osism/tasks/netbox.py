@@ -158,11 +158,6 @@ def deploy(self, name):
     deploy_configuration.for_device(name)
 
 
-@app.task(bind=True, name="osism.tasks.netbox.init")
-def init(self, arguments):
-    ansible.run.delay("netbox-local", "init", arguments)
-
-
 @app.task(bind=True, name="osism.tasks.netbox.devices_not_registered_in_ironic")
 def devices_not_registered_in_ironic(self, status="active", tags=["managed-by-ironic"], ironic_enabled=True):
     global nb
