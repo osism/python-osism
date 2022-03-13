@@ -21,7 +21,10 @@ class Run(Command):
 
     def take_action(self, parsed_args):
         task = ansible.run.delay("manager", "bifrost-command", parsed_args.arguments)
+
+        self.log.info("Task is running. Wait. No more output. Check ARA for logs.")
         task.wait(timeout=None, interval=0.5)
+
         result = task.get()
         print(result)
 

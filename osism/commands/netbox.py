@@ -73,6 +73,7 @@ class Sync(Command):
 
         task = reconciler.sync_inventory_with_netbox.delay()
         if wait:
+            self.log.info("Task is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
@@ -93,6 +94,7 @@ class Init(Command):
         task = ansible.run.delay("netbox-local", "init", arguments)
 
         if wait:
+            self.log.info("Task is running. Wait. No more output. Check ARA for logs.")
             task.wait(timeout=None, interval=0.5)
 
 
@@ -120,6 +122,7 @@ class Import(Command):
         task = netbox.import_device_types.delay(vendors, library)
 
         if wait:
+            self.log.info("Task is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
@@ -144,6 +147,7 @@ class Manage(Command):
         task = ansible.run.delay("netbox-local", f"{type_of_resource}-{name}", arguments)
 
         if wait:
+            self.log.info("Task is running. Wait. No more output. Check ARA for logs.")
             task.wait(timeout=None, interval=0.5)
 
 
@@ -183,6 +187,7 @@ class Connect(Command):
         task.wait(timeout=None, interval=0.5)
         data = task.get()
 
+        self.log.info("Tasks are running in background. No more output. Check Flower for logs.")
         for device in data:
             netbox.connect.delay(device, state, data, enforce)
 
@@ -204,6 +209,7 @@ class Disable(Command):
         task = netbox.disable.delay(name)
 
         if wait:
+            self.log.info("Task is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
@@ -226,6 +232,7 @@ class Generate(Command):
         task = netbox.generate.delay(name, template)
 
         if wait:
+            self.log.info("Task is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
@@ -248,4 +255,5 @@ class Deploy(Command):
         task = netbox.deploy.delay(name)
 
         if wait:
+            self.log.info("Task is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
