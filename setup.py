@@ -70,6 +70,7 @@ setup(
             'netbox sync bifrost = osism.commands.netbox:Bifrost',
             'netbox sync ironic = osism.commands.netbox:Ironic',
             'reconciler = osism.commands.reconciler:Run',
+            'revoke = osism.commands.revoke:Run',
             'service = osism.commands.service:Run',
             'status = osism.commands.status:Run',
             'watchdog = osism.services.watchdog:Run',  # deprecated in favor of service
