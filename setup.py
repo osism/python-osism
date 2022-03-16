@@ -2,8 +2,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 PROJECT = 'osism'
-
-VERSION = '0.0.2'
+exec(open(f'{PROJECT}/version.py').read())
 
 try:
     long_description = open('README.md', 'rt').read()
@@ -12,7 +11,7 @@ except IOError:
 
 setup(
     name=PROJECT,
-    version=VERSION,
+    version=__version__,  # noqa
 
     description='OSISM manager interface',
     long_description=long_description,
