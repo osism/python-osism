@@ -5,7 +5,7 @@ name = "pypi"
 
 [packages]
 GitPython = "==3.1.27"
-Jinja2 = "==3.0.3"
+Jinja2 = "==3.1.0"
 PyYAML = "==6.0"
 ansible-runner = "==2.1.2"
 celery = {version = "==5.2.3", extras = ["redis"]}
