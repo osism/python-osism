@@ -14,19 +14,19 @@ RUN apt-get update \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
 
 ARG PYTHON_VERSION=3.9
-FROM python:${PYTHON_VERSION} as osism
+FROM python:${PYTHON_VERSION}-slim as osism
 
 COPY --from=builder /wheels /wheels
 COPY . /src
 COPY files/change.sh /change.sh
 
 # hadolint ignore=DL3008
-RUN python3 -m pip --no-cache-dir install -U 'pip==21.3.1' \
-    && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
-    && python3 -m pip --no-cache-dir install --no-index /src \
-    && apt-get update \
+RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
+    && python3 -m pip --no-cache-dir install -U 'pip==21.3.1' \
+    && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
+    && python3 -m pip --no-cache-dir install --no-index /src \
     && git clone https://github.com/osism/mappings /mappings \
     && apt-get clean \
     && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
