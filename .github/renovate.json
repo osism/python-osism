@@ -1,3 +1,6 @@
 {
-  "extends": ["github>osism/renovate-config"]
+  "extends": [
+    "github>osism/renovate-config",
+    "github>osism/renovate-config:docker"
+  ]
 }
