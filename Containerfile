@@ -24,6 +24,7 @@ COPY files/change.sh /change.sh
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
+        procps \
     && python3 -m pip --no-cache-dir install -U 'pip==22.0.4' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
     && python3 -m pip --no-cache-dir install --no-index /src \
