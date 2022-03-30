@@ -145,7 +145,7 @@ class NotificationsDump(ConsumerMixin):
 
 
 def main():
-    with BrokerConnection(BROKER_URI) as connection:
+    with BrokerConnection(BROKER_URI, connect_timeout=30.0) as connection:
         NotificationsDump(connection).run()
 
 
