@@ -21,6 +21,7 @@ if [[ -n $DOCKER_REGISTRY ]]; then
 fi
 
 buildah build-using-dockerfile \
+    --squash \
     --target osism \
     --format docker \
     --build-arg "VERSION=$VERSION" \
@@ -31,6 +32,7 @@ buildah build-using-dockerfile \
     $BUILD_OPTS .
 
 buildah build-using-dockerfile \
+    --squash \
     --target osism-netbox \
     --format docker \
     --build-arg "VERSION=$VERSION" \
