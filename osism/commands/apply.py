@@ -132,6 +132,7 @@ MAP_ROLE2ENVIRONMENT = {
     # CEPH
 
     "ceph-add-mon": "ceph",
+    "ceph-bootstrap-dashboard": "ceph",
     "ceph-ceph-keys": "ceph",
     "ceph-cephadm-adopt": "ceph",
     "ceph-cephadm": "ceph",
