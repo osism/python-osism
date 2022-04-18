@@ -13,7 +13,7 @@ napalm==3.3.1
 openstacksdk==0.61.0
 pottery==3.0.0
 pydantic==1.9.0
-pynetbox==6.6.1
+pynetbox==6.6.2
 routeros-diff==0.5.3
 sushy==4.1.1
 tabulate==0.8.9
