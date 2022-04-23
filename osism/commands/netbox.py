@@ -219,7 +219,7 @@ class Generate(Command):
 
     def get_parser(self, prog_name):
         parser = super(Generate, self).get_parser(prog_name)
-        parser.add_argument('name', nargs=1, type=str, help='Name of the device to check for unused interfaces')
+        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the configuration is to be generated.')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
         parser.add_argument('--template', type=str, help='Name of the template to use', required=False)
         return parser
@@ -242,7 +242,7 @@ class Deploy(Command):
 
     def get_parser(self, prog_name):
         parser = super(Deploy, self).get_parser(prog_name)
-        parser.add_argument('name', nargs=1, type=str, help='Name of the device to check for unused interfaces')
+        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the confiugration is to be deployed')
         parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
         return parser
