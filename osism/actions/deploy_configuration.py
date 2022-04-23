@@ -67,7 +67,7 @@ def for_device(name, parameters={}):
             t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(current_configuration)
             rendered_current_configuration = t.render(**parameters)
 
-            logging.info(f"Deploy configuration for device {device.name}")
+            logging.info(f"Deploy configuration for device {device.name} with plugin {device.custom_fields['deployment_type']}")
 
             if device.custom_fields["deployment_type"] == "routeros":
                 routeros.run(device, rendered_current_configuration, last_configuration)
