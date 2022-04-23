@@ -72,7 +72,10 @@ def for_device(name, template=None):
     except:  # noqa
         mlag_peer_address = None
 
-    mlag_domain_id = device.name.split("-")[1]
+    try:
+        mlag_domain_id = device.name.split("-")[1]
+    except:  # noqa
+        mlag_domain_id = None
 
     repo = git.Repo.init(path="/state")
     repo.config_writer().set_value("user", "name", "Netbox Generator").release()
