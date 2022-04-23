@@ -5,7 +5,7 @@ import jinja2
 from pottery import Redlock
 
 from osism import utils
-from osism.plugins.deployment import routeros
+from osism.plugins.deployment import routeros, routeros_testing
 
 
 def for_device(name, parameters={}):
@@ -19,6 +19,9 @@ def for_device(name, parameters={}):
         return
 
     if "deployment_enabled" in device.custom_fields and not bool(device.custom_fields["deployment_enabled"]):
+        return
+
+    if "deployment_type" not in device.custom_fields:
         return
 
     # Allow only one change per time
@@ -66,7 +69,12 @@ def for_device(name, parameters={}):
 
             logging.info(f"Deploy configuration for device {device.name}")
 
-            routeros.run(device, rendered_current_configuration, last_configuration)
+            if device.custom_fields["deployment_type"] == "routeros":
+                routeros.run(device, rendered_current_configuration, last_configuration)
+            elif device.custom_fields["deployment_type"] == "routeros_testing":
+                routeros_testing.run(device, rendered_current_configuration, last_configuration)
+            else:
+                logging.error(f"Deployment type x for device {device.name} not supported")
 
     repo.create_tag(device.name, current_commit)
 
