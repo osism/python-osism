@@ -70,6 +70,7 @@ setup(
             'netbox sync bifrost = osism.commands.netbox:Bifrost',
             'netbox sync ironic = osism.commands.netbox:Ironic',
             'reconciler = osism.commands.reconciler:Run',
+            'reconciler sync = osism.commands.reconciler:Sync',
             'revoke = osism.commands.revoke:Run',
             'service = osism.commands.service:Run',
             'status = osism.commands.status:Run',
