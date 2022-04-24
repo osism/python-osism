@@ -29,7 +29,7 @@ def get_scp_connection(device):
     return result
 
 
-def get_last_configuration(device):
+def get_configuration(device):
     conn = get_netmiko_connection(device)
     conn.send_command(f"/export file={device.name}")
 
@@ -60,7 +60,7 @@ def get_parameters(device):
 
 def deploy(device, current_configuration, last_configuration):
     if not last_configuration:
-        last_configuration = get_last_configuration(device)
+        last_configuration = get_configuration(device)
 
     last = RouterOSConfig.parse(last_configuration)
     current = RouterOSConfig.parse(current_configuration)
