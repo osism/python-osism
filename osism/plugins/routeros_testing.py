@@ -7,12 +7,14 @@ from routeros_diff.parser import RouterOSConfig
 from scp import SCPClient
 
 
-def get_netmiko_connection(parameters):
+def get_netmiko_connection(device):
+    parameters = get_parameters(device)
     result = ConnectHandler(device_type="mikrotik_routeros", **parameters)
     return result
 
 
-def get_scp_connection(parameters):
+def get_scp_connection(device):
+    parameters = get_parameters(device)
 
     ssh_parameters = {
         "hostname": parameters["host"],
@@ -27,35 +29,38 @@ def get_scp_connection(parameters):
     return result
 
 
-def get_last_configuration(name, parameters):
-    conn = get_netmiko_connection(parameters)
-    conn.send_command(f"/export file={name}")
+def get_last_configuration(device):
+    conn = get_netmiko_connection(device)
+    conn.send_command(f"/export file={device.name}")
 
-    scp = get_scp_connection(parameters)
-    scp.get(f"/{name}.rsc", f"/tmp/{name}.rsc")
+    scp = get_scp_connection(device)
+    scp.get(f"/{device.name}.rsc", f"/tmp/{device.name}.rsc")
     scp.close()
 
-    with open(f"/tmp/{name}.rsc", 'r') as fp:
+    with open(f"/tmp/{device.name}.rsc", 'r') as fp:
         result = fp.read()
 
-    os.remove(f"/tmp/{name}.rsc")
+    os.remove(f"/tmp/{device.name}.rsc")
 
     return result
 
 
-def deploy(device, current_configuration, last_configuration):
-
+def get_parameters(device):
     # FIXME: use get_context_data() in the future
     config_context = device.local_context_data
 
-    parameters = {
+    result = {
         'host': config_context['deployment_address'],
         'username': config_context['deployment_user'],
         'password': config_context['deployment_password']
     }
 
+    return result
+
+
+def deploy(device, current_configuration, last_configuration):
     if not last_configuration:
-        last_configuration = get_last_configuration(device.name, parameters)
+        last_configuration = get_last_configuration(device)
 
     last = RouterOSConfig.parse(last_configuration)
     current = RouterOSConfig.parse(current_configuration)
