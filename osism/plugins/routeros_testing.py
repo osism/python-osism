@@ -1,3 +1,4 @@
+import logging
 import os
 
 from netmiko import ConnectHandler
@@ -42,7 +43,7 @@ def get_last_configuration(name, parameters):
     return result
 
 
-def run(device, current_configuration, last_configuration):
+def deploy(device, current_configuration, last_configuration):
 
     # FIXME: use get_context_data() in the future
     config_context = device.local_context_data
@@ -62,5 +63,5 @@ def run(device, current_configuration, last_configuration):
     diff = str(current.diff(last))
 
     if diff:
-        conn = get_netmiko_connection(parameters)
-        conn.send_config_set(diff.split('\n'))
+        for line in diff.split('\n'):
+            logging.info(f"diff - {device.name}: {line}")
