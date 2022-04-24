@@ -36,7 +36,7 @@ def get_configuration(device):
     scp.get(f"/{device.name}.rsc", f"/tmp/{device.name}.rsc")
     scp.close()
 
-    with open(f"/tmp/{device.nname}.rsc", 'r') as fp:
+    with open(f"/tmp/{device.name}.rsc", 'r') as fp:
         result = fp.read()
 
     os.remove(f"/tmp/{device.name}.rsc")

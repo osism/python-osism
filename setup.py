@@ -58,6 +58,7 @@ setup(
             'bifrost deploy = osism.commands.bifrost:Deploy',
             'flower = osism.services.flower:Run',  # deprecated in favor of service
             'netbox = osism.commands.netbox:Run',
+            'netbox check = osism.commands.netbox:Check',
             'netbox connect = osism.commands.netbox:Connect',
             'netbox deploy= osism.commands.netbox:Deploy',
             'netbox disable = osism.commands.netbox:Disable',

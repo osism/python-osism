@@ -8,7 +8,7 @@ import pynetbox
 from redis import Redis
 
 from osism import settings
-from osism.actions import deploy_configuration, generate_configuration, manage_device, manage_interface
+from osism.actions import check_configuration, deploy_configuration, generate_configuration, manage_device, manage_interface
 from osism.tasks import Config, ansible, openstack
 
 app = Celery('netbox')
@@ -156,6 +156,11 @@ def generate(self, name, template=None):
 @app.task(bind=True, name="osism.tasks.netbox.deploy")
 def deploy(self, name):
     deploy_configuration.for_device(name)
+
+
+@app.task(bind=True, name="osism.tasks.netbox.check")
+def check(self, name):
+    check_configuration.for_device(name)
 
 
 @app.task(bind=True, name="osism.tasks.netbox.devices_not_registered_in_ironic")
