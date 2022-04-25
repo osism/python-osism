@@ -89,6 +89,9 @@ def synchronize_device_state(self, data):
     if type(data) == str:
         data = json.loads(data)
 
+    if not data:
+        return
+
     for device in data:
         manage_device.set_provision_state(device["Name"], device["Provisioning State"])
         manage_device.set_power_state(device["Name"], device["Power State"])

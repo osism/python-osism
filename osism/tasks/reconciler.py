@@ -1,6 +1,5 @@
 import io
 import subprocess
-import time
 
 from celery import Celery
 from celery.signals import worker_process_init
@@ -34,11 +33,7 @@ def run(self):
                    masters={redis},
                    auto_release_time=60)
 
-    if lock.acquire(blocking=False):
-
-        # NOTE: Synthetic pause to wait for synchronization
-        time.sleep(10)
-
+    if lock.acquire(timeout=20):
         p = subprocess.Popen("/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         p.wait()
 
@@ -51,11 +46,7 @@ def sync_inventory_with_netbox(self):
                    masters={redis},
                    auto_release_time=60)
 
-    if lock.acquire(blocking=False):
-
-        # NOTE: Synthetic pause to wait for synchronization
-        time.sleep(10)
-
+    if lock.acquire(timeout=20):
         p = subprocess.Popen("/sync-inventory-with-netbox.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
