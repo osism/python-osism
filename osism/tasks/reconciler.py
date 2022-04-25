@@ -42,6 +42,8 @@ def run(self):
         p = subprocess.Popen("/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         p.wait()
 
+        lock.release()
+
 
 @app.task(bind=True, name="osism.tasks.reconciler.sync_inventory_with_netbox")
 def sync_inventory_with_netbox(self):
