@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import pynetbox
 from starlette.middleware.cors import CORSMiddleware
 
-# from osism.tasks import netbox
+from osism.tasks import reconciler
 from osism import settings
 
 
@@ -123,7 +123,10 @@ async def webhook(
         custom_fields = device.custom_fields
 
     if "Managed by OSISM" in tags:
-        if device_type == "switch":
+        if device_type == "server":
+            logger.info(f"Handling change for managed device {name} of type {device_type}")
+            reconciler.run.delay()
+        elif device_type == "switch":
             logger.info(f"Handling change for managed device {name} of type {device_type}")
             # netbox.generate.delay(name, custom_fields['configuration_template'])
         elif device_type == "interface":
