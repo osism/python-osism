@@ -61,6 +61,7 @@ setup(
             'netbox check = osism.commands.netbox:Check',
             'netbox connect = osism.commands.netbox:Connect',
             'netbox deploy= osism.commands.netbox:Deploy',
+            'netbox diff = osism.commands.netbox:Diff',
             'netbox disable = osism.commands.netbox:Disable',
             'netbox generate = osism.commands.netbox:Generate',
             'netbox import = osism.commands.netbox:Import',

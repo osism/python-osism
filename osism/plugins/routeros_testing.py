@@ -70,3 +70,15 @@ def deploy(device, current_configuration, last_configuration):
     if diff:
         for line in diff.split('\n'):
             logging.info(f"diff - {device.name}: {line}")
+
+
+def diff(device, current_configuration, last_configuration):
+    if not last_configuration:
+        last_configuration = get_configuration(device)
+
+    last = RouterOSConfig.parse(last_configuration)
+    current = RouterOSConfig.parse(current_configuration)
+
+    diff = str(current.diff(last))
+    for line in diff.split('\n'):
+        logging.info(f"diff - {device.name}: {line}")

@@ -8,7 +8,7 @@ from osism import utils
 from osism.plugins import routeros, routeros_testing
 
 
-def for_device(name, parameters={}):
+def for_device(name, parameters={}, mode="deploy"):
 
     device = utils.nb.dcim.devices.get(name=name)
 
@@ -40,10 +40,10 @@ def for_device(name, parameters={}):
         last_commit = repo.head.commit
         current_commit = repo.head.commit
 
-    if device.name in repo.tags:
+    if device.name in repo.tags and mode == "deploy":
         repo.delete_tag(name)
 
-    if not first and last_commit == current_commit:
+    if not first and last_commit == current_commit and mode == "deploy":
         logging.info(f"No deployment for device {device.name} required")
     else:
 
@@ -67,15 +67,18 @@ def for_device(name, parameters={}):
             t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(current_configuration)
             rendered_current_configuration = t.render(**parameters)
 
-            logging.info(f"Deploy configuration for device {device.name} with plugin {device.custom_fields['deployment_type']}")
+            logging.info(f"{mode} configuration for device {device.name} with plugin {device.custom_fields['deployment_type']}")
 
             if device.custom_fields["deployment_type"] == "routeros":
-                routeros.deploy(device, rendered_current_configuration, last_configuration)
+                if mode == "deploy":
+                    routeros.deploy(device, rendered_current_configuration, last_configuration)
             elif device.custom_fields["deployment_type"] == "routeros_testing":
-                routeros_testing.deploy(device, rendered_current_configuration, last_configuration)
+                if mode == "deploy":
+                    routeros_testing.deploy(device, rendered_current_configuration, last_configuration)
             else:
                 logging.error(f"Deployment type x for device {device.name} not supported")
 
-    repo.create_tag(device.name, current_commit)
+    if mode == "deploy":
+        repo.create_tag(device.name, current_commit)
 
     lock.release()

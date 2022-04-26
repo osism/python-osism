@@ -278,3 +278,24 @@ class Check(Command):
         if wait:
             self.log.info("Task is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
+
+
+class Diff(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Diff, self).get_parser(prog_name)
+        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the confiugration is to be diffed')
+        parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
+        return parser
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name[0]
+        wait = not parsed_args.no_wait
+
+        task = netbox.diff.delay(name)
+
+        if wait:
+            self.log.info("Task is running. Wait. No more output.")
+            task.wait(timeout=None, interval=0.5)
