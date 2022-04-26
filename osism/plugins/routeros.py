@@ -80,5 +80,10 @@ def diff(device, current_configuration, last_configuration):
     current = RouterOSConfig.parse(current_configuration)
 
     diff = str(current.diff(last))
-    for line in diff.split('\n'):
-        logging.info(f"diff - {device.name}: {line}")
+
+    # NOTE: Will be removed later. Is first of all a blocker to avoid making too many changes.
+    if len(diff.split('\n')) > 10:
+        logging.error("Too many changes at once for {devie.name}.")
+    else:
+        for line in diff.split('\n'):
+            logging.info(f"diff - {device.name}: {line}")
