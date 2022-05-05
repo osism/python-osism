@@ -7,7 +7,7 @@ name = "pypi"
 GitPython = "==3.1.27"
 Jinja2 = "==3.1.1"
 PyYAML = "==6.0"
-ansible-runner = "==2.1.2"
+ansible-runner = "==2.2.0"
 celery = {version = "==5.2.6", extras = ["redis"]}
 cliff = "==3.10.1"
 deepdiff = "==5.8.0"
