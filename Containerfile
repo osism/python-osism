@@ -10,7 +10,7 @@ RUN apt-get update \
       gcc \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /wheels \
-    && python3 -m pip --no-cache-dir install -U 'pip==22.0.4' \
+    && python3 -m pip --no-cache-dir install -U 'pip==22.1' \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
 
 ARG PYTHON_VERSION=3.9
@@ -25,7 +25,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
         procps \
-    && python3 -m pip --no-cache-dir install -U 'pip==22.0.4' \
+    && python3 -m pip --no-cache-dir install -U 'pip==22.1' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
     && python3 -m pip --no-cache-dir install --no-index /src \
     && git clone https://github.com/osism/mappings /mappings \
