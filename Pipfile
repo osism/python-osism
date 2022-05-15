@@ -22,7 +22,7 @@ pynetbox = "==6.6.2"
 routeros-diff = "==0.5.3"
 sushy = "==4.1.1"
 transitions = "==0.8.11"
-watchdog = "==2.1.7"
+watchdog = "==2.1.8"
 netmiko = {git = "git+https://github.com/ktbyers/netmiko.git", editable = true, ref = "develop"}
 
 [dev-packages]
