@@ -69,7 +69,11 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
     # execute roles from Kolla
     if environment == "kolla":
         lock.acquire()
-        p = subprocess.Popen(f"/run.sh deploy {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        if role == "mariadb_backup":
+            p = subprocess.Popen(f"/run.sh backup {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        else:
+            p = subprocess.Popen(f"/run.sh deploy {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     # execute roles from Ceph
     elif environment == "ceph":
