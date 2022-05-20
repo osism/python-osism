@@ -117,7 +117,11 @@ def baremetal_create_allocations(self, nodes):
     global conn
 
     for node in nodes:
-        allocation_a = conn.baremetal.get_allocation(allocation=node)
+
+        try:
+            allocation_a = conn.baremetal.get_allocation(allocation=node)
+        except openstack.exceptions.ResourceNotFound:
+            allocation_a = None
 
         if not allocation_a:
             device_a = utils.nb.dcim.devices.get(name=node)
