@@ -180,5 +180,5 @@ def baremetal_check_allocations(self):
 
     if lock.acquire(timeout=20):
         # Add all unregistered systems from the Netbox in Ironic
-        netbox.get_devices_that_should_have_an_allocation_in_ironic.apply_async((), link=openstack.baremetal_create_allocations.s())
+        netbox.get_devices_that_should_have_an_allocation_in_ironic.apply_async((), link=baremetal_create_allocations.s())
         lock.release()
