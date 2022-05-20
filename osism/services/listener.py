@@ -72,8 +72,6 @@ class NotificationsDump(ConsumerMixin):
                 # system should be in state c
                 netbox.connect.delay(name, "c")
 
-                openstack.baremetal_create_allocations.delay([name])
-
             if object_data["target_provision_state"] == "active":
                 pass
 
@@ -104,8 +102,6 @@ class NotificationsDump(ConsumerMixin):
 
                 # system should be in state c
                 netbox.connect.delay(name, "c")
-
-                openstack.baremetal_create_allocations.delay([name])
 
         elif event_type == "baremetal.port.create.end":
             logging.info(f"baremetal.port.create.end ## {object_data['uuid']}")
@@ -143,8 +139,6 @@ class NotificationsDump(ConsumerMixin):
 
             # system should be in state a
             netbox.connect.delay(name, "a")
-
-            openstack.baremetal_create_allocations.delay([name])
 
         else:
             logging.info(f"{event_type} ## {name}")
