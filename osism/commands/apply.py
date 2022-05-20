@@ -114,6 +114,7 @@ MAP_ROLE2ENVIRONMENT = {
     "rundeck": "infrastructure",
     "sshconfig": "infrastructure",
     "tailscale": "infrastructure",
+    "tang": "infrastructure",
     "traefik": "infrastructure",
     "virtualbmc": "infrastructure",
     "zuul": "infrastructure",
