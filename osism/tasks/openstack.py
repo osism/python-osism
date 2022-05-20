@@ -117,19 +117,15 @@ def baremetal_create_allocations(self, nodes):
     global conn
 
     for node in nodes:
-
         try:
             allocation_a = conn.baremetal.get_allocation(allocation=node)
         except openstack.exceptions.ResourceNotFound:
             allocation_a = None
 
         if not allocation_a:
-            device_a = utils.nb.dcim.devices.get(name=node)
-
-            if "managed-by-ironic" in device_a.tags and "managed-by-osism" in device_a.tags:
-                # FIXME: get resource class from netbox/conductor configuration
-                allocation_a = conn.baremetal.create_allocation(name=node, candidate_nodes=[node], resource_class="baremetal-resource-class")
-                conn.baremetal.wait_for_allocation(allocation=node, timeout=30)
+            # FIXME: get resource class from netbox/conductor configuration
+            allocation_a = conn.baremetal.create_allocation(name=node, candidate_nodes=[node], resource_class="baremetal-resource-class")
+            conn.baremetal.wait_for_allocation(allocation=node, timeout=30)
 
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_create_nodes")
@@ -183,6 +179,5 @@ def baremetal_check_allocations(self):
                    auto_release_time=60)
 
     if lock.acquire(timeout=20):
-        # Add all unregistered systems from the Netbox in Ironic
         netbox.get_devices_that_should_have_an_allocation_in_ironic.apply_async((), link=baremetal_create_allocations.s())
         lock.release()
