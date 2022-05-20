@@ -153,10 +153,16 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
             node_parameters["driver_info"]["ipmi_address"] = t.render(remote_board_address=remote_board_address)
 
         try:
+            device_a = utils.nb.dcim.devices.get(name=node)
+
+            # NOTE: Internally used nodes are identified by their unique name via the resource class.
+            #       The actual resource class is explicitly overwritten.
+            if "managed-by-ironic" in device_a.tags and "managed-by-osism" in device_a.tags:
+                node_parameters["resource_class"] = f"osism-{node}"
+                baremetal_create_internal_flavor(node)
+
             conn.baremetal.create_node(name=node, provision_state="manageable", **node_parameters)
             conn.baremetal.wait_for_nodes_provision_state([node], 'manageable')
-
-            device_a = utils.nb.dcim.devices.get(name=node)
 
             if "managed-by-ironic" in device_a.tags and "managed-by-osism" not in device_a.tags:
                 conn.baremetal.set_node_traits(node, ["CUSTOM_GENERAL_USE"])
@@ -192,3 +198,16 @@ def baremetal_check_allocations(self):
     if lock.acquire(timeout=20):
         netbox.get_devices_that_should_have_an_allocation_in_ironic.apply_async((), link=baremetal_create_allocations.s())
         lock.release()
+
+
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_create_internal_flavor")
+def baremetal_create_internal_flavor(self, node):
+    flavor_a = conn.compute.create_flavor(name=f"osism-{node}", ram=1, vcpus=1, disk=1, is_public=False)
+    specs = {
+        f"resources:CUSTOM_RESOURCE_CLASS_OSISM_{node.upper()}": 1,
+        "resources:VCPU": 0,
+        "resources:MEMORY_MB": 0,
+        "resources:DISK_GB": 0,
+        "trait:CUSTOM_OSISM_USE": "required"
+    }
+    conn.compute.set_flavor_specs(flavor_a, specs)
