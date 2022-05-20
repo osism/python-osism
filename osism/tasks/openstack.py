@@ -154,19 +154,20 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
 
         try:
             device_a = utils.nb.dcim.devices.get(name=node)
+            tags = [str(tag) for tag in device_a.tags]
 
             # NOTE: Internally used nodes are identified by their unique name via the resource class.
             #       The actual resource class is explicitly overwritten.
-            if "managed-by-ironic" in device_a.tags and "managed-by-osism" in device_a.tags:
+            if "Managed by Ironic" in tags and "Managed by OSISM" in tags:
                 node_parameters["resource_class"] = f"osism-{node}"
                 baremetal_create_internal_flavor(node)
 
             conn.baremetal.create_node(name=node, provision_state="manageable", **node_parameters)
             conn.baremetal.wait_for_nodes_provision_state([node], 'manageable')
 
-            if "managed-by-ironic" in device_a.tags and "managed-by-osism" not in device_a.tags:
+            if "Managed by Ironic" in tags and "Managed by OSISM" not in tags:
                 conn.baremetal.set_node_traits(node, ["CUSTOM_GENERAL_USE"])
-            elif "managed-by-ironic" in device_a.tags and "managed-by-osism" in device_a.tags:
+            elif "Managed by Ironic" in tags and "Managed by OSISM" in tags:
                 conn.baremetal.set_node_traits(node, ["CUSTOM_OSISM_USE"])
 
             conn.baremetal.set_node_provision_state(node, 'inspect')
@@ -210,4 +211,4 @@ def baremetal_create_internal_flavor(self, node):
         "resources:DISK_GB": 0,
         "trait:CUSTOM_OSISM_USE": "required"
     }
-    conn.compute.set_flavor_specs(flavor_a, specs)
+    conn.compute.create_flavor_extra_specs(flavor_a, specs)
