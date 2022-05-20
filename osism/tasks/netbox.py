@@ -171,8 +171,8 @@ def diff(self, name):
     diff_configuration.for_device(name)
 
 
-@app.task(bind=True, name="osism.tasks.netbox.devices_not_registered_in_ironic")
-def devices_not_registered_in_ironic(self, status="active", tags=["managed-by-ironic"], ironic_enabled=True):
+@app.task(bind=True, name="osism.tasks.netbox.get_devices_not_yet_registered_in_ironic")
+def get_devices_not_yet_registered_in_ironic(self, status="active", tags=["managed-by-ironic"], ironic_enabled=True):
     global nb
 
     devices = nb.dcim.devices.filter(
@@ -186,5 +186,27 @@ def devices_not_registered_in_ironic(self, status="active", tags=["managed-by-ir
     for device in devices:
         if "ironic_state" in device.custom_fields and device.custom_fields["ironic_state"] != "registered":
             result.append(device.name)
+
+    return result
+
+
+@app.task(bind=True, name="osism.tasks.netbox.get_devices_that_should_have_an_allocation_in_ironic")
+def get_devices_that_should_have_an_allocation_in_ironic(self):
+    global nb
+
+    devices = nb.dcim.devices.filter(
+        tag=["managed-by-ironic", "managed-by-osism"],
+        status="active",
+        cf_ironic_enabled=[True],
+        cf_ironic_state=["registered"],
+        cf_provision_state=["available"],
+        cf_introspection_state=["introspected"],
+        cf_device_type=["server"]
+    )
+
+    result = []
+
+    for device in devices:
+        result.append(device.name)
 
     return result

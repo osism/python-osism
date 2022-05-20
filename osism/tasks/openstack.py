@@ -6,9 +6,10 @@ from celery.signals import worker_process_init
 import jinja2
 import keystoneauth1
 import openstack
+from pottery import Redlock
 from redis import Redis
 
-from osism.tasks import Config
+from osism.tasks import Config, netbox
 from osism import utils
 
 app = Celery('openstack')
@@ -34,7 +35,7 @@ def celery_init_worker(**kwargs):
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    pass
+    sender.add_periodic_task(600.0, baremetal_check_allocations.s(), expires=10)
 
 
 @app.task(bind=True, name="osism.tasks.openstack.image_get")
@@ -111,19 +112,20 @@ def baremetal_set_node_provision_state(self, node, state):
     conn.baremetal.set_node_provision_state(node, state)
 
 
-@app.task(bind=True, name="osism.tasks.openstack.baremetal_create_allocation")
-def baremetal_create_allocation(self, node):
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_create_allocations")
+def baremetal_create_allocations(self, nodes):
     global conn
 
-    allocation_a = conn.baremetal.get_allocation(allocation=node)
+    for node in nodes:
+        allocation_a = conn.baremetal.get_allocation(allocation=node)
 
-    if not allocation_a:
-        device_a = utils.nb.dcim.devices.get(name=node)
+        if not allocation_a:
+            device_a = utils.nb.dcim.devices.get(name=node)
 
-        if "managed-by-ironic" in device_a.tags and "managed-by-osism" in device_a.tags:
-            # FIXME: get resource class from netbox/conductor configuration
-            allocation_a = conn.baremetal.create_allocation(name=node, candidate_nodes=[node], resource_class="baremetal-resource-class")
-            conn.baremetal.wait_for_allocation(allocation=node, timeout=30)
+            if "managed-by-ironic" in device_a.tags and "managed-by-osism" in device_a.tags:
+                # FIXME: get resource class from netbox/conductor configuration
+                allocation_a = conn.baremetal.create_allocation(name=node, candidate_nodes=[node], resource_class="baremetal-resource-class")
+                conn.baremetal.wait_for_allocation(allocation=node, timeout=30)
 
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_create_nodes")
@@ -168,3 +170,15 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
                 "ironic_state": "registered",
             }
             device_a.save()
+
+
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_check_allocations")
+def baremetal_check_allocations(self):
+    lock = Redlock(key="lock_osism_tasks_openstack_baremetal_check_allocations",
+                   masters={redis},
+                   auto_release_time=60)
+
+    if lock.acquire(timeout=20):
+        # Add all unregistered systems from the Netbox in Ironic
+        netbox.get_devices_that_should_have_an_allocation_in_ironic.apply_async((), link=openstack.baremetal_create_allocations.s())
+        lock.release()

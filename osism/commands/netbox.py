@@ -51,7 +51,7 @@ class Ironic(Command):
         ironic_parameters = task.get()
 
         # Add all unregistered systems from the Netbox in Ironic
-        netbox.devices_not_registered_in_ironic.apply_async((), link=openstack.baremetal_create_nodes.s(ironic_parameters))
+        netbox.get_devices_not_yet_registered_in_ironic.apply_async((), link=openstack.baremetal_create_nodes.s(ironic_parameters))
 
         # Synchronize the current status in Ironic with the Netbox
         # openstack.baremetal_node_list.apply_async((), link=netbox.synchronize_device_state.s())
