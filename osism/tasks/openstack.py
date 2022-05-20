@@ -35,7 +35,7 @@ def celery_init_worker(**kwargs):
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    sender.add_periodic_task(600.0, baremetal_check_allocations.s(), expires=10)
+    sender.add_periodic_task(60.0, baremetal_check_allocations.s(), expires=10)
 
 
 @app.task(bind=True, name="osism.tasks.openstack.image_get")
