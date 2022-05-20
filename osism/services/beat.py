@@ -17,6 +17,7 @@ class Run(Command):
             "osism.tasks.conductor",
             "osism.tasks.kolla",
             "osism.tasks.netbox",
+            "osism.tasks.openstack",
             "osism.tasks.reconciler"
         ]
         ps = [subprocess.Popen(f"celery -A {t} --broker=redis://redis beat -s /tmp/celerybeat-schedule-{t}.db", shell=True) for t in ts]
