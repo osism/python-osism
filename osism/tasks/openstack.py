@@ -155,10 +155,17 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
         try:
             conn.baremetal.create_node(name=node, provision_state="manageable", **node_parameters)
             conn.baremetal.wait_for_nodes_provision_state([node], 'manageable')
+
+            device_a = utils.nb.dcim.devices.get(name=node)
+
+            if "managed-by-ironic" in device_a.tags and "managed-by-osism" not in device_a.tags:
+                conn.baremetal.set_node_traits(node, ["CUSTOM_GENERAL_USE"])
+            elif "managed-by-ironic" in device_a.tags and "managed-by-osism" in device_a.tags:
+                conn.baremetal.set_node_traits(node, ["CUSTOM_OSISM_USE"])
+
             conn.baremetal.set_node_provision_state(node, 'inspect')
 
             # TODO: Check if the system has been registered correctly
-            device_a = utils.nb.dcim.devices.get(name=node)
             device_a.custom_fields = {
                 "ironic_state": "registered",
             }
