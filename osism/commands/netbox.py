@@ -242,7 +242,7 @@ class Deploy(Command):
 
     def get_parser(self, prog_name):
         parser = super(Deploy, self).get_parser(prog_name)
-        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the confiugration is to be deployed')
+        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the configuration is to be deployed')
         parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
         return parser
@@ -265,7 +265,7 @@ class Check(Command):
 
     def get_parser(self, prog_name):
         parser = super(Check, self).get_parser(prog_name)
-        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the confiugration is to be checked')
+        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the configuration is to be checked')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
         return parser
 
@@ -286,7 +286,7 @@ class Diff(Command):
 
     def get_parser(self, prog_name):
         parser = super(Diff, self).get_parser(prog_name)
-        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the confiugration is to be diffed')
+        parser.add_argument('name', nargs=1, type=str, help='Name of the device for which the configuration is to be diffed')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the changes have been made', action='store_true')
         return parser
 
