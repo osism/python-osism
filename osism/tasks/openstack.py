@@ -111,6 +111,21 @@ def baremetal_set_node_provision_state(self, node, state):
     conn.baremetal.set_node_provision_state(node, state)
 
 
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_create_allocation")
+def baremetal_create_allocation(self, node):
+    global conn
+
+    allocation_a = conn.baremetal.get_allocation(allocation=node)
+
+    if not allocation_a:
+        device_a = utils.nb.dcim.devices.get(name=node)
+
+        if "managed-by-ironic" in device_a.tags and "managed-by-osism" in device_a.tags:
+            # FIXME: get resource class from netbox/conductor configuration
+            allocation_a = conn.baremetal.create_allocation(name=node, candidate_nodes=[node], resource_class="baremetal-resource-class")
+            conn.baremetal.wait_for_allocation(allocation=node, timeout=30)
+
+
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_create_nodes")
 def baremetal_create_nodes(self, nodes, ironic_parameters):
     global conn
