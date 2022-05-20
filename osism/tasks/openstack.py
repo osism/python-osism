@@ -9,7 +9,7 @@ import openstack
 from pottery import Redlock
 from redis import Redis
 
-from osism.tasks import Config, netbox
+from osism.tasks import Config, conductor, netbox
 from osism import utils
 
 app = Celery('openstack')
@@ -123,8 +123,12 @@ def baremetal_create_allocations(self, nodes):
             allocation_a = None
 
         if not allocation_a:
-            # FIXME: get resource class from netbox/conductor configuration
-            allocation_a = conn.baremetal.create_allocation(name=node, candidate_nodes=[node], resource_class="baremetal-resource-class")
+            # Get Ironic parameters from the conductor
+            task = conductor.get_ironic_parameters.delay()
+            task.wait(timeout=None, interval=0.5)
+            ironic_parameters = task.get()
+
+            allocation_a = conn.baremetal.create_allocation(name=node, candidate_nodes=[node], resource_class=ironic_parameters["resource_class"])
             conn.baremetal.wait_for_allocation(allocation=node, timeout=30)
 
 

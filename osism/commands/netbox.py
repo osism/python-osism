@@ -46,7 +46,7 @@ class Ironic(Command):
 
     def take_action(self, parsed_args):
         # Get Ironic parameters from the conductor
-        task = ironic_parameters = conductor.get_ironic_parameters.delay()
+        task = conductor.get_ironic_parameters.delay()
         task.wait(timeout=None, interval=0.5)
         ironic_parameters = task.get()
 
