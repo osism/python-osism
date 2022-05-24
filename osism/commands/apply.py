@@ -116,6 +116,7 @@ MAP_ROLE2ENVIRONMENT = {
     "tailscale": "infrastructure",
     "traefik": "infrastructure",
     "virtualbmc": "infrastructure",
+    "wireguard": "infrastructure",
     "zuul": "infrastructure",
 
     # MANAGER
