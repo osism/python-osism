@@ -118,6 +118,7 @@ MAP_ROLE2ENVIRONMENT = {
     "tang": "infrastructure",
     "traefik": "infrastructure",
     "virtualbmc": "infrastructure",
+    "wireguard": "infrastructure",
     "zuul": "infrastructure",
 
     # MANAGER
