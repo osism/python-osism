@@ -15,6 +15,8 @@ MAP_ROLE2ENVIRONMENT = {
     # MONITORING
 
     "netdata": "monitoring",
+    "remove-netdata": "monitoring",
+    "remove-zabbix-agent": "monitoring",
     "openstack-health-monitor": "monitoring",
 
     # GENERIC
