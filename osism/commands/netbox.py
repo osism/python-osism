@@ -299,3 +299,18 @@ class Diff(Command):
         if wait:
             self.log.info("Task is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
+
+
+class Ping(Command):
+
+    log = logging.getLogger(__name__)
+
+    def get_parser(self, prog_name):
+        parser = super(Ping, self).get_parser(prog_name)
+        return parser
+
+    def take_action(self, parsed_args):
+        task = netbox.ping.delay()
+        task.wait(timeout=None, interval=0.5)
+        result = task.get()
+        print(result)
