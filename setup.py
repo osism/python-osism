@@ -53,10 +53,8 @@ setup(
         ],
         'osism.commands': [
             'apply = osism.commands.apply:Run',
-            'beat = osism.services.beat:Run',  # deprecated in favor of service
             'bifrost = osism.commands.bifrost:Run',
             'bifrost deploy = osism.commands.bifrost:Deploy',
-            'flower = osism.services.flower:Run',  # deprecated in favor of service
             'netbox = osism.commands.netbox:Run',
             'netbox check = osism.commands.netbox:Check',
             'netbox connect = osism.commands.netbox:Connect',
@@ -75,7 +73,6 @@ setup(
             'revoke = osism.commands.revoke:Run',
             'service = osism.commands.service:Run',
             'status = osism.commands.status:Run',
-            'watchdog = osism.services.watchdog:Run',  # deprecated in favor of service
             'worker = osism.commands.worker:Run'
         ]
     },
