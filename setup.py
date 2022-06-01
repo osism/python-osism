@@ -65,6 +65,7 @@ setup(
             'netbox import = osism.commands.netbox:Import',
             'netbox init = osism.commands.netbox:Init',
             'netbox manage = osism.commands.netbox:Manage',
+            'netbox ping = osism.commands.netbox:Ping',
             'netbox sync = osism.commands.netbox:Sync',
             'netbox sync bifrost = osism.commands.netbox:Bifrost',
             'netbox sync ironic = osism.commands.netbox:Ironic',

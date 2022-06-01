@@ -210,3 +210,12 @@ def get_devices_that_should_have_an_allocation_in_ironic(self):
         result.append(device.name)
 
     return result
+
+
+@app.task(bind=True, name="osism.tasks.netbox.ping")
+def ping(self):
+    global nb
+
+    status = nb.status()
+
+    return status
