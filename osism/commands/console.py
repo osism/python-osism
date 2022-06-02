@@ -28,7 +28,7 @@ class Run(Command):
             target_hostname = target.split("/")[0]
             target_command = "bash"
 
-            ssh_command = f"docker exec -t {target_containername} {target_command}"
+            ssh_command = f"docker exec -it {target_containername} {target_command}"
             ssh_options = "-o RequestTTY=force -o StrictHostKeyChecking=no"
 
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
