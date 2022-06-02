@@ -31,7 +31,8 @@ RUN apt-get update \
     && python3 -m pip --no-cache-dir install --no-index /src \
     && git clone https://github.com/osism/mappings /mappings \
     && apt-get clean \
-    && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && mkdir -p /ansible/logs
 
 LABEL "org.opencontainers.image.documentation"="https://docs.osism.tech" \
       "org.opencontainers.image.licenses"="ASL 2.0" \
@@ -50,7 +51,6 @@ RUN apt-get update \
       /import \
     && git clone https://github.com/netbox-community/devicetype-library /devicetype-library \
     && apt-get clean \
-    && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && mkdir -p /ansible/logs
+    && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY files/import/* /import
