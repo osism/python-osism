@@ -56,6 +56,7 @@ setup(
             'bifrost = osism.commands.bifrost:Run',
             'bifrost deploy = osism.commands.bifrost:Deploy',
             'console = osism.commands.console:Run',
+            'container = osism.commands.container:Run',
             'netbox = osism.commands.netbox:Run',
             'netbox check = osism.commands.netbox:Check',
             'netbox connect = osism.commands.netbox:Connect',
