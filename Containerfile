@@ -49,6 +49,8 @@ RUN apt-get update \
       /import \
     && git clone https://github.com/netbox-community/devicetype-library /devicetype-library \
     && apt-get clean \
-    && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && mkdir -p /ansible/logs
 
 COPY files/import/* /import
+COPY files/run-ansible-console.sh /run-ansible-console.sh

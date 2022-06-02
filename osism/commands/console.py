@@ -1,4 +1,5 @@
 import logging
+import subprocess
 
 from cliff.command import Command
 
@@ -14,8 +15,8 @@ class Run(Command):
         return parser
 
     def take_action(self, parsed_args):
-        console_type = parsed_args.type
-        console_target = parsed_args.target[0]
+        type_console = parsed_args.type
+        target = parsed_args.target[0]
 
-        print(console_target)
-        print(console_type)
+        if type_console == "ansible":
+            subprocess.call(f"/run-ansible-console.sh {target}", shell=True)
