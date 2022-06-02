@@ -25,6 +25,7 @@ COPY files/run-ansible-console.sh /run-ansible-console.sh
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         git \
+        openssh-client \
         procps \
     && python3 -m pip --no-cache-dir install -U 'pip==22.1.2' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \

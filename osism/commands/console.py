@@ -20,3 +20,6 @@ class Run(Command):
 
         if type_console == "ansible":
             subprocess.call(f"/run-ansible-console.sh {target}", shell=True)
+        elif type_console == "ssh":
+            # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
+            subprocess.call(f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator -o StrictHostKeyChecking=no dragon@{target}", shell=True)
