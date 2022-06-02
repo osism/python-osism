@@ -26,7 +26,10 @@ class Run(Command):
         elif type_console == "container":
             target_containername = target.split("/")[1]
             target_hostname = target.split("/")[0]
-            command = f"docker exec -t {target_containername} sh"
+            target_command = "bash"
+
+            ssh_command = f"docker exec -t {target_containername} {target_command}"
+            ssh_options = "-o RequestTTY=force -o StrictHostKeyChecking=no"
 
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
-            subprocess.call(f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator -o StrictHostKeyChecking=no dragon@{target_hostname} {command}", shell=True)
+            subprocess.call(f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{target_hostname} {ssh_command}", shell=True)
