@@ -20,7 +20,7 @@ sushy==4.2.0
 tabulate==0.8.9
 transitions==0.8.11
 uvicorn[standard]==0.17.6
-watchdog==2.1.8
+watchdog==2.1.9
 
 # https://github.com/ktbyers/netmiko/pull/2362
 git+https://github.com/ktbyers/netmiko.git@develop
