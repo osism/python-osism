@@ -27,4 +27,4 @@ class Run(Command):
         subprocess.call(f"{ssh_command} {arguments}", shell=True)
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
-        subprocess.call(f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{target_hostname} {ssh_command}", shell=True)
+        subprocess.call(f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{target_hostname} '{ssh_command}'", shell=True)
