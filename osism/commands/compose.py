@@ -19,12 +19,10 @@ class Run(Command):
     def take_action(self, parsed_args):
         target_hostname = parsed_args.target[0]
         environment = parsed_args.environment[0]
-        arguments = parsed_args.arguments
+        arguments = "".join(parsed_args.arguments)
 
         ssh_command = f"docker compose --project-directory=/opt/{environment} {arguments}"
         ssh_options = "-o StrictHostKeyChecking=no"
-
-        subprocess.call(f"{ssh_command} {arguments}", shell=True)
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
         subprocess.call(f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{target_hostname} '{ssh_command}'", shell=True)
