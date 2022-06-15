@@ -131,6 +131,7 @@ class NotificationsDump(ConsumerMixin):
 
         elif event_type == "baremetal.node.delete.end":
             logging.info(f"baremetal.node.delete.end ## {name}")
+
             netbox.set_state.delay(name, "unregistered", "ironic")
             netbox.set_state.delay(name, None, "provision")
             netbox.set_state.delay(name, None, "power")
@@ -139,6 +140,9 @@ class NotificationsDump(ConsumerMixin):
 
             # system should be in state a
             netbox.connect.delay(name, "a")
+
+            # remove internal flavor
+            openstack.baremetal_delete_internal_flavor.delay(name)
 
         else:
             logging.info(f"{event_type} ## {name}")
