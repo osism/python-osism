@@ -17,7 +17,7 @@ pydantic==1.9.1
 pynetbox==6.6.2
 routeros-diff==0.5.3
 sushy==4.2.0
-tabulate==0.8.9
+tabulate==0.8.10
 transitions==0.8.11
 uvicorn[standard]==0.17.6
 watchdog==2.1.9
