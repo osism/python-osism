@@ -1,4 +1,4 @@
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION} as builder
 
 COPY . /src
@@ -18,7 +18,7 @@ RUN apt-get update \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-image-manager/requirements.txt \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-project-manager/requirements.txt
 
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION}-slim as osism
 
 COPY --from=builder /wheels /wheels
