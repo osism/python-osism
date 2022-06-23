@@ -19,7 +19,7 @@ routeros-diff==0.5.3
 sushy==4.2.0
 tabulate==0.8.10
 transitions==0.8.11
-uvicorn[standard]==0.17.6
+uvicorn[standard]==0.18.1
 watchdog==2.1.9
 
 # https://github.com/ktbyers/netmiko/pull/2362
