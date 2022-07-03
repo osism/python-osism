@@ -7,7 +7,7 @@ celery[redis]==5.2.7
 cliff==3.10.1
 deepdiff==5.8.1
 fastapi==0.78.0
-flower==1.0.0
+flower==1.1.0
 hiredis==2.0.0
 kombu==5.2.4
 napalm==3.3.1
