@@ -10,7 +10,7 @@ fastapi==0.78.0
 flower==1.1.0
 hiredis==2.0.0
 kombu==5.2.4
-napalm==3.3.1
+napalm==3.4.1
 openstacksdk==0.99.0
 pottery==3.0.0
 pydantic==1.9.1
