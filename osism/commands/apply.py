@@ -115,6 +115,7 @@ MAP_ROLE2ENVIRONMENT = {
     "patchman": "infrastructure",
     "phpmyadmin": "infrastructure",
     "rundeck": "infrastructure",
+    "squid": "infrastructure",
     "sshconfig": "infrastructure",
     "tailscale": "infrastructure",
     "tang": "infrastructure",
