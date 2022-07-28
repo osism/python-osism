@@ -10,7 +10,7 @@ redis = Redis(host="redis", port="6379")
 
 MAP_ROLE2ROLE = {
     "infrastructure-basic": [
-        "openstackclient"
+        "openstackclient",
         "common",
         "loadbalancer",
         "elasticsearch",
