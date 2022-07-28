@@ -36,6 +36,12 @@ MAP_ROLE2ROLE = {
         "designate",
         "heat",
         "octavia"
+    ],
+    "openstack-extended": [
+        "gnocchi",
+        "ceilometer",
+        "aodh",
+        "senlin"
     ]
 }
 
