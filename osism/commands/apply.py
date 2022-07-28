@@ -8,6 +8,36 @@ from osism.tasks import ansible, ceph, kolla
 
 redis = Redis(host="redis", port="6379")
 
+MAP_ROLE2ROLE = {
+    "infrastructure-basic": [
+        "openstackclient"
+        "common",
+        "loadbalancer",
+        "elasticsearch",
+        "kibana",
+        "openvswitch",
+        "ovn",
+        "memcached",
+        "redis",
+        "mariadb",
+        "rabbitmq",
+        "etcd",
+        "phpmyadmin"
+    ],
+    "openstack-basic": [
+        "keystone",
+        "horizon",
+        "placement",
+        "glance",
+        "cinder",
+        "neutron",
+        "nova",
+        "barbican",
+        "designate",
+        "heat",
+        "octavia"
+    ]
+}
 
 # NOTE: Can be made more elegant later
 MAP_ROLE2ENVIRONMENT = {
@@ -284,12 +314,7 @@ class Run(Command):
         parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
         return parser
 
-    def take_action(self, parsed_args):
-        arguments = parsed_args.arguments
-        environment = parsed_args.environment
-        role = parsed_args.role[0]
-        wait = not parsed_args.no_wait
-
+    def handle_role(self, arguments, environment, role, wait):
         if not environment:
             try:
                 environment = MAP_ROLE2ENVIRONMENT[role]
@@ -326,3 +351,15 @@ class Run(Command):
                             # NOTE: Use better solution
                             return
                         print(m["data"].decode("utf-8"), end="")
+
+    def take_action(self, parsed_args):
+        arguments = parsed_args.arguments
+        environment = parsed_args.environment
+        role = parsed_args.role[0]
+        wait = not parsed_args.no_wait
+
+        if role in MAP_ROLE2ROLE:
+            for r in MAP_ROLE2ROLE[role]:
+                self.handle_role(arguments, environment, r, wait)
+        else:
+            self.handle_role(arguments, environment, role, wait)
