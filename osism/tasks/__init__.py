@@ -14,6 +14,7 @@ redis = None
 
 class Config:
     enable_utc = True
+    enable_bifrost = os.environ.get("ENABLE_BIFROST", "False")
     broker_url = "redis://redis"
     result_backend = "redis://redis"
     task_create_missing_queues = True
