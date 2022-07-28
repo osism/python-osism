@@ -32,7 +32,7 @@ def celery_init_worker(**kwargs):
         configuration = yaml.load(fp, Loader=yaml.SafeLoader)
 
         # Resolve all IDs in the conductor.yml
-        if Config.enable_ironic:
+        if Config.enable_ironic in ["True", "true", "Yes", "yes"]:
             # TODO: use osism.tasks.openstack in the future
             if "driver_info" in configuration["ironic_parameters"]:
                 if "deploy_kernel" in configuration["ironic_parameters"]["driver_info"]:
