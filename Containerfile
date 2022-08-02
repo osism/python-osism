@@ -13,7 +13,7 @@ RUN apt-get update \
     && python3 -m pip --no-cache-dir install -U 'pip==22.2.1' \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
 
-ARG PYTHON_VERSION=3.9
+ARG PYTHON_VERSION=3.10
 FROM python:${PYTHON_VERSION}-slim as osism
 
 COPY --from=builder /wheels /wheels
