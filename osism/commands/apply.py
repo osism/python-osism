@@ -22,7 +22,6 @@ MAP_ROLE2ROLE = {
         "elasticsearch",
         "kibana",
         "openvswitch",
-        "ovn",
         "memcached",
         "redis",
         "mariadb",
