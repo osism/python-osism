@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d7bbdbd77bb2d6ff66519b822d0f9ffc25db7f610905c1244a471fce672042a8"
+            "sha256": "4841e3db77d81a9588b3d98a1ff1c0419f5520ea4b5ab271e5dc23291e4fed54"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -299,11 +299,11 @@
         },
         "flower": {
             "hashes": [
-                "sha256:77be4bece7330893703e8cca3f3baddba356a0019186594a961e3968289da7ec",
-                "sha256:f920ca2902d7539fc180ab15e51f1d918355e5cc23da854ff9d59c6e5a1725b6"
+                "sha256:46493c7e8d9ca2167e8a46eb97ae8d280997cb40a81993230124d74f0fe40bac",
+                "sha256:ae2977cf7343c526cf44def8c7e7173db8dedb8249b91ba4b88cfd18e7a2d486"
             ],
             "index": "pypi",
-            "version": "==1.1.0"
+            "version": "==1.2.0"
         },
         "future": {
             "hashes": [
@@ -377,11 +377,11 @@
         },
         "humanize": {
             "hashes": [
-                "sha256:2bc1fdd831cd00557d3010abdd84d3e41b4a96703a3eaf6c24ee290b26b75a44",
-                "sha256:bed628920d45cd5018abb095710f0c03a8336d6ac0790e7647c6a328f3880b81"
+                "sha256:0dfac79fe8c1c0c734c14177b07b857bad9ae30dd50daa0a14e2c3d8054ee0c4",
+                "sha256:5dd159c9910cd57b94072e4d7decae097f0eb84c4645153706929a7f127cb2ef"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==4.2.3"
+            "version": "==4.3.0"
         },
         "idna": {
             "hashes": [
@@ -686,11 +686,11 @@
         },
         "netutils": {
             "hashes": [
-                "sha256:90ab637c60ae18c515191224c52a7b0a1eb6fdde2f8dd40dfac638f2dd06ef2c",
-                "sha256:bcb4367689c773cd30bf898b15bed38f22dc8bd69e64f2272bb9dd4726bf41d4"
+                "sha256:23c2ca960544ac6674263063a3580fe3d9d94d5898512df468298659c7eff7e3",
+                "sha256:a661326a46352208ea465f0305831f042f7943289e4cbc3e085c23c07682d24b"
             ],
             "markers": "python_version >= '3.6' and python_version < '4.0'",
-            "version": "==1.1.0"
+            "version": "==1.2.0"
         },
         "ntc-templates": {
             "hashes": [
@@ -992,11 +992,11 @@
         },
         "setuptools": {
             "hashes": [
-                "sha256:7c7854ee1429a240090297628dc9f75b35318d193537968e2dc14010ee2f5bca",
-                "sha256:dc2662692f47d99cb8ae15a784529adeed535bcd7c277fee0beccf961522baf6"
+                "sha256:73bfae4791da7c1c56882ab17577d00f7a37a0347162aeb9360058de0dc25083",
+                "sha256:abcb76aa4decd7a17cbe0e4b31bdf549d106ba7f668e87e0860f5f7b84b9b3fe"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==63.4.1"
+            "version": "==63.4.2"
         },
         "six": {
             "hashes": [
