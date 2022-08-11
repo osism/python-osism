@@ -216,4 +216,5 @@ def baremetal_create_internal_flavor(self, node):
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_delete_internal_flavor")
 def baremetal_delete_internal_flavor(self, node):
-    conn.compute.delete_flavor(name=f"osism-{node}")
+    flavor = conn.compute.get_flavor(f"ososim-{node}")
+    conn.compute.delete_flavor(flavor)
