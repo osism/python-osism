@@ -347,6 +347,7 @@ class Run(Command):
 
         if wait:
             p = redis.pubsub()
+            rc = 0
 
             # NOTE: use task_id or request_id in future
             if environment == "ceph":
@@ -357,11 +358,15 @@ class Run(Command):
             while True:
                 for m in p.listen():
                     if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
+                        line = m["data"].decode("utf-8")
+                        if line.startswith("RC: "):
+                            rc = int(line[4:])
+                            continue
+                        if line == "QUIT":
                             redis.close()
                             # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+                            return rc
+                        print(line, end="")
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
@@ -371,6 +376,9 @@ class Run(Command):
 
         if role in MAP_ROLE2ROLE:
             for r in MAP_ROLE2ROLE[role]:
-                self.handle_role(arguments, environment, r, wait)
+                rc = self.handle_role(arguments, environment, r, wait)
+                if rc != 0:
+                    break
         else:
-            self.handle_role(arguments, environment, role, wait)
+            rc = self.handle_role(arguments, environment, role, wait)
+        return rc
