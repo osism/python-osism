@@ -114,6 +114,9 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
             # NOTE: use task_id or request_id in future
             redis.publish(f"{environment}-{role}", line)
 
+        rc = p.wait(timeout=60)
+        redis.publish(f"{environment}-{role}", f"RC: {rc}\n")
+
         # NOTE: use task_id or request_id in future
         redis.publish(f"{environment}-{role}", "QUIT")
         lock.release()
