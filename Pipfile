@@ -20,7 +20,7 @@ pottery = "==3.0.0"
 pydantic = "==1.10.1"
 pynetbox = "==6.6.2"
 routeros-diff = "==0.5.3"
-sushy = "==4.2.1"
+sushy = "==4.3.0"
 transitions = "==0.9.0"
 watchdog = "==2.1.9"
 netmiko = {git = "git+https://github.com/ktbyers/netmiko.git", editable = true, ref = "develop"}
