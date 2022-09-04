@@ -348,12 +348,7 @@ class Run(Command):
         rc = 0
         if wait:
             p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            if environment == "ceph":
-                p.subscribe(f"{role}")
-            else:
-                p.subscribe(f"{environment}-{role}")
+            p.subscribe(f"{t.task_id}")
 
             while True:
                 for m in p.listen():
