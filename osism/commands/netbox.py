@@ -187,9 +187,10 @@ class Connect(Command):
         task.wait(timeout=None, interval=0.5)
         data = task.get()
 
-        self.log.info("Tasks are running in background. No more output. Check Flower for logs.")
         for device in data:
-            netbox.connect.delay(device, state, data, enforce)
+            t = netbox.connect.delay(device, state, data, enforce)
+            self.log.info(f"Task {t.task_id} for device {device} is running in background")
+        self.log.info("Tasks are running in background. No more output. Check Flower for logs.")
 
 
 class Disable(Command):
