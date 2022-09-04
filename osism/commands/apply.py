@@ -322,10 +322,11 @@ class Run(Command):
         parser.add_argument('--environment', type=str, help='Environment that is to be used explicitly')
         parser.add_argument('role', nargs=1, type=str, help='Role to be applied')
         parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
+        parser.add_argument('--format', default="log", help='Output type', const='log', nargs='?', choices=['script', 'log']),
         parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
         return parser
 
-    def handle_role(self, arguments, environment, role, wait):
+    def handle_role(self, arguments, environment, role, wait, format):
         if not environment:
             try:
                 environment = MAP_ROLE2ENVIRONMENT[role]
@@ -363,20 +364,25 @@ class Run(Command):
                             return rc
                         print(line, end="")
         else:
-            self.log.info(f"Task {t.task_id} is running in background. No more output. Check ARA for logs.")
+            if format == "log":
+                self.log.info(f"Task {t.task_id} is running in background. No more output. Check ARA for logs.")
+            elif format == "script":
+                self.log.info(f"{t.task_id}")
+
             return rc
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
         environment = parsed_args.environment
+        format = parsed_args.format
         role = parsed_args.role[0]
         wait = not parsed_args.no_wait
 
         if role in MAP_ROLE2ROLE:
             for r in MAP_ROLE2ROLE[role]:
-                rc = self.handle_role(arguments, environment, r, wait)
+                rc = self.handle_role(arguments, environment, r, wait, format)
                 if rc != 0:
                     break
         else:
-            rc = self.handle_role(arguments, environment, role, wait)
+            rc = self.handle_role(arguments, environment, role, wait, format)
         return rc
