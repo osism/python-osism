@@ -77,6 +77,7 @@ setup(
             'revoke = osism.commands.revoke:Run',
             'service = osism.commands.service:Run',
             'status = osism.commands.status:Run',
+            'wait = osism.commands.wait:Run',
             'worker = osism.commands.worker:Run'
         ]
     },
