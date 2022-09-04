@@ -111,14 +111,13 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
     # process all other results
     else:
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-            # NOTE: use task_id or request_id in future
-            redis.publish(f"{environment}-{role}", line)
+            redis.publish(f"{request_id}", line)
 
         rc = p.wait(timeout=60)
-        redis.publish(f"{environment}-{role}", f"RC: {rc}\n")
 
-        # NOTE: use task_id or request_id in future
-        redis.publish(f"{environment}-{role}", "QUIT")
+        redis.publish(f"{request_id}", f"RC: {rc}\n")
+        redis.publish(f"{request_id}", "QUIT")
+
         lock.release()
 
     return result
