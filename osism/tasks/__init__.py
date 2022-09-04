@@ -54,7 +54,7 @@ def celery_init_worker(**kwargs):
 
 
 def run_ansible_in_environment(request_id, environment, role, arguments):
-    result = None
+    result = ""
 
     if type(arguments) == list:
         joined_arguments = " ".join(arguments)
@@ -113,6 +113,7 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
     else:
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             redis.publish(f"{request_id}", line)
+            result += line
 
         rc = p.wait(timeout=60)
 
