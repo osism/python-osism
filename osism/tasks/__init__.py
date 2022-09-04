@@ -20,6 +20,7 @@ class Config:
     result_backend = "redis://redis"
     task_create_missing_queues = True
     task_default_queue = "default"
+    task_track_started = True,
     task_routes = {
         'osism.tasks.ceph.*': {
             'queue': 'ceph-ansible'
