@@ -334,20 +334,20 @@ class Run(Command):
 
         if environment == "ceph":
             if role.startswith("ceph-"):
-                ceph.run.delay(role[5:], arguments)
+                t = ceph.run.delay(role[5:], arguments)
             else:
-                ceph.run.delay(role, arguments)
+                t = ceph.run.delay(role, arguments)
         elif environment == "kolla":
             if role.startswith("kolla-"):
-                kolla.run.delay(role[6:], arguments)
+                t = kolla.run.delay(role[6:], arguments)
             else:
-                kolla.run.delay(role, arguments)
+                t = kolla.run.delay(role, arguments)
         else:
-            ansible.run.delay(environment, role, arguments)
+            t = ansible.run.delay(environment, role, arguments)
 
+        rc = 0
         if wait:
             p = redis.pubsub()
-            rc = 0
 
             # NOTE: use task_id or request_id in future
             if environment == "ceph":
@@ -367,6 +367,9 @@ class Run(Command):
                             # NOTE: Use better solution
                             return rc
                         print(line, end="")
+        else:
+            self.log.info(f"Task {t.task_id} is running in background. No more output. Check ARA for logs.")
+            return rc
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
