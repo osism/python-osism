@@ -1,4 +1,3 @@
-import argparse
 import logging
 
 from celery import Celery
@@ -17,7 +16,7 @@ class Run(Command):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument('--live', default=False, help='Show live output from a started task until it is finished', action='store_true')
         parser.add_argument('--output', default=False, help='Show output from a finished task', action='store_true')
-        parser.add_argument('task_id', nargs=argparse.REMAINDER, type=str, help='ID of tasks to wait for')
+        parser.add_argument('task_id', nargs='+', type=str, help='ID of tasks to wait for')
         return parser
 
     def take_action(self, parsed_args):
