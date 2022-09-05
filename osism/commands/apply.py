@@ -220,7 +220,7 @@ MAP_ROLE2ENVIRONMENT = {
     "ceph-storage-inventory": "ceph",
     "ceph-switch-from-non-containerized-to-containerized-ceph-daemons": "ceph",
     "ceph-take-over-existing-cluster": "ceph",
-    "ceph-testbed": "ceph",
+    "ceph-base": "ceph",
 
     # KOLLA
 
