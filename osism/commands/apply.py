@@ -323,12 +323,12 @@ class Run(Command):
         parser.add_argument('--environment', type=str, help='Environment that is to be used explicitly')
         parser.add_argument('role', nargs=1, type=str, help='Role to be applied')
         parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
-        parser.add_argument('--delay', default=1, type=int, help='Delay in seconds between checks for new output')
         parser.add_argument('--format', default="log", help='Output type', const='log', nargs='?', choices=['script', 'log']),
+        parser.add_argument('--timeout', default=180, type=int, help='Timeout to end if there is no output')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
         return parser
 
-    def handle_role(self, arguments, environment, role, wait, format, delay):
+    def handle_role(self, arguments, environment, role, wait, format, timeout):
         if not environment:
             try:
                 environment = MAP_ROLE2ENVIRONMENT[role]
@@ -353,9 +353,11 @@ class Run(Command):
             p = redis.pubsub()
             p.subscribe(f"{t.task_id}")
 
-            while True:
-                time.sleep(delay)
-                for m in p.listen():
+            stoptime = time.time() + timeout
+            while time.time() < stoptime:
+                m = p.get_message(timeout=stoptime - time.time())
+                if m:
+                    stoptime = time.time() + timeout
                     if type(m["data"]) == bytes:
                         line = m["data"].decode("utf-8")
                         if line.startswith("RC: "):
@@ -366,6 +368,10 @@ class Run(Command):
                             # NOTE: Use better solution
                             return rc
                         print(line, end="")
+                else:
+                    self.log.info(f"No further output after {timeout} seconds. Therefore finish.")
+                    return rc
+
         else:
             if format == "log":
                 self.log.info(f"Task {t.task_id} is running in background. No more output. Check ARA for logs.")
@@ -377,17 +383,17 @@ class Run(Command):
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
         environment = parsed_args.environment
-        delay = parsed_args.delay
         format = parsed_args.format
         role = parsed_args.role[0]
+        timeout = parsed_args.timeout
         wait = not parsed_args.no_wait
 
         if role in MAP_ROLE2ROLE:
             for r in MAP_ROLE2ROLE[role]:
-                rc = self.handle_role(arguments, environment, r, wait, format, delay)
+                rc = self.handle_role(arguments, environment, r, wait, format, timeout)
                 if rc != 0:
                     break
         else:
-            rc = self.handle_role(arguments, environment, role, wait, format, delay)
+            rc = self.handle_role(arguments, environment, role, wait, format, timeout)
 
         return rc
