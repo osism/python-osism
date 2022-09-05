@@ -324,7 +324,7 @@ class Run(Command):
         parser.add_argument('role', nargs=1, type=str, help='Role to be applied')
         parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
         parser.add_argument('--format', default="log", help='Output type', const='log', nargs='?', choices=['script', 'log']),
-        parser.add_argument('--timeout', default=180, type=int, help='Timeout to end if there is no output')
+        parser.add_argument('--timeout', default=300, type=int, help='Timeout to end if there is no output')
         parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
         return parser
 
