@@ -30,5 +30,5 @@ class Sync(Command):
 
         task = reconciler.run.delay()
         if wait:
-            self.log.info("Task is running. Wait. No more output.")
+            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
