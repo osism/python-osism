@@ -1,5 +1,6 @@
 import argparse
 import logging
+import time
 
 from cliff.command import Command
 from redis import Redis
@@ -322,11 +323,12 @@ class Run(Command):
         parser.add_argument('--environment', type=str, help='Environment that is to be used explicitly')
         parser.add_argument('role', nargs=1, type=str, help='Role to be applied')
         parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
+        parser.add_argument('--delay', default=1, type=int, help='Delay in seconds between checks for new output')
         parser.add_argument('--format', default="log", help='Output type', const='log', nargs='?', choices=['script', 'log']),
         parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
         return parser
 
-    def handle_role(self, arguments, environment, role, wait, format):
+    def handle_role(self, arguments, environment, role, wait, format, delay):
         if not environment:
             try:
                 environment = MAP_ROLE2ENVIRONMENT[role]
@@ -352,6 +354,7 @@ class Run(Command):
             p.subscribe(f"{t.task_id}")
 
             while True:
+                time.sleep(delay)
                 for m in p.listen():
                     if type(m["data"]) == bytes:
                         line = m["data"].decode("utf-8")
@@ -374,15 +377,17 @@ class Run(Command):
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
         environment = parsed_args.environment
+        delay = parsed_args.delay
         format = parsed_args.format
         role = parsed_args.role[0]
         wait = not parsed_args.no_wait
 
         if role in MAP_ROLE2ROLE:
             for r in MAP_ROLE2ROLE[role]:
-                rc = self.handle_role(arguments, environment, r, wait, format)
+                rc = self.handle_role(arguments, environment, r, wait, format, delay)
                 if rc != 0:
                     break
         else:
-            rc = self.handle_role(arguments, environment, role, wait, format)
+            rc = self.handle_role(arguments, environment, role, wait, format, delay)
+
         return rc
