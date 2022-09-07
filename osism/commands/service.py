@@ -48,6 +48,10 @@ class Run(Command):
             p = subprocess.Popen("celery --broker=redis://redis flower", shell=True)
             p.wait()
 
+        elif service == "reconciler":
+            p = subprocess.Popen("celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler", shell=True)
+            p.wait()
+
         elif service == "watchdog":
             event_handler_inventory = FileSystemEventHandler()
             event_handler_inventory.on_any_event = self.watchdog_inventory_on_any_event
