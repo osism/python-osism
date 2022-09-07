@@ -11,6 +11,7 @@ class Run(Command):
     log = logging.getLogger(__name__)
 
     def take_action(self, parsed_args):
+        self.log.info("The osism reconciler command is deprecated and will be removed. Use osism service reconciler.")
         # NOTE: use python interface in the future, works for the moment
         p = subprocess.Popen("celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler", shell=True)
         p.wait()
