@@ -9,7 +9,7 @@ class OsismApp(App):
     def __init__(self):
         super(OsismApp, self).__init__(
             description='OSISM manager interface',
-            version='0.4.0',
+            version='0.5.0',
             command_manager=CommandManager('osism.commands'),
             deferred_help=True,
         )
