@@ -10,7 +10,7 @@ RUN apt-get update \
       gcc \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /wheels \
-    && python3 -m pip --no-cache-dir install -U 'pip==22.2.2' \
+    && python3 -m pip --no-cache-dir install -U 'pip==22.3' \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt \
     && git clone --depth 1 https://github.com/osism/openstack-image-manager.git /openstack-image-manager \
     && git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager \
@@ -31,7 +31,7 @@ RUN apt-get update \
         git \
         openssh-client \
         procps \
-    && python3 -m pip --no-cache-dir install -U 'pip==22.2.2' \
+    && python3 -m pip --no-cache-dir install -U 'pip==22.3' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
     && python3 -m pip --no-cache-dir install --no-index /src \
     && git clone --depth 1 https://github.com/osism/mappings /mappings \
