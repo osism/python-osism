@@ -19,7 +19,7 @@ def get_scp_connection(device):
     ssh_parameters = {
         "hostname": parameters["host"],
         "username": parameters["username"],
-        "password": parameters["password"]
+        "password": parameters["password"],
     }
 
     ssh = SSHClient()
@@ -37,7 +37,7 @@ def get_configuration(device):
     scp.get(f"/{device.name}.rsc", f"/tmp/{device.name}.rsc")
     scp.close()
 
-    with open(f"/tmp/{device.name}.rsc", 'r') as fp:
+    with open(f"/tmp/{device.name}.rsc", "r") as fp:
         result = fp.read()
 
     os.remove(f"/tmp/{device.name}.rsc")
@@ -50,9 +50,9 @@ def get_parameters(device):
     config_context = device.local_context_data
 
     result = {
-        'host': config_context['deployment_address'],
-        'username': config_context['deployment_user'],
-        'password': config_context['deployment_password']
+        "host": config_context["deployment_address"],
+        "username": config_context["deployment_user"],
+        "password": config_context["deployment_password"],
     }
 
     return result
@@ -69,7 +69,7 @@ def deploy(device, current_configuration, last_configuration):
 
     if diff:
         conn = get_netmiko_connection(device)
-        conn.send_config_set(diff.split('\n'))
+        conn.send_config_set(diff.split("\n"))
 
 
 def diff(device, current_configuration, last_configuration):
@@ -82,8 +82,8 @@ def diff(device, current_configuration, last_configuration):
     diff = str(current.diff(last))
 
     # NOTE: Will be removed later. Is first of all a blocker to avoid making too many changes.
-    if len(diff.split('\n')) > 10:
+    if len(diff.split("\n")) > 10:
         logging.error("Too many changes at once for {devie.name}.")
     else:
-        for line in diff.split('\n'):
+        for line in diff.split("\n"):
             logging.info(f"diff - {device.name}: {line}")

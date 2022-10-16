@@ -15,11 +15,35 @@ class Run(Command):
 
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
-        parser.add_argument('--delay', default=1, type=int, help='Delay in seconds between two task checks')
-        parser.add_argument('--live', default=False, help='Show live output from a started task until it is finished', action='store_true')
-        parser.add_argument('--format', default="log", help='Output type', const='log', nargs='?', choices=['script', 'log']),
-        parser.add_argument('--output', default=False, help='Show output from a finished task', action='store_true')
-        parser.add_argument('task_id', nargs='+', type=str, help='ID of tasks to wait for')
+        parser.add_argument(
+            "--delay",
+            default=1,
+            type=int,
+            help="Delay in seconds between two task checks",
+        )
+        parser.add_argument(
+            "--live",
+            default=False,
+            help="Show live output from a started task until it is finished",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--format",
+            default="log",
+            help="Output type",
+            const="log",
+            nargs="?",
+            choices=["script", "log"],
+        ),
+        parser.add_argument(
+            "--output",
+            default=False,
+            help="Show output from a finished task",
+            action="store_true",
+        )
+        parser.add_argument(
+            "task_id", nargs="+", type=str, help="ID of tasks to wait for"
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -29,7 +53,7 @@ class Run(Command):
         output = parsed_args.output
         task_ids = parsed_args.task_id
 
-        app = Celery('wait')
+        app = Celery("wait")
         app.config_from_object(Config)
 
         while task_ids:
@@ -38,7 +62,7 @@ class Run(Command):
             task_id = task_ids.pop()
             result = AsyncResult(f"{task_id}", app=app)
 
-            if result.state == 'PENDING':
+            if result.state == "PENDING":
 
                 if format == "log":
                     self.log.info(f"Task {task_id} is in state PENDING")
@@ -47,7 +71,7 @@ class Run(Command):
 
                 task_ids.insert(0, task_id)
 
-            elif result.state == 'SUCCESS':
+            elif result.state == "SUCCESS":
 
                 if format == "log":
                     self.log.info(f"Task {task_id} is in state SUCCESS")
@@ -57,7 +81,7 @@ class Run(Command):
                 if output:
                     print(result.get())
 
-            elif result.state == 'STARTED':
+            elif result.state == "STARTED":
 
                 if format == "log":
                     self.log.info(f"Task {task_id} is in state STARTED")

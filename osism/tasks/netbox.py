@@ -8,10 +8,17 @@ import pynetbox
 from redis import Redis
 
 from osism import settings
-from osism.actions import check_configuration, deploy_configuration, diff_configuration, generate_configuration, manage_device, manage_interface
+from osism.actions import (
+    check_configuration,
+    deploy_configuration,
+    diff_configuration,
+    generate_configuration,
+    manage_device,
+    manage_interface,
+)
 from osism.tasks import Config, ansible, openstack
 
-app = Celery('netbox')
+app = Celery("netbox")
 app.config_from_object(Config)
 
 redis = None
@@ -24,13 +31,11 @@ def celery_init_worker(**kwargs):
     global redis
 
     redis = Redis(host="redis", port="6379")
-    nb = pynetbox.api(
-        settings.NETBOX_URL,
-        token=settings.NETBOX_TOKEN
-    )
+    nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
 
     if settings.IGNORE_SSL_ERRORS:
         import requests
+
         requests.packages.urllib3.disable_warnings()
         session = requests.Session()
         session.verify = False
@@ -54,7 +59,10 @@ def periodic_synchronize_ironic(self):
 @app.task(bind=True, name="osism.tasks.netbox.periodic_synchronize_bifrost")
 def periodic_synchronize_bifrost(self):
     """Synchronize the state of Bifrost with Netbox"""
-    ansible.run.apply_async(("manager", "bifrost-command", "baremetal node list -f json"), link=synchronize_device_state.s())
+    ansible.run.apply_async(
+        ("manager", "bifrost-command", "baremetal node list -f json"),
+        link=synchronize_device_state.s(),
+    )
 
 
 @app.task(bind=True, name="osism.tasks.netbox.run")
@@ -77,9 +85,21 @@ def import_device_types(self, vendors, library=False):
         env = {**os.environ, "BASE_PATH": "/netbox/device-types/"}
 
     if vendors:
-        p = subprocess.Popen(f"python3 /import/main.py --vendors {vendors}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        p = subprocess.Popen(
+            f"python3 /import/main.py --vendors {vendors}",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
     else:
-        p = subprocess.Popen("python3 /import/main.py", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+        p = subprocess.Popen(
+            "python3 /import/main.py",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
 
     p.communicate()
 
@@ -174,25 +194,31 @@ def diff(self, name):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.get_devices_not_yet_registered_in_ironic")
-def get_devices_not_yet_registered_in_ironic(self, status="active", tags=["managed-by-ironic"], ironic_enabled=True):
+def get_devices_not_yet_registered_in_ironic(
+    self, status="active", tags=["managed-by-ironic"], ironic_enabled=True
+):
     global nb
 
     devices = nb.dcim.devices.filter(
-        tag=tags,
-        status=status,
-        cf_ironic_enabled=[ironic_enabled]
+        tag=tags, status=status, cf_ironic_enabled=[ironic_enabled]
     )
 
     result = []
 
     for device in devices:
-        if "ironic_state" in device.custom_fields and device.custom_fields["ironic_state"] != "registered":
+        if (
+            "ironic_state" in device.custom_fields
+            and device.custom_fields["ironic_state"] != "registered"
+        ):
             result.append(device.name)
 
     return result
 
 
-@app.task(bind=True, name="osism.tasks.netbox.get_devices_that_should_have_an_allocation_in_ironic")
+@app.task(
+    bind=True,
+    name="osism.tasks.netbox.get_devices_that_should_have_an_allocation_in_ironic",
+)
 def get_devices_that_should_have_an_allocation_in_ironic(self):
     global nb
 
@@ -203,7 +229,7 @@ def get_devices_that_should_have_an_allocation_in_ironic(self):
         cf_ironic_state=["registered"],
         cf_provision_state=["available"],
         cf_introspection_state=["introspected"],
-        cf_device_type=["server"]
+        cf_device_type=["server"],
     )
 
     result = []

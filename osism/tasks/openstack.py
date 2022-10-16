@@ -12,7 +12,7 @@ from redis import Redis
 from osism.tasks import Config, conductor, netbox
 from osism import utils
 
-app = Celery('openstack')
+app = Celery("openstack")
 app.config_from_object(Config)
 
 redis = None
@@ -63,19 +63,23 @@ def baremetal_node_list(self):
 
     # Simulate the output of the OpenStack CLI with -f json and without --long
     for node in nodes:
-        result.append({
-            "UUID": node.id,
-            "Name": node.name,
-            "Instance UUID": node.instance_id,
-            "Power State": node.power_state,
-            "Provisioning State": node.provision_state,
-            "Maintenance": node.is_maintenance
-        })
+        result.append(
+            {
+                "UUID": node.id,
+                "Name": node.name,
+                "Instance UUID": node.instance_id,
+                "Power State": node.power_state,
+                "Provisioning State": node.provision_state,
+                "Maintenance": node.is_maintenance,
+            }
+        )
 
     return result
 
 
-@app.task(bind=True, name="osism.tasks.openstack.baremetal_introspection_interface_list")
+@app.task(
+    bind=True, name="osism.tasks.openstack.baremetal_introspection_interface_list"
+)
 def baremetal_introspection_interface_list(self, node_id_or_name):
     pass
 
@@ -95,7 +99,9 @@ def baremetal_get_network_interface_name(self, node_name, mac_address):
     # Wait up to 5 minutes for the completion of a running introspection
     conn.baremetal_introspection.wait_for_introspection(introspection, timeout=30)
 
-    introspection_data = conn.baremetal_introspection.get_introspection_data(introspection)
+    introspection_data = conn.baremetal_introspection.get_introspection_data(
+        introspection
+    )
     interfaces = introspection_data["inventory"]["interfaces"]
 
     result = None
@@ -128,7 +134,11 @@ def baremetal_create_allocations(self, nodes):
             task.wait(timeout=None, interval=0.5)
             ironic_parameters = task.get()
 
-            allocation_a = conn.baremetal.create_allocation(name=node, candidate_nodes=[node], resource_class=ironic_parameters["resource_class"])
+            allocation_a = conn.baremetal.create_allocation(
+                name=node,
+                candidate_nodes=[node],
+                resource_class=ironic_parameters["resource_class"],
+            )
             conn.baremetal.wait_for_allocation(allocation=node, timeout=30)
 
 
@@ -144,13 +154,21 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
 
         if node_parameters["driver"] == "redfish":
             remote_board_address = str(ipaddress.ip_interface(address_a["address"]).ip)
-            t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(node_parameters["driver_info"]["redfish_address"])
-            node_parameters["driver_info"]["redfish_address"] = t.render(remote_board_address=remote_board_address)
+            t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(
+                node_parameters["driver_info"]["redfish_address"]
+            )
+            node_parameters["driver_info"]["redfish_address"] = t.render(
+                remote_board_address=remote_board_address
+            )
 
         elif node_parameters["driver"] == "ipmi":
             remote_board_address = str(ipaddress.ip_interface(address_a["address"]).ip)
-            t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(node_parameters["driver_info"]["ipmi_address"])
-            node_parameters["driver_info"]["ipmi_address"] = t.render(remote_board_address=remote_board_address)
+            t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(
+                node_parameters["driver_info"]["ipmi_address"]
+            )
+            node_parameters["driver_info"]["ipmi_address"] = t.render(
+                remote_board_address=remote_board_address
+            )
 
         try:
             device_a = utils.nb.dcim.devices.get(name=node)
@@ -162,15 +180,17 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
                 node_parameters["resource_class"] = f"osism-{node}"
                 baremetal_create_internal_flavor(node)
 
-            conn.baremetal.create_node(name=node, provision_state="manageable", **node_parameters)
-            conn.baremetal.wait_for_nodes_provision_state([node], 'manageable')
+            conn.baremetal.create_node(
+                name=node, provision_state="manageable", **node_parameters
+            )
+            conn.baremetal.wait_for_nodes_provision_state([node], "manageable")
 
             if "Managed by Ironic" in tags and "Managed by OSISM" not in tags:
                 conn.baremetal.set_node_traits(node, ["CUSTOM_GENERAL_USE"])
             elif "Managed by Ironic" in tags and "Managed by OSISM" in tags:
                 conn.baremetal.set_node_traits(node, ["CUSTOM_OSISM_USE"])
 
-            conn.baremetal.set_node_provision_state(node, 'inspect')
+            conn.baremetal.set_node_provision_state(node, "inspect")
 
             # TODO: Check if the system has been registered correctly
             device_a.custom_fields = {
@@ -192,24 +212,30 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_check_allocations")
 def baremetal_check_allocations(self):
-    lock = Redlock(key="lock_osism_tasks_openstack_baremetal_check_allocations",
-                   masters={redis},
-                   auto_release_time=60)
+    lock = Redlock(
+        key="lock_osism_tasks_openstack_baremetal_check_allocations",
+        masters={redis},
+        auto_release_time=60,
+    )
 
     if lock.acquire(timeout=20):
-        netbox.get_devices_that_should_have_an_allocation_in_ironic.apply_async((), link=baremetal_create_allocations.s())
+        netbox.get_devices_that_should_have_an_allocation_in_ironic.apply_async(
+            (), link=baremetal_create_allocations.s()
+        )
         lock.release()
 
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_create_internal_flavor")
 def baremetal_create_internal_flavor(self, node):
-    flavor_a = conn.compute.create_flavor(name=f"osism-{node}", ram=1, vcpus=1, disk=1, is_public=False)
+    flavor_a = conn.compute.create_flavor(
+        name=f"osism-{node}", ram=1, vcpus=1, disk=1, is_public=False
+    )
     specs = {
         f"resources:CUSTOM_RESOURCE_CLASS_OSISM_{node.upper()}": 1,
         "resources:VCPU": 0,
         "resources:MEMORY_MB": 0,
         "resources:DISK_GB": 0,
-        "trait:CUSTOM_OSISM_USE": "required"
+        "trait:CUSTOM_OSISM_USE": "required",
     }
     conn.compute.create_flavor_extra_specs(flavor_a, specs)
 

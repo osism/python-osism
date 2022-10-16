@@ -22,7 +22,10 @@ def vlans_as_string(untagged_vlan, tagged_vlans):
 def for_device(name, template=None):
     device = utils.nb.dcim.devices.get(name=name)
 
-    if "device_type" not in device.custom_fields or device.custom_fields["device_type"] != "switch":
+    if (
+        "device_type" not in device.custom_fields
+        or device.custom_fields["device_type"] != "switch"
+    ):
         return
 
     if "Managed by OSISM" not in [str(x) for x in device.tags]:
@@ -58,7 +61,9 @@ def for_device(name, template=None):
     try:
         mlag = utils.nb.dcim.interfaces.get(device=device, name="Port-Channel10")
         mlag_vlan = utils.nb.dcim.interfaces.get(device=device, name="Vlan4094")
-        mlag_address = utils.nb.ipam.ip_addresses.get(device=device, interface="Vlan4094")
+        mlag_address = utils.nb.ipam.ip_addresses.get(
+            device=device, interface="Vlan4094"
+        )
     except:  # noqa
         mlag = None
         mlag_vlan = None
@@ -79,7 +84,9 @@ def for_device(name, template=None):
 
     repo = git.Repo.init(path="/state")
     repo.config_writer().set_value("user", "name", "Netbox Generator").release()
-    repo.config_writer().set_value("user", "email", "netbox-generator@reconciler.local").release()
+    repo.config_writer().set_value(
+        "user", "email", "netbox-generator@reconciler.local"
+    ).release()
 
     data = {
         "hostname": device.name,
@@ -97,7 +104,7 @@ def for_device(name, template=None):
         "mlag_domain_id": mlag_domain_id,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "device_type": device.device_type.model,
-        "device_manufacturer": device.device_type.manufacturer.name
+        "device_manufacturer": device.device_type.manufacturer.name,
     }
 
     loader = jinja2.FileSystemLoader(searchpath="/netbox/templates/")

@@ -36,8 +36,12 @@ def load_data_from_filesystem(collection=None, device=None, state=None):
             data = {**data_a, **data}
 
     elif device and collection:
-        if not os.path.isfile("/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml"):
-            logging.error(f"State {state} for device {device} in collection {collection} is not available")
+        if not os.path.isfile(
+            "/netbox/{CONF.collection}/{CONF.device}/{CONF.state}.yaml"
+        ):
+            logging.error(
+                f"State {state} for device {device} in collection {collection} is not available"
+            )
             return data
 
         logging.info(f"Loading device {device} from collection {collection}")
@@ -129,13 +133,18 @@ def manage_interfaces(device, data):
         device_b = utils.nb.dcim.devices.get(name=device_target)
 
         interface_a = utils.nb.dcim.interfaces.get(name=interface, device=device)
-        interface_b = utils.nb.dcim.interfaces.get(name=data[device][interface]["interface"], device=data[device][interface]["device"])
+        interface_b = utils.nb.dcim.interfaces.get(
+            name=data[device][interface]["interface"],
+            device=data[device][interface]["device"],
+        )
 
         if not interface_a:
             logging.error(f"{device} # {interface} --> not found")
 
         if not interface_b:
-            logging.error(f"{data[device][interface]['device']} # {data[device][interface]['interface']} --> not found")
+            logging.error(
+                f"{data[device][interface]['device']} # {data[device][interface]['interface']} --> not found"
+            )
 
         # Ignore interfaces without an mac address
         try:
@@ -165,16 +174,18 @@ def manage_interfaces(device, data):
                         utils.nb.ipam.ip_addresses.create(
                             address=address,
                             assigned_object_type="dcim.interface",
-                            assigned_object_id=interface_a.id
+                            assigned_object_id=interface_a.id,
                         )
                 else:
-                    address_a = utils.nb.ipam.ip_addresses.get(address=address["address"])
+                    address_a = utils.nb.ipam.ip_addresses.get(
+                        address=address["address"]
+                    )
                     logging.info(f"Address {address['address']} -> {interface}")
                     if not address_a:
                         address_a = utils.nb.ipam.ip_addresses.create(
                             assigned_object_type="dcim.interface",
                             assigned_object_id=interface_a.id,
-                            **address
+                            **address,
                         )
                     if "primary" in address and bool(address["primary"]):
                         primary_address = address_a.id
@@ -182,13 +193,17 @@ def manage_interfaces(device, data):
                         device_a.save()
 
         # Remove addresses from the interface that have been removed
-        for address in utils.nb.ipam.ip_addresses.filter(device=device, interface=interface):
+        for address in utils.nb.ipam.ip_addresses.filter(
+            device=device, interface=interface
+        ):
             delete = True
             if "addresses" in data[device][interface]:
                 for address_a in data[device][interface]["addresses"]:
                     if type(address_a) == str and address_a == str(address):
                         delete = False
-                    elif "address" in address_a and address_a["address"] == str(address):
+                    elif "address" in address_a and address_a["address"] == str(
+                        address
+                    ):
                         delete = False
 
             if delete:
@@ -253,7 +268,7 @@ def manage_interfaces(device, data):
             termination_a_type="dcim.interface",
             termination_b_type="dcim.interface",
             termination_a_id=interface_a.id,
-            termination_b_id=interface_b.id
+            termination_b_id=interface_b.id,
         )
 
         # NOTE: also check the other direction
@@ -262,7 +277,7 @@ def manage_interfaces(device, data):
                 termination_a_type="dcim.interface",
                 termination_b_type="dcim.interface",
                 termination_a_id=interface_b.id,
-                termination_b_id=interface_a.id
+                termination_b_id=interface_a.id,
             )
 
         if not connection:
@@ -272,7 +287,7 @@ def manage_interfaces(device, data):
                     termination_b_type="dcim.interface",
                     termination_a_id=interface_a.id,
                     termination_b_id=interface_b.id,
-                    type=data[device][interface]["type"]
+                    type=data[device][interface]["type"],
                 )
             except pynetbox.core.query.RequestError as e:
                 logging.error(f"ERROR --> {e}")
@@ -294,7 +309,10 @@ def manage_interfaces(device, data):
             interface_a.save()
 
         if not interface_b.enabled:
-            if "data" in data[device][interface] and "enabled" in data[device][interface]["data"]:
+            if (
+                "data" in data[device][interface]
+                and "enabled" in data[device][interface]["data"]
+            ):
                 interface_b.enabled = bool(data[device][interface]["data"]["enabled"])
             else:
                 interface_b.enabled = True
@@ -314,7 +332,9 @@ def manage_interfaces(device, data):
                 vlan_a = utils.nb.ipam.vlans.get(vid=vlan)
                 if not vlan_a:
                     try:
-                        vlan_a = utils.nb.ipam.vlans.create(name=f"VLAN {vlan}", vid=vlan)
+                        vlan_a = utils.nb.ipam.vlans.create(
+                            name=f"VLAN {vlan}", vid=vlan
+                        )
                     except pynetbox.core.query.RequestError as e:
                         logging.error(f"ERROR --> {e}")
                         pass
@@ -338,15 +358,15 @@ def manage_interfaces(device, data):
                     tagged = True
 
             if tagged:
-                interface_a.mode = 'tagged'
+                interface_a.mode = "tagged"
 
                 if interface_a.name not in lag_interfaces[device]:
-                    interface_b.mode = 'tagged'
+                    interface_b.mode = "tagged"
             else:
-                interface_a.mode = 'access'
+                interface_a.mode = "access"
 
                 if interface_a.name not in lag_interfaces[device]:
-                    interface_b.mode = 'access'
+                    interface_b.mode = "access"
 
             interface_a.save()
 
@@ -364,14 +384,18 @@ def manage_port_channels(device, data):
 
     for interface in data[device]:
         if data[device][interface]["type"] == "port-channel":
-            logging.info(f"Local port channel {device} # {interface} -> {data[device][interface]['interfaces']}")
+            logging.info(
+                f"Local port channel {device} # {interface} -> {data[device][interface]['interfaces']}"
+            )
             device_a = utils.nb.dcim.devices.get(name=device)
 
             # Create the local port channel
             port_channel_a = utils.nb.dcim.interfaces.get(name=interface, device=device)
             if not port_channel_a:
                 try:
-                    port_channel_a = utils.nb.dcim.interfaces.create(name=interface, device=device_a.id, type="lag")
+                    port_channel_a = utils.nb.dcim.interfaces.create(
+                        name=interface, device=device_a.id, type="lag"
+                    )
                 except pynetbox.core.query.RequestError as e:
                     logging.error(f"ERROR --> {e}")
                     pass
@@ -379,7 +403,9 @@ def manage_port_channels(device, data):
             # Create the remote port channels and add the local interfaces to the local port channel
             remote_port_channels = []
             for interface_x in data[device][interface]["interfaces"]:
-                interface_a = utils.nb.dcim.interfaces.get(name=interface_x, device=device)
+                interface_a = utils.nb.dcim.interfaces.get(
+                    name=interface_x, device=device
+                )
 
                 # NOTE: The VLANs on the Ethernet interfaces on the local devices are preserved for
                 #       visibility in the Netbox.
@@ -389,18 +415,31 @@ def manage_port_channels(device, data):
                 interface_a.lag = port_channel_a
                 interface_a.save()
 
-                port_channel_b_name = f"Port-Channel{data[device][interface]['channel']}"
-                interface_b = utils.nb.dcim.interfaces.get(name=interface_a.connected_endpoint.name, device=interface_a.connected_endpoint.device)
+                port_channel_b_name = (
+                    f"Port-Channel{data[device][interface]['channel']}"
+                )
+                interface_b = utils.nb.dcim.interfaces.get(
+                    name=interface_a.connected_endpoint.name,
+                    device=interface_a.connected_endpoint.device,
+                )
 
                 interface_b.untagged_vlan = None
                 interface_b.tagged_vlans = []
 
-                logging.info(f"Remote port channel {interface_b.device.name} # {port_channel_b_name} -> {interface_b.device.name} # {interface_b.name} ({interface_a.name})")
+                logging.info(
+                    f"Remote port channel {interface_b.device.name} # {port_channel_b_name} -> {interface_b.device.name} # {interface_b.name} ({interface_a.name})"
+                )
 
-                port_channel_b = utils.nb.dcim.interfaces.get(name=port_channel_b_name, device=interface_b.device)
+                port_channel_b = utils.nb.dcim.interfaces.get(
+                    name=port_channel_b_name, device=interface_b.device
+                )
                 if not port_channel_b:
                     try:
-                        port_channel_b = utils.nb.dcim.interfaces.create(name=port_channel_b_name, device=interface_b.device.id, type="lag")
+                        port_channel_b = utils.nb.dcim.interfaces.create(
+                            name=port_channel_b_name,
+                            device=interface_b.device.id,
+                            type="lag",
+                        )
                     except pynetbox.core.query.RequestError as e:
                         logging.error(f"ERROR --> {e}")
                         pass
@@ -421,29 +460,35 @@ def manage_port_channels(device, data):
                             utils.nb.ipam.ip_addresses.create(
                                 address=address,
                                 assigned_object_type="dcim.interface",
-                                assigned_object_id=port_channel_a.id
+                                assigned_object_id=port_channel_a.id,
                             )
                     else:
-                        address_a = utils.nb.ipam.ip_addresses.get(address=address["address"])
+                        address_a = utils.nb.ipam.ip_addresses.get(
+                            address=address["address"]
+                        )
                         logging.info(f"Address {address['address']} -> {interface}")
                         if not address_a:
                             address_a = utils.nb.ipam.ip_addresses.create(
                                 assigned_object_type="dcim.interface",
                                 assigned_object_id=port_channel_a.id,
-                                **address
+                                **address,
                             )
                         if "primary" in address and bool(address["primary"]):
                             device_a.primary_ip4 = address_a.id
                             device_a.save()
 
             # Remove addresses from the local port channel that have been removed
-            for address in utils.nb.ipam.ip_addresses.filter(device=device, interface=interface):
+            for address in utils.nb.ipam.ip_addresses.filter(
+                device=device, interface=interface
+            ):
                 delete = True
                 if "addresses" in data[device][interface]:
                     for address_a in data[device][interface]["addresses"]:
                         if type(address_a) == str and address_a == str(address):
                             delete = False
-                        elif "address" in address_a and address_a["address"] == str(address):
+                        elif "address" in address_a and address_a["address"] == str(
+                            address
+                        ):
                             delete = False
 
                 if delete:
@@ -461,37 +506,47 @@ def manage_port_channels(device, data):
                     vlan_a = utils.nb.ipam.vlans.get(vid=vlan)
                     if not vlan_a:
                         try:
-                            vlan_a = utils.nb.ipam.vlans.create(name=f"VLAN {vlan}", vid=vlan)
+                            vlan_a = utils.nb.ipam.vlans.create(
+                                name=f"VLAN {vlan}", vid=vlan
+                            )
                         except pynetbox.core.query.RequestError as e:
                             logging.error(f"ERROR --> {e}")
                             pass
 
                     if data[device][interface]["vlans"][vlan] == "untagged":
-                        logging.info(f"Untagged VLAN {vlan_a.vid} -> {port_channel_a.name}")
+                        logging.info(
+                            f"Untagged VLAN {vlan_a.vid} -> {port_channel_a.name}"
+                        )
                         port_channel_a.untagged_vlan = vlan_a.id
 
                         for port_channel_b in remote_port_channels:
-                            logging.info(f"Untagged VLAN {vlan_a.vid} -> {port_channel_b.name}")
+                            logging.info(
+                                f"Untagged VLAN {vlan_a.vid} -> {port_channel_b.name}"
+                            )
                             port_channel_b.untagged_vlan = vlan_a.id
                     elif vlan_a.id not in port_channel_a.tagged_vlans:
-                        logging.info(f"Tagged VLAN {vlan_a.vid} -> {port_channel_a.name}")
+                        logging.info(
+                            f"Tagged VLAN {vlan_a.vid} -> {port_channel_a.name}"
+                        )
                         port_channel_a.tagged_vlans.append(vlan_a.id)
                         tagged = True
 
                         for port_channel_b in remote_port_channels:
-                            logging.info(f"Tagged VLAN {vlan_a.vid} -> {port_channel_b.name}")
+                            logging.info(
+                                f"Tagged VLAN {vlan_a.vid} -> {port_channel_b.name}"
+                            )
                             port_channel_b.tagged_vlans.append(vlan_a.id)
 
                 if tagged:
-                    port_channel_a.mode = 'tagged'
+                    port_channel_a.mode = "tagged"
 
                     for port_channel_b in remote_port_channels:
-                        port_channel_b.mode = 'tagged'
+                        port_channel_b.mode = "tagged"
                 else:
-                    port_channel_a.mode = 'access'
+                    port_channel_a.mode = "access"
 
                     for port_channel_b in remote_port_channels:
-                        port_channel_b.mode = 'access'
+                        port_channel_b.mode = "access"
 
             port_channel_a.save()
             port_channel_b.save()
@@ -503,7 +558,10 @@ def remove_port_channels(device, data):
     for interface in utils.nb.dcim.interfaces.filter(device=device, type="lag"):
         delete = True
         for interface_a in data[device]:
-            if data[device][interface_a]["type"] == "port-channel" and str(interface) == interface_a:
+            if (
+                data[device][interface_a]["type"] == "port-channel"
+                and str(interface) == interface_a
+            ):
                 delete = False
 
         if delete and "Port-Channel" not in interface.name:
@@ -525,7 +583,12 @@ def manage_virtual_interfaces(device, data):
             interface_a = utils.nb.dcim.interfaces.get(name=interface, device=device)
             if not interface_a:
                 try:
-                    interface_a = utils.nb.dcim.interfaces.create(name=interface, device=device_a.id, type="virtual", **data[device][interface]["data"])
+                    interface_a = utils.nb.dcim.interfaces.create(
+                        name=interface,
+                        device=device_a.id,
+                        type="virtual",
+                        **data[device][interface]["data"],
+                    )
                 except pynetbox.core.query.RequestError as e:
                     logging.error(f"ERROR --> {e}")
                     pass
@@ -540,29 +603,35 @@ def manage_virtual_interfaces(device, data):
                             utils.nb.ipam.ip_addresses.create(
                                 address=address,
                                 assigned_object_type="dcim.interface",
-                                assigned_object_id=interface_a.id
+                                assigned_object_id=interface_a.id,
                             )
                     else:
-                        address_a = utils.nb.ipam.ip_addresses.get(address=address["address"])
+                        address_a = utils.nb.ipam.ip_addresses.get(
+                            address=address["address"]
+                        )
                         logging.info(f"Address {address['address']} -> {interface}")
                         if not address_a:
                             address_a = utils.nb.ipam.ip_addresses.create(
                                 assigned_object_type="dcim.interface",
                                 assigned_object_id=interface_a.id,
-                                **address
+                                **address,
                             )
                         if "primary" in address and bool(address["primary"]):
                             device_a.primary_ip4 = address_a.id
                             device_a.save()
 
             # Remove addresses from the interface that have been removed
-            for address in utils.nb.ipam.ip_addresses.filter(device=device, interface=interface):
+            for address in utils.nb.ipam.ip_addresses.filter(
+                device=device, interface=interface
+            ):
                 delete = True
                 if "addresses" in data[device][interface]:
                     for address_a in data[device][interface]["addresses"]:
                         if type(address_a) == str and address_a == str(address):
                             delete = False
-                        elif "address" in address_a and address_a["address"] == str(address):
+                        elif "address" in address_a and address_a["address"] == str(
+                            address
+                        ):
                             delete = False
 
                 if delete:
@@ -576,7 +645,9 @@ def manage_virtual_interfaces(device, data):
                     vlan_a = utils.nb.ipam.vlans.get(vid=vlan)
                     if not vlan_a:
                         try:
-                            vlan_a = utils.nb.ipam.vlans.create(name=f"VLAN {vlan}", vid=vlan)
+                            vlan_a = utils.nb.ipam.vlans.create(
+                                name=f"VLAN {vlan}", vid=vlan
+                            )
                         except pynetbox.core.query.RequestError as e:
                             logging.error(f"ERROR --> {e}")
                             pass
@@ -588,9 +659,9 @@ def manage_virtual_interfaces(device, data):
                         tagged = True
 
                 if tagged:
-                    interface_a.mode = 'tagged'
+                    interface_a.mode = "tagged"
                 else:
-                    interface_a.mode = 'access'
+                    interface_a.mode = "access"
                 interface_a.save()
 
 
@@ -600,7 +671,10 @@ def remove_virtual_interfaces(device, data):
     for interface in utils.nb.dcim.interfaces.filter(device=device, type="virtual"):
         delete = True
         for interface_a in data[device]:
-            if data[device][interface_a]["type"] == "virtual" and str(interface) == interface_a:
+            if (
+                data[device][interface_a]["type"] == "virtual"
+                and str(interface) == interface_a
+            ):
                 delete = False
 
         if delete:
@@ -615,31 +689,45 @@ def manage_mlag_devices(device, data):
             data_a = data[device][interface]["data"]
             device_a = utils.nb.dcim.devices.get(name=device)
 
-            logging.info(f"Local port channel {device} # Port-Channel{data_a['channel']}")
+            logging.info(
+                f"Local port channel {device} # Port-Channel{data_a['channel']}"
+            )
 
-            port_channel_a = utils.nb.dcim.interfaces.get(name=f"Port-Channel{data_a['channel']}", device=device)
+            port_channel_a = utils.nb.dcim.interfaces.get(
+                name=f"Port-Channel{data_a['channel']}", device=device
+            )
             if not port_channel_a:
                 try:
-                    port_channel_a = utils.nb.dcim.interfaces.create(name=f"Port-Channel{data_a['channel']}", device=device_a.id, type="lag")
+                    port_channel_a = utils.nb.dcim.interfaces.create(
+                        name=f"Port-Channel{data_a['channel']}",
+                        device=device_a.id,
+                        type="lag",
+                    )
                 except pynetbox.core.query.RequestError as e:
                     logging.error(f"ERROR --> {e}")
                     pass
 
             for interface_x in data[device][interface]["interfaces"]:
-                interface_a = utils.nb.dcim.interfaces.get(name=interface_x, device=device)
+                interface_a = utils.nb.dcim.interfaces.get(
+                    name=interface_x, device=device
+                )
                 interface_a.lag = port_channel_a
                 interface_a.save()
 
             logging.info(f"Virtual interface {data_a['vlan']} for {device}")
-            interface_a = utils.nb.dcim.interfaces.get(name=f"Vlan{data_a['vlan']}", device=device)
+            interface_a = utils.nb.dcim.interfaces.get(
+                name=f"Vlan{data_a['vlan']}", device=device
+            )
             if not interface_a:
                 try:
-                    interface_a = utils.nb.dcim.interfaces.create(name=f"Vlan{data_a['vlan']}", device=device_a.id, type="virtual")
+                    interface_a = utils.nb.dcim.interfaces.create(
+                        name=f"Vlan{data_a['vlan']}", device=device_a.id, type="virtual"
+                    )
                 except pynetbox.core.query.RequestError as e:
                     logging.error(f"ERROR --> {e}")
                     pass
 
-            vlan_a = utils.nb.ipam.vlans.get(vid=data_a['vlan'])
+            vlan_a = utils.nb.ipam.vlans.get(vid=data_a["vlan"])
             interface_a.untagged_vlan = vlan_a
             interface_a.parent = port_channel_a
             interface_a.save()
@@ -650,7 +738,7 @@ def manage_mlag_devices(device, data):
                 utils.nb.ipam.ip_addresses.create(
                     address=data_a["address"],
                     assigned_object_type="dcim.interface",
-                    assigned_object_id=interface_a.id
+                    assigned_object_id=interface_a.id,
                 )
 
 
@@ -660,9 +748,7 @@ def set_maintenance(device, state):
     logging.info(f"Set maintenance state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
-    device_a.custom_fields = {
-        "maintenance": state
-    }
+    device_a.custom_fields = {"maintenance": state}
     device_a.save()
 
 
@@ -694,9 +780,7 @@ def set_provision_state(device, state):
     logging.info(f"Set provision state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
-    device_a.custom_fields = {
-        "provision_state": state
-    }
+    device_a.custom_fields = {"provision_state": state}
     device_a.save()
 
 
@@ -706,9 +790,7 @@ def set_ironic_state(device, state):
     logging.info(f"Set ironic state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
-    device_a.custom_fields = {
-        "ironic_state": state
-    }
+    device_a.custom_fields = {"ironic_state": state}
     device_a.save()
 
 
@@ -718,9 +800,7 @@ def set_introspection_state(device, state):
     logging.info(f"Set introspection state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
-    device_a.custom_fields = {
-        "introspection_state": state
-    }
+    device_a.custom_fields = {"introspection_state": state}
     device_a.save()
 
 
@@ -730,9 +810,7 @@ def set_deployment_state(device, state):
     logging.info(f"Set deployment state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
-    device_a.custom_fields = {
-        "deployment_state": state
-    }
+    device_a.custom_fields = {"deployment_state": state}
     device_a.save()
 
 
@@ -742,9 +820,7 @@ def set_power_state(device, state):
     logging.info(f"Set power state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
-    device_a.custom_fields = {
-        "power_state": state
-    }
+    device_a.custom_fields = {"power_state": state}
     device_a.save()
 
 
@@ -754,9 +830,7 @@ def set_device_state(device, state):
     logging.info(f"Set state of device {device} = {state}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
-    device_a.custom_fields = {
-        "device_state": state
-    }
+    device_a.custom_fields = {"device_state": state}
     device_a.save()
 
 
@@ -766,9 +840,7 @@ def set_device_transition(device, transition):
     logging.info(f"Set transition of device {device} = {transition}")
 
     device_a = utils.nb.dcim.devices.get(name=device)
-    device_a.custom_fields = {
-        "device_transition": transition
-    }
+    device_a.custom_fields = {"device_transition": transition}
     device_a.save()
 
 
@@ -835,7 +907,10 @@ def run(device, state=None, data={}, enforce=False):
         return
 
     # Get connected devices in source and target state
-    connected_devices = set(get_connected_devices(device, current_data) + get_connected_devices(device, data))
+    connected_devices = set(
+        get_connected_devices(device, current_data)
+        + get_connected_devices(device, data)
+    )
     logging.info(connected_devices)
 
     # Allow only one active transition per device

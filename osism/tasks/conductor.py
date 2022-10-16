@@ -7,7 +7,7 @@ import yaml
 
 from osism.tasks import Config
 
-app = Celery('conductor')
+app = Celery("conductor")
 app.config_from_object(Config)
 
 
@@ -36,20 +36,53 @@ def celery_init_worker(**kwargs):
             # TODO: use osism.tasks.openstack in the future
             if "driver_info" in configuration["ironic_parameters"]:
                 if "deploy_kernel" in configuration["ironic_parameters"]["driver_info"]:
-                    result = conn.image.find_image(configuration["ironic_parameters"]["driver_info"]["deploy_kernel"])
-                    configuration["ironic_parameters"]["driver_info"]["deploy_kernel"] = result.id
+                    result = conn.image.find_image(
+                        configuration["ironic_parameters"]["driver_info"][
+                            "deploy_kernel"
+                        ]
+                    )
+                    configuration["ironic_parameters"]["driver_info"][
+                        "deploy_kernel"
+                    ] = result.id
 
-                if "deploy_ramdisk" in configuration["ironic_parameters"]["driver_info"]:
-                    result = conn.image.find_image(configuration["ironic_parameters"]["driver_info"]["deploy_ramdisk"])
-                    configuration["ironic_parameters"]["driver_info"]["deploy_ramdisk"] = result.id
+                if (
+                    "deploy_ramdisk"
+                    in configuration["ironic_parameters"]["driver_info"]
+                ):
+                    result = conn.image.find_image(
+                        configuration["ironic_parameters"]["driver_info"][
+                            "deploy_ramdisk"
+                        ]
+                    )
+                    configuration["ironic_parameters"]["driver_info"][
+                        "deploy_ramdisk"
+                    ] = result.id
 
-                if "cleaning_network" in configuration["ironic_parameters"]["driver_info"]:
-                    result = conn.network.find_network(configuration["ironic_parameters"]["driver_info"]["cleaning_network"])
-                    configuration["ironic_parameters"]["driver_info"]["cleaning_network"] = result.id
+                if (
+                    "cleaning_network"
+                    in configuration["ironic_parameters"]["driver_info"]
+                ):
+                    result = conn.network.find_network(
+                        configuration["ironic_parameters"]["driver_info"][
+                            "cleaning_network"
+                        ]
+                    )
+                    configuration["ironic_parameters"]["driver_info"][
+                        "cleaning_network"
+                    ] = result.id
 
-                if "provisioning_network" in configuration["ironic_parameters"]["driver_info"]:
-                    result = conn.network.find_network(configuration["ironic_parameters"]["driver_info"]["provisioning_network"])
-                    configuration["ironic_parameters"]["driver_info"]["provisioning_network"] = result.id
+                if (
+                    "provisioning_network"
+                    in configuration["ironic_parameters"]["driver_info"]
+                ):
+                    result = conn.network.find_network(
+                        configuration["ironic_parameters"]["driver_info"][
+                            "provisioning_network"
+                        ]
+                    )
+                    configuration["ironic_parameters"]["driver_info"][
+                        "provisioning_network"
+                    ] = result.id
 
 
 @app.on_after_configure.connect
