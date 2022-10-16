@@ -10,7 +10,7 @@ class Run(Command):
 
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
-        parser.add_argument('task', nargs=1, type=str, help='Task to revoke')
+        parser.add_argument("task", nargs=1, type=str, help="Task to revoke")
         return parser
 
     def take_action(self, parsed_args):

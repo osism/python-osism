@@ -2,7 +2,7 @@ from celery import Celery
 
 from osism.tasks import Config, run_ansible_in_environment
 
-app = Celery('ceph')
+app = Celery("ceph")
 app.config_from_object(Config)
 
 

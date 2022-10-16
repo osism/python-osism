@@ -28,7 +28,7 @@ MAP_ROLE2ROLE = {
         "mariadb",
         "rabbitmq",
         "etcd",
-        "phpmyadmin"
+        "phpmyadmin",
     ],
     "openstack-basic": [
         "keystone",
@@ -41,28 +41,19 @@ MAP_ROLE2ROLE = {
         "barbican",
         "designate",
         "heat",
-        "octavia"
+        "octavia",
     ],
-    "openstack-extended": [
-        "gnocchi",
-        "ceilometer",
-        "aodh",
-        "senlin"
-    ]
+    "openstack-extended": ["gnocchi", "ceilometer", "aodh", "senlin"],
 }
 
 # NOTE: Can be made more elegant later
 MAP_ROLE2ENVIRONMENT = {
-
     # MONITORING
-
     "netdata": "monitoring",
     "remove-netdata": "monitoring",
     "remove-zabbix-agent": "monitoring",
     "openstack-health-monitor": "monitoring",
-
     # GENERIC
-
     "auditd": "generic",
     "backup-mariadb": "generic",
     "bootstrap": "generic",
@@ -134,9 +125,7 @@ MAP_ROLE2ENVIRONMENT = {
     "utilities": "generic",
     "wait-for-connection": "generic",
     "write-facts": "generic",
-
     # INFRASTRUCTURE
-
     "adminer": "infrastructure",
     "cephclient": "infrastructure",
     "cgit": "infrastructure",
@@ -165,9 +154,7 @@ MAP_ROLE2ENVIRONMENT = {
     "virtualbmc": "infrastructure",
     "wireguard": "infrastructure",
     "zuul": "infrastructure",
-
     # MANAGER
-
     "configuration": "manager",
     "copy-ceph-keys": "manager",
     "manager-network": "manager",
@@ -176,9 +163,7 @@ MAP_ROLE2ENVIRONMENT = {
     "vault-init": "manager",
     "vault-seal": "manager",
     "vault-unseal": "manager",
-
     # CEPH
-
     "ceph-add-mon": "ceph",
     "ceph-bootstrap-dashboard": "ceph",
     "ceph-ceph-keys": "ceph",
@@ -221,9 +206,7 @@ MAP_ROLE2ENVIRONMENT = {
     "ceph-switch-from-non-containerized-to-containerized-ceph-daemons": "ceph",
     "ceph-take-over-existing-cluster": "ceph",
     "ceph-base": "ceph",
-
     # KOLLA
-
     "aodh": "kolla",
     "barbican": "kolla",
     "bifrost-keypair": "kolla",
@@ -320,12 +303,33 @@ class Run(Command):
 
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
-        parser.add_argument('--environment', type=str, help='Environment that is to be used explicitly')
-        parser.add_argument('role', nargs=1, type=str, help='Role to be applied')
-        parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Other arguments for Ansible')
-        parser.add_argument('--format', default="log", help='Output type', const='log', nargs='?', choices=['script', 'log']),
-        parser.add_argument('--timeout', default=300, type=int, help='Timeout to end if there is no output')
-        parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
+        parser.add_argument(
+            "--environment", type=str, help="Environment that is to be used explicitly"
+        )
+        parser.add_argument("role", nargs=1, type=str, help="Role to be applied")
+        parser.add_argument(
+            "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
+        )
+        parser.add_argument(
+            "--format",
+            default="log",
+            help="Output type",
+            const="log",
+            nargs="?",
+            choices=["script", "log"],
+        ),
+        parser.add_argument(
+            "--timeout",
+            default=300,
+            type=int,
+            help="Timeout to end if there is no output",
+        )
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until the role has been applied",
+            action="store_true",
+        )
         return parser
 
     def handle_role(self, arguments, environment, role, wait, format, timeout):
@@ -369,12 +373,16 @@ class Run(Command):
                             return rc
                         print(line, end="")
                 else:
-                    self.log.info(f"No further output after {timeout} seconds. Therefore finish.")
+                    self.log.info(
+                        f"No further output after {timeout} seconds. Therefore finish."
+                    )
                     return rc
 
         else:
             if format == "log":
-                self.log.info(f"Task {t.task_id} is running in background. No more output. Check ARA for logs.")
+                self.log.info(
+                    f"Task {t.task_id} is running in background. No more output. Check ARA for logs."
+                )
             elif format == "script":
                 self.log.info(f"{t.task_id}")
 

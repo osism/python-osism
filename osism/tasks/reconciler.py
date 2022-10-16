@@ -8,7 +8,7 @@ from redis import Redis
 
 from osism.tasks import Config
 
-app = Celery('reconciler')
+app = Celery("reconciler")
 app.config_from_object(Config)
 
 redis = None
@@ -29,12 +29,14 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
 def run(self):
-    lock = Redlock(key="lock_osism_tasks_reconciler_run",
-                   masters={redis},
-                   auto_release_time=60)
+    lock = Redlock(
+        key="lock_osism_tasks_reconciler_run", masters={redis}, auto_release_time=60
+    )
 
     if lock.acquire(timeout=20):
-        p = subprocess.Popen("/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(
+            "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
         p.wait()
 
         lock.release()
@@ -42,12 +44,19 @@ def run(self):
 
 @app.task(bind=True, name="osism.tasks.reconciler.sync_inventory_with_netbox")
 def sync_inventory_with_netbox(self):
-    lock = Redlock(key="lock_osism_tasks_reconciler_sync_inventory_with_netbox",
-                   masters={redis},
-                   auto_release_time=60)
+    lock = Redlock(
+        key="lock_osism_tasks_reconciler_sync_inventory_with_netbox",
+        masters={redis},
+        auto_release_time=60,
+    )
 
     if lock.acquire(timeout=20):
-        p = subprocess.Popen("/sync-inventory-with-netbox.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(
+            "/sync-inventory-with-netbox.sh",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             # NOTE: use task_id or request_id in future

@@ -20,29 +20,15 @@ class Config:
     result_backend = "redis://redis"
     task_create_missing_queues = True
     task_default_queue = "default"
-    task_track_started = True,
+    task_track_started = (True,)
     task_routes = {
-        'osism.tasks.ceph.*': {
-            'queue': 'ceph-ansible'
-        },
-        'osism.tasks.conductor.*': {
-            'queue': 'conductor'
-        },
-        'osism.tasks.kolla.*': {
-            'queue': 'kolla-ansible'
-        },
-        'osism.tasks.netbox.*': {
-            'queue': 'netbox'
-        },
-        'osism.tasks.ansible.*': {
-            'queue': 'osism-ansible'
-        },
-        'osism.tasks.reconciler.*': {
-            'queue': 'reconciler'
-        },
-        'osism.tasks.openstack.*': {
-            'queue': 'openstack'
-        }
+        "osism.tasks.ceph.*": {"queue": "ceph-ansible"},
+        "osism.tasks.conductor.*": {"queue": "conductor"},
+        "osism.tasks.kolla.*": {"queue": "kolla-ansible"},
+        "osism.tasks.netbox.*": {"queue": "netbox"},
+        "osism.tasks.ansible.*": {"queue": "osism-ansible"},
+        "osism.tasks.reconciler.*": {"queue": "reconciler"},
+        "osism.tasks.openstack.*": {"queue": "openstack"},
     }
 
 
@@ -62,9 +48,11 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
         joined_arguments = arguments
 
     # NOTE: Consider arguments in the future
-    lock = Redlock(key=f"lock-ansible-{environment}-{role}",
-                   masters={redis},
-                   auto_release_time=3600)
+    lock = Redlock(
+        key=f"lock-ansible-{environment}-{role}",
+        masters={redis},
+        auto_release_time=3600,
+    )
 
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
     #       not working out of the box
@@ -74,24 +62,48 @@ def run_ansible_in_environment(request_id, environment, role, arguments):
         lock.acquire()
 
         if role == "mariadb_backup":
-            p = subprocess.Popen(f"/run.sh backup {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            p = subprocess.Popen(
+                f"/run.sh backup {role} {joined_arguments}",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
         else:
-            p = subprocess.Popen(f"/run.sh deploy {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            p = subprocess.Popen(
+                f"/run.sh deploy {role} {joined_arguments}",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
 
     # execute roles from Ceph
     elif environment == "ceph":
         lock.acquire()
-        p = subprocess.Popen(f"/run.sh {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(
+            f"/run.sh {role} {joined_arguments}",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
 
     # execute the bifrost-command role
     elif environment == "manager" and role == "bifrost-command":
-        p = subprocess.Popen(f"/run-manager.sh bifrost-command \"-e bifrost_arguments='{joined_arguments}'\" \"-e bifrost_result_id={request_id}\"",
-                             shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(
+            f'/run-manager.sh bifrost-command "-e bifrost_arguments=\'{joined_arguments}\'" "-e bifrost_result_id={request_id}"',
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
 
     # execute all other roles
     else:
         lock.acquire()
-        p = subprocess.Popen(f"/run-{environment}.sh {role} {joined_arguments}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(
+            f"/run-{environment}.sh {role} {joined_arguments}",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
 
     # process the bifrost-command result
     if environment == "manager" and role == "bifrost-command":

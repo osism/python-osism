@@ -4,9 +4,9 @@ import os
 # Read secret from file
 def read_secret(secret_name):
     try:
-        f = open('/run/secrets/' + secret_name, 'r', encoding='utf-8')
+        f = open("/run/secrets/" + secret_name, "r", encoding="utf-8")
     except EnvironmentError:
-        return ''
+        return ""
     else:
         with f:
             return f.readline().strip()
@@ -14,7 +14,7 @@ def read_secret(secret_name):
 
 NETBOX_URL = os.getenv("NETBOX_API")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))
-IGNORE_SSL_ERRORS = (os.getenv("IGNORE_SSL_ERRORS", "True") == "True")
+IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", "True") == "True"
 
 BASE_PATH = os.getenv("BASE_PATH", "/devicetype-library/device-types/")
 VENDORS = os.getenv("VENDORS", "").split()

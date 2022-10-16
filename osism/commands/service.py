@@ -15,18 +15,23 @@ class Run(Command):
 
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
-        parser.add_argument('type', nargs=1, type=str, help='Type of the service')
+        parser.add_argument("type", nargs=1, type=str, help="Type of the service")
         return parser
 
     def take_action(self, parsed_args):
         service = parsed_args.type[0]
 
         if service == "api":
-            p = subprocess.Popen("uvicorn osism.api:app --host 0.0.0.0 --port 8000", shell=True)
+            p = subprocess.Popen(
+                "uvicorn osism.api:app --host 0.0.0.0 --port 8000", shell=True
+            )
             p.wait()
 
         elif service == "listener":
-            p = subprocess.Popen("python3 -c 'from osism.services import listener; listener.main()'", shell=True)
+            p = subprocess.Popen(
+                "python3 -c 'from osism.services import listener; listener.main()'",
+                shell=True,
+            )
             p.wait()
 
         elif service == "beat":
@@ -37,9 +42,15 @@ class Run(Command):
                 "osism.tasks.kolla",
                 "osism.tasks.netbox",
                 "osism.tasks.openstack",
-                "osism.tasks.reconciler"
+                "osism.tasks.reconciler",
             ]
-            ps = [subprocess.Popen(f"celery -A {t} --broker=redis://redis beat -s /tmp/celerybeat-schedule-{t}.db", shell=True) for t in ts]
+            ps = [
+                subprocess.Popen(
+                    f"celery -A {t} --broker=redis://redis beat -s /tmp/celerybeat-schedule-{t}.db",
+                    shell=True,
+                )
+                for t in ts
+            ]
 
             for p in ps:
                 p.wait()
@@ -49,7 +60,10 @@ class Run(Command):
             p.wait()
 
         elif service == "reconciler":
-            p = subprocess.Popen("celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler", shell=True)
+            p = subprocess.Popen(
+                "celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler",
+                shell=True,
+            )
             p.wait()
 
         elif service == "watchdog":
@@ -61,7 +75,9 @@ class Run(Command):
             # checks for changes every 10 seconds.
 
             observer = PollingObserver(10.0)
-            observer.schedule(event_handler_inventory, "/opt/configuration/inventory", recursive=True)
+            observer.schedule(
+                event_handler_inventory, "/opt/configuration/inventory", recursive=True
+            )
             observer.start()
 
             try:

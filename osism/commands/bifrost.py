@@ -16,7 +16,9 @@ class Run(Command):
 
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
-        parser.add_argument('arguments', nargs=argparse.REMAINDER, help='Arguments for Bifrost')
+        parser.add_argument(
+            "arguments", nargs=argparse.REMAINDER, help="Arguments for Bifrost"
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -34,7 +36,12 @@ class Deploy(Command):
 
     def get_parser(self, prog_name):
         parser = super(Deploy, self).get_parser(prog_name)
-        parser.add_argument('--no-wait', default=False, help='Do not wait until the role has been applied', action='store_true')
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until the role has been applied",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
