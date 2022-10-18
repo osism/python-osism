@@ -5,7 +5,7 @@ ansible-runner==2.2.1
 ansible==6.5.0
 celery[redis]==5.2.7
 cliff==4.0.0
-deepdiff==5.8.1
+deepdiff==6.2.1
 fastapi==0.85.1
 flower==1.2.0
 hiredis==2.0.0
