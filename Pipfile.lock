@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2808dc4a03487a5fec9a3d8016df4b4249b230f73aabcce7eae85ae7e6f2f86b"
+            "sha256": "3c32f7ca40cd169cbb1a846df050363d7a680403a385cd7de41f2a4dffb5b095"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -765,11 +765,11 @@
         },
         "pbr": {
             "hashes": [
-                "sha256:cfcc4ff8e698256fc17ea3ff796478b050852585aa5bae79ecd05b2ab7b39b9a",
-                "sha256:da3e18aac0a3c003e9eea1a81bd23e5a3a75d745670dcf736317b7d966887fdf"
+                "sha256:b97bc6695b2aff02144133c2e7399d5885223d42b7912ffaec2ca3898e673bfe",
+                "sha256:db2317ff07c84c4c63648c9064a79fe9d9f5c7ce85a9099d4b6258b3db83225a"
             ],
             "markers": "python_version >= '2.6'",
-            "version": "==5.10.0"
+            "version": "==5.11.0"
         },
         "pexpect": {
             "hashes": [
@@ -919,10 +919,11 @@
         },
         "python-daemon": {
             "hashes": [
-                "sha256:15c2c5e2cef563e0a5f98d542b77ba59337380b472975d2b2fd6b8c4d5cf46ca",
-                "sha256:4e3bf67784c78aaa55ec001a2f832b464a54c5f9c89c11b311e2416a8c247431"
+                "sha256:01d26358598f8c3f5fc6de553e2f3080ffc59cf89102d7ee8098f33c72b3c04c",
+                "sha256:3deeb808e72b6b89f98611889e11cc33754f5b2c1517ecfa1aaf25f402051fb5"
             ],
-            "version": "==2.3.1"
+            "markers": "python_version >= '3'",
+            "version": "==2.3.2"
         },
         "python-dateutil": {
             "hashes": [
@@ -934,10 +935,10 @@
         },
         "pytz": {
             "hashes": [
-                "sha256:2c0784747071402c6e99f0bafdb7da0fa22645f06554c7ae06bf6358897e9c91",
-                "sha256:48ce799d83b6f8aab2020e369b627446696619e79645419610b9facd909b3174"
+                "sha256:335ab46900b1465e714b4fda4963d87363264eb662aab5e65da039c25f1f5b22",
+                "sha256:c4d88f472f54d615e9cd582a5004d1e5f624854a6a27a6211591c251f22a6914"
             ],
-            "version": "==2022.4"
+            "version": "==2022.5"
         },
         "pyyaml": {
             "hashes": [
@@ -1008,14 +1009,6 @@
             ],
             "version": "==1.4.0"
         },
-        "routeros-diff": {
-            "hashes": [
-                "sha256:3d06321caff053f16cc370986f8ce6edbed202a111bfbd0ad168ceece652e105",
-                "sha256:7ab21a776a7d673c2dffe5d06467956755641596e38e652083eaddba71b4a173"
-            ],
-            "index": "pypi",
-            "version": "==0.5.3"
-        },
         "scp": {
             "hashes": [
                 "sha256:29ddaafbfba60793a8a779694c97d8c150d365668a4ef67616c515b80a69ef2f",
@@ -1049,11 +1042,11 @@
         },
         "stevedore": {
             "hashes": [
-                "sha256:01645addb67beff04c7cfcbb0a6af8327d2efc3380b0f034aa316d4576c4d470",
-                "sha256:9a23111a6e612270c591fd31ff3321c6b5f3d5f3dabb1427317a5ab608fc261a"
+                "sha256:02518a8f0d6d29be8a445b7f2ac63753ff29e8f2a2faa01777568d5500d777a6",
+                "sha256:3b1cbd592a87315f000d05164941ee5e164899f8fc0ce9a00bb0f321f40ef93e"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==4.0.1"
+            "version": "==4.1.0"
         },
         "sushy": {
             "hashes": [

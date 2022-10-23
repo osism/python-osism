@@ -5,3 +5,4 @@ exclude =
     files/disable
     files/generate
     files/import
+ignore = F841 W503
