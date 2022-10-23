@@ -3,7 +3,6 @@ import logging
 from pottery import Redlock
 
 from osism import utils
-from osism.plugins import routeros, routeros_testing
 
 
 def for_device(name, parameters={}):
@@ -37,13 +36,9 @@ def for_device(name, parameters={}):
         f"Check configuration for device {device.name} with plugin {device.custom_fields['deployment_type']}"
     )
 
-    if device.custom_fields["deployment_type"] == "routeros":
-        last_configuration = routeros.get_configuration(device)
-    elif device.custom_fields["deployment_type"] == "routeros_testing":
-        last_configuration = routeros_testing.get_configuration(device)
-    else:
-        logging.error(f"Deployment type x for device {device.name} not supported")
-        last_configuration = None
+    deployment_type = device.custom_fields["deployment_type"]
+    logging.error(f"Deployment type {deployment_type} for device {device.name} not supported")
+    last_configuration = None
 
     if last_configuration:
         for line in last_configuration.split("\n"):

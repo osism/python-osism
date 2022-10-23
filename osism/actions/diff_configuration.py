@@ -4,7 +4,6 @@ import git
 from pottery import Redlock
 
 from osism import utils
-from osism.plugins import routeros, routeros_testing
 
 
 def for_device(name, parameters={}):
@@ -38,13 +37,9 @@ def for_device(name, parameters={}):
         f"Diff configuration for device {device.name} with plugin {device.custom_fields['deployment_type']}"
     )
 
-    if device.custom_fields["deployment_type"] == "routeros":
-        current_configuration = routeros.get_configuration(device)
-    elif device.custom_fields["deployment_type"] == "routeros_testing":
-        current_configuration = routeros_testing.get_configuration(device)
-    else:
-        logging.error(f"Deployment type x for device {device.name} not supported")
-        current_configuration = None
+    deployment_type = device.custom_fields["deployment_type"]
+    logging.error(f"Deployment type {deployment_type} for device {device.name} not supported")
+    current_configuration = None
 
     repo = git.Repo.init(path="/state")
 
@@ -55,11 +50,6 @@ def for_device(name, parameters={}):
     except git.exc.GitCommandError:
         last_configuration = None
 
-    if device.custom_fields["deployment_type"] == "routeros":
-        routeros.diff(device, last_configuration, current_configuration)
-    elif device.custom_fields["deployment_type"] == "routeros_testing":
-        routeros_testing.diff(device, last_configuration, current_configuration)
-    else:
-        logging.error(f"Deployment type x for device {device.name} not supported")
+    logging.error(f"Deployment type {deployment_type} for device {device.name} not supported")
 
     lock.release()
