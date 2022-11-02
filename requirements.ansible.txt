@@ -1,0 +1,2 @@
+ansible-runner==2.2.1
+ansible==6.5.0
