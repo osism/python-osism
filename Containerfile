@@ -12,6 +12,7 @@ RUN apt-get update \
     && mkdir /wheels \
     && python3 -m pip --no-cache-dir install -U 'pip==22.3' \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt \
+    && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt \
     && git clone --depth 1 https://github.com/osism/openstack-image-manager.git /openstack-image-manager \
     && git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-image-manager/requirements.txt \
