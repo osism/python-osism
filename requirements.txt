@@ -4,7 +4,7 @@ PyYAML==6.0
 celery[redis]==5.2.7
 cliff==4.1.0
 deepdiff==6.2.1
-fastapi==0.87.0
+fastapi==0.88.0
 flower==1.2.0
 hiredis==2.0.0
 kombu==5.2.4
