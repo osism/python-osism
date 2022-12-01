@@ -10,7 +10,7 @@ hiredis==2.0.0
 kombu==5.2.4
 napalm==4.0.0
 netmiko==4.1.2
-openstacksdk==0.102.0
+openstacksdk==0.103.0
 pottery==3.0.0
 pydantic==1.10.2
 pynetbox==6.6.2
