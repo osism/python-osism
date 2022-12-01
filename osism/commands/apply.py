@@ -99,6 +99,7 @@ MAP_ROLE2ENVIRONMENT = {
     "motd": "generic",
     "network": "generic",
     "operator": "generic",
+    "osquery": "generic",
     "packages": "generic",
     "patchman-client": "generic",
     "ping": "generic",
