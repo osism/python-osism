@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "0a7f18002a1de0512126e610148e24d9c497411def39a6e6bea09ac674f5ad6b"
+            "sha256": "c31655762d297d7ceb4a3092566b87e8cdcfa5f4151a20d6d1c15e5e8be1e641"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -883,11 +883,11 @@
         },
         "pynetbox": {
             "hashes": [
-                "sha256:3202e5c253c1c1b5e53c42f8e5475552c068b816e214fe060d98673f7d78c16a",
-                "sha256:83b840aeaed49bacde6962d29f4550e4bd35b2e273e9f65c1f8cbe0883fe74db"
+                "sha256:6506c95f056755f7d20532dce68af52787b8d3acca034f9db8643d7457655ed3",
+                "sha256:9265d6aebeed98f5f7e3694d45c5976d4c5777e07d7d72f2cc0cf50b509a1a8c"
             ],
             "index": "pypi",
-            "version": "==6.6.2"
+            "version": "==7.0.0"
         },
         "pyparsing": {
             "hashes": [
