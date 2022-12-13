@@ -37,6 +37,10 @@ def celery_init_worker(**kwargs):
     with open("/etc/conductor.yml") as fp:
         configuration = yaml.load(fp, Loader=yaml.SafeLoader)
 
+        if not configuration:
+            logging.warning("The conductor configuration is empty. That's probably wrong")
+            return
+
         # Resolve all IDs in the conductor.yml
         if Config.enable_ironic in ["True", "true", "Yes", "yes"]:
 
