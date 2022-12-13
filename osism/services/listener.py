@@ -3,9 +3,7 @@ import os
 import time
 
 import json
-from kombu import BrokerConnection
-from kombu import Exchange
-from kombu import Queue
+from kombu import Connection, Exchange, Queue
 from kombu.mixins import ConsumerMixin
 
 from osism import utils
@@ -185,10 +183,11 @@ class NotificationsDump(ConsumerMixin):
 
 def main():
     try:
-        with BrokerConnection(BROKER_URI, connect_timeout=30.0) as connection:
+        with Connection(BROKER_URI, connect_timeout=30.0) as connection:
+            connection.connect()
             NotificationsDump(connection).run()
     except ConnectionRefusedError:
-        logging.error("Connection with broker refused. Wait for 60 seconds.")
+        logging.error("Connection with broker refused. Retry in 60 seconds.")
         time.sleep(60)
 
 
