@@ -136,9 +136,9 @@ class Import(Command):
             required=False,
         )
         parser.add_argument(
-            "--no-library",
+            "--library",
             default=False,
-            help="Do not import device types from the device type library, use the config repository",
+            help="Do import device types from the device type library",
             action="store_true",
         )
         parser.add_argument(
@@ -152,9 +152,8 @@ class Import(Command):
     def take_action(self, parsed_args):
         vendors = parsed_args.vendors
         wait = not parsed_args.no_wait
-        library = not parsed_args.no_library
 
-        task = netbox.import_device_types.delay(vendors, library)
+        task = netbox.import_device_types.delay(vendors, parsed_args.library)
 
         if wait:
             self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
