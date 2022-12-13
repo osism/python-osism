@@ -1,3 +1,5 @@
+import logging
+
 from celery import Celery
 from celery.signals import worker_process_init
 import keystoneauth1
@@ -13,6 +15,10 @@ app.config_from_object(Config)
 
 configuration = {}
 redis = None
+
+logging.basicConfig(
+    format="%(asctime)s - %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S"
+)
 
 
 @worker_process_init.connect
@@ -33,6 +39,11 @@ def celery_init_worker(**kwargs):
 
         # Resolve all IDs in the conductor.yml
         if Config.enable_ironic in ["True", "true", "Yes", "yes"]:
+
+            if "ironic_parameters" not in configuration:
+                logging.error("ironic_parameters not found in the conductor configuration")
+                return
+
             # TODO: use osism.tasks.openstack in the future
             if "driver_info" in configuration["ironic_parameters"]:
                 if "deploy_kernel" in configuration["ironic_parameters"]["driver_info"]:
