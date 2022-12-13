@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+import time
 
 import json
 from kombu import BrokerConnection
@@ -183,8 +184,12 @@ class NotificationsDump(ConsumerMixin):
 
 
 def main():
-    with BrokerConnection(BROKER_URI, connect_timeout=30.0) as connection:
-        NotificationsDump(connection).run()
+    try:
+        with BrokerConnection(BROKER_URI, connect_timeout=30.0) as connection:
+            NotificationsDump(connection).run()
+    except ConnectionRefusedError:
+        logging.error("Connection with broker refused. Wait for 60 seconds.")
+        time.sleep(60)
 
 
 if __name__ == "__main__":
