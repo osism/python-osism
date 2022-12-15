@@ -279,29 +279,32 @@ def manage_interfaces(device, data):
         interface_a.update({"label": label_a})
         interface_b.update({"label": label_b})
 
+        termination_a = {
+            "object_type": "dcim.interface",
+            "object_id": interface_a.id
+        }
+        termination_b = {
+            "object_type": "dcim.interface",
+            "object_id": interface_b.id
+        }
+
         connection = utils.nb.dcim.cables.get(
-            termination_a_type="dcim.interface",
-            termination_b_type="dcim.interface",
-            termination_a_id=interface_a.id,
-            termination_b_id=interface_b.id,
+            a_terminations=[termination_a],
+            b_terminations=[termination_b]
         )
 
         # NOTE: also check the other direction
         if not connection:
             connection = utils.nb.dcim.cables.get(
-                termination_a_type="dcim.interface",
-                termination_b_type="dcim.interface",
-                termination_a_id=interface_b.id,
-                termination_b_id=interface_a.id,
+                a_terminations=[termination_b],
+                b_terminations=[termination_a]
             )
 
         if not connection:
             try:
                 connection = utils.nb.dcim.cables.create(
-                    termination_a_type="dcim.interface",
-                    termination_b_type="dcim.interface",
-                    termination_a_id=interface_a.id,
-                    termination_b_id=interface_b.id,
+                    a_terminations=[termination_a],
+                    b_terminations=[termination_b],
                     type=data[device][interface]["type"],
                 )
             except pynetbox.core.query.RequestError as e:
