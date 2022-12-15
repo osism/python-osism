@@ -279,37 +279,20 @@ def manage_interfaces(device, data):
         interface_a.update({"label": label_a})
         interface_b.update({"label": label_b})
 
-        termination_a = {
-            "object_type": "dcim.interface",
-            "object_id": interface_a.id
-        }
-        termination_b = {
-            "object_type": "dcim.interface",
-            "object_id": interface_b.id
-        }
+        termination_a = {"object_type": "dcim.interface", "object_id": interface_a.id}
+        termination_b = {"object_type": "dcim.interface", "object_id": interface_b.id}
 
-        connection = utils.nb.dcim.cables.get(
-            a_terminations=[termination_a],
-            b_terminations=[termination_b]
-        )
-
-        # NOTE: also check the other direction
-        if not connection:
-            connection = utils.nb.dcim.cables.get(
-                a_terminations=[termination_b],
-                b_terminations=[termination_a]
+        try:
+            connection = utils.nb.dcim.cables.create(
+                a_terminations=[termination_a],
+                b_terminations=[termination_b],
+                type=data[device][interface]["type"],
             )
-
-        if not connection:
-            try:
-                connection = utils.nb.dcim.cables.create(
-                    a_terminations=[termination_a],
-                    b_terminations=[termination_b],
-                    type=data[device][interface]["type"],
-                )
-            except pynetbox.core.query.RequestError as e:
-                logging.error(f"ERROR --> {e}")
-                pass
+        except pynetbox.core.query.RequestError as e:
+            # The "Duplicate termination found" error can be ignored
+            if "Duplicate termination found" not in e.error:
+                logging.error(f"ERROR --> {e.error}")
+            pass
 
         # ensure that all interfaces are enabled that should be enabled
         if not interface_a.enabled:
