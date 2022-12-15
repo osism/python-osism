@@ -217,6 +217,9 @@ def manage_interfaces(device, data):
         # EthernetXX
         elif "Ethernet" in interface_a.name:
             port_a = interface_a.name[8:]
+        # ethXX
+        elif "eth" in interface_a.name:
+            port_a = interface_a.name[3:]
         # etherXX
         elif "ether" in interface_a.name:
             port_a = interface_a.name[5:]
@@ -238,6 +241,9 @@ def manage_interfaces(device, data):
         # EthernetXX
         elif "Ethernet" in interface_b.name:
             port_b = interface_b.name[8:]
+        # ethXX
+        elif "eth" in interface_b.name:
+            port_b = interface_b.name[3:]
         # etherXX
         elif "ether" in interface_b.name:
             port_b = interface_b.name[5:]
