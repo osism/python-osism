@@ -259,18 +259,21 @@ def manage_interfaces(device, data):
         else:
             port_b = interface_b.name
 
-        near_end_a = f"{device_a.position}:{port_a}"
+        position_a = int(device_a.position)
+        position_b = int(device_b.position)
+
+        near_end_a = f"{position_a}:{port_a}"
         if device_a.rack.name == device_b.rack.name:
-            far_end_a = f"{device_b.position}:{port_b}"
+            far_end_a = f"{position_b}:{port_b}"
         else:
-            far_end_a = f"{device_b.rack.name}-{device_b.position}:{port_b}"
+            far_end_a = f"{device_b.rack.name}-{position_b}:{port_b}"
         label_a = f"{near_end_a} / {far_end_a}"
 
-        near_end_b = f"{device_b.position}:{port_b}"
+        near_end_b = f"{position_b}:{port_b}"
         if device_b.rack.name == device_a.rack.name:
-            far_end_b = f"{device_a.position}:{port_a}"
+            far_end_b = f"{position_a}:{port_a}"
         else:
-            far_end_b = f"{device_a.rack.name}-{device_a.position}:{port_a}"
+            far_end_b = f"{device_a.rack.name}-{position_a}:{port_a}"
         label_b = f"{near_end_b} / {far_end_b}"
 
         interface_a.update({"label": label_a})
