@@ -259,6 +259,28 @@ def manage_interfaces(device, data):
         else:
             port_b = interface_b.name
 
+        # handle breakout cables (relevant only for the cable labels)
+        #
+        # this assumes that the interface names are as follows:
+        #
+        # Ethernet0 <-- 100G
+        # Ethernet4 <-- 100G
+        # Ethernet12 <-- 100G
+        #
+        # Ethernet0 <-- 25G
+        # Ethernet1 <-- 25G
+        # Ethernet2 <-- 25G
+        # Ethernet4 <-- 25G
+        #
+        # Ethernet0 --> Physical Port 1
+        # Ethernet4 --> Physical Port 2
+        # Ethernet8 --> Physical Port 3
+        if "breakout" in data[device][interface] and interface_b:
+            port_b = int(port_b) - (
+                int(port_b) % int(data[device][interface]["breakout"])
+            )
+            port_b = int(int(port_b) / int(data[device][interface]["breakout"])) + 1
+
         position_a = int(device_a.position)
         position_b = int(device_b.position)
 
