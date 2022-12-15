@@ -211,8 +211,10 @@ def manage_interfaces(device, data):
 
         logging.info(f"{interface_a} -> {device_target} # {interface_b}")
 
+        if interface_a.label:
+            port_a = interface_a.label
         # EthernetXX/Y
-        if "Ethernet" in interface_a.name and "/" in interface_a.name:
+        elif "Ethernet" in interface_a.name and "/" in interface_a.name:
             port_a = interface_a.name[8:].split("/")[0]
         # EthernetXX
         elif "Ethernet" in interface_a.name:
@@ -235,8 +237,10 @@ def manage_interfaces(device, data):
         else:
             port_a = interface_a.name
 
+        if interface_b.label:
+            port_b = interface_b.label
         # EthernetXX/Y
-        if "Ethernet" in interface_b.name and "/" in interface_b.name:
+        elif "Ethernet" in interface_b.name and "/" in interface_b.name:
             port_b = interface_b.name[8:].split("/")[0]
         # EthernetXX
         elif "Ethernet" in interface_b.name:
@@ -259,28 +263,6 @@ def manage_interfaces(device, data):
         else:
             port_b = interface_b.name
 
-        # handle breakout cables (relevant only for the cable labels)
-        #
-        # this assumes that the interface names are as follows:
-        #
-        # Ethernet0 <-- 100G
-        # Ethernet4 <-- 100G
-        # Ethernet12 <-- 100G
-        #
-        # Ethernet0 <-- 25G
-        # Ethernet1 <-- 25G
-        # Ethernet2 <-- 25G
-        # Ethernet4 <-- 25G
-        #
-        # Ethernet0 --> Physical Port 1
-        # Ethernet4 --> Physical Port 2
-        # Ethernet8 --> Physical Port 3
-        if "breakout" in data[device][interface] and interface_b:
-            port_b = int(port_b) - (
-                int(port_b) % int(data[device][interface]["breakout"])
-            )
-            port_b = int(int(port_b) / int(data[device][interface]["breakout"])) + 1
-
         position_a = int(device_a.position)
         position_b = int(device_b.position)
 
@@ -298,8 +280,8 @@ def manage_interfaces(device, data):
             far_end_b = f"{device_a.rack.name}-{position_a}:{port_a}"
         label_b = f"{near_end_b} / {far_end_b}"
 
-        interface_a.update({"label": label_a})
-        interface_b.update({"label": label_b})
+        interface_a.update({"description": label_a})
+        interface_b.update({"description": label_b})
 
         termination_a = {"object_type": "dcim.interface", "object_id": interface_a.id}
         termination_b = {"object_type": "dcim.interface", "object_id": interface_b.id}
