@@ -212,8 +212,11 @@ def manage_interfaces(device, data):
         logging.info(f"{interface_a} -> {device_target} # {interface_b}")
 
         # EthernetXX/Y
-        if "Ethernet" in interface_a.name:
+        if "Ethernet" in interface_a.name and "/" in interface_a.name:
             port_a = interface_a.name[8:].split("/")[0]
+        # EthernetXX
+        elif "Ethernet" in interface_a.name:
+            port_a = interface_a.name[8:]
         # etherXX
         elif "ether" in interface_a.name:
             port_a = interface_a.name[5:]
@@ -230,8 +233,11 @@ def manage_interfaces(device, data):
             port_a = interface_a.name
 
         # EthernetXX/Y
-        if "Ethernet" in interface_b.name:
+        if "Ethernet" in interface_b.name and "/" in interface_b.name:
             port_b = interface_b.name[8:].split("/")[0]
+        # EthernetXX
+        elif "Ethernet" in interface_b.name:
+            port_b = interface_b.name[8:]
         # etherXX
         elif "ether" in interface_b.name:
             port_b = interface_b.name[5:]
