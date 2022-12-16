@@ -29,7 +29,7 @@ class Run(Command):
         elif type_console == "ssh":
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator -o StrictHostKeyChecking=no dragon@{target}",
+                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator -o StrictHostKeyChecking=no -o LogLevel=ERROR dragon@{target}",
                 shell=True,
             )
         elif type_console == "container":
@@ -38,7 +38,9 @@ class Run(Command):
             target_command = "bash"
 
             ssh_command = f"docker exec -it {target_containername} {target_command}"
-            ssh_options = "-o RequestTTY=force -o StrictHostKeyChecking=no"
+            ssh_options = (
+                "-o RequestTTY=force -o StrictHostKeyChecking=no -o LogLevel=ERROR"
+            )
 
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
