@@ -1,7 +1,6 @@
-import logging
-
 from celery import Celery
 from cliff.command import Command
+from loguru import logger
 from tabulate import tabulate
 
 from osism.tasks import Config
@@ -31,9 +30,6 @@ def display_time(seconds, granularity=2):
 
 
 class Run(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument(
@@ -59,4 +55,4 @@ class Run(Command):
 
             print(tabulate(table, headers=["Name", "Uptime"], tablefmt="psql"))
         else:
-            logging.error(f"Unknown resource type '{type_of_resource}'")
+            logger.error(f"Unknown resource type '{type_of_resource}'")

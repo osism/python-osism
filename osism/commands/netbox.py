@@ -1,7 +1,7 @@
 import argparse
-import logging
 
 from cliff.command import Command
+from loguru import logger
 from redis import Redis
 
 from osism.tasks import conductor, netbox, reconciler, ansible, openstack
@@ -11,9 +11,6 @@ redis = Redis(host="redis", port="6379")
 
 
 class Run(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument(
@@ -32,9 +29,6 @@ class Run(Command):
 
 
 class Bifrost(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Bifrost, self).get_parser(prog_name)
         return parser
@@ -47,9 +41,6 @@ class Bifrost(Command):
 
 
 class Ironic(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Ironic, self).get_parser(prog_name)
         return parser
@@ -72,9 +63,6 @@ class Ironic(Command):
 
 
 class Sync(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Sync, self).get_parser(prog_name)
         parser.add_argument(
@@ -90,14 +78,11 @@ class Sync(Command):
 
         task = reconciler.sync_inventory_with_netbox.delay()
         if wait:
-            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
 class Init(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Init, self).get_parser(prog_name)
         parser.add_argument(
@@ -118,16 +103,13 @@ class Init(Command):
         task = ansible.run.delay("netbox-local", "init", arguments)
 
         if wait:
-            self.log.info(
+            logger.info(
                 f"Task {task.task_id} is running. Wait. No more output. Check ARA for logs."
             )
             task.wait(timeout=None, interval=0.5)
 
 
 class Import(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Import, self).get_parser(prog_name)
         parser.add_argument(
@@ -156,14 +138,11 @@ class Import(Command):
         task = netbox.import_device_types.delay(vendors, parsed_args.library)
 
         if wait:
-            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
 class Manage(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Manage, self).get_parser(prog_name)
         parser.add_argument(
@@ -198,16 +177,13 @@ class Manage(Command):
         )
 
         if wait:
-            self.log.info(
+            logger.info(
                 f"Task {task.task_id} is running. Wait. No more output. Check ARA for logs."
             )
             task.wait(timeout=None, interval=0.5)
 
 
 class Connect(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Connect, self).get_parser(prog_name)
         parser.add_argument(
@@ -267,18 +243,15 @@ class Connect(Command):
 
         for device in data:
             t = netbox.connect.delay(device, state, data, enforce)
-            self.log.info(
+            logger.info(
                 f"Task {t.task_id} for device {device} is running in background"
             )
-        self.log.info(
+        logger.info(
             "Tasks are running in background. No more output. Check Flower for logs."
         )
 
 
 class Disable(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Disable, self).get_parser(prog_name)
         parser.add_argument(
@@ -302,14 +275,11 @@ class Disable(Command):
         task = netbox.disable.delay(name)
 
         if wait:
-            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
 class Generate(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Generate, self).get_parser(prog_name)
         parser.add_argument(
@@ -337,14 +307,11 @@ class Generate(Command):
         task = netbox.generate.delay(name, template)
 
         if wait:
-            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
 class Deploy(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Deploy, self).get_parser(prog_name)
         parser.add_argument(
@@ -372,14 +339,11 @@ class Deploy(Command):
         task = netbox.deploy.delay(name)
 
         if wait:
-            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
 class Check(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Check, self).get_parser(prog_name)
         parser.add_argument(
@@ -403,14 +367,11 @@ class Check(Command):
         task = netbox.check.delay(name)
 
         if wait:
-            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
 class Diff(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Diff, self).get_parser(prog_name)
         parser.add_argument(
@@ -434,14 +395,11 @@ class Diff(Command):
         task = netbox.diff.delay(name)
 
         if wait:
-            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
 
 
 class Ping(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Ping, self).get_parser(prog_name)
         return parser

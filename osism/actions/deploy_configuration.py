@@ -1,8 +1,7 @@
-import logging
-
+from loguru import logger
+from pottery import Redlock
 import git
 import jinja2
-from pottery import Redlock
 
 from osism import utils
 
@@ -50,7 +49,7 @@ def for_device(name, parameters={}, mode="deploy"):
         repo.delete_tag(name)
 
     if not first and last_commit == current_commit and mode == "deploy":
-        logging.info(f"No deployment for device {device.name} required")
+        logger.info(f"No deployment for device {device.name} required")
     else:
 
         if not first:
@@ -71,7 +70,7 @@ def for_device(name, parameters={}, mode="deploy"):
             current_configuration = None
 
         if not current_configuration:
-            logging.error(
+            logger.error(
                 f"There is now prepared configuration for device {device.name}"
             )
         else:
@@ -81,12 +80,12 @@ def for_device(name, parameters={}, mode="deploy"):
             )
             rendered_current_configuration = t.render(**parameters)
 
-            logging.info(
+            logger.info(
                 f"{mode} configuration for device {device.name} with plugin {device.custom_fields['deployment_type']}"
             )
 
             deployment_type = device.custom_fields["deployment_type"]
-            logging.error(
+            logger.error(
                 f"Deployment type {deployment_type} for device {device.name} not supported"
             )
 

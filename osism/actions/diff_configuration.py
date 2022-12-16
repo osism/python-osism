@@ -1,5 +1,4 @@
-import logging
-
+from loguru import logger
 import git
 from pottery import Redlock
 
@@ -33,12 +32,14 @@ def for_device(name, parameters={}):
     )
     lock.acquire()
 
-    logging.info(
+    logger.info(
         f"Diff configuration for device {device.name} with plugin {device.custom_fields['deployment_type']}"
     )
 
     deployment_type = device.custom_fields["deployment_type"]
-    logging.error(f"Deployment type {deployment_type} for device {device.name} not supported")
+    logger.error(
+        f"Deployment type {deployment_type} for device {device.name} not supported"
+    )
     current_configuration = None
 
     repo = git.Repo.init(path="/state")
@@ -50,6 +51,8 @@ def for_device(name, parameters={}):
     except git.exc.GitCommandError:
         last_configuration = None
 
-    logging.error(f"Deployment type {deployment_type} for device {device.name} not supported")
+    logger.error(
+        f"Deployment type {deployment_type} for device {device.name} not supported"
+    )
 
     lock.release()

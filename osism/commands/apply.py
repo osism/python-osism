@@ -1,8 +1,8 @@
 import argparse
-import logging
 import time
 
 from cliff.command import Command
+from loguru import logger
 from redis import Redis
 
 from osism.tasks import ansible, ceph, kolla
@@ -296,9 +296,6 @@ MAP_ROLE2ENVIRONMENT = {
 
 
 class Run(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument(
@@ -371,18 +368,18 @@ class Run(Command):
                             return rc
                         print(line, end="")
                 else:
-                    self.log.info(
+                    logger.info(
                         f"No further output after {timeout} seconds. Therefore finish."
                     )
                     return rc
 
         else:
             if format == "log":
-                self.log.info(
+                logger.info(
                     f"Task {t.task_id} is running in background. No more output. Check ARA for logs."
                 )
             elif format == "script":
-                self.log.info(f"{t.task_id}")
+                logger.info(f"{t.task_id}")
 
             return rc
 

@@ -1,8 +1,8 @@
 from datetime import datetime
 import ipaddress
-import logging
 import os
 
+from loguru import logger
 import git
 import gitdb
 import jinja2
@@ -31,7 +31,7 @@ def for_device(name, template=None):
     if "Managed by OSISM" not in [str(x) for x in device.tags]:
         return
 
-    logging.info(f"Generate configuration for device {device.name}")
+    logger.info(f"Generate configuration for device {device.name}")
 
     if not template:
         template = f"{device.name}.cfg.j2"
@@ -112,7 +112,7 @@ def for_device(name, template=None):
     template = environment.get_template(template)
     result = template.render(data)
 
-    logging.info(f"Writing generated configuration to /state/{device.name}.cfg.j2")
+    logger.info(f"Writing generated configuration to /state/{device.name}.cfg.j2")
     with open(f"/state/{device.name}.cfg.j2", "w+") as fp:
         fp.write(os.linesep.join([s for s in result.splitlines() if s]))
 
@@ -124,12 +124,12 @@ def for_device(name, template=None):
 
     try:
         if len(repo.index.diff("HEAD")) > 0:
-            logging.info(f"Committing changes in /state/{device.name}.cfg.j2")
+            logger.info(f"Committing changes in /state/{device.name}.cfg.j2")
             repo.git.commit(message=f"Update {device.name}")
 
     # Ref 'HEAD' did not resolve to an object
     except gitdb.exc.BadName:
-        logging.info("Initial commit")
+        logger.info("Initial commit")
         repo.git.commit(message="Initial commit")
 
     lock.release()

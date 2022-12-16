@@ -1,10 +1,10 @@
-import logging
 import os
 import time
 
-import json
 from kombu import Connection, Exchange, Queue
 from kombu.mixins import ConsumerMixin
+from loguru import logger
+import json
 
 from osism import utils
 from osism.tasks import netbox, openstack
@@ -13,10 +13,6 @@ EXCHANGE_NAME = "ironic"
 ROUTING_KEY = "ironic_versioned_notifications.info"
 QUEUE_NAME = "osism-listener-ironic"
 BROKER_URI = os.getenv("BROKER_URI")
-
-logging.basicConfig(
-    format="%(asctime)s - %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S"
-)
 
 
 class NotificationsDump(ConsumerMixin):
@@ -38,7 +34,7 @@ class NotificationsDump(ConsumerMixin):
 
     def on_message(self, body, message):
         data = json.loads(body["oslo.message"])
-        # logging.info(data)
+        # logger.info(data)
 
         event_type = data["event_type"]
         payload = data["payload"]
@@ -53,25 +49,25 @@ class NotificationsDump(ConsumerMixin):
         # * https://docs.openstack.org/ironic/latest/_images/states.svg
 
         if event_type == "baremetal.node.power_set.end":
-            logging.info(
+            logger.info(
                 f"baremetal.node.power_set.end ## {name} ## {object_data['power_state']}"
             )
             netbox.set_state.delay(name, object_data["power_state"], "power")
 
         elif event_type == "baremetal.node.power_state_corrected.success":
-            logging.info(
+            logger.info(
                 f"baremetal.node.power_state_corrected.success ## {name} ## {object_data['power_state']}"
             )
             netbox.set_state.delay(name, object_data["power_state"], "power")
 
         elif event_type == "baremetal.node.maintenance_set.end":
-            logging.info(
+            logger.info(
                 f"baremetal.node.maintenance_set.end ## {name} ## {object_data['maintenance']}"
             )
             netbox.set_maintenance.delay(name, object_data["maintenance"])
 
         elif event_type == "baremetal.node.provision_set.start":
-            logging.info(
+            logger.info(
                 f"baremetal.node.provision_set.start ## {name} ## {object_data['provision_state']}"
             )
 
@@ -92,7 +88,7 @@ class NotificationsDump(ConsumerMixin):
 
         # A provision status was successfully set, update it in the netbox
         elif event_type == "baremetal.node.provision_set.success":
-            logging.info(
+            logger.info(
                 f"baremetal.node.provision_set.success ## {name} ## {object_data['provision_state']}"
             )
             netbox.set_state.delay(name, object_data["provision_state"], "provision")
@@ -103,7 +99,7 @@ class NotificationsDump(ConsumerMixin):
                 netbox.connect.delay(name, "c")
 
         elif event_type == "baremetal.node.provision_set.end":
-            logging.info(
+            logger.info(
                 f"baremetal.node.provision_set.end ## {name} ## {object_data['provision_state']}"
             )
             netbox.set_state.delay(name, object_data["provision_state"], "provision")
@@ -127,7 +123,7 @@ class NotificationsDump(ConsumerMixin):
                 netbox.connect.delay(name, "c")
 
         elif event_type == "baremetal.port.create.end":
-            logging.info(f"baremetal.port.create.end ## {object_data['uuid']}")
+            logger.info(f"baremetal.port.create.end ## {object_data['uuid']}")
 
             mac_address = object_data["address"]
             interface_a = utils.nb.dcim.interfaces.get(mac_address=mac_address)
@@ -144,7 +140,7 @@ class NotificationsDump(ConsumerMixin):
             )
 
         elif event_type == "baremetal.port.update.end":
-            logging.info(f"baremetal.port.update.end ## {object_data['uuid']}")
+            logger.info(f"baremetal.port.update.end ## {object_data['uuid']}")
 
             mac_address = object_data["address"]
             interface_a = utils.nb.dcim.interfaces.get(mac_address=mac_address)
@@ -161,7 +157,7 @@ class NotificationsDump(ConsumerMixin):
             )
 
         elif event_type == "baremetal.node.delete.end":
-            logging.info(f"baremetal.node.delete.end ## {name}")
+            logger.info(f"baremetal.node.delete.end ## {name}")
 
             netbox.set_state.delay(name, "unregistered", "ironic")
             netbox.set_state.delay(name, None, "provision")
@@ -176,9 +172,9 @@ class NotificationsDump(ConsumerMixin):
             openstack.baremetal_delete_internal_flavor.delay(name)
 
         else:
-            logging.info(f"{event_type} ## {name}")
+            logger.info(f"{event_type} ## {name}")
 
-        logging.info(object_data)
+        logger.info(object_data)
 
 
 def main():
@@ -187,7 +183,7 @@ def main():
             connection.connect()
             NotificationsDump(connection).run()
     except ConnectionRefusedError:
-        logging.error("Connection with broker refused. Retry in 60 seconds.")
+        logger.error("Connection with broker refused. Retry in 60 seconds.")
         time.sleep(60)
 
 
