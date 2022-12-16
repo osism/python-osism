@@ -1,29 +1,11 @@
-from celery.task.control import revoke
+from datetime import datetime
+
+from celery import Celery
 from cliff.command import Command
 from redis import Redis
+from tabulate import tabulate
 
-# https://stackoverflow.com/questions/4048651/python-function-to-convert-seconds-into-minutes-hours-and-days/4048773
-
-INTERVALS = (
-    ("weeks", 604800),  # 60 * 60 * 24 * 7
-    ("days", 86400),  # 60 * 60 * 24
-    ("hours", 3600),  # 60 * 60
-    ("minutes", 60),
-    ("seconds", 1),
-)
-
-
-def display_time(seconds, granularity=2):
-    result = []
-
-    for name, count in INTERVALS:
-        value = seconds // count
-        if value:
-            seconds -= value * count
-            if value == 1:
-                name = name.rstrip("s")
-            result.append("{} {}".format(value, name))
-    return ", ".join(result[:granularity])
+from osism.tasks import Config
 
 
 class List(Command):
@@ -38,6 +20,27 @@ class List(Command):
         status = parsed_args.status
         redis = Redis(host="redis", port="6379")
 
+        app = Celery("task")
+        app.config_from_object(Config)
+
+        i = app.control.inspect()
+
+        table = []
+        for worker, tasks in i.active().items():
+            for task in tasks:
+                time_start = datetime.fromtimestamp(task["time_start"])
+                table.append(
+                    [worker, task["id"], task["name"], time_start, task["args"]]
+                )
+
+        print(
+            tabulate(
+                table,
+                headers=["Worker", "ID", "Name", "Start time", "Arguments"],
+                tablefmt="psql",
+            )
+        )
+
 
 class Revoke(Command):
     def get_parser(self, prog_name):
@@ -46,6 +49,8 @@ class Revoke(Command):
         return parser
 
     def take_action(self, parsed_args):
-        task = parsed_args.role[0]
+        task = parsed_args.task
 
-        revoke(task, terminate=True)
+        app = Celery("task")
+        app.config_from_object(Config)
+        app.control.revoke(task, terminate=True)
