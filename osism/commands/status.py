@@ -52,8 +52,13 @@ class Run(Command):
             i = app.control.inspect()
             s = i.stats()
             for node in sorted(s.keys()):
-                table.append([node, display_time(s[node]["uptime"])])
+                ping = i.ping(destination=[node])
+                if not ping:
+                    health_status = "NOT REACHABLE"
+                else:
+                    health_status = "REACHABLE"
+                table.append([node, display_time(s[node]["uptime"]), health_status])
 
-            print(tabulate(table, headers=["Name", "Uptime"], tablefmt="psql"))
+            print(tabulate(table, headers=["Name", "Uptime", "Status"], tablefmt="psql"))
         else:
             logger.error(f"Unknown resource type '{type_of_resource}'")
