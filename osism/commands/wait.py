@@ -3,6 +3,7 @@ import time
 from celery import Celery
 from celery.result import AsyncResult
 from cliff.command import Command
+from loguru import logger
 from redis import Redis
 
 from osism.tasks import Config
@@ -61,18 +62,18 @@ class Run(Command):
             if result.state == "PENDING":
 
                 if format == "log":
-                    self.log.info(f"Task {task_id} is in state PENDING")
+                    logger.info(f"Task {task_id} is in state PENDING")
                 elif format == "script":
-                    self.log.info(f"{task_id} = PENDING")
+                    logger.info(f"{task_id} = PENDING")
 
                 task_ids.insert(0, task_id)
 
             elif result.state == "SUCCESS":
 
                 if format == "log":
-                    self.log.info(f"Task {task_id} is in state SUCCESS")
+                    logger.info(f"Task {task_id} is in state SUCCESS")
                 elif format == "script":
-                    self.log.info(f"{task_id} = SUCCESS")
+                    logger.info(f"{task_id} = SUCCESS")
 
                 if output:
                     print(result.get())
@@ -80,9 +81,9 @@ class Run(Command):
             elif result.state == "STARTED":
 
                 if format == "log":
-                    self.log.info(f"Task {task_id} is in state STARTED")
+                    logger.info(f"Task {task_id} is in state STARTED")
                 elif format == "script":
-                    self.log.info(f"{task_id} = STARTED")
+                    logger.info(f"{task_id} = STARTED")
 
                 if live:
                     redis = Redis(host="redis", port="6379")
