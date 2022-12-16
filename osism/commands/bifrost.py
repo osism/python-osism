@@ -1,5 +1,4 @@
 import argparse
-import logging
 
 from cliff.command import Command
 from redis import Redis
@@ -11,9 +10,6 @@ redis = Redis(host="redis", port="6379")
 
 
 class Run(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument(
@@ -31,9 +27,6 @@ class Run(Command):
 
 
 class Deploy(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Deploy, self).get_parser(prog_name)
         parser.add_argument(

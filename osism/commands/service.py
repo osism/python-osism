@@ -1,4 +1,3 @@
-import logging
 import subprocess
 import time
 
@@ -10,9 +9,6 @@ from osism.tasks import reconciler
 
 
 class Run(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument("type", nargs=1, type=str, help="Type of the service")

@@ -1,17 +1,14 @@
-import logging
 import subprocess
 
 from cliff.command import Command
+from loguru import logger
 
 from osism.tasks import reconciler
 
 
 class Run(Command):
-
-    log = logging.getLogger(__name__)
-
     def take_action(self, parsed_args):
-        self.log.info(
+        logger.info(
             "The osism reconciler command is deprecated and will be removed. Use osism service reconciler."
         )
         # NOTE: use python interface in the future, works for the moment
@@ -23,9 +20,6 @@ class Run(Command):
 
 
 class Sync(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Sync, self).get_parser(prog_name)
         parser.add_argument(
@@ -41,5 +35,5 @@ class Sync(Command):
 
         task = reconciler.run.delay()
         if wait:
-            self.log.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)

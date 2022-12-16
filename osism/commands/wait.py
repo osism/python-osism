@@ -1,4 +1,3 @@
-import logging
 import time
 
 from celery import Celery
@@ -10,9 +9,6 @@ from osism.tasks import Config
 
 
 class Run(Command):
-
-    log = logging.getLogger(__name__)
-
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument(

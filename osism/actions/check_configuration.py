@@ -1,5 +1,4 @@
-import logging
-
+from loguru import logger
 from pottery import Redlock
 
 from osism import utils
@@ -32,16 +31,18 @@ def for_device(name, parameters={}):
     )
     lock.acquire()
 
-    logging.info(
+    logger.info(
         f"Check configuration for device {device.name} with plugin {device.custom_fields['deployment_type']}"
     )
 
     deployment_type = device.custom_fields["deployment_type"]
-    logging.error(f"Deployment type {deployment_type} for device {device.name} not supported")
+    logger.error(
+        f"Deployment type {deployment_type} for device {device.name} not supported"
+    )
     last_configuration = None
 
     if last_configuration:
         for line in last_configuration.split("\n"):
-            logging.info(f"configuration - {device.name}: {line}")
+            logger.info(f"configuration - {device.name}: {line}")
 
     lock.release()
