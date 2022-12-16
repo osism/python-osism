@@ -36,6 +36,7 @@ class Run(Command):
             "type",
             nargs=1,
             type=str,
+            choices=["workers"],
             help="Type of resource from which the status is to be displayed",
         )
         return parser

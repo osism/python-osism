@@ -6,7 +6,12 @@ from cliff.command import Command
 class Run(Command):
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
-        parser.add_argument("--type", default="ssh", help="Type of the console")
+        parser.add_argument(
+            "--type",
+            default="ssh",
+            choices=["ansible", "container", "ssh"],
+            help="Type of the console (default: %(default)s)",
+        )
         parser.add_argument(
             "target",
             nargs=1,
