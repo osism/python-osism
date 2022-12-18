@@ -64,7 +64,7 @@ class Run(Command):
                 if format == "log":
                     logger.info(f"Task {task_id} is in state PENDING")
                 elif format == "script":
-                    logger.info(f"{task_id} = PENDING")
+                    print(f"{task_id} = PENDING")
 
                 task_ids.insert(0, task_id)
 
@@ -73,7 +73,7 @@ class Run(Command):
                 if format == "log":
                     logger.info(f"Task {task_id} is in state SUCCESS")
                 elif format == "script":
-                    logger.info(f"{task_id} = SUCCESS")
+                    print(f"{task_id} = SUCCESS")
 
                 if output:
                     print(result.get())
@@ -83,7 +83,7 @@ class Run(Command):
                 if format == "log":
                     logger.info(f"Task {task_id} is in state STARTED")
                 elif format == "script":
-                    logger.info(f"{task_id} = STARTED")
+                    print(f"{task_id} = STARTED")
 
                 if live:
                     redis = Redis(host="redis", port="6379")
