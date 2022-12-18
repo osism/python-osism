@@ -379,7 +379,7 @@ class Run(Command):
                     f"Task {t.task_id} is running in background. No more output. Check ARA for logs."
                 )
             elif format == "script":
-                logger.info(f"{t.task_id}")
+                print(f"{t.task_id}")
 
             return rc
 
