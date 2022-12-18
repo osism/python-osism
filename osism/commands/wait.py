@@ -52,6 +52,7 @@ class Run(Command):
 
         app = Celery("wait")
         app.config_from_object(Config)
+        i = app.control.inspect()
 
         while task_ids:
             time.sleep(delay)
@@ -61,12 +62,19 @@ class Run(Command):
 
             if result.state == "PENDING":
 
-                if format == "log":
-                    logger.info(f"Task {task_id} is in state PENDING")
-                elif format == "script":
-                    print(f"{task_id} = PENDING")
+                q = i.query_task(f"{task_id}")
+                if not len([x for x in q.values() if len(x)]):
+                    if format == "log":
+                        logger.info(f"Task {task_id} is unavailable")
+                    elif format == "script":
+                        print(f"{task_id} = UNAVAILABLE")
+                else:
+                    if format == "log":
+                        logger.info(f"Task {task_id} is in state PENDING")
+                    elif format == "script":
+                        print(f"{task_id} = PENDING")
 
-                task_ids.insert(0, task_id)
+                    task_ids.insert(0, task_id)
 
             elif result.state == "SUCCESS":
 
