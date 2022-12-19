@@ -59,6 +59,8 @@ class Run(Command):
                     health_status = "REACHABLE"
                 table.append([node, display_time(s[node]["uptime"]), health_status])
 
-            print(tabulate(table, headers=["Name", "Uptime", "Status"], tablefmt="psql"))
+            print(
+                tabulate(table, headers=["Name", "Uptime", "Status"], tablefmt="psql")
+            )
         else:
             logger.error(f"Unknown resource type '{type_of_resource}'")
