@@ -27,7 +27,6 @@ MAP_ROLE2ROLE = {
         "redis",
         "mariadb",
         "rabbitmq",
-        "etcd",
         "phpmyadmin",
     ],
     "openstack-basic": [
