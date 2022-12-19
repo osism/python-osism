@@ -26,17 +26,27 @@ class List(Command):
         i = app.control.inspect()
 
         table = []
+
+        task_status = "ACTIVE"
         for worker, tasks in i.active().items():
             for task in tasks:
                 time_start = datetime.fromtimestamp(task["time_start"])
                 table.append(
-                    [worker, task["id"], task["name"], time_start, task["args"]]
+                    [worker, task["id"], task["name"], task_status, time_start, task["args"]]
+                )
+
+        task_status = "SCHEDULED"
+        for worker, tasks in i.scheduled().items():
+            for task in tasks:
+                time_start = datetime.fromtimestamp(task["time_start"])
+                table.append(
+                    [worker, task["id"], task["name"], task_status, time_start, task["args"]]
                 )
 
         print(
             tabulate(
                 table,
-                headers=["Worker", "ID", "Name", "Start time", "Arguments"],
+                headers=["Worker", "ID", "Name", "Status", "Start time", "Arguments"],
                 tablefmt="psql",
             )
         )
