@@ -32,7 +32,14 @@ class List(Command):
             for task in tasks:
                 time_start = datetime.fromtimestamp(task["time_start"])
                 table.append(
-                    [worker, task["id"], task["name"], task_status, time_start, task["args"]]
+                    [
+                        worker,
+                        task["id"],
+                        task["name"],
+                        task_status,
+                        time_start,
+                        task["args"],
+                    ]
                 )
 
         task_status = "SCHEDULED"
@@ -40,7 +47,14 @@ class List(Command):
             for task in tasks:
                 time_start = datetime.fromtimestamp(task["time_start"])
                 table.append(
-                    [worker, task["id"], task["name"], task_status, time_start, task["args"]]
+                    [
+                        worker,
+                        task["id"],
+                        task["name"],
+                        task_status,
+                        time_start,
+                        task["args"],
+                    ]
                 )
 
         print(

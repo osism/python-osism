@@ -1,13 +1,14 @@
 import argparse
 import time
 
+from celery import group
+from celery.result import GroupResult
 from cliff.command import Command
 from loguru import logger
-from redis import Redis
 
+from osism.core import enums
 from osism.tasks import ansible, ceph, kolla
-
-redis = Redis(host="redis", port="6379")
+from osism.utils import redis
 
 MAP_ROLE2ROLE = {
     "ceph-basic": [
@@ -326,26 +327,34 @@ class Run(Command):
         )
         return parser
 
-    def handle_role(self, arguments, environment, role, wait, format, timeout):
-        if not environment:
-            try:
-                environment = MAP_ROLE2ENVIRONMENT[role]
-            except:  # noqa: E722
-                environment = "custom"
+    def _handle_loadbalancer(self, t, wait, format, timeout):
+        # process the parent task
+        rc = self._handle_task(t.parent, wait, format, timeout)
 
-        if environment == "ceph":
-            if role.startswith("ceph-"):
-                t = ceph.run.delay(role[5:], arguments)
-            else:
-                t = ceph.run.delay(role, arguments)
-        elif environment == "kolla":
-            if role.startswith("kolla-"):
-                t = kolla.run.delay(role[6:], arguments)
-            else:
-                t = kolla.run.delay(role, arguments)
-        else:
-            t = ansible.run.delay(environment, role, arguments)
+        # It is necessary to wait for all task even if this is not excpected by the
+        # user because of the following exception thrown by the garbage collector.
+        #
+        # Exception ignored in: <function AsyncResult.__del__ at 0x7f8c91ac74c0>
+        # Traceback (most recent call last):
+        # [...]
+        # ImportError: sys.meta_path is None, Python is likely shutting down
 
+        if not wait:
+            t.parent.get()
+
+        # process the child tasks
+        if format == "log":
+            for c in t.children:
+                logger.info(
+                    f"Task {c.task_id} is running in background. No more output. Check ARA for logs."
+                )
+
+        # As explained above, it is neceesary to wait for all tasks.
+        t.get()
+
+        return rc
+
+    def _handle_task(self, t, wait, format, timeout):
         rc = 0
         if wait:
             p = redis.pubsub()
@@ -381,6 +390,39 @@ class Run(Command):
                 print(f"{t.task_id}")
 
             return rc
+
+    def handle_role(self, arguments, environment, role, wait, format, timeout):
+        if not environment:
+            try:
+                environment = MAP_ROLE2ENVIRONMENT[role]
+            except:  # noqa: E722
+                environment = "custom"
+
+        if environment == "ceph":
+            if role.startswith("ceph-"):
+                t = ceph.run.delay(role[5:], arguments)
+            else:
+                t = ceph.run.delay(role, arguments)
+        elif environment == "kolla":
+            if role.startswith("kolla-"):
+                t = kolla.run.delay(role[6:], arguments)
+            else:
+                t = kolla.run.delay(role, arguments)
+        elif role == "loadbalancer-ng":
+            g = group(
+                kolla.run.si(playbook, arguments)
+                for playbook in enums.LOADBALANCER_PLAYBOOKS
+            )
+            t = (kolla.run.s("loadbalancer-ng", arguments) | g).apply_async()
+        else:
+            t = ansible.run.delay(environment, role, arguments)
+
+        if isinstance(t, GroupResult):
+            rc = self._handle_loadbalancer(t, wait, format, timeout)
+        else:
+            rc = self._handle_task(t, wait, format, timeout)
+
+        return rc
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
