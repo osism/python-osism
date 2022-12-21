@@ -34,6 +34,7 @@ RUN apt-get update \
         procps \
     && python3 -m pip --no-cache-dir install -U 'pip==22.3.1' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
+    && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.ansible.txt \
     && python3 -m pip --no-cache-dir install --no-index /src \
     && git clone --depth 1 https://github.com/osism/mappings /mappings \
     && apt-get clean \
