@@ -13,9 +13,7 @@ RUN apt-get update \
     && python3 -m pip --no-cache-dir install -U 'pip==22.3.1' \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt \
-    && git clone --depth 1 https://github.com/osism/openstack-image-manager.git /openstack-image-manager \
     && git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager \
-    && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-image-manager/requirements.txt \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-project-manager/requirements.txt
 
 ARG PYTHON_VERSION=3.11
@@ -41,8 +39,10 @@ RUN apt-get update \
     && rm -rf /var/cache/apt /var/lib/apt/lists/* /tmp/* /var/tmp/* \
     && mkdir -p /ansible/logs \
     && git clone --depth 1 https://github.com/osism/openstack-image-manager.git /openstack-image-manager \
+    && mkdir -p /etc/images \
+    && cp /openstack-image-manager/etc/images/* /etc/images \
+    && rm -rf /openstack-image-manager \
     && git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager \
-    && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-image-manager/requirements.txt \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-project-manager/requirements.txt
 
 LABEL "org.opencontainers.image.documentation"="https://docs.osism.tech" \
