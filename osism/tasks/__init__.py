@@ -57,8 +57,8 @@ def run_ansible_in_environment(request_id, environment, role, arguments, publish
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
     #       not working out of the box
 
-    # execute roles from Kolla
-    if environment == "kolla":
+    # execute roles from kolla-ansible
+    if environment == "kolla" and not role.startswith("validate"):
         lock.acquire()
 
         if role == "mariadb_backup":
@@ -76,8 +76,8 @@ def run_ansible_in_environment(request_id, environment, role, arguments, publish
                 stderr=subprocess.STDOUT,
             )
 
-    # execute roles from Ceph
-    elif environment == "ceph":
+    # execute roles from ceph-ansible
+    elif environment == "ceph" and not role.startswith("validate"):
         lock.acquire()
         p = subprocess.Popen(
             f"/run.sh {role} {joined_arguments}",
