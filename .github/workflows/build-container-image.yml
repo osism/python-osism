@@ -11,6 +11,7 @@ name: Build container image
       - Containerfile
       - files/**
       - osism/**
+      - requirements.ansible.txt
       - requirements.txt
       - scripts/**
     branches:
@@ -21,6 +22,7 @@ name: Build container image
       - Containerfile
       - files/**
       - osism/**
+      - requirements.ansible.txt
       - requirements.txt
       - scripts/**
 
