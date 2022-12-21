@@ -3,7 +3,7 @@
     "github>osism/renovate-config",
     "github>osism/renovate-config:docker"
   ],
-  "pip_requierements": {
+  "pip_requirements": {
     "fileMatch": [
       "requirements.ansible.txt",
       "requirements.txt"
