@@ -12,7 +12,7 @@ kombu==5.2.4
 loguru==0.6.0
 napalm==4.0.0
 netmiko==4.1.2
-openstack-image-manager==0.2.0
+openstack-image-manager==0.2.1
 openstacksdk==0.103.0
 pottery==3.0.0
 pydantic==1.10.2
