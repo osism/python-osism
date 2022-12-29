@@ -13,7 +13,7 @@ class Run(Command):
             help="Type of the console (default: %(default)s)",
         )
         parser.add_argument(
-            "target",
+            "host",
             nargs=1,
             type=str,
             help="Hostname or address of the console to connect",
@@ -22,19 +22,19 @@ class Run(Command):
 
     def take_action(self, parsed_args):
         type_console = parsed_args.type
-        target = parsed_args.target[0]
+        host = parsed_args.host[0]
 
         if type_console == "ansible":
-            subprocess.call(f"/run-ansible-console.sh {target}", shell=True)
+            subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
         elif type_console == "ssh":
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator -o StrictHostKeyChecking=no -o LogLevel=ERROR dragon@{target}",
+                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator -o StrictHostKeyChecking=no -o LogLevel=ERROR dragon@{host}",
                 shell=True,
             )
         elif type_console == "container":
-            target_containername = target.split("/")[1]
-            target_hostname = target.split("/")[0]
+            target_containername = host.split("/")[1]
+            target_host = host.split("/")[0]
             target_command = "bash"
 
             ssh_command = f"docker exec -it {target_containername} {target_command}"
@@ -44,6 +44,6 @@ class Run(Command):
 
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{target_hostname} {ssh_command}",
+                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{target_host} {ssh_command}",
                 shell=True,
             )

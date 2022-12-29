@@ -26,7 +26,7 @@ class Ansible(Command):
 class Container(Command):
     def get_parser(self, prog_name):
         parser = super(Container, self).get_parser(prog_name)
-        parser.add_argument("target", nargs=1, type=str, help="Hostname or address")
+        parser.add_argument("host", nargs=1, type=str, help="Hostname or address")
         parser.add_argument(
             "container", nargs=1, type=str, help="Name of the container"
         )
@@ -39,7 +39,7 @@ class Container(Command):
         return parser
 
     def take_action(self, parsed_args):
-        target_hostname = parsed_args.target[0]
+        host = parsed_args.host[0]
         container_name = parsed_args.container[0]
         parameters = " ".join(parsed_args.parameter)
 
@@ -48,7 +48,7 @@ class Container(Command):
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
         subprocess.call(
-            f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{target_hostname} {ssh_command}",
+            f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
             shell=True,
         )
 
@@ -56,7 +56,7 @@ class Container(Command):
 class File(Command):
     def get_parser(self, prog_name):
         parser = super(File, self).get_parser(prog_name)
-        parser.add_argument("target", nargs=1, type=str, help="Hostname or address")
+        parser.add_argument("host", nargs=1, type=str, help="Hostname or address")
         return parser
 
     def take_action(self, parsed_args):
