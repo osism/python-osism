@@ -44,6 +44,17 @@ LOADBALANCER_PLAYBOOKS = [
     # "loadbalancer-zun",
 ]
 
+VALIDATE_PLAYBOOK2ENVIRONMENT = {
+    "ceph-mgrs": "ceph",
+    "ceph-mons": "ceph",
+    "ceph-osds": "ceph",
+    "container-status": "generic",
+    "kernel-version": "generic",
+    "mysql-open-files-limit": "generic",
+    "system-encoding": "generic",
+    "ulimits": "generic",
+}
+
 MAP_ROLE2ROLE = {
     "ceph-basic": [
         "ceph-mons",
