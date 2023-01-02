@@ -1,4 +1,4 @@
-# Copyright OSISM GmbH, 2022
+# Copyright OSISM GmbH, 2022-2023
 # LICENSE: CC BY-NC 4.0
 
 from osism import utils
