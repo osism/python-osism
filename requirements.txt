@@ -4,7 +4,7 @@ PyYAML==6.0
 ara==1.6.1
 celery[redis]==5.2.7
 cliff==4.1.0
-deepdiff==6.2.2
+deepdiff==6.2.3
 fastapi==0.88.0
 flower==1.2.0
 hiredis==2.1.0
