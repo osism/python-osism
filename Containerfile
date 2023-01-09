@@ -40,6 +40,7 @@ RUN apt-get update \
     && mkdir -p /ansible/logs \
     && git clone --depth 1 https://github.com/osism/openstack-image-manager.git /openstack-image-manager \
     && mkdir -p /etc/images \
+    && ln -s /opt/configuration/environments/openstack /etc/openstack \
     && cp /openstack-image-manager/etc/images/* /etc/images \
     && rm -rf /openstack-image-manager \
     && git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager \
