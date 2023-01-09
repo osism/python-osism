@@ -57,7 +57,4 @@ class Images(Command):
         subprocess.call(
             f"/usr/local/bin/openstack-image-manager --images=/etc/images {joined_arguments}",
             shell=True,
-            env={
-                "OS_CLIENT_CONFIG_FILE": "/opt/configuration/environments/openstack/clouds.yml"
-            },
         )
