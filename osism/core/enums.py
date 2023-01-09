@@ -305,6 +305,8 @@ MAP_ROLE2ENVIRONMENT = {
     "octavia": "kolla",
     "openvswitch": "kolla",
     "ovn": "kolla",
+    "ovn-controller": "kolla",
+    "ovn-db": "kolla",
     "ovs-dpdk": "kolla",
     "panko": "kolla",
     "placement": "kolla",
