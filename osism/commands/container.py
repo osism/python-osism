@@ -2,6 +2,7 @@ import argparse
 import subprocess
 
 from cliff.command import Command
+from prompt_toolkit import prompt
 
 
 class Run(Command):
@@ -20,11 +21,25 @@ class Run(Command):
         host = parsed_args.host[0]
         command = " ".join(parsed_args.command)
 
-        ssh_command = f"docker {command}"
         ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR"
 
-        # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
-        subprocess.call(
-            f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
-            shell=True,
-        )
+        if not command:
+            while True:
+                command = prompt(f"{host}>>> ")
+                if command in ["Exit", "exit", "EXIT"]:
+                    break
+
+                ssh_command = f"docker {command}"
+                # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
+                subprocess.call(
+                    f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
+                    shell=True,
+                )
+        else:
+            ssh_command = f"docker {command}"
+
+            # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
+            subprocess.call(
+                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
+                shell=True,
+            )
