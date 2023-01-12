@@ -1,8 +1,11 @@
 import argparse
+from glob import glob
+from os.path import basename
 
 from cliff.command import Command
 from loguru import logger
 from redis import Redis
+from tabulate import tabulate
 
 from osism.tasks import conductor, netbox, reconciler, ansible, openstack
 
@@ -153,7 +156,7 @@ class Manage(Command):
             default="rack",
         )
         parser.add_argument(
-            "name", nargs=1, type=str, help="Name of the resource to manage"
+            "name", nargs="?", type=str, help="Name of the resource to manage"
         )
         parser.add_argument(
             "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
@@ -168,19 +171,32 @@ class Manage(Command):
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
-        name = parsed_args.name[0]
-        wait = not parsed_args.no_wait
+        name = parsed_args.name
         type_of_resource = parsed_args.type
+        wait = not parsed_args.no_wait
 
-        task = ansible.run.delay(
-            "netbox-local", f"{type_of_resource}-{name}", arguments
-        )
+        if not name:
+            logger.info("No name of an object to be managed was given")
+            table = []
+            for playbook_type in ["rack"]:
+                playbooks = glob(
+                    f"/opt/configuration/netbox/playbooks/{playbook_type}-*.yml"
+                )
+                for playbook in playbooks:
+                    name = basename(playbook)[len(playbook_type) + 1 : -4]  # noqa E203
+                    table.append([playbook_type, name])
 
-        if wait:
-            logger.info(
-                f"Task {task.task_id} is running. Wait. No more output. Check ARA for logs."
+            print(tabulate(table, headers=["Type", "Name"], tablefmt="psql"))
+        else:
+            task = ansible.run.delay(
+                "netbox-local", f"{type_of_resource}-{name}", arguments
             )
-            task.wait(timeout=None, interval=0.5)
+
+            if wait:
+                logger.info(
+                    f"Task {task.task_id} is running. Wait. No more output. Check ARA for logs."
+                )
+                task.wait(timeout=None, interval=0.5)
 
 
 class Connect(Command):
