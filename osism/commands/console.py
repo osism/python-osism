@@ -24,6 +24,17 @@ class Run(Command):
         type_console = parsed_args.type
         host = parsed_args.host[0]
 
+        # If certain characters are contained in the hostname, then
+        # enforce a certain console type.
+
+        # ctl001/rabbitmq
+        if "/" in host:
+            type_console = "container"
+        # .ctl001
+        elif host.startswith("."):
+            type_console = "ansible"
+            host = host[1:]
+
         if type_console == "ansible":
             subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
         elif type_console == "ssh":
