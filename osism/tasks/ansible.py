@@ -8,7 +8,8 @@ app.config_from_object(Config)
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    sender.add_periodic_task(600.0, gather_facts.s(), expires=10)
+    # 43200 seconds = 12 hours
+    sender.add_periodic_task(43200.0, gather_facts.s(), expires=10)
 
 
 @app.task(bind=True, name="osism.tasks.ansible.gather_facts")
