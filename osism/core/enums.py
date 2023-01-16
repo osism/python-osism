@@ -57,6 +57,7 @@ VALIDATE_PLAYBOOK2ENVIRONMENT = {
 
 MAP_ROLE2ROLE = {
     "ceph-basic": [
+        "ceph-infra",
         "ceph-mons",
         "ceph-mgrs",
         "ceph-osds",
@@ -210,10 +211,11 @@ MAP_ROLE2ENVIRONMENT = {
     "vault-unseal": "manager",
     # CEPH
     "ceph-add-mon": "ceph",
+    "ceph-base": "ceph",
     "ceph-bootstrap-dashboard": "ceph",
     "ceph-ceph-keys": "ceph",
-    "ceph-cephadm-adopt": "ceph",
     "ceph-cephadm": "ceph",
+    "ceph-cephadm-adopt": "ceph",
     "ceph-clients": "ceph",
     "ceph-config": "ceph",
     "ceph-crash": "ceph",
@@ -222,6 +224,7 @@ MAP_ROLE2ENVIRONMENT = {
     "ceph-fetch-keys": "ceph",
     "ceph-filestore-to-bluestore": "ceph",
     "ceph-gather-ceph-logs": "ceph",
+    "ceph-infra": "ceph",
     "ceph-iscsigws": "ceph",
     "ceph-lv-create": "ceph",
     "ceph-lv-teardown": "ceph",
@@ -247,7 +250,6 @@ MAP_ROLE2ENVIRONMENT = {
     "ceph-storage-inventory": "ceph",
     "ceph-switch-from-non-containerized-to-containerized-ceph-daemons": "ceph",
     "ceph-take-over-existing-cluster": "ceph",
-    "ceph-base": "ceph",
     # KOLLA
     "aodh": "kolla",
     "barbican": "kolla",
