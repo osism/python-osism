@@ -1,6 +1,7 @@
 import subprocess
 
 from cliff.command import Command
+from prompt_toolkit import prompt
 
 
 class Run(Command):
@@ -27,22 +28,39 @@ class Run(Command):
         # If certain characters are contained in the hostname, then
         # enforce a certain console type.
 
+        # ctl001/
+        if host.endswith("/"):
+            type_console = "container_prompt"
         # ctl001/rabbitmq
-        if "/" in host:
+        elif "/" in host:
             type_console = "container"
         # .ctl001
         elif host.startswith("."):
             type_console = "ansible"
             host = host[1:]
 
+        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR"
+
         if type_console == "ansible":
             subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
         elif type_console == "ssh":
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator -o StrictHostKeyChecking=no -o LogLevel=ERROR dragon@{host}",
+                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host}",
                 shell=True,
             )
+        elif type_console == "container_prompt":
+            while True:
+                command = prompt(f"{host[:-1]}>>> ")
+                if command in ["Exit", "exit", "EXIT"]:
+                    break
+
+                ssh_command = f"docker {command}"
+                # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
+                subprocess.call(
+                    f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host[:-1]} {ssh_command}",
+                    shell=True,
+                )
         elif type_console == "container":
             target_containername = host.split("/")[1]
             target_host = host.split("/")[0]
