@@ -5,8 +5,10 @@ from celery import group
 from celery.result import GroupResult
 from cliff.command import Command
 from loguru import logger
+from tabulate import tabulate
 
 from osism.core import enums
+from osism.core.enums import MAP_ROLE2ENVIRONMENT
 from osism.tasks import ansible, ceph, kolla
 from osism.utils import redis
 
@@ -17,7 +19,7 @@ class Run(Command):
         parser.add_argument(
             "--environment", type=str, help="Environment that is to be used explicitly"
         )
-        parser.add_argument("role", nargs=1, type=str, help="Role to be applied")
+        parser.add_argument("role", nargs="?", type=str, help="Role to be applied")
         parser.add_argument(
             "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
         )
@@ -144,11 +146,21 @@ class Run(Command):
         arguments = parsed_args.arguments
         environment = parsed_args.environment
         format = parsed_args.format
-        role = parsed_args.role[0]
+        role = parsed_args.role
         timeout = parsed_args.timeout
         wait = not parsed_args.no_wait
 
-        if role in enums.MAP_ROLE2ROLE:
+        rc = 0
+
+        if not role:
+            table = []
+            for role in MAP_ROLE2ENVIRONMENT:
+                table.append([role, MAP_ROLE2ENVIRONMENT[role]])
+            logger.info(
+                "No playbook given for execution. The playbooks listed in the table can be used."
+            )
+            print(tabulate(table, headers=["Role", "Environment"], tablefmt="psql"))
+        elif role in enums.MAP_ROLE2ROLE:
             for r in enums.MAP_ROLE2ROLE[role]:
                 rc = self.handle_role(arguments, environment, r, wait, format, timeout)
                 if rc != 0:
