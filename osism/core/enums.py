@@ -86,7 +86,6 @@ MAP_ROLE2ROLE = {
         "nova",
         "barbican",
         "designate",
-        "heat",
         "octavia",
     ],
     "openstack-extended": ["gnocchi", "ceilometer", "aodh", "senlin"],
