@@ -22,6 +22,7 @@ FROM python:${PYTHON_VERSION}-slim as osism
 COPY --from=builder /wheels /wheels
 COPY . /src
 COPY files/change.sh /change.sh
+COPY files/cleanup-ansible-collections.sh /cleanup-ansible-collections.sh
 COPY files/run-ansible-console.sh /run-ansible-console.sh
 
 # hadolint ignore=DL3008
@@ -44,7 +45,9 @@ RUN apt-get update \
     && cp /openstack-image-manager/etc/images/* /etc/images \
     && rm -rf /openstack-image-manager \
     && git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager \
-    && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-project-manager/requirements.txt
+    && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-project-manager/requirements.txt \
+    && bash /cleanup-ansible-collections.sh \
+    && rm cleanup-ansible-collections.sh
 
 LABEL "org.opencontainers.image.documentation"="https://docs.osism.tech" \
       "org.opencontainers.image.licenses"="ASL 2.0" \
