@@ -88,7 +88,6 @@ class Run(Command):
         timeout = parsed_args.timeout
         wait = not parsed_args.no_wait
 
-        environment = VALIDATE_PLAYBOOKS[validator]["environment"]
         runtime = VALIDATE_PLAYBOOKS[validator]["runtime"]
 
         if "playbook" in VALIDATE_PLAYBOOKS[validator]:
@@ -97,10 +96,11 @@ class Run(Command):
             playbook = f"validate-{validator}"
 
         if runtime == "ceph-ansible":
-            t = ceph.run.delay(environment, playbook, arguments)
+            t = ceph.run.delay(playbook, arguments)
         elif runtime == "kolla-ansible":
-            t = kolla.run.delay(environment, playbook, arguments)
+            t = kolla.run.delay(playbook, arguments)
         else:
+            environment = VALIDATE_PLAYBOOKS[validator]["environment"]
             t = ansible.run.delay(environment, playbook, arguments)
 
         rc = self._handle_task(t, wait, format, timeout)
