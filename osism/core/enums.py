@@ -50,9 +50,8 @@ VALIDATE_PLAYBOOKS = {
     # deploys the Ceph configuration itself. So this is rewritten from
     # ceph-config to ceph-validate.
     "ceph-config": {
-        "environment": "ceph",
         "runtime": "ceph-ansible",
-        "playbook": "ceph-validate",
+        "playbook": "validate",
     },
     # NOTE: The playbooks for validating the Ceph deployment are currently
     # in osism/ansible-playbooks. Therefore, they are not executed in
