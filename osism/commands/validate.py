@@ -4,8 +4,8 @@ import time
 from cliff.command import Command
 from loguru import logger
 
-from osism.core.enums import VALIDATE_PLAYBOOK2ENVIRONMENT
-from osism.tasks import ansible
+from osism.core.enums import VALIDATE_PLAYBOOKS
+from osism.tasks import ansible, ceph, kolla
 from osism.utils import redis
 
 
@@ -17,7 +17,7 @@ class Run(Command):
             nargs=1,
             type=str,
             help="Validator to run",
-            choices=VALIDATE_PLAYBOOK2ENVIRONMENT.keys(),
+            choices=VALIDATE_PLAYBOOKS.keys(),
         )
         parser.add_argument(
             "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
@@ -88,8 +88,21 @@ class Run(Command):
         timeout = parsed_args.timeout
         wait = not parsed_args.no_wait
 
-        environment = VALIDATE_PLAYBOOK2ENVIRONMENT[validator]
-        t = ansible.run.delay(environment, f"validate-{validator}", arguments)
+        environment = VALIDATE_PLAYBOOKS[validator]["environment"]
+        runtime = VALIDATE_PLAYBOOKS[validator]["runtime"]
+
+        if "playbook" in VALIDATE_PLAYBOOKS[validator]:
+            playbook = VALIDATE_PLAYBOOKS[validator]["playbook"]
+        else:
+            playbook = f"validate-{validator}"
+
+        if runtime == "ceph-ansible":
+            t = ceph.run.delay(environment, playbook, arguments)
+        elif runtime == "kolla-ansible":
+            t = kolla.run.delay(environment, playbook, arguments)
+        else:
+            t = ansible.run.delay(environment, playbook, arguments)
+
         rc = self._handle_task(t, wait, format, timeout)
 
         return rc

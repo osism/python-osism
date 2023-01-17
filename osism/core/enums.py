@@ -44,15 +44,27 @@ LOADBALANCER_PLAYBOOKS = [
     # "loadbalancer-zun",
 ]
 
-VALIDATE_PLAYBOOK2ENVIRONMENT = {
-    "ceph-mgrs": "ceph",
-    "ceph-mons": "ceph",
-    "ceph-osds": "ceph",
-    "container-status": "generic",
-    "kernel-version": "generic",
-    "mysql-open-files-limit": "generic",
-    "system-encoding": "generic",
-    "ulimits": "generic",
+VALIDATE_PLAYBOOKS = {
+    # NOTE: The command should be "osism validate ceph-config". However,
+    # the corresponding playbook is called ceph-validate because ceph-config
+    # deploys the Ceph configuration itself. So this is rewritten from
+    # ceph-config to ceph-validate.
+    "ceph-config": {
+        "environment": "ceph",
+        "runtime": "ceph-ansible",
+        "playbook": "ceph-validate",
+    },
+    # NOTE: The playbooks for validating the Ceph deployment are currently
+    # in osism/ansible-playbooks. Therefore, they are not executed in
+    # ceph-ansible but in osism-ansible.
+    "ceph-mgrs": {"environment": "ceph", "runtime": "osism-ansible"},
+    "ceph-mons": {"environment": "ceph", "runtime": "osism-ansible"},
+    "ceph-osds": {"environment": "ceph", "runtime": "osism-ansible"},
+    "container-status": {"environment": "generic", "runtime": "osism-ansible"},
+    "kernel-version": {"environment": "generic", "runtime": "osism-ansible"},
+    "mysql-open-files-limit": {"environment": "generic", "runtime": "osism-ansible"},
+    "system-encoding": {"environment": "generic", "runtime": "osism-ansible"},
+    "ulimits": {"environment": "generic", "runtime": "osism-ansible"},
 }
 
 MAP_ROLE2ROLE = {
