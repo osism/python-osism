@@ -128,6 +128,7 @@ MAP_ROLE2ENVIRONMENT = {
     "configfs": "generic",
     "docker": "generic",
     "docker-compose": "generic",
+    "docker-login": "generic",
     "dotfiles": "generic",
     "dump-facts": "generic",
     "facts": "generic",
