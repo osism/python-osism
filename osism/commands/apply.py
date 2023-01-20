@@ -157,7 +157,7 @@ class Run(Command):
             for role in MAP_ROLE2ENVIRONMENT:
                 table.append([role, MAP_ROLE2ENVIRONMENT[role]])
             logger.info(
-                "No playbook given for execution. The playbooks listed in the table can be used."
+                "No role given for execution. The roles listed in the table can be used."
             )
             print(tabulate(table, headers=["Role", "Environment"], tablefmt="psql"))
         elif role in enums.MAP_ROLE2ROLE:
