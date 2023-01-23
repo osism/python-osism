@@ -135,6 +135,7 @@ MAP_ROLE2ENVIRONMENT = {
     "fail2ban": "generic",
     "falco": "generic",
     "firewall": "generic",
+    "frr": "generic",
     "grub": "generic",
     "halt": "generic",
     "hardening": "generic",
