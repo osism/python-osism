@@ -10,7 +10,7 @@ class Run(Command):
         parser.add_argument(
             "--type",
             default="ssh",
-            choices=["ansible", "container", "ssh"],
+            choices=["ansible", "clush", "container", "ssh"],
             help="Type of the console (default: %(default)s)",
         )
         parser.add_argument(
@@ -38,11 +38,21 @@ class Run(Command):
         elif host.startswith("."):
             type_console = "ansible"
             host = host[1:]
+        # :ctl00[1-3]
+        elif host.startswith(":"):
+            type_console = "clush"
+            host = host[1:]
 
         ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR"
 
         if type_console == "ansible":
             subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
+        elif type_console == "clush":
+            clush_ssh_options = "-o IdentityFile=/ansible/secrets/id_rsa.operator"
+            subprocess.call(
+                f"/usr/bin/clush -l dragon {clush_ssh_options} {ssh_options} -w {host}",
+                shell=True,
+            )
         elif type_console == "ssh":
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
