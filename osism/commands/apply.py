@@ -19,6 +19,23 @@ class Run(Command):
         parser.add_argument(
             "--environment", type=str, help="Environment that is to be used explicitly"
         )
+        parser.add_argument(
+            "--action",
+            "-a",
+            dest="action",
+            type=str,
+            help="Action to be applied (can only be used for OpenStack playbooks) (default: %(default)s)",
+            choices=[
+                "deploy",
+                "precheck",
+                "pull",
+                "reconfigure",
+                "refresh-containers",
+                "stop",
+                "upgrade",
+            ],
+            default="deploy",
+        )
         parser.add_argument("role", nargs="?", type=str, help="Role to be applied")
         parser.add_argument(
             "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
@@ -109,7 +126,7 @@ class Run(Command):
 
             return rc
 
-    def handle_role(self, arguments, environment, role, wait, format, timeout):
+    def handle_role(self, arguments, environment, role, action, wait, format, timeout):
         if not environment:
             try:
                 environment = enums.MAP_ROLE2ENVIRONMENT[role]
@@ -122,6 +139,7 @@ class Run(Command):
             else:
                 t = ceph.run.delay(role, arguments)
         elif environment == "kolla":
+            arguments.append(f"-e kolla_action={action}")
             if role.startswith("kolla-"):
                 t = kolla.run.delay(role[6:], arguments)
             else:
@@ -145,6 +163,7 @@ class Run(Command):
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
         environment = parsed_args.environment
+        action = parsed_args.action
         format = parsed_args.format
         role = parsed_args.role
         timeout = parsed_args.timeout
@@ -162,10 +181,14 @@ class Run(Command):
             print(tabulate(table, headers=["Role", "Environment"], tablefmt="psql"))
         elif role in enums.MAP_ROLE2ROLE:
             for r in enums.MAP_ROLE2ROLE[role]:
-                rc = self.handle_role(arguments, environment, r, wait, format, timeout)
+                rc = self.handle_role(
+                    arguments, environment, action, r, wait, format, timeout
+                )
                 if rc != 0:
                     break
         else:
-            rc = self.handle_role(arguments, environment, role, wait, format, timeout)
+            rc = self.handle_role(
+                arguments, environment, role, action, wait, format, timeout
+            )
 
         return rc
