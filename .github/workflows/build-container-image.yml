@@ -4,7 +4,7 @@ name: Build container image
 "on":
   workflow_dispatch:
   schedule:
-    - cron: "0 8-22 * * *"
+    - cron: "0 0 * * *"
   push:
     paths:
       - .github/workflows/build-container-image.yml
