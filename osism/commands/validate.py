@@ -98,6 +98,7 @@ class Run(Command):
         if runtime == "ceph-ansible":
             t = ceph.run.delay(playbook, arguments)
         elif runtime == "kolla-ansible":
+            arguments.append("-e kolla_action=config_validate")
             t = kolla.run.delay(playbook, arguments)
         else:
             environment = VALIDATE_PLAYBOOKS[validator]["environment"]

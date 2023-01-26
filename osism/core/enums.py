@@ -45,6 +45,66 @@ LOADBALANCER_PLAYBOOKS = [
 ]
 
 VALIDATE_PLAYBOOKS = {
+    "barbican-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "barbican",
+    },
+    "designate-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "designate",
+    },
+    "keystone-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "keystone",
+    },
+    "glance-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "glance",
+    },
+    "heat-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "heat",
+    },
+    "octavia-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "octavia",
+    },
+    "nova-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "nova",
+    },
+    "neutron-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "neutron",
+    },
+    "placement-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "placement",
+    },
+    "aodh-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "aodh",
+    },
+    "ceilometer-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "ceilometer",
+    },
+    "cloudkitty-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "cloudkitty",
+    },
+    "ironic-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "ironic",
+    },
+    "manila-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "manila",
+    },
+    "senlin-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "senlin",
+    },
     # NOTE: The command should be "osism validate ceph-config". However,
     # the corresponding playbook is called ceph-validate because ceph-config
     # deploys the Ceph configuration itself. So this is rewritten from
