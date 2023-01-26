@@ -13,6 +13,7 @@ name: Build container image
       - osism/**
       - requirements.ansible.txt
       - requirements.txt
+      - requirements.yml
       - scripts/**
     branches:
       - main
@@ -24,6 +25,7 @@ name: Build container image
       - osism/**
       - requirements.ansible.txt
       - requirements.txt
+      - requirements.yml
       - scripts/**
 
 jobs:
