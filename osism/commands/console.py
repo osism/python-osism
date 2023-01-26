@@ -49,7 +49,7 @@ class Run(Command):
             subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
         elif type_console == "clush":
             subprocess.call(
-                f"/usr/bin/clush -l dragon -w {host}",
+                f"/usr/local/bin/clush -l dragon -w {host}",
                 shell=True,
             )
         elif type_console == "ssh":
