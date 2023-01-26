@@ -49,6 +49,8 @@ RUN apt-get update \
     && bash /cleanup-ansible-collections.sh \
     && rm cleanup-ansible-collections.sh
 
+COPY files/clush.conf /etc/clustershell/clush.conf
+
 LABEL "org.opencontainers.image.documentation"="https://docs.osism.tech" \
       "org.opencontainers.image.licenses"="ASL 2.0" \
       "org.opencontainers.image.source"="https://github.com/osism/python-osism" \

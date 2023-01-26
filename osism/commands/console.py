@@ -48,9 +48,8 @@ class Run(Command):
         if type_console == "ansible":
             subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
         elif type_console == "clush":
-            clush_ssh_options = "-o IdentityFile=/ansible/secrets/id_rsa.operator"
             subprocess.call(
-                f"/usr/bin/clush -l dragon {clush_ssh_options} {ssh_options} -w {host}",
+                f"/usr/bin/clush -l dragon -w {host}",
                 shell=True,
             )
         elif type_console == "ssh":
