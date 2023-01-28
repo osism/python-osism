@@ -182,6 +182,7 @@ MAP_ROLE2ENVIRONMENT = {
     "cleanup-docker": "generic",
     "cleanup-docker-images": "generic",
     "cleanup-elasticsearch": "generic",
+    "cleanup-opensearch": "generic",
     "cleanup-queues": "generic",
     "cleanup-sosreport": "generic",
     "cockpit": "generic",
