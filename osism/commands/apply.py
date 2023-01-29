@@ -139,11 +139,11 @@ class Run(Command):
             else:
                 t = ceph.run.delay(role, arguments)
         elif environment == "kolla":
-            arguments.append(f"-e kolla_action={action}")
+            kolla_arguments = [f"-e kolla_action={action}"] + arguments
             if role.startswith("kolla-"):
-                t = kolla.run.delay(role[6:], arguments)
+                t = kolla.run.delay(role[6:], kolla_arguments)
             else:
-                t = kolla.run.delay(role, arguments)
+                t = kolla.run.delay(role, kolla_arguments)
         elif role == "loadbalancer-ng":
             g = group(
                 kolla.run.si(playbook, arguments)
