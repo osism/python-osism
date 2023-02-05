@@ -8,7 +8,7 @@ from loguru import logger
 from tabulate import tabulate
 
 from osism.core import enums
-from osism.core.enums import MAP_ROLE2ENVIRONMENT
+from osism.core.playbooks import MAP_ROLE2ENVIRONMENT
 from osism.tasks import ansible, ceph, kolla
 from osism.utils import redis
 
@@ -129,7 +129,7 @@ class Run(Command):
     def handle_role(self, arguments, environment, role, action, wait, format, timeout):
         if not environment:
             try:
-                environment = enums.MAP_ROLE2ENVIRONMENT[role]
+                environment = MAP_ROLE2ENVIRONMENT[role]
             except:  # noqa: E722
                 environment = "custom"
 
