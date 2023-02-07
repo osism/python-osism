@@ -15,7 +15,7 @@ collections:
   - name: community.general
     version: 6.3.0
   - name: community.grafana
-    version: 1.5.3
+    version: 1.5.4
   - name: community.hashi_vault
     version: 4.1.0
   - name: community.mysql
