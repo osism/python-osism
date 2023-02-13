@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "01224e5516872e86ff0dff98d69b22a40ce50b130ee78a9554a9819c676e79ca"
+            "sha256": "ac777a370d8b12ef8251022c840100cdacac6bdb11a373431321831aeb35b56a"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -319,11 +319,11 @@
         },
         "cliff": {
             "hashes": [
-                "sha256:99a98ef89cc19b2970be4de94a266217c6e0729c6b80145865af449c9032a0e3",
-                "sha256:bbee82127308472a3123ed10b5289616cb2c435074656dd072e55363053d091c"
+                "sha256:5538a03299f40f83268ba102ed513c2a693ffeb6ac01de7cc119ae9cfc55e55d",
+                "sha256:97fc31e93552e3bec664be9d55ad7f90dc2ab42aad8df29a5b985b644c9b8cf2"
             ],
             "index": "pypi",
-            "version": "==4.1.0"
+            "version": "==4.2.0"
         },
         "clustershell": {
             "hashes": [
@@ -667,11 +667,11 @@
         },
         "keystoneauth1": {
             "hashes": [
-                "sha256:7fd532490ce4cf3f41d7b3a5804bf293fc58e2d88b8365d4cad90c0faf95f68f",
-                "sha256:8ca23b5bf9cb6bc2c836790326505c85c01ad78d707b43d6b766197bdb26d1d3"
+                "sha256:d9f7484ad5fc9b0bbb7ecc3cbf3795a170694fbd848251331e54ba48bbeecc72",
+                "sha256:dc71d6a5d22bbf69b024d7dc7ca1e1213cbcc91a3a7d437a68cb3013a53d1633"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==5.1.1"
+            "version": "==5.1.2"
         },
         "kombu": {
             "hashes": [
