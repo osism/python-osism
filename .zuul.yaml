@@ -5,6 +5,8 @@
     check:
       jobs:
         - flake8
+        - hadolint
     gate:
       jobs:
         - flake8
+        - hadolint
