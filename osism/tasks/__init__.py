@@ -43,7 +43,6 @@ def celery_init_worker(**kwargs):
 def run_ansible_in_environment(
     request_id, worker, environment, role, arguments, publish=True
 ):
-    logger.info(f"worker = {worker}, environment = {environment}, role = {role}")
     result = ""
 
     if type(arguments) == list:
@@ -51,7 +50,20 @@ def run_ansible_in_environment(
     else:
         joined_arguments = arguments
 
-    env = {"ENVIRONMENT": environment}
+    env = {}
+
+    # handle sub environments
+    if "." in environment:
+        sub = environment.split(".")[1]
+        environment = environment.split(".")[0]
+        env["SUB"] = sub
+        logger.info(
+            f"worker = {worker}, environment = {environment}, sub = {sub}, role = {role}"
+        )
+    else:
+        logger.info(f"worker = {worker}, environment = {environment}, role = {role}")
+
+    env["ENVIRONMENT"] = environment
 
     # NOTE: Consider arguments in the future
     lock = Redlock(
