@@ -20,6 +20,11 @@ class Run(Command):
             "--environment", type=str, help="Environment that is to be used explicitly"
         )
         parser.add_argument(
+            "--overwrite",
+            type=str,
+            help="Overwrite the environment after the mapping on the worker (has no effect on ceph and kolla environments)",
+        )
+        parser.add_argument(
             "--action",
             "-a",
             dest="action",
@@ -126,7 +131,9 @@ class Run(Command):
 
             return rc
 
-    def handle_role(self, arguments, environment, role, action, wait, format, timeout):
+    def handle_role(
+        self, arguments, environment, overwrite, role, action, wait, format, timeout
+    ):
         if not environment:
             try:
                 environment = MAP_ROLE2ENVIRONMENT[role]
@@ -151,6 +158,9 @@ class Run(Command):
             )
             t = (kolla.run.s("loadbalancer-ng", arguments) | g).apply_async()
         else:
+            # Overwrite the environment
+            if overwrite:
+                environment = overwrite
             t = ansible.run.delay(environment, role, arguments)
 
         if isinstance(t, GroupResult):
@@ -161,10 +171,11 @@ class Run(Command):
         return rc
 
     def take_action(self, parsed_args):
+        action = parsed_args.action
         arguments = parsed_args.arguments
         environment = parsed_args.environment
-        action = parsed_args.action
         format = parsed_args.format
+        overwrite = parsed_args.overwrite
         role = parsed_args.role
         timeout = parsed_args.timeout
         wait = not parsed_args.no_wait
@@ -182,13 +193,13 @@ class Run(Command):
         elif role in enums.MAP_ROLE2ROLE:
             for r in enums.MAP_ROLE2ROLE[role]:
                 rc = self.handle_role(
-                    arguments, environment, action, r, wait, format, timeout
+                    arguments, environment, overwrite, action, r, wait, format, timeout
                 )
                 if rc != 0:
                     break
         else:
             rc = self.handle_role(
-                arguments, environment, role, action, wait, format, timeout
+                arguments, environment, overwrite, role, action, wait, format, timeout
             )
 
         return rc
