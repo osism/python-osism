@@ -51,6 +51,8 @@ def run_ansible_in_environment(
     else:
         joined_arguments = arguments
 
+    env = {"ENVIRONMENT": environment}
+
     # NOTE: Consider arguments in the future
     lock = Redlock(
         key=f"lock-ansible-{environment}-{role}",
@@ -71,6 +73,7 @@ def run_ansible_in_environment(
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                env=env,
             )
         else:
             p = subprocess.Popen(
@@ -78,6 +81,7 @@ def run_ansible_in_environment(
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                env=env,
             )
 
     # execute roles from ceph-ansible
@@ -88,6 +92,7 @@ def run_ansible_in_environment(
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=env,
         )
 
     # execute the bifrost-command role
