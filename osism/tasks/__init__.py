@@ -54,11 +54,11 @@ def run_ansible_in_environment(
 
     # handle sub environments
     if "." in environment:
-        sub = environment.split(".")[1]
+        sub_name = environment.split(".")[1]
+        env["SUB"] = environment
         environment = environment.split(".")[0]
-        env["SUB"] = sub
         logger.info(
-            f"worker = {worker}, environment = {environment}, sub = {sub}, role = {role}"
+            f"worker = {worker}, environment = {environment}, sub = {sub_name}, role = {role}"
         )
     else:
         logger.info(f"worker = {worker}, environment = {environment}, role = {role}")
