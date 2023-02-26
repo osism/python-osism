@@ -183,6 +183,7 @@ class Run(Command):
             # Overwrite the environment
             if overwrite:
                 environment = overwrite
+                print(environment)
             t = ansible.run.delay(environment, role, arguments)
 
         if isinstance(t, GroupResult):
