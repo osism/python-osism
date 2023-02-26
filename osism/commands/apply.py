@@ -25,6 +25,11 @@ class Run(Command):
             help="Overwrite the environment after the mapping on the worker (has no effect on ceph and kolla environments)",
         )
         parser.add_argument(
+            "--sub",
+            type=str,
+            help="Use a sub-environment (e.g. ceph.zone-b or kolla.zone-b)",
+        )
+        parser.add_argument(
             "--action",
             "-a",
             dest="action",
@@ -132,7 +137,16 @@ class Run(Command):
             return rc
 
     def handle_role(
-        self, arguments, environment, overwrite, role, action, wait, format, timeout
+        self,
+        arguments,
+        environment,
+        overwrite,
+        sub,
+        role,
+        action,
+        wait,
+        format,
+        timeout,
     ):
         if not environment:
             try:
@@ -141,22 +155,30 @@ class Run(Command):
                 environment = "custom"
 
         if environment == "ceph":
+            if sub:
+                environment = f"{environment}.{sub}"
             if role.startswith("ceph-"):
-                t = ceph.run.delay(role[5:], arguments)
+                t = ceph.run.delay(environment, role[5:], arguments)
             else:
-                t = ceph.run.delay(role, arguments)
+                t = ceph.run.delay(environment, role, arguments)
         elif environment == "kolla":
+            if sub:
+                environment = f"{environment}.{sub}"
             kolla_arguments = [f"-e kolla_action={action}"] + arguments
             if role.startswith("kolla-"):
-                t = kolla.run.delay(role[6:], kolla_arguments)
+                t = kolla.run.delay(environment, role[6:], kolla_arguments)
             else:
-                t = kolla.run.delay(role, kolla_arguments)
+                t = kolla.run.delay(environment, role, kolla_arguments)
         elif role == "loadbalancer-ng":
+            if sub:
+                environment = f"{environment}.{sub}"
             g = group(
-                kolla.run.si(playbook, arguments)
+                kolla.run.si(environment, playbook, arguments)
                 for playbook in enums.LOADBALANCER_PLAYBOOKS
             )
-            t = (kolla.run.s("loadbalancer-ng", arguments) | g).apply_async()
+            t = (
+                kolla.run.s(environment, "loadbalancer-ng", arguments) | g
+            ).apply_async()
         else:
             # Overwrite the environment
             if overwrite:
@@ -177,6 +199,7 @@ class Run(Command):
         format = parsed_args.format
         overwrite = parsed_args.overwrite
         role = parsed_args.role
+        sub = parsed_args.sub
         timeout = parsed_args.timeout
         wait = not parsed_args.no_wait
 
@@ -193,13 +216,29 @@ class Run(Command):
         elif role in enums.MAP_ROLE2ROLE:
             for r in enums.MAP_ROLE2ROLE[role]:
                 rc = self.handle_role(
-                    arguments, environment, overwrite, action, r, wait, format, timeout
+                    arguments,
+                    environment,
+                    overwrite,
+                    sub,
+                    action,
+                    r,
+                    wait,
+                    format,
+                    timeout,
                 )
                 if rc != 0:
                     break
         else:
             rc = self.handle_role(
-                arguments, environment, overwrite, role, action, wait, format, timeout
+                arguments,
+                environment,
+                overwrite,
+                sub,
+                role,
+                action,
+                wait,
+                format,
+                timeout,
             )
 
         return rc
