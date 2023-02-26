@@ -5,6 +5,7 @@ import subprocess
 
 # import ansible_runner
 from celery.signals import worker_process_init
+from loguru import logger
 from redis import Redis
 from pottery import Redlock
 
@@ -39,7 +40,10 @@ def celery_init_worker(**kwargs):
     redis = Redis(host="redis", port="6379")
 
 
-def run_ansible_in_environment(request_id, environment, role, arguments, publish=True):
+def run_ansible_in_environment(
+    request_id, worker, environment, role, arguments, publish=True
+):
+    logger.info(f"worker = {worker}, environment = {environment}, role = {role}")
     result = ""
 
     if type(arguments) == list:
@@ -58,7 +62,7 @@ def run_ansible_in_environment(request_id, environment, role, arguments, publish
     #       not working out of the box
 
     # execute roles from kolla-ansible
-    if environment == "kolla" and not role.startswith("validate"):
+    if worker == "kolla-ansible":
         lock.acquire()
 
         if role == "mariadb_backup":
@@ -77,7 +81,7 @@ def run_ansible_in_environment(request_id, environment, role, arguments, publish
             )
 
     # execute roles from ceph-ansible
-    elif environment == "ceph" and not role.startswith("validate"):
+    elif worker == "ceph-ansible":
         lock.acquire()
         p = subprocess.Popen(
             f"/run.sh {role} {joined_arguments}",
@@ -87,7 +91,11 @@ def run_ansible_in_environment(request_id, environment, role, arguments, publish
         )
 
     # execute the bifrost-command role
-    elif environment == "manager" and role == "bifrost-command":
+    elif (
+        worker == "osism-ansible"
+        and environment == "manager"
+        and role == "bifrost-command"
+    ):
         p = subprocess.Popen(
             f'/run-manager.sh bifrost-command "-e bifrost_arguments=\'{joined_arguments}\'" "-e bifrost_result_id={request_id}"',
             shell=True,
@@ -106,7 +114,11 @@ def run_ansible_in_environment(request_id, environment, role, arguments, publish
         )
 
     # process the bifrost-command result
-    if environment == "manager" and role == "bifrost-command":
+    if (
+        worker == "osism-ansible"
+        and environment == "manager"
+        and role == "bifrost-command"
+    ):
         p.wait()
 
         # Check for JSON result

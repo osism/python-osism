@@ -14,11 +14,13 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task(bind=True, name="osism.tasks.ansible.gather_facts")
 def gather_facts(self, publish=True):
-    return run_ansible_in_environment(self.request.id, "generic", "facts", [], publish)
+    return run_ansible_in_environment(
+        self.request.id, "osism-ansible", "generic", "facts", [], publish
+    )
 
 
 @app.task(bind=True, name="osism.tasks.ansible.run")
 def run(self, environment, playbook, arguments, publish=True):
     return run_ansible_in_environment(
-        self.request.id, environment, playbook, arguments, publish
+        self.request.id, "osism-ansible", environment, playbook, arguments, publish
     )
