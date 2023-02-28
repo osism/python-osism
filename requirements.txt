@@ -15,7 +15,7 @@ napalm==4.0.0
 netmiko==4.1.2
 openstacksdk==0.103.0
 pottery==3.0.0
-prompt-toolkit==3.0.37
+prompt-toolkit==3.0.38
 pydantic==1.10.5
 pynetbox==7.0.1
 sqlmodel==0.0.8
