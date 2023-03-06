@@ -41,6 +41,7 @@ class Run(Command):
                 "pull",
                 "reconfigure",
                 "refresh-containers",
+                "rolling-upgrade",
                 "stop",
                 "upgrade",
             ],
@@ -164,6 +165,8 @@ class Run(Command):
         elif environment == "kolla":
             if sub:
                 environment = f"{environment}.{sub}"
+            if action == "rolling-upgrade":
+                action = "rolling_upgrade"
             kolla_arguments = [f"-e kolla_action={action}"] + arguments
             if role.startswith("kolla-"):
                 t = kolla.run.delay(environment, role[6:], kolla_arguments)
