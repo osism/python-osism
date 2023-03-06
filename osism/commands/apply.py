@@ -17,7 +17,8 @@ class Run(Command):
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument(
-            "--environment", type=str, help="Environment that is to be used explicitly"
+            "--environment", type=str, help="Environment that is to be used explicitly",
+            "-e",
         )
         parser.add_argument(
             "--overwrite",
