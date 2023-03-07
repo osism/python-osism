@@ -50,9 +50,11 @@ class Images(Command):
 
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
-        filter = parsed_args.filter
-        names = parsed_args.name
         dry_run = parsed_args.dry_run
+        filter = parsed_args.filter
+        hdie = parsed_args.hide
+        latest = parsed_args.latest
+        names = parsed_args.name
 
         arguments = []
         if cloud:
