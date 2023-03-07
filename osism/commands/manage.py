@@ -19,6 +19,18 @@ class Images(Command):
             action="store_true",
         )
         parser.add_argument(
+            "--hide",
+            default=True,
+            help="Hide images that should be deleted",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--latest",
+            default=False,
+            help="Only import the latest version for images of type multi",
+            action="store_true",
+        )
+        parser.add_argument(
             "--cloud", type=str, help="Cloud name in clouds.yaml", default="openstack"
         )
         parser.add_argument(
@@ -49,6 +61,10 @@ class Images(Command):
             arguments.append(f"--filter '{filter}'")
         if dry_run:
             arguments.append("--dry-run")
+        if latest:
+            arguments.append("--latest")
+        if hide:
+            arguments.append("--hide")
         if names:
             for name in names:
                 arguments.append(f"--name '{name}'")
