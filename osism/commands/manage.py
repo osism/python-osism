@@ -52,7 +52,7 @@ class Images(Command):
         cloud = parsed_args.cloud
         dry_run = parsed_args.dry_run
         filter = parsed_args.filter
-        hdie = parsed_args.hide
+        hide = parsed_args.hide
         latest = parsed_args.latest
         names = parsed_args.name
 
