@@ -152,6 +152,12 @@ class Run(Command):
         format,
         timeout,
     ):
+        # There is a special playbook ceph-ceph which should be called
+        # with ceph. Therefore, the environment is set explicitly in
+        # this case.
+        if role == "ceph":
+            environment = "ceph"
+
         if not environment:
             try:
                 environment = MAP_ROLE2ENVIRONMENT[role]
