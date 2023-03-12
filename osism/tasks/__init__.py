@@ -50,7 +50,7 @@ def run_ansible_in_environment(
     else:
         joined_arguments = arguments
 
-    env = {}
+    env = os.environ.copy()
 
     # handle sub environments
     if "." in environment:
