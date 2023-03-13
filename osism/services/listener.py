@@ -178,13 +178,14 @@ class NotificationsDump(ConsumerMixin):
 
 
 def main():
-    try:
-        with Connection(BROKER_URI, connect_timeout=30.0) as connection:
-            connection.connect()
-            NotificationsDump(connection).run()
-    except ConnectionRefusedError:
-        logger.error("Connection with broker refused. Retry in 60 seconds.")
-        time.sleep(60)
+    while True:
+        try:
+            with Connection(BROKER_URI, connect_timeout=30.0) as connection:
+                connection.connect()
+                NotificationsDump(connection).run()
+        except ConnectionRefusedError:
+            logger.error("Connection with broker refused. Retry in 60 seconds.")
+            time.sleep(60)
 
 
 if __name__ == "__main__":
