@@ -22,5 +22,5 @@ sqlmodel==0.0.8
 sushy==4.4.2
 tabulate==0.9.0
 transitions==0.9.0
-uvicorn[standard]==0.21.0
+uvicorn[standard]==0.21.1
 watchdog==2.3.1
