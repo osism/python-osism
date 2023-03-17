@@ -12,7 +12,7 @@ ansible-runner = "==2.3.2"
 ara = "==1.6.1"
 celery = {version = "==5.2.7", extras = ["redis"]}
 cliff = "==4.2.0"
-deepdiff = "==6.2.3"
+deepdiff = "==6.3.0"
 flower = "==1.2.0"
 hiredis = "==2.2.2"
 kombu = "==5.2.4"
