@@ -6,7 +6,7 @@ ara==1.6.1
 celery[redis]==5.2.7
 cliff==4.2.0
 deepdiff==6.3.0
-fastapi==0.94.1
+fastapi==0.95.0
 flower==1.2.0
 hiredis==2.2.2
 kombu==5.2.4
