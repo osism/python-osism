@@ -27,7 +27,7 @@ pynetbox = "==7.0.1"
 sqlmodel = "==0.0.8"
 sushy = "==4.4.2"
 transitions = "==0.9.0"
-watchdog = "==2.3.1"
+watchdog = "==3.0.0"
 
 [dev-packages]
 
