@@ -263,8 +263,19 @@ def manage_interfaces(device, data):
         else:
             port_b = interface_b.name
 
-        position_a = int(device_a.position)
-        position_b = int(device_b.position)
+        try:
+            position_a = int(device_a.position)
+        except:
+            # NOTE: dirty workaround so that it works for the moment also for nodes without
+            #       a position in housings
+            position_a = 999
+
+        try:
+            position_b = int(device_b.position)
+        except:
+            # NOTE: dirty workaround so that it works for the moment also for nodes without
+            #       a position in housings
+            position_b = 999
 
         near_end_a = f"{position_a}:{port_a}"
         if device_a.rack.name == device_b.rack.name:
