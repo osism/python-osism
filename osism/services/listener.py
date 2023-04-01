@@ -171,6 +171,10 @@ class NotificationsDump(ConsumerMixin):
             # remove internal flavor
             openstack.baremetal_delete_internal_flavor.delay(name)
 
+        elif event_type == "baremetal.node.create.end":
+            logger.info(f"baremetal.node.create.end ## {name}")
+            netbox.set_state.delay(name, "registered", "ironic")
+
         else:
             logger.info(f"{event_type} ## {name}")
 
