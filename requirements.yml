@@ -19,7 +19,7 @@ collections:
   - name: community.hashi_vault
     version: 4.2.1
   - name: community.mysql
-    version: 3.6.0
+    version: 3.7.0
   - name: community.network
     version: 5.0.0
   - name: community.rabbitmq
