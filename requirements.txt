@@ -8,7 +8,7 @@ cliff==4.2.0
 deepdiff==6.3.0
 fastapi==0.95.1
 flower==1.2.0
-hiredis==2.2.2
+hiredis==2.2.3
 kombu==5.2.4
 loguru==0.6.0
 napalm==4.0.0
