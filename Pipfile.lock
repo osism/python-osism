@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "889cbd63d018b57b246902d1255aad3817e2ccdf514374594bbe6bad2d22d488"
+            "sha256": "2918601449b920ce53c34d22e3e4ff6e24cecfde94f48f65119e416d656e0695"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -118,11 +118,11 @@
         },
         "certifi": {
             "hashes": [
-                "sha256:35824b4c3a97115964b408844d64aa14db1cc518f6562e8d7261699d1350a9e3",
-                "sha256:4ad3232f5e926d6718ec31cfc1fcadfde020920e278684144551c91769c7bc18"
+                "sha256:0f0d56dc5a6ad56fd4ba36484d6cc34451e1c6548c61daad8c320169f91eddc7",
+                "sha256:c6c2e98f5c7869efca1f8916fed228dd91539f9f1b444c314c06eef02980c716"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==2022.12.7"
+            "version": "==2023.5.7"
         },
         "cffi": {
             "hashes": [
@@ -306,11 +306,11 @@
         },
         "cliff": {
             "hashes": [
-                "sha256:5538a03299f40f83268ba102ed513c2a693ffeb6ac01de7cc119ae9cfc55e55d",
-                "sha256:97fc31e93552e3bec664be9d55ad7f90dc2ab42aad8df29a5b985b644c9b8cf2"
+                "sha256:db3dc8774f47db9aa86796921ff158d0f023630261c2746c4fff12584b75f5b2",
+                "sha256:fc5b6ebc8fb815332770b2485ee36c09753937c37cce4f3227cdd4e10b33eacc"
             ],
             "index": "pypi",
-            "version": "==4.2.0"
+            "version": "==4.3.0"
         },
         "clustershell": {
             "hashes": [
@@ -1204,11 +1204,11 @@
         },
         "redis": {
             "hashes": [
-                "sha256:2c19e6767c474f2e85167909061d525ed65bea9301c0770bb151e041b7ac89a2",
-                "sha256:73ec35da4da267d6847e47f68730fdd5f62e2ca69e3ef5885c6a78a9374c3893"
+                "sha256:77929bc7f5dab9adf3acba2d3bb7d7658f1e0c2f1cafe7eb36434e751c471119",
+                "sha256:dc87a0bdef6c8bfe1ef1e1c40be7034390c2ae02d92dcd0c7ca1729443899880"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==4.5.4"
+            "version": "==4.5.5"
         },
         "requests": {
             "hashes": [
