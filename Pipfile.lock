@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2918601449b920ce53c34d22e3e4ff6e24cecfde94f48f65119e416d656e0695"
+            "sha256": "27b9bc2cbaece30143517e3d1641b4fac5c7b16f1d2f2a405556f5aceb9800d4"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -370,11 +370,11 @@
         },
         "docutils": {
             "hashes": [
-                "sha256:33995a6753c30b7f577febfc2c50411fec6aac7f7ffeb7c4cfe5991072dcf9e6",
-                "sha256:5e1de4d849fee02c63b040a4a3fd567f4ab104defd8a5511fbbc24a8a017efbc"
+                "sha256:a428f10de4de4774389734c986a01b4af2d802d26717108b0f1b9356862937c5",
+                "sha256:f75a5a52fbcacd81b47e42888ad2b380748aaccfb3f13af0fe69deb759f01eb6"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==0.19"
+            "version": "==0.20"
         },
         "dogpile.cache": {
             "hashes": [
@@ -1329,11 +1329,11 @@
         },
         "sushy": {
             "hashes": [
-                "sha256:3c47f6ee5683606aa69c52c626fb0b5346bb77afe3d786f2e792f93be84b2521",
-                "sha256:4e60e5290bf4ecfb61a62cabdf044ef3c47d672be6e55d898a6d686a7dbb84b6"
+                "sha256:037ddecfe747b80cd7e4b39c0994e301f6b8423f28adcbed2cc8c1b849e3d2a4",
+                "sha256:47d1a47b677c444aa3e3cfa9ad2d12b2d2d0148aea5f80c28fea77a8204425bd"
             ],
             "index": "pypi",
-            "version": "==4.4.2"
+            "version": "==4.5.0"
         },
         "tenacity": {
             "hashes": [
