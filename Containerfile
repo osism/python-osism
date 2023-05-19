@@ -28,6 +28,10 @@ COPY files/change.sh /change.sh
 COPY files/run-ansible-console.sh /run-ansible-console.sh
 COPY requirements.yml /ansible/requirements.yml
 
+ENV CLUSTERSHELL_CFGDIR=/etc/clustershell/
+COPY files/clustershell/clush.conf /etc/clustershell/clush.conf
+COPY files/clustershell/groups.conf /etc/clustershell/groups.conf
+
 # hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -53,9 +57,8 @@ RUN apt-get update \
     && git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-project-manager/requirements.txt \
     && git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress \
-    && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-simple-stress/requirements.txt
-
-COPY files/clush.conf /etc/clustershell/clush.conf
+    && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-simple-stress/requirements.txt \
+    && ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 
 LABEL "org.opencontainers.image.documentation"="https://docs.osism.tech" \
       "org.opencontainers.image.licenses"="ASL 2.0" \
