@@ -11,7 +11,7 @@ flower==1.2.0
 hiredis==2.2.3
 kombu==5.2.4
 loguru==0.6.0
-napalm==4.0.0
+napalm==4.1.0
 netmiko==4.1.2
 openstacksdk==1.0.1
 pottery==3.0.0
