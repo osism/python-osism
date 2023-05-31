@@ -31,6 +31,12 @@ class Run(Command):
             choices=["script", "log"],
         ),
         parser.add_argument(
+            "--environment",
+            default=None,
+            help="Environment",
+            type=str,
+        ),
+        parser.add_argument(
             "--timeout",
             default=300,
             type=int,
@@ -83,6 +89,7 @@ class Run(Command):
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
+        environment = parsed_args.environment
         validator = parsed_args.validator[0]
         format = parsed_args.format
         timeout = parsed_args.timeout
@@ -96,10 +103,14 @@ class Run(Command):
             playbook = f"validate-{validator}"
 
         if runtime == "ceph-ansible":
-            t = ceph.run.delay(playbook, arguments)
+            if not environment:
+                environment = "ceph"
+            t = ceph.run.delay(environment, playbook, arguments)
         elif runtime == "kolla-ansible":
             arguments.append("-e kolla_action=config_validate")
-            t = kolla.run.delay(playbook, arguments)
+            if not environment:
+                environment = "kolla"
+            t = kolla.run.delay(environment, playbook, arguments)
         else:
             environment = VALIDATE_PLAYBOOKS[validator]["environment"]
             t = ansible.run.delay(environment, playbook, arguments)
