@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "bb26315c60e77c5706f847ffb75b954f05c100f16811490f9f6e95dd2c4ee47c"
+            "sha256": "3ad67649a45995e9666c745b2ca56abdda6b00829e2d757574c545d54d259e2f"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -26,11 +26,11 @@
         },
         "ansible-runner": {
             "hashes": [
-                "sha256:21f94eeaa536e19ab3913ad882c0722c86aad9cb371eebf99361b8c1fb38ee8c",
-                "sha256:c420e76ba18311d6350c8982fc3c0519b00624654053e538b0ea630651b08921"
+                "sha256:38ff635e4b94791de2956c81e265836ec4965b30e9ee35d72fcf3271dc46b98b",
+                "sha256:c57ae0d096760d66b2897b0f9009856c7b83fd5428dcb831f470cba348346396"
             ],
             "index": "pypi",
-            "version": "==2.3.2"
+            "version": "==2.3.3"
         },
         "appdirs": {
             "hashes": [
@@ -1002,11 +1002,11 @@
         },
         "paramiko": {
             "hashes": [
-                "sha256:6950faca6819acd3219d4ae694a23c7a87ee38d084f70c1724b0c0dbb8b75769",
-                "sha256:f0caa660e797d9cd10db6fc6ae81e2c9b2767af75c3180fcd0e46158cd368d7f"
+                "sha256:93cdce625a8a1dc12204439d45033f3261bdb2c201648cfcdc06f9fd0f94ec29",
+                "sha256:df0f9dd8903bc50f2e10580af687f3015bf592a377cd438d2ec9546467a14eb8"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==3.1.0"
+            "version": "==3.2.0"
         },
         "pbr": {
             "hashes": [
