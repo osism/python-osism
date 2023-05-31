@@ -225,15 +225,16 @@ class Run(Command):
                 "No role given for execution. The roles listed in the table can be used."
             )
             print(tabulate(table, headers=["Role", "Environment"], tablefmt="psql"))
+
         elif role in enums.MAP_ROLE2ROLE:
-            for r in enums.MAP_ROLE2ROLE[role]:
+            for role_inner in enums.MAP_ROLE2ROLE[role]:
                 rc = self.handle_role(
                     arguments,
                     environment,
                     overwrite,
                     sub,
+                    role_inner,
                     action,
-                    r,
                     wait,
                     format,
                     timeout,

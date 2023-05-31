@@ -65,6 +65,12 @@ def run_ansible_in_environment(
 
     env["ENVIRONMENT"] = environment
 
+    # NOTE: This is a first step to make Ansible Vault usable via OSISM workers.
+    #       It's not ready in that form yet.
+    ansible_vault_password = redis.get("ansible_vault_password")
+    if ansible_vault_password:
+        env["VAULT"] = "/ansible-vault.py"
+
     # NOTE: Consider arguments in the future
     lock = Redlock(
         key=f"lock-ansible-{environment}-{role}",
