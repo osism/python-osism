@@ -139,6 +139,7 @@ def run_ansible_in_environment(
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env=env,
         )
 
     # process the bifrost-command result
