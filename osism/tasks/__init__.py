@@ -54,8 +54,8 @@ def run_ansible_in_environment(
 
     # Bring back colored Ansible output, thanks to
     # https://www.jeffgeerling.com/blog/2020/getting-colorized-output-molecule-and-ansible-on-github-actions-ci
-    env["ANSIBLE_FORCE_COLOR"] = 1
-    env["PY_COLORS"] = 1
+    env["ANSIBLE_FORCE_COLOR"] = "1"
+    env["PY_COLORS"] = "1"
 
     # handle sub environments
     if "." in environment:
