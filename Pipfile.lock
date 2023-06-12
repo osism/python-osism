@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "3d4d89a80b311ca7ceafe8aacb0c1cfa3b323f79d864ef6ff6ef17a60da867c4"
+            "sha256": "1bc860e463edb111a7759aec24991605f720b93ea49f02d207393e3c5e876854"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -602,11 +602,11 @@
         },
         "iso8601": {
             "hashes": [
-                "sha256:32811e7b81deee2063ea6d2e94f8819a86d1f3811e49d23623a41fa832bef03f",
-                "sha256:8400e90141bf792bce2634df533dc57e3bee19ea120a87bebcd3da89a58ad73f"
+                "sha256:739960d37c74c77bd9bd546a76562ccb581fe3d4820ff5c3141eb49c839fda8f",
+                "sha256:ebe10061b932edb8a8e33cc635d661926c59b9c3bed7a4f4edca8c62d400af10"
             ],
-            "markers": "python_version < '4.0' and python_full_version >= '3.6.2'",
-            "version": "==1.1.0"
+            "markers": "python_version >= '3.7' and python_version < '4.0'",
+            "version": "==2.0.0"
         },
         "jinja2": {
             "hashes": [
@@ -673,11 +673,11 @@
         },
         "loguru": {
             "hashes": [
-                "sha256:066bd06758d0a513e9836fd9c6b5a75bfb3fd36841f4b996bc60b547a309d41c",
-                "sha256:4e2414d534a2ab57573365b3e6d0234dfb1d84b68b7f3b948e6fb743860a77c3"
+                "sha256:1612053ced6ae84d7959dd7d5e431a0532642237ec21f7fd83ac73fe539e03e1",
+                "sha256:b93aa30099fa6860d4727f1b81f8718e965bb96253fa190fab2077aaad6d15d3"
             ],
             "index": "pypi",
-            "version": "==0.6.0"
+            "version": "==0.7.0"
         },
         "lxml": {
             "hashes": [
@@ -963,11 +963,11 @@
         },
         "ntc-templates": {
             "hashes": [
-                "sha256:a74014431715c2029a2d0f065bca447312d55171cea191db1189689ea076b82d",
-                "sha256:b0941824212ae50668cf9b882e848512d09487128a491909eab9afc30f808a85"
+                "sha256:aabd6b24a3544d95916de7316e1753112198386a9ccea0601e3e27fb9b25e157",
+                "sha256:c3677ec385aead5caf51dba3dd116d25255032f72391814c23abed83dc1fef6e"
             ],
             "markers": "python_version >= '3.7' and python_version < '4.0'",
-            "version": "==3.3.0"
+            "version": "==3.4.0"
         },
         "openstacksdk": {
             "hashes": [
@@ -1033,11 +1033,11 @@
         },
         "prettytable": {
             "hashes": [
-                "sha256:ef8334ee40b7ec721651fc4d37ecc7bb2ef55fde5098d994438f0dfdaa385c0c",
-                "sha256:f4aaf2ed6e6062a82fd2e6e5289bbbe705ec2788fe401a3a1f62a1cea55526d2"
+                "sha256:031eae6a9102017e8c7c7906460d150b7ed78b20fd1d8c8be4edaf88556c07ce",
+                "sha256:03481bca25ae0c28958c8cd6ac5165c159ce89f7ccde04d5c899b24b68bb13b7"
             ],
-            "markers": "python_version >= '3.7'",
-            "version": "==3.7.0"
+            "markers": "python_version >= '3.8'",
+            "version": "==3.8.0"
         },
         "prometheus-client": {
             "hashes": [
