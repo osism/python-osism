@@ -3,9 +3,9 @@ import docker
 import tabulate
 
 
-class Manager(Command):
+class VersionsManager(Command):
     def get_parser(self, prog_name):
-        parser = super(Manager, self).get_parser(prog_name)
+        parser = super(VersionsManager, self).get_parser(prog_name)
         return parser
 
     def take_action(self, parsed_args):
