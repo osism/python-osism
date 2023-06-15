@@ -6,6 +6,7 @@ from celery.signals import worker_process_init
 from pottery import Redlock
 from redis import Redis
 
+from osism import settings
 from osism.tasks import Config
 
 app = Celery("reconciler")
@@ -23,7 +24,7 @@ def celery_init_worker(**kwargs):
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    sender.add_periodic_task(600.0, run.s(), expires=10)
+    sender.add_periodic_task(settings.INVENTORY_RECONCILER_SCHEDULE,  run.s(), expires=10)
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
