@@ -70,7 +70,8 @@ nb = None
 async def startup_event():
     global nb
 
-    nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
+    if settings.NETBOX_URL and settings.NETBOX_TOKEN:
+        nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
 
     if settings.IGNORE_SSL_ERRORS:
         import requests
@@ -96,46 +97,50 @@ async def webhook(
 ):
     global nb
 
-    data = webhook_input.data
-    url = data["url"]
-    name = data["name"]
+    if nb:
+        data = webhook_input.data
+        url = data["url"]
+        name = data["name"]
 
-    if "devices" in url:
-        tags = [x["name"] for x in data["tags"]]
+        if "devices" in url:
+            tags = [x["name"] for x in data["tags"]]
 
-        custom_fields = data["custom_fields"]
-        device_type = custom_fields["device_type"]
+            custom_fields = data["custom_fields"]
+            device_type = custom_fields["device_type"]
 
-        # NOTE: device without a defined device_type are nodes
-        if not device_type:
-            device_type = "node"
+            # NOTE: device without a defined device_type are nodes
+            if not device_type:
+                device_type = "node"
 
-    elif "interfaces" in url:
-        device_type = "interface"
+        elif "interfaces" in url:
+            device_type = "interface"
 
-        device_id = data["device"]["id"]
-        device = nb.dcim.devices.get(id=device_id)
-        tags = [str(x) for x in device.tags]
-        custom_fields = device.custom_fields
+            device_id = data["device"]["id"]
+            device = nb.dcim.devices.get(id=device_id)
+            tags = [str(x) for x in device.tags]
+            custom_fields = device.custom_fields
 
-    if "Managed by OSISM" in tags:
-        if device_type == "server":
-            logger.info(
-                f"Handling change for managed device {name} of type {device_type}"
-            )
-            reconciler.run.delay()
-        elif device_type == "switch":
-            logger.info(
-                f"Handling change for managed device {name} of type {device_type}"
-            )
-            # netbox.generate.delay(name, custom_fields['configuration_template'])
-        elif device_type == "interface":
-            logger.info(
-                f"Handling change for interface {name} on managed device {device.name} of type {custom_fields['device_type']}"
-            )
-            # netbox.generate.delay(device.name, custom_fields['configuration_template'])
+        if "Managed by OSISM" in tags:
+            if device_type == "server":
+                logger.info(
+                    f"Handling change for managed device {name} of type {device_type}"
+                )
+                reconciler.run.delay()
+            elif device_type == "switch":
+                logger.info(
+                    f"Handling change for managed device {name} of type {device_type}"
+                )
+                # netbox.generate.delay(name, custom_fields['configuration_template'])
+            elif device_type == "interface":
+                logger.info(
+                    f"Handling change for interface {name} on managed device {device.name} of type {custom_fields['device_type']}"
+                )
+                # netbox.generate.delay(device.name, custom_fields['configuration_template'])
+
+        else:
+            logger.info(f"Ignoring change for unmanaged device {name}")
+
+        return {"result": "ok"}
 
     else:
-        logger.info(f"Ignoring change for unmanaged device {name}")
-
-    return {"result": "ok"}
+        return {"result": "webhook netbox not enabled"}
