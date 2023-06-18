@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ab9bbfb2aa031cc2633355752c46f1ae8bdfc533c6f45ae81ed365d7f9952392"
+            "sha256": "6ff67f048d8f0fff490ef49f26b6c9d6edb3c4c92e166b01c1fc046d18df904e"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -396,11 +396,11 @@
         },
         "flower": {
             "hashes": [
-                "sha256:46493c7e8d9ca2167e8a46eb97ae8d280997cb40a81993230124d74f0fe40bac",
-                "sha256:ae2977cf7343c526cf44def8c7e7173db8dedb8249b91ba4b88cfd18e7a2d486"
+                "sha256:5657785d728a54914256c34fd0551fe2d7152aab08062ebc645bf86b97b8aec5",
+                "sha256:571f9ed1c57a622e862de35eceb8a4244f023fbcfb7175f53e45ebe679f46d90"
             ],
             "index": "pypi",
-            "version": "==1.2.0"
+            "version": "==2.0.0"
         },
         "future": {
             "hashes": [
@@ -636,19 +636,17 @@
         },
         "jsonpatch": {
             "hashes": [
-                "sha256:26ac385719ac9f54df8a2f0827bb8253aa3ea8ab7b3368457bcdb8c14595a397",
-                "sha256:b6ddfe6c3db30d81a96aaeceb6baf916094ffa23d7dd5fa2c13e13f8b6e600c2"
+                "sha256:0ae28c0cd062bbd8b8ecc26d7d164fbbea9652a1a3693f3b956c1eae5145dade"
             ],
-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'",
-            "version": "==1.32"
+            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6'",
+            "version": "==1.33"
         },
         "jsonpointer": {
             "hashes": [
-                "sha256:51801e558539b4e9cd268638c078c6c5746c9ac96bc38152d443400e4f3793e9",
-                "sha256:97cba51526c829282218feb99dab1b1e6bdf8efd1c43dc9d57be093c0d69c99a"
+                "sha256:15d51bba20eea3165644553647711d150376234112651b4f1811022aecad7d7a"
             ],
-            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
-            "version": "==2.3"
+            "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6'",
+            "version": "==2.4"
         },
         "junos-eznc": {
             "hashes": [
@@ -1496,11 +1494,11 @@
         },
         "websocket-client": {
             "hashes": [
-                "sha256:3566f8467cd350874c4913816355642a4942f6c1ed1e9406e3d42fae6d6c072a",
-                "sha256:b96f3bce3e54e3486ebe6504bc22bd4c140392bd2eb71764db29be8f2639aa65"
+                "sha256:72d7802608745b0a212f79b478642473bd825777d8637b6c8c421bf167790d4f",
+                "sha256:e84c7eafc66aade6d1967a51dfd219aabdf81d15b9705196e11fd81f48666b78"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==1.5.3"
+            "version": "==1.6.0"
         },
         "yamlordereddictloader": {
             "hashes": [
