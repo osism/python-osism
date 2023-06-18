@@ -213,3 +213,33 @@ class Facts(Command):
             logger.error(f"No facts found in cache for {host}.")
 
         return
+
+
+class Hosts(Command):
+    def get_parser(self, prog_name):
+        parser = super(Hosts, self).get_parser(prog_name)
+        return parser
+
+    def take_action(self, parsed_args):
+        try:
+            result = subprocess.check_output(
+                f"ansible-inventory -i /ansible/inventory/hosts.yml --list",
+                shell=True,
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError:
+            logger.error(f"Error loading inventory.")
+            return
+
+        data = json.loads(result)
+        table = []
+
+        for host in data["_meta"]["hostvars"]:
+            table.append([host])
+
+        if table:
+            print(
+                tabulate(table, headers=["Host"], tablefmt="psql")
+            )
+
+        return
