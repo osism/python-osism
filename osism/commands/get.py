@@ -101,9 +101,9 @@ class Tasks(Command):
         )
 
 
-class Inventory(Command):
+class Hostvars(Command):
     def get_parser(self, prog_name):
-        parser = super(Inventory, self).get_parser(prog_name)
+        parser = super(Hostvars, self).get_parser(prog_name)
         parser.add_argument(
             "host",
             nargs=1,
