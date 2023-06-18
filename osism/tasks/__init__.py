@@ -1,4 +1,5 @@
 import io
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -95,7 +96,7 @@ def run_ansible_in_environment(
                 f"/run.sh backup {role} {joined_arguments}",
                 shell=True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 env=env,
             )
         else:
@@ -103,7 +104,7 @@ def run_ansible_in_environment(
                 f"/run.sh deploy {role} {joined_arguments}",
                 shell=True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 env=env,
             )
 
@@ -114,7 +115,7 @@ def run_ansible_in_environment(
             f"/run.sh {role} {joined_arguments}",
             shell=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             env=env,
         )
 
@@ -128,7 +129,7 @@ def run_ansible_in_environment(
             f'/run-manager.sh bifrost-command "-e bifrost_arguments=\'{joined_arguments}\'" "-e bifrost_result_id={request_id}"',
             shell=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
         )
 
     # execute all other roles
@@ -138,7 +139,7 @@ def run_ansible_in_environment(
             f"/run-{environment}.sh {role} {joined_arguments}",
             shell=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=subprocess.PIPE,
             env=env,
         )
 
@@ -168,6 +169,16 @@ def run_ansible_in_environment(
             if publish:
                 redis.publish(f"{request_id}", line)
             result += line
+
+        # We use stderr to read the output of json_stats
+        stats = ""
+        for line in io.TextIOWrapper(p.stderr, encoding="utf-8"):
+            stats += line
+
+        try:
+            json_stats = json.loads(stats)
+        except json.decoder.JSONDecodeError:
+            pass
 
         rc = p.wait(timeout=60)
 
