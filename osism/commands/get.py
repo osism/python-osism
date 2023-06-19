@@ -224,12 +224,12 @@ class Hosts(Command):
     def take_action(self, parsed_args):
         try:
             result = subprocess.check_output(
-                f"ansible-inventory -i /ansible/inventory/hosts.yml --list",
+                "ansible-inventory -i /ansible/inventory/hosts.yml --list",
                 shell=True,
                 stderr=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError:
-            logger.error(f"Error loading inventory.")
+            logger.error("Error loading inventory.")
             return
 
         data = json.loads(result)
@@ -239,8 +239,45 @@ class Hosts(Command):
             table.append([host])
 
         if table:
-            print(
-                tabulate(table, headers=["Host"], tablefmt="psql")
-            )
+            print(tabulate(table, headers=["Host"], tablefmt="psql"))
+
+        return
+
+
+class States(Command):
+    def get_parser(self, prog_name):
+        parser = super(States, self).get_parser(prog_name)
+        parser.add_argument(
+            "host",
+            nargs=1,
+            type=str,
+            help="Hostname (as the host is known in Ansible inventory)",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        host = parsed_args.host[0]
+
+        data = redis.get(f"ansible_facts{host}")
+        if data:
+            data = json.loads(data)
+            table = []
+
+            if "ansible_local" in data and "osism" in data["ansible_local"]:
+                for local_fact in data["ansible_local"]["osism"]:
+                    if local_fact != "bootstrap":
+                        local_data = data["ansible_local"]["osism"][local_fact]
+                        table.append(
+                            [local_fact, local_data["state"], local_data["timestamp"]]
+                        )
+
+                if table:
+                    print(
+                        tabulate(
+                            table,
+                            headers=["Role", "State", "Timestamp"],
+                            tablefmt="psql",
+                        )
+                    )
 
         return

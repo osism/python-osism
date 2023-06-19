@@ -4,13 +4,10 @@ import os
 from pathlib import Path
 import subprocess
 
-# import ansible_runner
 from celery.signals import worker_process_init
 from loguru import logger
 from redis import Redis
 from pottery import Redlock
-
-from osism.tasks import ansible
 
 redis = None
 
@@ -43,7 +40,7 @@ def celery_init_worker(**kwargs):
 
 
 def run_ansible_in_environment(
-    request_id, worker, environment, role, arguments, publish=True
+    request_id, worker, environment, role, arguments, publish=True, locking=True
 ):
     result = ""
 
@@ -79,18 +76,20 @@ def run_ansible_in_environment(
         env["VAULT"] = "/ansible-vault.py"
 
     # NOTE: Consider arguments in the future
-    lock = Redlock(
-        key=f"lock-ansible-{environment}-{role}",
-        masters={redis},
-        auto_release_time=3600,
-    )
+    if locking:
+        lock = Redlock(
+            key=f"lock-ansible-{environment}-{role}",
+            masters={redis},
+            auto_release_time=3600,
+        )
 
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
     #       not working out of the box
 
     # execute roles from kolla-ansible
     if worker == "kolla-ansible":
-        lock.acquire()
+        if locking:
+            lock.acquire()
 
         if role == "mariadb_backup":
             p = subprocess.Popen(
@@ -111,7 +110,9 @@ def run_ansible_in_environment(
 
     # execute roles from ceph-ansible
     elif worker == "ceph-ansible":
-        lock.acquire()
+        if locking:
+            lock.acquire()
+
         p = subprocess.Popen(
             f"/run.sh {role} {joined_arguments}",
             shell=True,
@@ -135,7 +136,9 @@ def run_ansible_in_environment(
 
     # execute all other roles
     else:
-        lock.acquire()
+        if locking:
+            lock.acquire()
+
         p = subprocess.Popen(
             f"/run-{environment}.sh {role} {joined_arguments}",
             shell=True,
@@ -191,8 +194,14 @@ def run_ansible_in_environment(
                                 f"-e state_role_name={role}",
                                 f"-e state_role_state={state}",
                             ]
-                            ansible.run.delay(
-                                "generic", "state-role", arguments, publish=False
+                            run_ansible_in_environment(
+                                request_id,
+                                "osism-ansible",
+                                "generic",
+                                "state-role",
+                                arguments,
+                                publish=False,
+                                locking=False,
                             )
 
             except json.decoder.JSONDecodeError:
@@ -204,6 +213,7 @@ def run_ansible_in_environment(
             redis.publish(f"{request_id}", f"RC: {rc}\n")
             redis.publish(f"{request_id}", "QUIT")
 
-        lock.release()
+        if locking:
+            lock.release()
 
     return result
