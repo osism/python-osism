@@ -10,6 +10,7 @@ from loguru import logger
 from redis import Redis
 from pottery import Redlock
 
+from osism.tasks import ansible
 
 redis = None
 
@@ -171,14 +172,31 @@ def run_ansible_in_environment(
             result += line
 
         # We use stderr to read the output of json_stats
-        stats = ""
-        for line in io.TextIOWrapper(p.stderr, encoding="utf-8"):
-            stats += line
+        if role != "state-role":
+            stats = ""
+            for line in io.TextIOWrapper(p.stderr, encoding="utf-8"):
+                stats += line
 
-        try:
-            json_stats = json.loads(stats)
-        except json.decoder.JSONDecodeError:
-            pass
+            try:
+                json_stats = json.loads(stats)
+                if "stats" in json_stats:
+                    for hostname in json_stats["stats"]:
+                        state = "ok"
+                        if json_stats["stats"][hostname]["failures"] > 0:
+                            state = "failed"
+                        elif json_stats["stats"][hostname]["unreachable"] > 0:
+                            state = "unreachable"
+                        else:
+                            arguments = [
+                                f"-e state_role_name={role}",
+                                f"-e state_role_state={state}",
+                            ]
+                            ansible.run.delay(
+                                "generic", "state-role", arguments, publish=False
+                            )
+
+            except json.decoder.JSONDecodeError:
+                pass
 
         rc = p.wait(timeout=60)
 
