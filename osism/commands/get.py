@@ -4,6 +4,7 @@ import subprocess
 
 from celery import Celery
 from cliff.command import Command
+import docker
 import json
 from loguru import logger
 from tabulate import tabulate
