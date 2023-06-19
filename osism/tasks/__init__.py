@@ -194,9 +194,10 @@ def run_ansible_in_environment(
                                 f"-e state_role_name={role}",
                                 f"-e state_role_state={state}",
                             ]
-                            run_ansible_in_environment(
-                                request_id,
-                                "osism-ansible",
+
+                            # NOTE: avoid issues with typer CLI
+                            from . import ansible
+                            ansible.run.delay(
                                 "generic",
                                 "state-role",
                                 arguments,
