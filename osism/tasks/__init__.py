@@ -134,6 +134,21 @@ def run_ansible_in_environment(
             stderr=subprocess.PIPE,
         )
 
+    # execute local netbox playbooks
+    elif (
+        worker == "osism-ansible"
+        and environment == "netbox-local"
+    ):
+        if locking:
+            lock.acquire()
+
+        p = subprocess.Popen(
+            f"/run-{environment}.sh {role} {joined_arguments}",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
     # execute all other roles
     else:
         if locking:
