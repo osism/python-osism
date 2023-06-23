@@ -175,7 +175,7 @@ def run_ansible_in_environment(
             result += line
 
         # We use stderr to read the output of json_stats
-        if role != "state-role":
+        if role not in ["facts", "state-role"]:
             stats = ""
             for line in io.TextIOWrapper(p.stderr, encoding="utf-8"):
                 stats += line
