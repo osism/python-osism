@@ -135,10 +135,7 @@ def run_ansible_in_environment(
         )
 
     # execute local netbox playbooks
-    elif (
-        worker == "osism-ansible"
-        and environment == "netbox-local"
-    ):
+    elif worker == "osism-ansible" and environment == "netbox-local":
         if locking:
             lock.acquire()
 
@@ -190,7 +187,7 @@ def run_ansible_in_environment(
             result += line
 
         # We use stderr to read the output of json_stats
-        if role not in ["facts", "state-role"]:
+        if role not in ["facts", "state-role"] and environment not in ["netbox-local"]:
             stats = ""
             for line in io.TextIOWrapper(p.stderr, encoding="utf-8"):
                 stats += line
@@ -212,6 +209,7 @@ def run_ansible_in_environment(
 
                             # NOTE: avoid issues with typer CLI
                             from . import ansible
+
                             ansible.run.delay(
                                 "generic",
                                 "state-role",
