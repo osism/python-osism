@@ -11,6 +11,8 @@ def read_secret(secret_name):
         with f:
             return f.readline().strip()
 
+OPENSEARCH_ADDRESS = os.getenv("OPENSEARCH_ADDRESS")
+OPENSEARCH_PORT = os.getenv("OPENSEARCH_PORT")
 
 NETBOX_URL = os.getenv("NETBOX_API")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))
