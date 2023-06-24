@@ -1,7 +1,14 @@
 import argparse
+import json
 import subprocess
 
 from cliff.command import Command
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
+import requests
+from tabulate import tabulate
+
+from osism import settings
 
 
 class Ansible(Command):
@@ -61,3 +68,38 @@ class File(Command):
 
     def take_action(self, parsed_args):
         print("NOT YET IMPLEMENTED")
+
+
+class Opensearch(Command):
+    def get_parser(self, prog_name):
+        parser = super(Opensearch, self).get_parser(prog_name)
+        return parser
+
+    def take_action(self, parsed_args):
+        session = PromptSession(history=FileHistory("/tmp/.opensearch.history"))
+        while True:
+            query = session.prompt(">>> ")
+            if query in ["Exit", "exit", "EXIT"]:
+                break
+
+            result = requests.post(
+                f"https://{settings.OPENSEARCH_ADDRESS}:{settings.OPENSEARCH_PORT}/_plugins/_sql?format=json",
+                data=json.dumps({"query": query}),
+                headers={"content-type": "application/json"},
+                verify=False,
+            )
+            data = result.json()
+            if "hits" in data:
+                for hit in data["hits"]["hits"]:
+                    source = hit["_source"]
+                    if "timestamp" not in source:
+                        source["timestamp"] = source["@timestamp"]
+
+                    if "programname" in source:
+                        print(
+                            f"{source['timestamp']} | {source['Hostname']} | {source['programname']} | {source['Payload']}"
+                        )
+                    else:
+                        print(
+                            f"{source['timestamp']} | {source['Hostname']} | {source['Payload']}"
+                        )
