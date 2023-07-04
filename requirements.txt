@@ -17,7 +17,7 @@ netmiko==4.2.0
 openstacksdk==1.3.1
 pottery==3.0.0
 prompt-toolkit==3.0.39
-pydantic==1.10.10
+pydantic==1.10.11
 pynetbox==7.0.1
 sqlmodel==0.0.8
 sushy==4.5.0
