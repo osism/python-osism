@@ -8,6 +8,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       build-essential \
       gcc \
+      libldap2-dev \
+      libsasl2-dev \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /wheels \
     && python3 -m pip --no-cache-dir install -U 'pip==23.1.2' \
