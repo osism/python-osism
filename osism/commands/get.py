@@ -219,12 +219,22 @@ class Facts(Command):
 class Hosts(Command):
     def get_parser(self, prog_name):
         parser = super(Hosts, self).get_parser(prog_name)
+        parser.add_argument(
+            "-l",
+            "--limit",
+            type=str,
+            help="Limit selected hosts to an additional pattern",
+        )
         return parser
 
     def take_action(self, parsed_args):
         try:
+            command = ["ansible-inventory -i /ansible/inventory/hosts.yml --list"]
+            if parsed_args.limit:
+                command.append(f"--limit {parsed_args.limit}")
+
             result = subprocess.check_output(
-                "ansible-inventory -i /ansible/inventory/hosts.yml --list",
+                " ".join(command),
                 shell=True,
                 stderr=subprocess.DEVNULL,
             )
