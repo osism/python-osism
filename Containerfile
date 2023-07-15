@@ -12,7 +12,7 @@ RUN apt-get update \
       libsasl2-dev \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir /wheels \
-    && python3 -m pip --no-cache-dir install -U 'pip==23.1.2' \
+    && python3 -m pip --no-cache-dir install -U 'pip==23.2' \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt \
     && python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-image-manager.txt \
@@ -40,7 +40,7 @@ RUN apt-get update \
         git \
         openssh-client \
         procps \
-    && python3 -m pip --no-cache-dir install -U 'pip==23.1.2' \
+    && python3 -m pip --no-cache-dir install -U 'pip==23.2' \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.ansible.txt \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.openstack-image-manager.txt \
