@@ -24,3 +24,6 @@ VENDORS = os.getenv("VENDORS", "").split()
 # 43200 seconds = 12 hours
 GATHER_FACTS_SCHEDULE = 43200.0
 INVENTORY_RECONCILER_SCHEDULE = 600.0
+
+REDIS_SERVER = os.getenv("REDIS_SERVER", "redis")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
