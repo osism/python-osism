@@ -2,7 +2,7 @@ from osism import settings
 import pynetbox
 from redis import Redis
 
-redis = Redis(host="redis", port="6379")
+redis = Redis(host=settings.REDIS_SERVER, port=settings.REDIS_PORT)
 
 if settings.NETBOX_URL and settings.NETBOX_TOKEN:
     nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
