@@ -1,0 +1,90 @@
+---
+- name: Build python-osism image
+  hosts: all
+
+  environment:
+    registry: "{{ docker_registry }}"
+    repository: "{{ docker_namespace }}/osism"
+    version: latest
+
+  tasks:
+    - name: Log into registry
+      community.docker.docker_login:
+        registry_url: "{{ docker_registry }}"
+        username: "{{ secret.DOCKER_USERNAME }}"
+        password: "{{ secret.DOCKER_PASSWORD }}"
+      when: push_image | bool
+
+    - name: Run build script
+      ansible.builtin.shell:
+        executable: /bin/bash
+        chdir: "{{ zuul.project.src_dir }}"
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          created=$(date --rfc-3339=ns)
+          revision=$(git rev-parse --short HEAD)
+
+          if [[ -n $registry ]]; then
+              repository="$registry/$repository"
+          fi
+
+          docker buildx build \
+              --target osism \
+              --build-arg "VERSION=$version" \
+              --label "org.opencontainers.image.created=$created" \
+              --label "org.opencontainers.image.documentation=https://docs.osism.tech" \
+              --label "org.opencontainers.image.licenses=ASL 2.0" \
+              --label "org.opencontainers.image.revision=$revision" \
+              --label "org.opencontainers.image.source=https://github.com/osism/python-osism" \
+              --label "org.opencontainers.image.title=osism" \
+              --label "org.opencontainers.image.url=https://www.osism.tech" \
+              --label "org.opencontainers.image.vendor=OSISM GmbH" \
+              --label "org.opencontainers.image.version=$version" \
+              --load \
+              --tag "$revision" \
+              .  # <-- there is a dot
+
+          docker buildx build \
+              --target osism-netbox \
+              --build-arg "VERSION=$version" \
+              --label "org.opencontainers.image.created=$created" \
+              --label "org.opencontainers.image.documentation=https://docs.osism.tech" \
+              --label "org.opencontainers.image.licenses=ASL 2.0" \
+              --label "org.opencontainers.image.revision=$revision" \
+              --label "org.opencontainers.image.source=https://github.com/osism/python-osism" \
+              --label "org.opencontainers.image.title=osism-netbox" \
+              --label "org.opencontainers.image.url=https://www.osism.tech" \
+              --label "org.opencontainers.image.vendor=OSISM GmbH" \
+              --label "org.opencontainers.image.version=$version" \
+              --load \
+              --tag "netbox-$revision" \
+              .  # <-- there is a dot
+      changed_when: true
+
+    - name: Run push script
+      ansible.builtin.shell:
+        executable: /bin/bash
+        chdir: "{{ zuul.project.src_dir }}"
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          revision=$(git rev-parse --short HEAD)
+
+          if [[ -n $registry ]]; then
+              repository="$registry/$repository"
+          fi
+
+          docker tag "$revision" "$repository:$version"
+          docker push "$repository:$version"
+
+          docker tag "netbox-$revision" "${repository}-netbox:$version"
+          docker push "${repository}-netbox:$version"
+
+      when: push_image | bool
+      changed_when: true
+      no_log: true
