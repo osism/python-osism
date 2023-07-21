@@ -1,4 +1,51 @@
 ---
+- secret:
+    name: SECRET_CONTAINER_IMAGE_PYTHON_OSISM
+    data:
+      DOCKER_USERNAME: !encrypted/pkcs1-oaep
+        - hYgmzA7YuWHeFJOqY2uXu3l8WHHD7DVMwjtRVHjZxXtqaG+2Ioo3qB+QOg+widHh7b8nN
+          oX5KVF2NGOSYjwcgMZYkbSh9NqG8Ubwh9OYWIqOzUBF1a+riO3P8zC1WEREkGlLAT6Dzt
+          ltFkSfFg70u3pIzh1pVeAqudJ2oILQUrQE61MeHpqCxL5JzAWGvJIv6RtyfnmpNfsdgpw
+          H/D3F71N0wr4mMbmR1562YSS6xdPGSQuVEqgcXPSOHmn2yeMmfqhVywjk59ivAsfDQV9m
+          xPB5YkzICiiEPuc2wQyX09qIrAGUwQ9o+4Xt2zxlXGprrCZlPdCRwWKl9DQNRBPk1OUhh
+          fQTLIsblJ8O7nuMAla089bqV7Fh3fkkKsf31cFimBADy3vL28gwv1EzmtU88Kxb/aNfr6
+          QIHFyvAVmBQMQagXEYbzPfCz2LrDAptfZukM1YId7pwXaHA8qhyK2e59u9cCvgER1EIbM
+          vHO11AlkRYDuXfPI+AvV3dggWcc5wPls6ZAue8523qNS7WfcLcVTJIk99lFJG7Fn1gwel
+          0DCrR5IKBwcEKlOb9chp/w7E2Q4An/nKKlxUfbIoUY+SmaDsaC3bPJZVJPHEnQBTqGDXi
+          eioh8PiFSr/OFVmkw+4uRz08rDF/48Boy+847o4Q8cnlF3Su3fLVb1ahmUnOp0=
+      DOCKER_PASSWORD: !encrypted/pkcs1-oaep
+        - VhXQ+QyDPDABlURJ0l4gdnayttRtJFIT8eyJlJB6wmUgEy+pnVkttIp59YBCSsr7D8ZWC
+          MiA/fz3gETpqlYrNrgLz4Rm1Je2LFHQI1S7kTEkoelEkjbU2BLaUyz3N+RvRWsTl7rndz
+          Z3rtz31tv8MZaYBpf7JuaNNQ+ZdfcaSUgRKxUgSdy1m74I8/Ja8u1lEFSoC2iuwXF5ZvF
+          xZZY6AHSBT6KxzNS04S9bgcLygC4m8hkRd0dM8B5aOucUmiu2bCz/sI2NkXwsHSFbBjc9
+          QB/v7NBBk5I1miI8JfRtZzxMzv/PMHgzSgaqloMteX8c0/RCjuD4WLq/nrNZqx5M0zT5l
+          04Uv5qCOiu4i8sfaKqowLa2Q114i2/7RncGT+p+yKYuNmpO6oNshbmJQWtE9/9tEBp0tM
+          6f/Ef7J2dU7FwyQMok8JEQI5L1pEx2habtsk4+PoE2CBvh8f7vKr3U/0yGUEZsnijb2td
+          LLOc51107txOH0PmcviKE9va7+pDrgh0QHbfD/mzV94oRdaRL0j2gsiWL2hwd96WZbeYp
+          itpoTUYMiL/vzG/cAkvguEEoYHCuzjQJ2AexWhfBIz/lb/g6d6hb9dP4Og0xUy0XBLZ7y
+          MYBsnLXWD+73zLlrCpIQbS6pAxsg9FZhpHM37RNHD/9HggHdcj+E/2+Kr/xKvE=
+
+- job:
+    name: container-image-python-osism-build
+    pre-run: playbooks/pre.yml
+    run: playbooks/build.yml
+    vars:
+      docker_namespace: osism
+      docker_registry: osism.harbor.regio.digital
+      push_image: false
+
+- job:
+    name: container-image-python-osism-push
+    pre-run: playbooks/pre.yml
+    run: playbooks/build.yml
+    vars:
+      docker_namespace: osism
+      docker_registry: osism.harbor.regio.digital
+      push_image: true
+    secrets:
+      - name: secret
+        secret: SECRET_CONTAINER_IMAGE_PYTHON_OSISM
+
 - project:
     merge-mode: squash-merge
     default-branch: main
@@ -6,6 +53,7 @@
       jobs:
         - flake8
         - hadolint
+        - container-image-python-osism-build
     gate:
       jobs:
         - flake8
@@ -14,3 +62,8 @@
       jobs:
         - flake8
         - hadolint
+        - container-image-python-osism-push
+    post:
+      jobs:
+        - container-image-python-osism-push:
+            branches: main

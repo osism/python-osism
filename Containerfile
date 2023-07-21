@@ -62,12 +62,6 @@ RUN apt-get update \
     && python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-simple-stress/requirements.txt \
     && ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 
-LABEL "org.opencontainers.image.documentation"="https://docs.osism.tech" \
-      "org.opencontainers.image.licenses"="ASL 2.0" \
-      "org.opencontainers.image.source"="https://github.com/osism/python-osism" \
-      "org.opencontainers.image.url"="https://www.osism.tech" \
-      "org.opencontainers.image.vendor"="OSISM GmbH"
-
 FROM osism as osism-netbox
 
 # hadolint ignore=DL3008
