@@ -121,7 +121,7 @@ apt-get install -y --no-install-recommends \
   git-annex
 
 mkdir -p /import
-git clone https://github.com/netbox-community/devicetype-library /devicetype-library
+git clone --depth 1 https://github.com/netbox-community/devicetype-library /devicetype-library
 
 apt-get clean
 rm -rf \
