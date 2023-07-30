@@ -37,7 +37,9 @@ ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION}-slim as osism
 
 COPY --from=builder /wheels /wheels
+
 COPY . /src
+
 COPY files/change.sh /change.sh
 COPY files/run-ansible-console.sh /run-ansible-console.sh
 COPY requirements.yml /ansible/requirements.yml
@@ -97,6 +99,7 @@ ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 # cleanup
 apt-get clean
 rm -rf \
+  /src \
   /tmp/* \
   /usr/share/doc/* \
   /usr/share/man/* \
