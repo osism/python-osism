@@ -117,8 +117,7 @@ set -x
 
 apt-get update
 apt-get install -y --no-install-recommends \
-  git \
-  git-annex
+  git
 
 mkdir -p /import
 git clone --depth 1 https://github.com/netbox-community/devicetype-library /devicetype-library
