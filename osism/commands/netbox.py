@@ -10,7 +10,7 @@ from tabulate import tabulate
 from osism.tasks import conductor, netbox, reconciler, ansible, openstack
 
 
-redis = Redis(host="redis", port="6379")
+redis = Redis(host="redis", port=6379, db=0)
 
 
 class Run(Command):

@@ -36,7 +36,7 @@ class Config:
 def celery_init_worker(**kwargs):
     global redis
 
-    redis = Redis(host="redis", port="6379")
+    redis = Redis(host="redis", port=6379, db=0)
 
 
 def run_ansible_in_environment(

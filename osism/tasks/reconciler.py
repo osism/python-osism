@@ -19,7 +19,7 @@ redis = None
 def celery_init_worker(**kwargs):
     global redis
 
-    redis = Redis(host="redis", port="6379")
+    redis = Redis(host="redis", port=6379, db=0)
 
 
 @app.on_after_configure.connect

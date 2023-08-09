@@ -6,7 +6,7 @@ from redis import Redis
 from osism.tasks import ansible
 
 
-redis = Redis(host="redis", port="6379")
+redis = Redis(host="redis", port=6379, db=0)
 
 
 class Run(Command):
