@@ -21,7 +21,7 @@ def celery_init_worker(**kwargs):
     global configuration
     global redis
 
-    redis = Redis(host="redis", port="6379")
+    redis = Redis(host="redis", port=6379, db=0)
 
     # Parameters come from the environment, OS_*
     try:

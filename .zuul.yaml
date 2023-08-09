@@ -54,6 +54,7 @@
         - flake8
         - hadolint
         - container-image-python-osism-build
+        - mypy
     gate:
       jobs:
         - flake8
@@ -63,6 +64,7 @@
         - flake8
         - hadolint
         - container-image-python-osism-push
+        - mypy
     post:
       jobs:
         - container-image-python-osism-push:

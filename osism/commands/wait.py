@@ -94,7 +94,7 @@ class Run(Command):
                     print(f"{task_id} = STARTED")
 
                 if live:
-                    redis = Redis(host="redis", port="6379")
+                    redis = Redis(host="redis", port=6379, db=0)
                     p = redis.pubsub()
                     p.subscribe(f"{task_id}")
 

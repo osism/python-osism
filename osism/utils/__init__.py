@@ -1,8 +1,9 @@
 from osism import settings
 import pynetbox
 from redis import Redis
+import urllib3
 
-redis = Redis(host="redis", port="6379")
+redis = Redis(host="redis", port=6379)
 
 if settings.NETBOX_URL and settings.NETBOX_TOKEN:
     nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
@@ -10,7 +11,7 @@ if settings.NETBOX_URL and settings.NETBOX_TOKEN:
     if settings.IGNORE_SSL_ERRORS and nb:
         import requests
 
-        requests.packages.urllib3.disable_warnings()
+        urllib3.disable_warnings()
         session = requests.Session()
         session.verify = False
         nb.http_session = session
