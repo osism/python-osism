@@ -25,7 +25,7 @@ collections:
   - name: community.rabbitmq
     version: 1.2.3
   - name: containers.podman
-    version: 1.10.2
+    version: 1.10.3
   - name: kubernetes.core
     version: 2.4.0
   - name: netbox.netbox
