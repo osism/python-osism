@@ -2,11 +2,11 @@ import argparse
 
 from cliff.command import Command
 from redis import Redis
-
+from osism import settings
 from osism.tasks import ansible
 
 
-redis = Redis(host="redis", port=6379, db=0)
+redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
 
 
 class Run(Command):

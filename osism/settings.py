@@ -14,6 +14,11 @@ def read_secret(secret_name):
 OPENSEARCH_ADDRESS = os.getenv("OPENSEARCH_ADDRESS")
 OPENSEARCH_PORT = os.getenv("OPENSEARCH_PORT")
 
+REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+
+
 NETBOX_URL = os.getenv("NETBOX_API")
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))
 IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", "True") == "True"

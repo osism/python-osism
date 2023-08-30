@@ -8,7 +8,7 @@ import keystoneauth1
 import openstack
 from pottery import Redlock
 from redis import Redis
-
+from osism import settings
 from osism.tasks import Config, conductor, netbox
 from osism import utils
 
@@ -24,7 +24,7 @@ def celery_init_worker(**kwargs):
     global conn
     global redis
 
-    redis = Redis(host="redis", port=6379, db=0)
+    redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
 
     # Parameters come from the environment, OS_*
     try:

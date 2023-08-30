@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
-
+from osism import settings
 from celery.signals import worker_process_init
 from loguru import logger
 from redis import Redis
@@ -36,7 +36,7 @@ class Config:
 def celery_init_worker(**kwargs):
     global redis
 
-    redis = Redis(host="redis", port=6379, db=0)
+    redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
 
 
 def run_ansible_in_environment(
