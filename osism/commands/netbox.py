@@ -6,11 +6,11 @@ from cliff.command import Command
 from loguru import logger
 from redis import Redis
 from tabulate import tabulate
-
+from osism import settings
 from osism.tasks import conductor, netbox, reconciler, ansible, openstack
 
 
-redis = Redis(host="redis", port=6379, db=0)
+redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
 
 
 class Run(Command):
