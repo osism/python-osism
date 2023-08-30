@@ -3,8 +3,11 @@ FROM python:${PYTHON_VERSION} as builder
 
 COPY . /src
 
+COPY files/patches /patches
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# hadolint ignore=DL3003,SC2091
 RUN <<EOF
 set -e
 set -x
@@ -15,7 +18,8 @@ apt-get install -y --no-install-recommends \
   build-essential \
   gcc \
   libldap2-dev \
-  libsasl2-dev
+  libsasl2-dev \
+  patch
 
 # install python packages
 mkdir /wheels
@@ -24,13 +28,18 @@ python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-image-manager.txt
 
-# install openstack-project-manager
+# install openstack-project-manager requirements
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-project-manager/requirements.txt
 
-# install openstack-simple-stress
+# install openstack-simple-stress requirements
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-simple-stress/requirements.txt
+
+# install migration-cycle requirements
+git clone --depth 1 https://gitlab.cern.ch/cloud-infrastructure/migration_cycle.git /migration-cycle
+$( cd /migration-cycle; patch -p1 < /patches/migration-cycle-remove-cornerstoneclient.patch )
+python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /migration-cycle/requirements.txt
 EOF
 
 ARG PYTHON_VERSION=3.11
@@ -41,6 +50,7 @@ COPY --from=builder /wheels /wheels
 COPY . /src
 
 COPY files/change.sh /change.sh
+COPY files/patches /patches
 COPY files/run-ansible-console.sh /run-ansible-console.sh
 COPY requirements.yml /ansible/requirements.yml
 
@@ -50,6 +60,7 @@ COPY files/clustershell/groups.conf /etc/clustershell/groups.conf
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# hadolint ignore=DL3003,SC2091
 RUN <<EOF
 set -e
 set -x
@@ -59,6 +70,7 @@ apt-get update
 apt-get install -y --no-install-recommends \
   git \
   openssh-client \
+  patch \
   procps
 
 # install python packages
@@ -85,20 +97,31 @@ ln -s /opt/configuration/environments/openstack /etc/openstack
 cp /openstack-image-manager/etc/images/* /etc/images
 rm -rf /openstack-image-manager
 
-# install openstack-project-manager
+# install openstack-project-manager requirements
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-project-manager/requirements.txt
 
-# install openstack-simple-stress
+# install openstack-simple-stress requirements
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-simple-stress/requirements.txt
+
+# install migration-cycle requirements
+git clone --depth 1 https://gitlab.cern.ch/cloud-infrastructure/migration_cycle.git /migration-cycle
+$( cd /migration-cycle; patch -p1 < /patches/migration-cycle-remove-cornerstoneclient.patch )
+python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /migration-cycle/requirements.txt
+
+# install migration-cycle
+python3 -m pip --no-cache-dir install /migration-cycle
 
 # prepare use of clustershell
 ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 
 # cleanup
+apt-get remove -y \
+  patch
 apt-get clean
 rm -rf \
+  /patches \
   /src \
   /tmp/* \
   /usr/share/doc/* \

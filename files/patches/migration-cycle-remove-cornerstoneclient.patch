@@ -1,0 +1,10 @@
+b/requirements.txt
+index 5d0a09f..3ef6f09 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -27,5 +27,4 @@ influxdb
+ tenacity
+ os-client-config
+ oslo.config
+--e git+https://gitlab.cern.ch/cloud-infrastructure/cornerstoneclient.git@master#egg=cornerstoneclient
+ boto>=2.48.0
