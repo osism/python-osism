@@ -12,3 +12,4 @@
 
   roles:
     - ensure-docker
+    - ensure-pip
