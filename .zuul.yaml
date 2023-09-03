@@ -69,3 +69,6 @@
       jobs:
         - container-image-python-osism-push:
             branches: main
+    tag:
+      jobs:
+        - container-image-python-osism-push

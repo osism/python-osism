@@ -5,7 +5,7 @@
   environment:
     registry: "{{ docker_registry }}"
     repository: "{{ docker_namespace }}/osism"
-    version: latest
+    version: "{{ zuul['tag'] | default('latest') }}"
 
   tasks:
     - name: Log into registry
@@ -27,8 +27,25 @@
           created=$(date --rfc-3339=ns)
           revision=$(git rev-parse --short HEAD)
 
-          if [[ -n $registry ]]; then
-              repository="$registry/$repository"
+          # At the moment we publish the pypi package itself still with Github Actions.
+          # Because of this we have to wait for the Pypi package here. This can be removed
+          # again in the future when we have the publish process on Zuul.
+          wait_for_pypi_version() {
+              local max_attempts="$1"
+              local version="$2"
+              local attempt_num=1
+
+              until pip3 install --dry-run osism==$version; do
+                  if (( attempt_num++ == max_attempts )); then
+                      return 1
+                  else
+                      sleep 60
+                  fi
+              done
+          }
+          if [[ $version != "latest" ]]; then
+              pip3 install -U pip
+              wait_for_pypi_version 20 $version
           fi
 
           docker buildx build \
