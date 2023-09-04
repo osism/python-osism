@@ -23,6 +23,7 @@ python3 -m pip --no-cache-dir install -U 'pip==23.2.1'
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-image-manager.txt
+python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-flavor-manager.txt
 
 # install openstack-project-manager
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
@@ -66,6 +67,7 @@ python3 -m pip --no-cache-dir install -U 'pip==23.2.1'
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.ansible.txt
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.openstack-image-manager.txt
+python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.openstack-flavor-manager.txt
 
 # install python-osism
 python3 -m pip --no-cache-dir install --no-index /src
