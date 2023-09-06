@@ -1,1 +1,1 @@
-openstack-image-manager==0.0.1
+openstack-flavor-manager==0.0.3
