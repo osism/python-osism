@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d017d20bca0ae56b73ac45942bf628f0fe327cb58512105f455f8b1c69e64929"
+            "sha256": "93e5e6c3b6a20b6415cd93a02ff9790e101b01de190f08aad5bc6e2e5cbccc4e"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -355,12 +355,12 @@
         },
         "deepdiff": {
             "hashes": [
-                "sha256:065cdbbe62f66447cf507b32351579ffcc4a80bb28f567ac27e92a21ddca99f9",
-                "sha256:744c4e54ff83eaa77a995b3311dccdce6ee67773335a34a5ef269fa048005457"
+                "sha256:080b1359d6128f3f5f1738c6be3064f0ad9b0cc41994aa90a028065f6ad11f25",
+                "sha256:acdc1651a3e802415e0337b7e1192df5cd7c17b72fbab480466fdd799b9a72e7"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.7'",
-            "version": "==6.4.1"
+            "version": "==6.5.0"
         },
         "docker": {
             "hashes": [
@@ -924,11 +924,11 @@
         },
         "netutils": {
             "hashes": [
-                "sha256:39654c367f291ed071477a2e5b4cda880eca9b8d5a1229ba3e39eec5f584cb67",
-                "sha256:c0d3a8836a030eca456a2e9291d02be1326e6d7fe4e88cb63b1155512001bb14"
+                "sha256:bd2fa691e172fe9d5c9e6fc5e2593316eb7fd2c36450454894ed13b274763d70",
+                "sha256:e755e6141d0968f1deeb61693a4023f4f5fe1f0dde25d94ac1008f8191d8d237"
             ],
             "markers": "python_version >= '3.8' and python_version < '4.0'",
-            "version": "==1.5.0"
+            "version": "==1.6.0"
         },
         "ntc-templates": {
             "hashes": [
@@ -996,11 +996,11 @@
         },
         "prettytable": {
             "hashes": [
-                "sha256:031eae6a9102017e8c7c7906460d150b7ed78b20fd1d8c8be4edaf88556c07ce",
-                "sha256:03481bca25ae0c28958c8cd6ac5165c159ce89f7ccde04d5c899b24b68bb13b7"
+                "sha256:a71292ab7769a5de274b146b276ce938786f56c31cf7cea88b6f3775d82fe8c8",
+                "sha256:f4ed94803c23073a90620b201965e5dc0bccf1760b7a7eaf3158cab8aaffdf34"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==3.8.0"
+            "version": "==3.9.0"
         },
         "prometheus-client": {
             "hashes": [
@@ -1129,11 +1129,11 @@
         },
         "pytest": {
             "hashes": [
-                "sha256:2f2301e797521b23e4d2585a0a3d7b5e50fdddaaf7e7d6773ea26ddb17c213ab",
-                "sha256:460c9a59b14e27c602eb5ece2e47bec99dc5fc5f6513cf924a7d03a578991b1f"
+                "sha256:1d881c6124e08ff0a1bb75ba3ec0bfd8b5354a01c194ddd5a0a870a48d99b002",
+                "sha256:a766259cfab564a2ad52cb1aae1b881a75c3eb7e34ca3779697c23ed47c47069"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==7.4.1"
+            "version": "==7.4.2"
         },
         "pytest-testinfra": {
             "hashes": [
@@ -1248,11 +1248,11 @@
         },
         "setuptools": {
             "hashes": [
-                "sha256:00478ca80aeebeecb2f288d3206b0de568df5cd2b8fada1209843cc9a8d88a48",
-                "sha256:af3d5949030c3f493f550876b2fd1dd5ec66689c4ee5d5344f009746f71fd5a8"
+                "sha256:56ee14884fd8d0cd015411f4a13f40b4356775a0aefd9ebc1d3bfb9a1acb32f1",
+                "sha256:eff96148eb336377ab11beee0c73ed84f1709a40c0b870298b0d058828761bae"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==68.2.0"
+            "version": "==68.2.1"
         },
         "six": {
             "hashes": [
@@ -1482,11 +1482,11 @@
         },
         "websocket-client": {
             "hashes": [
-                "sha256:53e95c826bf800c4c465f50093a8c4ff091c7327023b10bfaff40cf1ef170eaa",
-                "sha256:ce54f419dfae71f4bdba69ebe65bf7f0a93fe71bc009ad3a010aacc3eebad537"
+                "sha256:3aad25d31284266bcfcfd1fd8a743f63282305a364b8d0948a43bd606acc652f",
+                "sha256:6cfc30d051ebabb73a5fa246efdcc14c8fbebbd0330f8984ac3bb6d9edd2ad03"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==1.6.2"
+            "version": "==1.6.3"
         },
         "yamlordereddictloader": {
             "hashes": [
