@@ -171,16 +171,6 @@ class Run(Command):
                 t = ceph.run.delay(environment, role[5:], arguments)
             else:
                 t = ceph.run.delay(environment, role, arguments)
-        elif environment == "kolla":
-            if sub:
-                environment = f"{environment}.{sub}"
-            if action == "rolling-upgrade":
-                action = "rolling_upgrade"
-            kolla_arguments = [f"-e kolla_action={action}"] + arguments
-            if role.startswith("kolla-"):
-                t = kolla.run.delay(environment, role[6:], kolla_arguments)
-            else:
-                t = kolla.run.delay(environment, role, kolla_arguments)
         elif role == "loadbalancer-ng":
             if sub:
                 environment = f"{environment}.{sub}"
@@ -191,6 +181,22 @@ class Run(Command):
             t = (
                 kolla.run.s(environment, "loadbalancer-ng", arguments) | g
             ).apply_async()
+        elif environment == "kolla":
+            if sub:
+                environment = f"{environment}.{sub}"
+
+            if action == "rolling-upgrade":
+                action = "rolling_upgrade"
+
+            if role.startswith("kolla-"):
+                role = role[6:]
+
+            if role == "mariadb-ng":
+                kolla_arguments = [f"-e kolla_action_ng={action}"] + arguments
+            else:
+                kolla_arguments = [f"-e kolla_action={action}"] + arguments
+
+            t = kolla.run.delay(environment, role, kolla_arguments)
         else:
             # Overwrite the environment
             if overwrite:
