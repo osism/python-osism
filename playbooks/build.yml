@@ -90,8 +90,6 @@
           set -o pipefail
           set -x
 
-          shopt -s extglob
-
           revision=$(git rev-parse --short HEAD)
 
           if [[ -n $registry ]]; then
