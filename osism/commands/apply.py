@@ -191,7 +191,7 @@ class Run(Command):
             if role.startswith("kolla-"):
                 role = role[6:]
 
-            if role == "mariadb-ng":
+            if role in ["mariadb-ng", "rabbitmq-ng"]:
                 kolla_arguments = [f"-e kolla_action_ng={action}"] + arguments
             else:
                 kolla_arguments = [f"-e kolla_action={action}"] + arguments
