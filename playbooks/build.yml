@@ -90,10 +90,16 @@
           set -o pipefail
           set -x
 
+          shopt -s extglob
+
           revision=$(git rev-parse --short HEAD)
 
           if [[ -n $registry ]]; then
               repository="$registry/$repository"
+          fi
+
+          if [[ $version != "latest" ]]; then
+              version="${version:1:${#version}-1}"
           fi
 
           docker tag "$revision" "$repository:$version"
