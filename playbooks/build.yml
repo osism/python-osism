@@ -48,6 +48,12 @@
               wait_for_pypi_version 20 $version
           fi
 
+          {% raw %}
+          if [[ $version != "latest" ]]; then
+              version="${version:1:${#version}-1}"
+          fi
+          {% endraw %}
+
           docker buildx build \
               --target osism \
               --build-arg "VERSION=$version" \
