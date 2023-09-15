@@ -43,6 +43,7 @@
                   fi
               done
           }
+
           if [[ $version != "latest" ]]; then
               pip3 install -U pip
               wait_for_pypi_version 20 $version
@@ -96,9 +97,11 @@
               repository="$registry/$repository"
           fi
 
+          {% raw %}
           if [[ $version != "latest" ]]; then
               version="${version:1:${#version}-1}"
           fi
+          {% endraw %}
 
           docker tag "$revision" "$repository:$version"
           docker push "$repository:$version"
