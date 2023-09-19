@@ -85,3 +85,32 @@ class Images(Command):
             f"/usr/local/bin/openstack-image-manager --images=/etc/images {joined_arguments}",
             shell=True,
         )
+
+
+class Flavors(Command):
+    def get_parser(self, prog_name):
+        parser = super(Flavors, self).get_parser(prog_name)
+
+        # NOTE: This is a workaround. argparse.REMAINDER does not work well to pass all
+        # arguments to openstack-image-manager. This is improved by switching from cliff
+        # to typer. Then openstack-flavor-manager can simply be included directly at this
+        # point.
+
+        parser.add_argument(
+            "--cloud", type=str, help="Cloud name in clouds.yaml", default="admin"
+        )
+
+        return parser
+
+    def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
+
+        arguments = []
+        if cloud:
+            arguments.append(f"--cloud '{cloud}'")
+
+        joined_arguments = " ".join(arguments)
+        subprocess.call(
+            f"/usr/local/bin/openstack-flavor-manager {joined_arguments}",
+            shell=True,
+        )
