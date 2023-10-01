@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    After each execution, the status of a role is currently saved as a
+    local fact on the systems. In future, this will be stored in a central
+    location and not as a local fact. Since the feature itself is not used
+    anywhere and was only prepared, it is now removed to save resources
+    during execution.
