@@ -6,7 +6,6 @@ from cliff.command import Command
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 import requests
-from tabulate import tabulate
 
 from osism import settings
 
