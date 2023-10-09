@@ -23,7 +23,7 @@ def celery_init_worker(**kwargs):
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    sender.add_periodic_task(settings.INVENTORY_RECONCILER_SCHEDULE,  run.s(), expires=10)
+    sender.add_periodic_task(settings.INVENTORY_RECONCILER_SCHEDULE, run.s(), expires=10)
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
