@@ -5,7 +5,7 @@ name = "pypi"
 
 [packages]
 ClusterShell = "==1.9.2"
-GitPython = "==3.1.37"
+GitPython = "==3.1.38"
 Jinja2 = "==3.1.2"
 PyYAML = "==6.0.1"
 ansible-runner = "==2.3.4"

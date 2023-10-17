@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "22a26fe7e7d7ccd8aac1578e8e29d7a8f68272b74a162b4f8ae2b02ca1790d59"
+            "sha256": "00546962147b8725bb2858d7c694f27507070e3ab0a597e0c63b9ec934bf962c"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -60,11 +60,11 @@
         },
         "autopage": {
             "hashes": [
-                "sha256:01be3ee61bb714e9090fcc5c10f4cf546c396331c620c6ae50a2321b28ed3199",
-                "sha256:0fbf5efbe78d466a26753e1dee3272423a3adc989d6a778c700e89a3f8ff0d88"
+                "sha256:826996d74c5aa9f4b6916195547312ac6384bac3810b8517063f293248257b72",
+                "sha256:f5eae54dd20ccc8b1ff611263fc87bc46608a9cde749bbcfc93339713a429c55"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==0.5.1"
+            "version": "==0.5.2"
         },
         "bcrypt": {
             "hashes": [
@@ -417,11 +417,11 @@
         },
         "gitpython": {
             "hashes": [
-                "sha256:5f4c4187de49616d710a77e98ddf17b4782060a1788df441846bddefbb89ab33",
-                "sha256:f9b9ddc0761c125d5780eab2d64be4873fc6817c2899cbcb34b02344bdc7bc54"
+                "sha256:4d683e8957c8998b58ddb937e3e6cd167215a180e1ffd4da769ab81c620a89fe",
+                "sha256:9e98b672ffcb081c2c8d5aa630d4251544fb040fb158863054242f24a2a2ba30"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==3.1.37"
+            "version": "==3.1.38"
         },
         "greenlet": {
             "hashes": [
@@ -934,11 +934,11 @@
         },
         "ntc-templates": {
             "hashes": [
-                "sha256:86d75c077eb1ceb97f4f8c69c9e3c7a32b08210ceb8228e5fa4e87e080746fd4",
-                "sha256:ee0dab4440dab1b3286549f8c08695b30037c1f36f55763c5a39005525f722c7"
+                "sha256:4d20943fdffc70595fb2b983c6fcab926635c3e4621aaec13a9063a9a61241dd",
+                "sha256:5bd158592ac99e769a0b7e82e53fd714a410f912fc9e438e95cc0130cf7290a8"
             ],
             "markers": "python_version >= '3.7' and python_version < '4.0'",
-            "version": "==3.5.0"
+            "version": "==4.0.1"
         },
         "ordered-set": {
             "hashes": [
@@ -1484,11 +1484,11 @@
         },
         "websocket-client": {
             "hashes": [
-                "sha256:3aad25d31284266bcfcfd1fd8a743f63282305a364b8d0948a43bd606acc652f",
-                "sha256:6cfc30d051ebabb73a5fa246efdcc14c8fbebbd0330f8984ac3bb6d9edd2ad03"
+                "sha256:084072e0a7f5f347ef2ac3d8698a5e0b4ffbfcab607628cadabc650fc9a83a24",
+                "sha256:b3324019b3c28572086c4a319f91d1dcd44e6e11cd340232978c684a7650d0df"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==1.6.3"
+            "version": "==1.6.4"
         },
         "yamlordereddictloader": {
             "hashes": [
