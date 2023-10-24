@@ -97,6 +97,8 @@ class Run(Command):
 
                 if live:
                     redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+                    redis.ping()
+
                     p = redis.pubsub()
                     p.subscribe(f"{task_id}")
 

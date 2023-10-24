@@ -13,6 +13,7 @@ from osism.tasks import conductor, netbox, reconciler, ansible, openstack
 
 
 redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+redis.ping()
 
 
 class Run(Command):
