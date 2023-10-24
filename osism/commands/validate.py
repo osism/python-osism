@@ -55,29 +55,32 @@ class Run(Command):
     def _handle_task(self, t, wait, format, timeout):
         rc = 0
         if wait:
-            p = redis.pubsub()
-            p.subscribe(f"{t.task_id}")
-
             stoptime = time.time() + timeout
+            last_id = 0
             while time.time() < stoptime:
-                m = p.get_message(timeout=stoptime - time.time())
-                if m:
+                data = redis.xread(
+                    {str(t.task_id): last_id}, count=1, block=(timeout * 1000)
+                )
+                if data:
                     stoptime = time.time() + timeout
-                    if type(m["data"]) == bytes:
-                        line = m["data"].decode("utf-8")
-                        if line.startswith("RC: "):
-                            rc = int(line[4:])
-                            continue
-                        if line == "QUIT":
+                    messages = data[0]
+                    for message_id, message in messages[1]:
+                        last_id = message_id.decode()
+                        message_type = message[b"type"].decode()
+                        message_content = message[b"content"].decode()
+
+                        logger.debug(
+                            f"Processing message {last_id} of type {message_type}"
+                        )
+                        redis.xdel(str(t.task_id), message_id)
+
+                        if message_type == "stdout":
+                            print(message_content, end="")
+                        elif message_type == "rc":
+                            rc = int(message_content)
+                        elif message_type == "action" and message_content == "quit":
                             redis.close()
-                            # NOTE: Use better solution
                             return rc
-                        print(line, end="")
-                else:
-                    logger.info(
-                        f"No further output after {timeout} seconds. Therefore finish."
-                    )
-                    return rc
 
         else:
             if format == "log":

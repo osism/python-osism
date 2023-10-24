@@ -3,6 +3,7 @@
 import argparse
 
 from cliff.command import Command
+from loguru import logger
 from redis import Redis
 from osism import settings
 from osism.tasks import ansible
@@ -43,19 +44,7 @@ class Deploy(Command):
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
 
-        ansible.run.delay("manager", "bifrost-deploy", [])
-
-        if wait:
-            p = redis.pubsub()
-
-            # NOTE: use task_id or request_id in future
-            p.subscribe("manager-bifrost-deploy")
-
-            while True:
-                for m in p.listen():
-                    if type(m["data"]) == bytes:
-                        if m["data"].decode("utf-8") == "QUIT":
-                            redis.close()
-                            # NOTE: Use better solution
-                            return
-                        print(m["data"].decode("utf-8"), end="")
+        t = ansible.run.delay("manager", "bifrost-deploy", [])
+        logger.info(
+            f"Task {t.task_id} is running in background. No more output. Check ARA for logs."
+        )

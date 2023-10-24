@@ -96,28 +96,43 @@ class Run(Command):
                     print(f"{task_id} = STARTED")
 
                 if live:
-                    redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+                    redis = Redis(
+                        host=settings.REDIS_HOST,
+                        port=settings.REDIS_PORT,
+                        db=settings.REDIS_DB,
+                    )
                     redis.ping()
 
-                    p = redis.pubsub()
-                    p.subscribe(f"{task_id}")
-
+                    last_id = 0
                     while_True = True
                     while while_True:
-                        for m in p.listen():
-                            if type(m["data"]) == bytes:
-                                line = m["data"].decode("utf-8")
-                                if line.startswith("RC: "):
-                                    rc = int(line[4:])
-                                    continue
-                                elif line == "QUIT":
-                                    redis.close()
+                        data = redis.xread(
+                            {str(task_id): last_id}, count=1, block=1000
+                        )
+                        if data:
+                            messages = data[0]
+                            for message_id, message in messages[1]:
+                                last_id = message_id.decode()
+                                message_type = message[b"type"].decode()
+                                message_content = message[b"content"].decode()
 
+                                logger.debug(
+                                    f"Processing message {last_id} of type {message_type}"
+                                )
+                                redis.xdel(str(task_id), last_id)
+
+                                if message_type == "stdout":
+                                    print(message_content, end="")
+                                elif message_type == "rc":
+                                    rc = int(message_content)
+                                elif (
+                                    message_type == "action"
+                                    and message_content == "quit"
+                                ):
+                                    redis.close()
                                     if len(task_ids) == 1:
                                         return rc
                                     else:
                                         while_True = False
-                                else:
-                                    print(line, end="")
                 else:
                     task_ids.insert(0, task_id)

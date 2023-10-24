@@ -37,7 +37,9 @@ class Config:
 def celery_init_worker(**kwargs):
     global redis
 
-    redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+    redis = Redis(
+        host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB
+    )
     redis.ping()
 
 
@@ -185,14 +187,14 @@ def run_ansible_in_environment(
     else:
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             if publish:
-                redis.publish(f"{request_id}", line)
+                redis.xadd(request_id, {"type": "stdout", "content": line})
             result += line
 
         rc = p.wait(timeout=60)
 
         if publish:
-            redis.publish(f"{request_id}", f"RC: {rc}\n")
-            redis.publish(f"{request_id}", "QUIT")
+            redis.xadd(request_id, {"type": "rc", "content": rc})
+            redis.xadd(request_id, {"type": "action", "content": "quit"})
 
         if locking:
             lock.release()

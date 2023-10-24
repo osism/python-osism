@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The transfer of console outputs was changed from Redis PubSub to Redis Streams.
+    This means that no more console outputs will be lost in the future. Furthermore,
+    it is possible to transmit STDOUT and STDERR separately in the future.
