@@ -20,13 +20,17 @@ redis = None
 def celery_init_worker(**kwargs):
     global redis
 
-    redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+    redis = Redis(
+        host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB
+    )
     redis.ping()
 
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    sender.add_periodic_task(settings.INVENTORY_RECONCILER_SCHEDULE, run.s(), expires=10)
+    sender.add_periodic_task(
+        settings.INVENTORY_RECONCILER_SCHEDULE, run.s(), expires=10
+    )
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
@@ -62,9 +66,13 @@ def sync_inventory_with_netbox(self):
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
             # NOTE: use task_id or request_id in future
-            redis.publish("netbox-sync-inventory-with-netbox", line)
+            redis.publish(
+                "netbox-sync-inventory-with-netbox", {"type": "stdout", "content": line}
+            )
 
         lock.release()
 
     # NOTE: use task_id or request_id in future
-    redis.publish("netbox-sync-inventory-with-netbox", "QUIT")
+    redis.publish(
+        "netbox-sync-inventory-with-netbox", {"type": "action", "content": "quit"}
+    )

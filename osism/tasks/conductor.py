@@ -23,7 +23,9 @@ def celery_init_worker(**kwargs):
     global configuration
     global redis
 
-    redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+    redis = Redis(
+        host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB
+    )
     redis.ping()
 
     # Parameters come from the environment, OS_*

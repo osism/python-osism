@@ -19,6 +19,7 @@ from osism.actions import (
     manage_interface,
 )
 from osism.tasks import Config, ansible, openstack
+
 app = Celery("netbox")
 app.config_from_object(Config)
 
@@ -31,7 +32,9 @@ def celery_init_worker(**kwargs):
     global nb
     global redis
 
-    redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+    redis = Redis(
+        host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB
+    )
     redis.ping()
 
     if settings.NETBOX_URL and settings.NETBOX_TOKEN:
