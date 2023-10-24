@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 from osism import settings
 import pynetbox
 from redis import Redis

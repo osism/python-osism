@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 from celery import Celery
 from celery.signals import worker_process_init
 import keystoneauth1
