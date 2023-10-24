@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    After establishing a connection to Redis, send a ping to ensure that the
+    connection is functional.

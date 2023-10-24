@@ -32,6 +32,7 @@ def celery_init_worker(**kwargs):
     global redis
 
     redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+    redis.ping()
 
     if settings.NETBOX_URL and settings.NETBOX_TOKEN:
         nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
