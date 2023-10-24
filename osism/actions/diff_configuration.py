@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 from loguru import logger
 import git
 from pottery import Redlock

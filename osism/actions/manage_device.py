@@ -1,5 +1,5 @@
+# SPDX-License-Identifier: CC-BY-NC-4.0
 # Copyright OSISM GmbH, 2022-2023
-# LICENSE: CC BY-NC 4.0
 
 import glob
 import os

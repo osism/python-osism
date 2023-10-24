@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 from celery import Celery
 
 from osism.tasks import Config, run_ansible_in_environment
