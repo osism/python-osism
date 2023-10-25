@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    With the new parameter `--number-of-workers` for the worker command, it
+    is now possible to increase the number of workers that can be used
+    simultaneously. The value is set to 16 by default.
