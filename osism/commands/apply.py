@@ -264,17 +264,28 @@ class Run(Command):
                 if rc != 0:
                     break
         else:
-            rc = self.handle_role(
-                arguments,
-                environment,
-                overwrite,
-                sub,
-                role,
-                action,
-                wait,
-                format,
-                timeout,
-                task_timeout,
-            )
+            if not environment:
+                logger.error(
+                    f"The role {role} is unknown. To use a role that is provied in the configuration repository,"
+                    " the environment to be used must be explicitly specified with -e or --environment."
+                )
+            else:
+                logger.info(
+                    f"An attempt is made to execute a role that is provided in the configuration repository. "
+                    f"If there is no further output following this output, the role {role} in the environment"
+                    f" {environment} was not found."
+                )
+                rc = self.handle_role(
+                    arguments,
+                    environment,
+                    overwrite,
+                    sub,
+                    role,
+                    action,
+                    wait,
+                    format,
+                    timeout,
+                    task_timeout,
+                )
 
         return rc
