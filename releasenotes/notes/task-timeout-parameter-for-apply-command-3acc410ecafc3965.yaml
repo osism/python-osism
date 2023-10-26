@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Until now it was not possible to configure the timeout of tasks that are not yet executed.
+    It was set to 3600 seconds (1h) by default. With the new parameter `--task-timeout` for
+    the `apply` command it is now possible to adjust this timeout as desired. The default of
+    3600 seconds remains.

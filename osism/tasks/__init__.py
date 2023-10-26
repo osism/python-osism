@@ -44,7 +44,7 @@ def celery_init_worker(**kwargs):
 
 
 def run_ansible_in_environment(
-    request_id, worker, environment, role, arguments, publish=True, locking=True
+    request_id, worker, environment, role, arguments, publish=True, locking=True, auto_release_time=3600
 ):
     result = ""
 
@@ -84,7 +84,7 @@ def run_ansible_in_environment(
         lock = Redlock(
             key=f"lock-ansible-{environment}-{role}",
             masters={redis},
-            auto_release_time=3600,
+            auto_release_time=auto_release_time,
         )
 
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is

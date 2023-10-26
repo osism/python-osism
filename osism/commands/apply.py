@@ -71,6 +71,12 @@ class Run(Command):
             help="Timeout to end if there is no output",
         )
         parser.add_argument(
+            "--task-timeout",
+            default=3600,
+            type=int,
+            help="Timeout for a scheduled task that has not been executed yet",
+        )
+        parser.add_argument(
             "--no-wait",
             default=False,
             help="Do not wait until the role has been applied",
@@ -156,6 +162,7 @@ class Run(Command):
         wait,
         format,
         timeout,
+        task_timeout,
     ):
         # There is a special playbook ceph-ceph which should be called
         # with ceph. Therefore, the environment is set explicitly in
@@ -173,7 +180,9 @@ class Run(Command):
             if sub:
                 environment = f"{environment}.{sub}"
             if role.startswith("ceph-"):
-                t = ceph.run.delay(environment, role[5:], arguments)
+                t = ceph.run.delay(
+                    environment, role[5:], arguments, auto_release_timeout=task_timeout
+                )
             else:
                 t = ceph.run.delay(environment, role, arguments)
         elif role == "loadbalancer-ng":
@@ -224,6 +233,7 @@ class Run(Command):
         role = parsed_args.role
         sub = parsed_args.sub
         timeout = parsed_args.timeout
+        task_timeout = parsed_args.task_timeout
         wait = not parsed_args.no_wait
 
         rc = 0
@@ -249,6 +259,7 @@ class Run(Command):
                     wait,
                     format,
                     timeout,
+                    task_timeout,
                 )
                 if rc != 0:
                     break
@@ -263,6 +274,7 @@ class Run(Command):
                 wait,
                 format,
                 timeout,
+                task_timeout,
             )
 
         return rc
