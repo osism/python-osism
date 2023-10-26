@@ -44,7 +44,14 @@ def celery_init_worker(**kwargs):
 
 
 def run_ansible_in_environment(
-    request_id, worker, environment, role, arguments, publish=True, locking=True, auto_release_time=3600
+    request_id,
+    worker,
+    environment,
+    role,
+    arguments,
+    publish=True,
+    locking=True,
+    auto_release_time=3600,
 ):
     result = ""
 
