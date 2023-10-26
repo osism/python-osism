@@ -184,16 +184,26 @@ class Run(Command):
                     environment, role[5:], arguments, auto_release_time=task_timeout
                 )
             else:
-                t = ceph.run.delay(environment, role, arguments, auto_release_time=task_timeout)
+                t = ceph.run.delay(
+                    environment, role, arguments, auto_release_time=task_timeout
+                )
         elif role == "loadbalancer-ng":
             if sub:
                 environment = f"{environment}.{sub}"
             g = group(
-                kolla.run.si(environment, playbook, arguments, auto_release_time=task_timeout)
+                kolla.run.si(
+                    environment, playbook, arguments, auto_release_time=task_timeout
+                )
                 for playbook in enums.LOADBALANCER_PLAYBOOKS
             )
             t = (
-                kolla.run.s(environment, "loadbalancer-ng", arguments, auto_release_time=task_timeout) | g
+                kolla.run.s(
+                    environment,
+                    "loadbalancer-ng",
+                    arguments,
+                    auto_release_time=task_timeout,
+                )
+                | g
             ).apply_async()
         elif environment == "kolla":
             if sub:
@@ -210,12 +220,22 @@ class Run(Command):
             else:
                 kolla_arguments = [f"-e kolla_action={action}"] + arguments
 
-            t = kolla.run.delay(environment, role, kolla_arguments, auto_release_time=task_timeout)
+            t = kolla.run.delay(
+                environment, role, kolla_arguments, auto_release_time=task_timeout
+            )
         else:
             # Overwrite the environment
             if overwrite:
                 environment = overwrite
-            t = ansible.run.delay(environment, role, arguments, auto_release_time=task_timeout)
+
+            logger.info(
+                f"An attempt is made to execute a role that is provided in the configuration repository. "
+                f"If there is no further output following this output, the role {role} in the environment"
+                f" {environment} was not found."
+            )
+            t = ansible.run.delay(
+                environment, role, arguments, auto_release_time=task_timeout
+            )
 
         if isinstance(t, GroupResult):
             rc = self._handle_loadbalancer(t, wait, format, timeout)
@@ -264,28 +284,17 @@ class Run(Command):
                 if rc != 0:
                     break
         else:
-            if not environment:
-                logger.error(
-                    f"The role {role} is unknown. To use a role that is provied in the configuration repository,"
-                    " the environment to be used must be explicitly specified with -e or --environment."
-                )
-            else:
-                logger.info(
-                    f"An attempt is made to execute a role that is provided in the configuration repository. "
-                    f"If there is no further output following this output, the role {role} in the environment"
-                    f" {environment} was not found."
-                )
-                rc = self.handle_role(
-                    arguments,
-                    environment,
-                    overwrite,
-                    sub,
-                    role,
-                    action,
-                    wait,
-                    format,
-                    timeout,
-                    task_timeout,
-                )
+            rc = self.handle_role(
+                arguments,
+                environment,
+                overwrite,
+                sub,
+                role,
+                action,
+                wait,
+                format,
+                timeout,
+                task_timeout,
+            )
 
         return rc
