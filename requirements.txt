@@ -12,7 +12,6 @@ flower==2.0.1
 hiredis==2.2.3
 kombu==5.3.2
 loguru==0.7.2
-napalm==4.1.0
 netmiko==4.2.0
 pottery==3.0.0
 prompt-toolkit==3.0.39
