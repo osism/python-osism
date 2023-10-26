@@ -75,6 +75,11 @@
       jobs:
         - container-image-python-osism-push:
             branches: main
+        - container-image-ceph-ansible-push-quincy
+        - container-image-inventory-reconciler-push
+        - container-image-kolla-ansible-push-antelope
+        - container-image-kolla-ansible-push-zed
+        - container-image-osism-ansible-push
     tag:
       jobs:
         - container-image-python-osism-push
