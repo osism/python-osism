@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    With the new commands set/noset it is possible to set certain properties of nodes.
+    First of all, it will be possible to put a node into maintenance.
