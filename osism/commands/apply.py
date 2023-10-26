@@ -181,18 +181,24 @@ class Run(Command):
                 environment = f"{environment}.{sub}"
             if role.startswith("ceph-"):
                 t = ceph.run.delay(
-                    environment, role[5:], arguments, auto_release_time=task_timeout
+                    environment,
+                    role[5:],
+                    arguments,
+                    {"auto_release_time": task_timeout},
                 )
             else:
                 t = ceph.run.delay(
-                    environment, role, arguments, auto_release_time=task_timeout
+                    environment, role, arguments, {"auto_release_time": task_timeout}
                 )
         elif role == "loadbalancer-ng":
             if sub:
                 environment = f"{environment}.{sub}"
             g = group(
                 kolla.run.si(
-                    environment, playbook, arguments, auto_release_time=task_timeout
+                    environment,
+                    playbook,
+                    arguments,
+                    {"auto_release_time": task_timeout},
                 )
                 for playbook in enums.LOADBALANCER_PLAYBOOKS
             )
@@ -201,7 +207,7 @@ class Run(Command):
                     environment,
                     "loadbalancer-ng",
                     arguments,
-                    auto_release_time=task_timeout,
+                    {"auto_release_time": task_timeout},
                 )
                 | g
             ).apply_async()
@@ -221,7 +227,7 @@ class Run(Command):
                 kolla_arguments = [f"-e kolla_action={action}"] + arguments
 
             t = kolla.run.delay(
-                environment, role, kolla_arguments, auto_release_time=task_timeout
+                environment, role, kolla_arguments, {"auto_release_time": task_timeout}
             )
         else:
             # Overwrite the environment
@@ -234,7 +240,7 @@ class Run(Command):
                 f" {environment} was not found."
             )
             t = ansible.run.delay(
-                environment, role, arguments, auto_release_time=task_timeout
+                environment, role, arguments, {"auto_release_time": task_timeout}
             )
 
         if isinstance(t, GroupResult):
