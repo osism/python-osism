@@ -106,9 +106,7 @@ class Run(Command):
                     last_id = 0
                     while_True = True
                     while while_True:
-                        data = redis.xread(
-                            {str(task_id): last_id}, count=1, block=1000
-                        )
+                        data = redis.xread({str(task_id): last_id}, count=1, block=1000)
                         if data:
                             messages = data[0]
                             for message_id, message in messages[1]:
