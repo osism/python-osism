@@ -228,11 +228,18 @@ class Run(Command):
             if overwrite:
                 environment = overwrite
 
-            logger.info(
-                f"An attempt is made to execute a role that is provided in the configuration repository. "
-                f"If there is no further output following this output, the role {role} in the environment"
-                f" {environment} was not found."
-            )
+            if environment in ["custom"] or role not in MAP_ROLE2ENVIRONMENT:
+                task_timeout = 60
+                timeout = 60
+
+                logger.info(
+                    "An attempt is made to execute a role that is provided in the "
+                    "configuration repository. If there is no further output "
+                    f"following this output, the role {role} in the environment "
+                    f"{environment} was not found. The timeout is explicitly "
+                    f"set to {timeout} seconds."
+                )
+
             t = ansible.run.delay(
                 environment, role, arguments, auto_release_time=task_timeout
             )
