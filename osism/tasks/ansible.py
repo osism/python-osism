@@ -24,7 +24,15 @@ def gather_facts(self, publish=True):
 
 
 @app.task(bind=True, name="osism.tasks.ansible.run")
-def run(self, environment, playbook, arguments, publish=True, locking=True):
+def run(
+    self,
+    environment,
+    playbook,
+    arguments,
+    publish=True,
+    locking=True,
+    auto_release_time=3600,
+):
     return run_ansible_in_environment(
         self.request.id,
         "osism-ansible",
@@ -33,4 +41,5 @@ def run(self, environment, playbook, arguments, publish=True, locking=True):
         arguments,
         publish,
         locking,
+        auto_release_time,
     )

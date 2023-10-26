@@ -14,7 +14,13 @@ def setup_periodic_tasks(sender, **kwargs):
 
 
 @app.task(bind=True, name="osism.tasks.kolla.run")
-def run(self, environment, playbook, arguments, publish=True):
+def run(self, environment, playbook, arguments, publish=True, auto_release_time=3600):
     return run_ansible_in_environment(
-        self.request.id, "kolla-ansible", environment, playbook, arguments, publish
+        self.request.id,
+        "kolla-ansible",
+        environment,
+        playbook,
+        arguments,
+        publish,
+        auto_release_time,
     )
