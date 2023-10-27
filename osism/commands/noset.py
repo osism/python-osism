@@ -24,13 +24,11 @@ class NoMaintenance(Command):
 
         arguments = [
             "-e status=False",
-            "-l {host}",
+            f"-l {host}",
         ]
 
         ansible.run.delay(
             "generic",
             "state-maintenance",
             arguments,
-            publish=False,
-            locking=False,
         )
