@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Logs from the reconciler are now returned. This makes it easier
+    to identify errors in the inventory from a configuration repository.
