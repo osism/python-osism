@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Add workaround for https://github.com/celery/kombu/issues/1804 to solve the
+    `after fork raised exception: AttributeError("'cached_property' object has no attribute 'lock'")`
+    issue for services already using Python 3.12.
