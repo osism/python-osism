@@ -29,7 +29,7 @@ def celery_init_worker(**kwargs):
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
     sender.add_periodic_task(
-        settings.INVENTORY_RECONCILER_SCHEDULE, run.s(), expires=10
+        settings.INVENTORY_RECONCILER_SCHEDULE, run_on_change.s(), expires=10
     )
 
 
@@ -37,6 +37,23 @@ def setup_periodic_tasks(sender, **kwargs):
 def run(self):
     lock = Redlock(
         key="lock_osism_tasks_reconciler_run", masters={redis}, auto_release_time=60
+    )
+
+    if lock.acquire(timeout=20):
+        p = subprocess.Popen(
+            "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+        p.wait()
+
+        lock.release()
+
+
+@app.task(bind=True, name="osism.tasks.reconciler.run_on_change")
+def run_on_change(self):
+    lock = Redlock(
+        key="lock_osism_tasks_reconciler_run_on_change",
+        masters={redis},
+        auto_release_time=60,
     )
 
     if lock.acquire(timeout=20):
