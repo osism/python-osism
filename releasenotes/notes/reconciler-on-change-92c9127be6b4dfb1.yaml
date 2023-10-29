@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    When periodically running the reconciler, it now checks for changes in
+    advance and only does a reconcilation if there were changes in /opt/configuration.
