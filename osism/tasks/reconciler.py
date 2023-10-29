@@ -50,7 +50,7 @@ def setup_periodic_tasks(sender, **kwargs):
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
-def run(self):
+def run(self, publish=True):
     lock = Redlock(
         key="lock_osism_tasks_reconciler_run", masters={redis}, auto_release_time=60
     )
@@ -59,7 +59,16 @@ def run(self):
         p = subprocess.Popen(
             "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
-        p.wait()
+
+        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+            if publish:
+                redis.xadd(self.request.id, {"type": "stdout", "content": line})
+
+        rc = p.wait(timeout=60)
+
+        if publish:
+            redis.xadd(self.request.id, {"type": "rc", "content": rc})
+            redis.xadd(self.request.id, {"type": "action", "content": "quit"})
 
         lock.release()
 
