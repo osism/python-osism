@@ -1,9 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import functools
+from threading import RLock
+
 from celery import Celery
+import kombu.utils
 
 from osism import settings
 from osism.tasks import Config, run_ansible_in_environment
+
+# https://github.com/celery/kombu/issues/1804
+if not getattr(kombu.utils.cached_property, "lock", None):
+    setattr(
+        kombu.utils.cached_property,
+        "lock",
+        functools.cached_property(lambda _: RLock()),
+    )
+    # Must call __set_name__ here since this cached property is not defined in the context of a class
+    # Refer to https://docs.python.org/3/reference/datamodel.html#object.__set_name__
+    kombu.utils.cached_property.lock.__set_name__(kombu.utils.cached_property, "lock")
 
 app = Celery("ansible")
 app.config_from_object(Config)
