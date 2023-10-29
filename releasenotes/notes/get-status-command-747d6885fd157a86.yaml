@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The `status` command is now available as `get status`.
