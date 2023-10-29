@@ -14,6 +14,7 @@ redis = None
 
 
 class Config:
+    broker_connection_retry_on_startup = True
     enable_utc = True
     enable_bifrost = os.environ.get("ENABLE_BIFROST", "False")
     enable_ironic = os.environ.get("ENABLE_IRONIC", "True")
