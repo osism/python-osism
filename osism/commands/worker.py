@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import multiprocessing
 import subprocess
 
 from cliff.command import Command
@@ -7,11 +8,16 @@ from cliff.command import Command
 
 class Run(Command):
     def get_parser(self, prog_name):
+        if multiprocessing.cpu_count() <= 8:
+            number_of_workers_default = multiprocessing.cpu_count()
+        else:
+            number_of_workers_default = 8
+
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument(
             "--number-of-workers",
             "-n",
-            default=16,
+            default=number_of_workers_default,
             type=int,
             help="Number of workers",
         )
