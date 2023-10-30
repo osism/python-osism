@@ -84,7 +84,7 @@ class Opensearch(Command):
                 break
 
             result = requests.post(
-                f"https://{settings.OPENSEARCH_ADDRESS}:{settings.OPENSEARCH_PORT}/_plugins/_sql?format=json",
+                f"{settings.OPENSEARCH_PROTOCOL}://{settings.OPENSEARCH_ADDRESS}:{settings.OPENSEARCH_PORT}/_plugins/_sql?format=json",
                 data=json.dumps({"query": query}),
                 headers={"content-type": "application/json"},
                 verify=False,
