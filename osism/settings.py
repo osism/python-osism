@@ -15,6 +15,7 @@ def read_secret(secret_name):
 
 
 OPENSEARCH_ADDRESS = os.getenv("OPENSEARCH_ADDRESS")
+OPENSEARCH_PROTOCOL = os.getenv("OPENSEARCH_PROTOCOL", "https")
 OPENSEARCH_PORT = os.getenv("OPENSEARCH_PORT")
 
 REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
