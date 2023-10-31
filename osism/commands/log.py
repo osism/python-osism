@@ -74,10 +74,18 @@ class File(Command):
 class Opensearch(Command):
     def get_parser(self, prog_name):
         parser = super(Opensearch, self).get_parser(prog_name)
+        parser.add_argument(
+            "--verbose",
+            default=False,
+            help="Verbose output",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
         session = PromptSession(history=FileHistory("/tmp/.opensearch.history"))
+        verbose = parsed_args.verbose
+
         while True:
             query = session.prompt(">>> ")
             if query in ["Exit", "exit", "EXIT"]:
@@ -93,14 +101,19 @@ class Opensearch(Command):
             if "hits" in data:
                 for hit in data["hits"]["hits"]:
                     source = hit["_source"]
-                    if "timestamp" not in source:
-                        source["timestamp"] = source["@timestamp"]
+                    if verbose:
+                        if "timestamp" not in source:
+                            source["timestamp"] = source["@timestamp"]
 
-                    if "programname" in source:
-                        print(
-                            f"{source['timestamp']} | {source['Hostname']} | {source['programname']} | {source['Payload']}"
-                        )
+                        if "programname" in source:
+                            print(
+                                f"{source['timestamp']} | {source['Hostname']} | {source['programname']} | {source['Payload']}"
+                            )
+                        else:
+                            print(
+                                f"{source['timestamp']} | {source['Hostname']} | {source['Payload']}"
+                            )
                     else:
-                        print(
-                            f"{source['timestamp']} | {source['Hostname']} | {source['Payload']}"
-                        )
+                        print(source["Payload"])
+            else:
+                print(data)
