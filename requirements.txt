@@ -14,7 +14,7 @@ kombu==5.3.3
 loguru==0.7.2
 netmiko==4.2.0
 pottery==3.0.0
-prompt-toolkit==3.0.39
+prompt-toolkit==3.0.40
 pydantic==1.10.13
 pynetbox==7.2.0
 pytest-testinfra==9.0.0
