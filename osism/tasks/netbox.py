@@ -51,7 +51,6 @@ def celery_init_worker(**kwargs):
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-
     if Config.enable_bifrost in ["True", "true", "Yes", "yes"]:
         # Synchronize the status of Bifrost with Netbox every 5 minutes
         sender.add_periodic_task(300.0, periodic_synchronize_bifrost.s(), expires=10)

@@ -96,7 +96,6 @@ class NotificationsDump(ConsumerMixin):
             netbox.set_state.delay(name, object_data["provision_state"], "provision")
 
             if object_data["provision_state"] == "manageable":
-
                 # system should be in state c
                 netbox.connect.delay(name, "c")
 
@@ -120,7 +119,6 @@ class NotificationsDump(ConsumerMixin):
                 object_data["previous_provision_state"] == "cleaning"
                 and object_data["provision_state"] == "available"
             ):  # noqa
-
                 # system should be in state c
                 netbox.connect.delay(name, "c")
 

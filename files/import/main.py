@@ -423,7 +423,6 @@ def createDeviceTypes(deviceTypes, nb):
 
 
 def main():
-
     cwd = os.getcwd()
     startTime = datetime.now()
 

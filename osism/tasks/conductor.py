@@ -45,7 +45,6 @@ def celery_init_worker(**kwargs):
 
         # Resolve all IDs in the conductor.yml
         if Config.enable_ironic in ["True", "true", "Yes", "yes"]:
-
             if "ironic_parameters" not in configuration:
                 logger.error(
                     "ironic_parameters not found in the conductor configuration"
