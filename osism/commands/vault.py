@@ -13,7 +13,6 @@ from osism.utils import redis
 
 
 class SetPassword(Command):
-
     keyfile = "/share/ansible_vault_password.key"
 
     def get_parser(self, prog_name):

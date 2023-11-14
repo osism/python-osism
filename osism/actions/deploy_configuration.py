@@ -9,7 +9,6 @@ from osism import utils
 
 
 def for_device(name, parameters={}, mode="deploy"):
-
     device = utils.nb.dcim.devices.get(name=name)
 
     if (
@@ -53,7 +52,6 @@ def for_device(name, parameters={}, mode="deploy"):
     if not first and last_commit == current_commit and mode == "deploy":
         logger.info(f"No deployment for device {device.name} required")
     else:
-
         if not first:
             try:
                 last_configuration = repo.git.show(
@@ -76,7 +74,6 @@ def for_device(name, parameters={}, mode="deploy"):
                 f"There is now prepared configuration for device {device.name}"
             )
         else:
-
             t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(
                 current_configuration
             )

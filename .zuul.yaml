@@ -61,16 +61,19 @@
         - hadolint
         - container-image-python-osism-build
         - mypy
+        - python-black
     gate:
       jobs:
         - flake8
         - hadolint
+        - python-black
     periodic-daily:
       jobs:
         - flake8
         - hadolint
         - container-image-python-osism-push
         - mypy
+        - python-black
     post:
       jobs:
         - container-image-python-osism-push:

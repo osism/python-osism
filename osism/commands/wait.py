@@ -63,7 +63,6 @@ class Run(Command):
             result = AsyncResult(f"{task_id}", app=app)
 
             if result.state == "PENDING":
-
                 q = i.query_task(f"{task_id}")
                 if not len([x for x in q.values() if len(x)]):
                     if format == "log":
@@ -79,7 +78,6 @@ class Run(Command):
                     task_ids.insert(0, task_id)
 
             elif result.state == "SUCCESS":
-
                 if format == "log":
                     logger.info(f"Task {task_id} is in state SUCCESS")
                 elif format == "script":
@@ -89,7 +87,6 @@ class Run(Command):
                     print(result.get())
 
             elif result.state == "STARTED":
-
                 if format == "log":
                     logger.info(f"Task {task_id} is in state STARTED")
                 elif format == "script":

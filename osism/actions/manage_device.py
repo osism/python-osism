@@ -124,7 +124,6 @@ def manage_interfaces(device, data):
     lag_interfaces = get_lag_interfaces(data)
 
     for interface in data[device]:
-
         if data[device][interface]["type"] in ["virtual", "port-channel", "mlag"]:
             continue
 
@@ -311,7 +310,6 @@ def manage_interfaces(device, data):
 
         # ensure that all interfaces are enabled that should be enabled
         if not interface_a.enabled:
-
             if "enabled" in data[device][interface]["data"]:
                 interface_a.enabled = bool(data[device][interface]["data"]["enabled"])
             else:

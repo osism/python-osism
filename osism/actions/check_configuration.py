@@ -7,7 +7,6 @@ from osism import utils
 
 
 def for_device(name, parameters={}):
-
     device = utils.nb.dcim.devices.get(name=name)
 
     if (

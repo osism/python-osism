@@ -77,6 +77,4 @@ class Sync(Command):
                             redis.close()
                             return rc
         else:
-            logger.info(
-                f"Task {t.task_id} is running in background. No more output."
-            )
+            logger.info(f"Task {t.task_id} is running in background. No more output.")
