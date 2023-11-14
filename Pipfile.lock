@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "5e50c071553e30b6b0af795a412ae693fac3e140bd2496a1167b22d04b2308a7"
+            "sha256": "45980d32d97d0eea2dd550b9ff2d2f33c00ba44859b0d62599f48784659c6393"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -307,12 +307,12 @@
         },
         "cliff": {
             "hashes": [
-                "sha256:db3dc8774f47db9aa86796921ff158d0f023630261c2746c4fff12584b75f5b2",
-                "sha256:fc5b6ebc8fb815332770b2485ee36c09753937c37cce4f3227cdd4e10b33eacc"
+                "sha256:aa8d404aa2d6b4d8639c61bd6dc47acb3656ebc3fc025b1b7bb07af2baef785f",
+                "sha256:bcad956095df58956eb6931cbfd99cae607d0dd516c9669b3967e77800ce920d"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==4.3.0"
+            "version": "==4.4.0"
         },
         "clustershell": {
             "hashes": [
