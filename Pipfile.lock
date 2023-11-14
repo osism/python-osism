@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "df5542cac6b001ffe969220bf6d00bcc1cd7d3f557de37b19c454fa9b5c7612d"
+            "sha256": "5e50c071553e30b6b0af795a412ae693fac3e140bd2496a1167b22d04b2308a7"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -359,12 +359,12 @@
         },
         "deepdiff": {
             "hashes": [
-                "sha256:4c60fc1da4ac12aa73de98b7f303971607c6f928867fabf143cd51a434badb7d",
-                "sha256:d64dd64be5b2e3917c7cc557d69e68d008d798a5cd4981d1508707037504d50a"
+                "sha256:58396bb7a863cbb4ed5193f548c56f18218060362311aa1dc36397b2f25108bd",
+                "sha256:b367e6fa6caac1c9f500adc79ada1b5b1242c50d5f716a1a4362030197847d30"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.7'",
-            "version": "==6.7.0"
+            "version": "==6.7.1"
         },
         "docker": {
             "hashes": [
@@ -1150,11 +1150,11 @@
         },
         "sqlalchemy2-stubs": {
             "hashes": [
-                "sha256:1c820c176a50401b7b3fc1e25019703b2c0753fe99a79d7e19305146baf1f60f",
-                "sha256:9b5b3eb263cdc649b6a5619d2c089b98290406027a01e1de171eeb98c38ce678"
+                "sha256:43067e3f67bd16a7fb2b574ee696f7ed53bf60f3e73329cf234a7b4dd4d3816a",
+                "sha256:619bd131f8ad7eeb88af8dfabb0e6ba07593db91868cdc49674d2cd4ca61e986"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==0.0.2a36"
+            "version": "==0.0.2a37"
         },
         "sqlmodel": {
             "hashes": [
@@ -1290,10 +1290,10 @@
         },
         "wcwidth": {
             "hashes": [
-                "sha256:9a929bd8380f6cd9571a968a9c8f4353ca58d7cd812a4822bba831f8d685b223",
-                "sha256:a675d1a4a2d24ef67096a04b85b02deeecd8e226f57b5e3a72dbb9ed99d27da8"
+                "sha256:390c7454101092a6a5e43baad8f83de615463af459201709556b6e4b1c861f97",
+                "sha256:aec5179002dd0f0d40c456026e74a729661c9d468e1ed64405e3a6c2176ca36f"
             ],
-            "version": "==0.2.9"
+            "version": "==0.2.10"
         },
         "websocket-client": {
             "hashes": [
