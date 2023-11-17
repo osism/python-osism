@@ -8,6 +8,7 @@ from threading import RLock
 from celery import Celery
 from celery.signals import worker_process_init
 import kombu.utils
+from loguru import logger
 from pottery import Redlock
 from redis import Redis
 
@@ -56,6 +57,7 @@ def run(self, publish=True):
     )
 
     if lock.acquire(timeout=20):
+        logger.info("RUN /run.sh")
         p = subprocess.Popen(
             "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
@@ -82,6 +84,7 @@ def run_on_change(self):
     )
 
     if lock.acquire(timeout=20):
+        logger.info("RUN /run.sh")
         p = subprocess.Popen(
             "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )

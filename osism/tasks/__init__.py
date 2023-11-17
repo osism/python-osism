@@ -4,11 +4,13 @@ import io
 import os
 from pathlib import Path
 import subprocess
-from osism import settings
+
 from celery.signals import worker_process_init
 from loguru import logger
 from redis import Redis
 from pottery import Redlock
+
+from osism import settings
 
 redis = None
 
@@ -104,16 +106,20 @@ def run_ansible_in_environment(
             lock.acquire()
 
         if role == "mariadb_backup":
+            command = f"/run.sh backup {role} {joined_arguments}"
+            logger.info(f"RUN {command}")
             p = subprocess.Popen(
-                f"/run.sh backup {role} {joined_arguments}",
+                command,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=env,
             )
         else:
+            command = f"/run.sh deploy {role} {joined_arguments}"
+            logger.info(f"RUN {command}")
             p = subprocess.Popen(
-                f"/run.sh deploy {role} {joined_arguments}",
+                command,
                 shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -125,8 +131,10 @@ def run_ansible_in_environment(
         if locking:
             lock.acquire()
 
+        command = f"/run.sh {role} {joined_arguments}"
+        logger.info(f"RUN {command}")
         p = subprocess.Popen(
-            f"/run.sh {role} {joined_arguments}",
+            command,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -139,8 +147,10 @@ def run_ansible_in_environment(
         and environment == "manager"
         and role == "bifrost-command"
     ):
+        command = f'/run-manager.sh bifrost-command "-e bifrost_arguments=\'{joined_arguments}\'" "-e bifrost_result_id={request_id}"'
+        logger.info(f"RUN {command}")
         p = subprocess.Popen(
-            f'/run-manager.sh bifrost-command "-e bifrost_arguments=\'{joined_arguments}\'" "-e bifrost_result_id={request_id}"',
+            command,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -151,8 +161,10 @@ def run_ansible_in_environment(
         if locking:
             lock.acquire()
 
+        command = f"/run-{environment}.sh {role} {joined_arguments}"
+        logger.info(f"RUN {command}")
         p = subprocess.Popen(
-            f"/run-{environment}.sh {role} {joined_arguments}",
+            command,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -163,8 +175,10 @@ def run_ansible_in_environment(
         if locking:
             lock.acquire()
 
+        command = f"/run-{environment}.sh {role} {joined_arguments}"
+        logger.info(f"RUN {command}")
         p = subprocess.Popen(
-            f"/run-{environment}.sh {role} {joined_arguments}",
+            command,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
