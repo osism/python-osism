@@ -21,7 +21,7 @@ collections:
   - name: community.mysql
     version: 3.8.0
   - name: community.network
-    version: 5.0.0
+    version: 5.0.2
   - name: community.rabbitmq
     version: 1.2.3
   - name: containers.podman
