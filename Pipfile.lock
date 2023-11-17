@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "9502b2ac3bf96104d7788a9fa4cd4c7aecce9fc51e0ebba2a17c0e69a26097e3"
+            "sha256": "d240dc1cc68fab78c1751482d64e09d8665571ec12b80df7cf3a764107d333da"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -624,12 +624,12 @@
         },
         "kombu": {
             "hashes": [
-                "sha256:1491df826cfc5178c80f3e89dd6dfba68e484ef334db81070eb5cb8094b31167",
-                "sha256:6cd5c5d5ef77538434b8f81f3e265c414269418645dbb47dbf130a8a05c3e357"
+                "sha256:0bb2e278644d11dea6272c17974a3dbb9688a949f3bb60aeb5b791329c44fadc",
+                "sha256:63bb093fc9bb80cfb3a0972336a5cec1fa7ac5f9ef7e8237c6bf8dda9469313e"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==5.3.3"
+            "version": "==5.3.4"
         },
         "lockfile": {
             "hashes": [
