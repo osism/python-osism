@@ -52,6 +52,11 @@
       - name: secret
         secret: SECRET_CONTAINER_IMAGE_PYTHON_OSISM
 
+- job:
+    name: python-osism-test-setup
+    pre-run: playbooks/pre.yml
+    run: playbooks/test-setup.yml
+
 - project:
     merge-mode: squash-merge
     default-branch: main
@@ -59,9 +64,10 @@
       jobs:
         - flake8
         - hadolint
-        - container-image-python-osism-build
         - mypy
         - python-black
+        - container-image-python-osism-build
+        - python-osism-test-setup
     gate:
       jobs:
         - flake8
@@ -71,9 +77,10 @@
       jobs:
         - flake8
         - hadolint
-        - container-image-python-osism-push
         - mypy
         - python-black
+        - container-image-python-osism-push
+        - python-osism-test-setup
     post:
       jobs:
         - container-image-python-osism-push:
