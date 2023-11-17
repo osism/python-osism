@@ -11,7 +11,7 @@ collections:
   - name: community.crypto
     version: 2.16.0
   - name: community.docker
-    version: 3.4.8
+    version: 3.4.11
   - name: community.general
     version: 7.5.1
   - name: community.grafana
