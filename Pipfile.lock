@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "7203d07e477e7f1d545111cc6bec06fad636072c5766fdc763ea8b78486ce667"
+            "sha256": "2f76654420026cd79e7e06c1f822329528f3b0aa0a15d641625932a7130b6215"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -106,11 +106,11 @@
                 "redis"
             ],
             "hashes": [
-                "sha256:30b75ac60fb081c2d9f8881382c148ed7c9052031a75a1e8743ff4b4b071f184",
-                "sha256:6b65d8dd5db499dd6190c45aa6398e171b99592f2af62c312f7391587feb5458"
+                "sha256:870cc71d737c0200c397290d730344cc991d13a057534353d124c9380267aab9",
+                "sha256:9da4ea0118d232ce97dff5ed4974587fb1c0ff5c10042eb15278487cdd27d1af"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==5.3.5"
+            "version": "==5.3.6"
         },
         "certifi": {
             "hashes": [
@@ -385,11 +385,11 @@
         },
         "exceptiongroup": {
             "hashes": [
-                "sha256:097acd85d473d75af5bb98e41b61ff7fe35efe6675e4f9370ec6ec5126d160e9",
-                "sha256:343280667a4585d195ca1cf9cef84a4e178c4b6cf2274caef9859782b567d5e3"
+                "sha256:4bfd3996ac73b41e9b9628b04e079f193850720ea5945fc96a08633c66912f14",
+                "sha256:91f5c769735f051a4290d52edd0858999b57e5876e9f85937691bd4c9fa3ed68"
             ],
             "markers": "python_version < '3.11'",
-            "version": "==1.1.3"
+            "version": "==1.2.0"
         },
         "flower": {
             "hashes": [
@@ -584,11 +584,11 @@
         },
         "humanize": {
             "hashes": [
-                "sha256:8bc9e2bb9315e61ec06bf690151ae35aeb65651ab091266941edf97c90836404",
-                "sha256:9783373bf1eec713a770ecaa7c2d7a7902c98398009dfa3d8a2df91eec9311e8"
+                "sha256:582a265c931c683a7e9b8ed9559089dea7edcf6cc95be39a3cbc2c5d5ac2bcfa",
+                "sha256:ce284a76d5b1377fd8836733b983bfb0b76f1aa1c090de2566fcf008d7f6ab16"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==4.8.0"
+            "version": "==4.9.0"
         },
         "idna": {
             "hashes": [
@@ -865,11 +865,11 @@
         },
         "prometheus-client": {
             "hashes": [
-                "sha256:35f7a8c22139e2bb7ca5a698e92d38145bc8dc74c1c0bf56f25cca886a764e17",
-                "sha256:8de3ae2755f890826f4b6479e5571d4f74ac17a81345fe69a6778fdb92579184"
+                "sha256:4585b0d1223148c27a225b10dbec5ae9bc4c81a99a3fa80774fa6209935324e1",
+                "sha256:c88b1e6ecf6b41cd8fb5731c7ae919bf66df6ec6fafa555cd6c0e16ca169ae92"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==0.18.0"
+            "version": "==0.19.0"
         },
         "prompt-toolkit": {
             "hashes": [
@@ -1095,11 +1095,11 @@
         },
         "setuptools": {
             "hashes": [
-                "sha256:4ac1475276d2f1c48684874089fefcd83bd7162ddaafb81fac866ba0db282a87",
-                "sha256:b454a35605876da60632df1a60f736524eb73cc47bbc9f3f1ef1b644de74fd2a"
+                "sha256:1e8fdff6797d3865f37397be788a4e3cba233608e9b509382a2777d25ebde7f2",
+                "sha256:735896e78a4742605974de002ac60562d286fa8051a7e2299445e8e8fbb01aa6"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==68.2.2"
+            "version": "==69.0.2"
         },
         "six": {
             "hashes": [
@@ -1306,10 +1306,10 @@
         },
         "wcwidth": {
             "hashes": [
-                "sha256:390c7454101092a6a5e43baad8f83de615463af459201709556b6e4b1c861f97",
-                "sha256:aec5179002dd0f0d40c456026e74a729661c9d468e1ed64405e3a6c2176ca36f"
+                "sha256:f01c104efdf57971bcb756f054dd58ddec5204dd15fa31d6503ea57947d97c02",
+                "sha256:f26ec43d96c8cbfed76a5075dac87680124fa84e0855195a6184da9c187f133c"
             ],
-            "version": "==0.2.10"
+            "version": "==0.2.12"
         },
         "websocket-client": {
             "hashes": [
