@@ -164,6 +164,10 @@ class Run(Command):
         timeout,
         task_timeout,
     ):
+        logger.info(
+            "Task was prepared for execution. It takes a moment until the task has been started and output is visible here."
+        )
+
         # There is a special playbook ceph-ceph which should be called
         # with ceph. Therefore, the environment is set explicitly in
         # this case.
