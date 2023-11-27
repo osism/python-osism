@@ -4,6 +4,7 @@ import io
 import os
 from pathlib import Path
 import subprocess
+import time
 
 from celery.signals import worker_process_init
 from loguru import logger
@@ -222,3 +223,50 @@ def run_ansible_in_environment(
             lock.release()
 
     return result
+
+
+def handle_task(t, wait, format, timeout):
+    global redis
+
+    if not redis:
+        redis = Redis(
+            host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB
+        )
+        redis.ping()
+
+    rc = 0
+    if wait:
+        stoptime = time.time() + timeout
+        last_id = 0
+        while time.time() < stoptime:
+            data = redis.xread(
+                {str(t.task_id): last_id}, count=1, block=(timeout * 1000)
+            )
+            if data:
+                stoptime = time.time() + timeout
+                messages = data[0]
+                for message_id, message in messages[1]:
+                    last_id = message_id.decode()
+                    message_type = message[b"type"].decode()
+                    message_content = message[b"content"].decode()
+
+                    logger.debug(f"Processing message {last_id} of type {message_type}")
+                    redis.xdel(str(t.task_id), last_id)
+
+                    if message_type == "stdout":
+                        print(message_content, end="")
+                    elif message_type == "rc":
+                        rc = int(message_content)
+                    elif message_type == "action" and message_content == "quit":
+                        redis.close()
+                        return rc
+
+    else:
+        if format == "log":
+            logger.info(
+                f"Task {t.task_id} is running in background. No more output. Check ARA for logs."
+            )
+        elif format == "script":
+            print(f"{t.task_id}")
+
+        return rc

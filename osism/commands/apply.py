@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
-import time
 
 from celery import group
 from celery.result import GroupResult
@@ -11,8 +10,7 @@ from tabulate import tabulate
 
 from osism.core import enums
 from osism.core.playbooks import MAP_ROLE2ENVIRONMENT
-from osism.tasks import ansible, ceph, kolla
-from osism.utils import redis
+from osism.tasks import ansible, ceph, kolla, handle_task
 
 
 class Run(Command):
@@ -86,7 +84,7 @@ class Run(Command):
 
     def _handle_loadbalancer(self, t, wait, format, timeout):
         # process the parent task
-        rc = self._handle_task(t.parent, wait, format, timeout)
+        rc = handle_task(t.parent, wait, format, timeout)
 
         # It is necessary to wait for all task even if this is not excpected by the
         # user because of the following exception thrown by the garbage collector.
@@ -110,46 +108,6 @@ class Run(Command):
         t.get()
 
         return rc
-
-    def _handle_task(self, t, wait, format, timeout):
-        rc = 0
-        if wait:
-            stoptime = time.time() + timeout
-            last_id = 0
-            while time.time() < stoptime:
-                data = redis.xread(
-                    {str(t.task_id): last_id}, count=1, block=(timeout * 1000)
-                )
-                if data:
-                    stoptime = time.time() + timeout
-                    messages = data[0]
-                    for message_id, message in messages[1]:
-                        last_id = message_id.decode()
-                        message_type = message[b"type"].decode()
-                        message_content = message[b"content"].decode()
-
-                        logger.debug(
-                            f"Processing message {last_id} of type {message_type}"
-                        )
-                        redis.xdel(str(t.task_id), last_id)
-
-                        if message_type == "stdout":
-                            print(message_content, end="")
-                        elif message_type == "rc":
-                            rc = int(message_content)
-                        elif message_type == "action" and message_content == "quit":
-                            redis.close()
-                            return rc
-
-        else:
-            if format == "log":
-                logger.info(
-                    f"Task {t.task_id} is running in background. No more output. Check ARA for logs."
-                )
-            elif format == "script":
-                print(f"{t.task_id}")
-
-            return rc
 
     def handle_role(
         self,
@@ -251,7 +209,7 @@ class Run(Command):
         if isinstance(t, GroupResult):
             rc = self._handle_loadbalancer(t, wait, format, timeout)
         else:
-            rc = self._handle_task(t, wait, format, timeout)
+            rc = handle_task(t, wait, format, timeout)
 
         return rc
 

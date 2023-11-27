@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The output of the Ansible playbooks for `netbox manage` and `netbox init` is now visible.
