@@ -29,10 +29,6 @@ python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ope
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-project-manager/requirements.txt
 
-# install openstack-resource-manager
-git clone --depth 1 https://github.com/osism/openstack-resource-manager.git /openstack-resource-manager
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-resource-manager/requirements.txt
-
 # install openstack-simple-stress
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-simple-stress/requirements.txt
@@ -94,10 +90,6 @@ rm -rf /openstack-image-manager
 # install openstack-project-manager
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-project-manager/requirements.txt
-
-# install openstack-resource-manager
-git clone --depth 1 https://github.com/osism/openstack-resource-manager.git /openstack-resource-manager
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-resource-manager/requirements.txt
 
 # install openstack-simple-stress
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
