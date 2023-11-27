@@ -9,7 +9,7 @@ from loguru import logger
 from redis import Redis
 from tabulate import tabulate
 from osism import settings
-from osism.tasks import conductor, netbox, reconciler, ansible, openstack
+from osism.tasks import conductor, netbox, reconciler, ansible, openstack, handle_task
 
 
 redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
@@ -100,19 +100,35 @@ class Init(Command):
             help="Do not wait until the role has been applied",
             action="store_true",
         )
+        parser.add_argument(
+            "--format",
+            default="log",
+            help="Output type",
+            const="log",
+            nargs="?",
+            choices=["script", "log"],
+        ),
         return parser
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
+        format = parsed_args.format
         wait = not parsed_args.no_wait
 
         task = ansible.run.delay("netbox-local", "init", arguments)
+        rc = 0
 
         if wait:
             logger.info(
-                f"Task {task.task_id} is running. Wait. No more output. Check ARA for logs."
+                "Task was prepared for execution. It takes a moment until the task has been started and output is visible here."
             )
-            task.wait(timeout=None, interval=0.5)
+            rc = handle_task(task, wait, format, 300)
+        else:
+            logger.info(
+                f"Task {task.task_id} is running in background. No more output. Check ARA for logs."
+            )
+
+        return rc
 
 
 class Import(Command):
@@ -170,14 +186,24 @@ class Manage(Command):
             help="Do not wait until the changes have been made",
             action="store_true",
         )
+        parser.add_argument(
+            "--format",
+            default="log",
+            help="Output type",
+            const="log",
+            nargs="?",
+            choices=["script", "log"],
+        ),
         return parser
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
+        format = parsed_args.format
         name = parsed_args.name
         type_of_resource = parsed_args.type
         wait = not parsed_args.no_wait
 
+        rc = 0
         if not name:
             logger.info("No name of an object to be managed was given")
             table = []
@@ -197,9 +223,15 @@ class Manage(Command):
 
             if wait:
                 logger.info(
-                    f"Task {task.task_id} is running. Wait. No more output. Check ARA for logs."
+                    "Task was prepared for execution. It takes a moment until the task has been started and output is visible here."
                 )
-                task.wait(timeout=None, interval=0.5)
+                rc = handle_task(task, wait, format, 300)
+            else:
+                logger.info(
+                    f"Task {task.task_id} is running in background. No more output. Check ARA for logs."
+                )
+
+        return rc
 
 
 class Connect(Command):
