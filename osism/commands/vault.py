@@ -4,6 +4,7 @@
 #       It's not ready in that form yet.
 
 import os
+import subprocess
 
 from cliff.command import Command
 from cryptography.fernet import Fernet
@@ -43,3 +44,18 @@ class UnsetPassword(Command):
 
     def take_action(self, parsed_args):
         redis.delete("ansible_vault_password")
+
+
+class View(Command):
+    def get_parser(self, prog_name):
+        parser = super(View, self).get_parser(prog_name)
+        parser.add_argument(
+            "path", nargs="?", type=str, help="Path to the secret.yml file"
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        path = parsed_args.path
+        if not os.path.isabs(path):
+            path = os.path.join("/opt/configuration", path)
+        subprocess.call(f"/usr/local/bin/ansible-vault view {path}", shell=True)
