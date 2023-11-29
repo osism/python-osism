@@ -22,5 +22,6 @@ def run(self, environment, playbook, arguments, publish=True, auto_release_time=
         playbook,
         arguments,
         publish,
+        False,
         auto_release_time,
     )
