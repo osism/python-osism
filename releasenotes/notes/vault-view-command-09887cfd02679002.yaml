@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    With `vault view` it is possible to view an encrypted file
+    inside the configuration repository. It is possible to use
+    absolute (`/opt/configuration/environments/..`) and relative
+    (`environments/..`) paths.
