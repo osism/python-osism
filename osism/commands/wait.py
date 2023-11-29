@@ -97,6 +97,7 @@ class Run(Command):
                         host=settings.REDIS_HOST,
                         port=settings.REDIS_PORT,
                         db=settings.REDIS_DB,
+                        socket_keepalive=True,
                     )
                     redis.ping()
 
