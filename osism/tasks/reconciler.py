@@ -62,7 +62,7 @@ def run(self, publish=True):
     if lock.acquire(timeout=20):
         logger.info("RUN /run.sh")
         p = subprocess.Popen(
-            "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            "/run.sh", stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
 
         for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
@@ -89,7 +89,7 @@ def run_on_change(self):
     if lock.acquire(timeout=20):
         logger.info("RUN /run.sh")
         p = subprocess.Popen(
-            "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            "/run.sh", stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
         p.wait()
 
@@ -107,7 +107,6 @@ def sync_inventory_with_netbox(self):
     if lock.acquire(timeout=20):
         p = subprocess.Popen(
             "/sync-inventory-with-netbox.sh",
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )

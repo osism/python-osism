@@ -128,7 +128,6 @@ class Hostvars(Command):
         try:
             result = subprocess.check_output(
                 f"ansible-inventory -i /ansible/inventory/hosts.yml --host {host}",
-                shell=True,
                 stderr=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError:
@@ -237,7 +236,6 @@ class Hosts(Command):
 
             result = subprocess.check_output(
                 " ".join(command),
-                shell=True,
                 stderr=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError:

@@ -35,7 +35,6 @@ class Run(Command):
                 # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
                 subprocess.call(
                     f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
-                    shell=True,
                 )
         else:
             ssh_command = f"docker {command}"
@@ -43,5 +42,4 @@ class Run(Command):
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
                 f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
-                shell=True,
             )

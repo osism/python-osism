@@ -27,7 +27,6 @@ class Ansible(Command):
         parameters = " ".join(parsed_args.parameter)
         subprocess.call(
             f"/usr/local/bin/ara {parameters}",
-            shell=True,
         )
 
 
@@ -57,7 +56,6 @@ class Container(Command):
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
         subprocess.call(
             f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
-            shell=True,
         )
 
 

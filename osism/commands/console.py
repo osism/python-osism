@@ -48,17 +48,15 @@ class Run(Command):
         ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR"
 
         if type_console == "ansible":
-            subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
+            subprocess.call(f"/run-ansible-console.sh {host}")
         elif type_console == "clush":
             subprocess.call(
                 f"/usr/local/bin/clush -l dragon -g {host}",
-                shell=True,
             )
         elif type_console == "ssh":
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
                 f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host}",
-                shell=True,
             )
         elif type_console == "container_prompt":
             while True:
@@ -70,7 +68,6 @@ class Run(Command):
                 # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
                 subprocess.call(
                     f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host[:-1]} {ssh_command}",
-                    shell=True,
                 )
         elif type_console == "container":
             target_containername = host.split("/")[1]
@@ -85,5 +82,4 @@ class Run(Command):
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
                 f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{target_host} {ssh_command}",
-                shell=True,
             )

@@ -18,7 +18,6 @@ class Run(Command):
         # NOTE: use python interface in the future, works for the moment
         p = subprocess.Popen(
             "celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler",
-            shell=True,
         )
         p.wait()
 

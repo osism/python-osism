@@ -96,7 +96,6 @@ def import_device_types(self, vendors, library=False):
     if vendors:
         p = subprocess.Popen(
             f"python3 /import/main.py --vendors {vendors}",
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
@@ -104,7 +103,6 @@ def import_device_types(self, vendors, library=False):
     else:
         p = subprocess.Popen(
             "python3 /import/main.py",
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,

@@ -85,7 +85,6 @@ class Images(Command):
         joined_arguments = " ".join(arguments)
         subprocess.call(
             f"/usr/local/bin/openstack-image-manager --images=/etc/images {joined_arguments}",
-            shell=True,
         )
 
 
@@ -114,5 +113,4 @@ class Flavors(Command):
         joined_arguments = " ".join(arguments)
         subprocess.call(
             f"/usr/local/bin/openstack-flavor-manager {joined_arguments}",
-            shell=True,
         )

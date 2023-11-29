@@ -20,15 +20,12 @@ class Run(Command):
         service = parsed_args.type[0]
 
         if service == "api":
-            p = subprocess.Popen(
-                "uvicorn osism.api:app --host 0.0.0.0 --port 8000", shell=True
-            )
+            p = subprocess.Popen("uvicorn osism.api:app --host 0.0.0.0 --port 8000")
             p.wait()
 
         elif service == "listener":
             p = subprocess.Popen(
                 "python3 -c 'from osism.services import listener; listener.main()'",
-                shell=True,
             )
             p.wait()
 
@@ -45,7 +42,6 @@ class Run(Command):
             ps = [
                 subprocess.Popen(
                     f"celery -A {t} --broker=redis://redis beat -s /tmp/celerybeat-schedule-{t}.db",
-                    shell=True,
                 )
                 for t in ts
             ]
@@ -56,14 +52,12 @@ class Run(Command):
         elif service == "flower":
             p = subprocess.Popen(
                 "celery --broker=redis://redis flower",
-                shell=True,
             )
             p.wait()
 
         elif service == "reconciler":
             p = subprocess.Popen(
                 "celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler",
-                shell=True,
             )
             p.wait()
 

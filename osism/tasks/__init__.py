@@ -114,7 +114,6 @@ def run_ansible_in_environment(
             logger.info(f"RUN {command}")
             p = subprocess.Popen(
                 command,
-                shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 env=env,
@@ -124,7 +123,6 @@ def run_ansible_in_environment(
             logger.info(f"RUN {command}")
             p = subprocess.Popen(
                 command,
-                shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 env=env,
@@ -139,7 +137,6 @@ def run_ansible_in_environment(
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
@@ -155,7 +152,6 @@ def run_ansible_in_environment(
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
@@ -169,7 +165,6 @@ def run_ansible_in_environment(
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
@@ -183,7 +178,6 @@ def run_ansible_in_environment(
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
