@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    STDERR of Ansible runs is now merged with STDOUT. This way the STDERR of Ansible runs
+    is also visible in the STDOUT of the OSISM CLI.
