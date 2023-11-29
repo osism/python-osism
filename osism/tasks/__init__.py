@@ -57,7 +57,7 @@ def run_ansible_in_environment(
     role,
     arguments,
     publish=True,
-    locking=True,
+    locking=False,
     auto_release_time=3600,
 ):
     result = ""
