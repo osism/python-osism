@@ -54,7 +54,10 @@ class Run(Command):
                 p.wait()
 
         elif service == "flower":
-            p = subprocess.Popen("celery --broker=redis://redis flower", shell=True)
+            p = subprocess.Popen(
+                "celery --broker=redis://redis flower",
+                shell=True,
+            )
             p.wait()
 
         elif service == "reconciler":

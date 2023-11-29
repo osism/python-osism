@@ -5,7 +5,12 @@ import pynetbox
 from redis import Redis
 import urllib3
 
-redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
+redis = Redis(
+    host=settings.REDIS_HOST,
+    port=settings.REDIS_PORT,
+    db=settings.REDIS_DB,
+    socket_keepalive=True,
+)
 redis.ping()
 
 if settings.NETBOX_URL and settings.NETBOX_TOKEN:

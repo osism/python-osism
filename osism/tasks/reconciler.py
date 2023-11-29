@@ -38,7 +38,10 @@ def celery_init_worker(**kwargs):
     global redis
 
     redis = Redis(
-        host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        socket_keepalive=True,
     )
     redis.ping()
 
