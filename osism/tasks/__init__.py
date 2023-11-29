@@ -113,7 +113,7 @@ def run_ansible_in_environment(
                 command,
                 shell=True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 env=env,
             )
         else:
@@ -123,7 +123,7 @@ def run_ansible_in_environment(
                 command,
                 shell=True,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 env=env,
             )
 
@@ -138,7 +138,7 @@ def run_ansible_in_environment(
             command,
             shell=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             env=env,
         )
 
@@ -154,7 +154,7 @@ def run_ansible_in_environment(
             command,
             shell=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
 
     # execute local netbox playbooks
@@ -168,7 +168,7 @@ def run_ansible_in_environment(
             command,
             shell=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
 
     # execute all other roles
@@ -182,7 +182,7 @@ def run_ansible_in_environment(
             command,
             shell=True,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             env=env,
         )
 
