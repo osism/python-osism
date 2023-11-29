@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import io
 import os
 from pathlib import Path
 import subprocess
@@ -114,9 +113,9 @@ def run_ansible_in_environment(
             logger.info(f"RUN {command}")
             p = subprocess.Popen(
                 command,
-                shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                shell=True,
                 env=env,
             )
         else:
@@ -124,9 +123,9 @@ def run_ansible_in_environment(
             logger.info(f"RUN {command}")
             p = subprocess.Popen(
                 command,
-                shell=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+                shell=True,
                 env=env,
             )
 
@@ -139,9 +138,9 @@ def run_ansible_in_environment(
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            shell=True,
             env=env,
         )
 
@@ -155,9 +154,9 @@ def run_ansible_in_environment(
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            shell=True,
         )
 
     # execute local netbox playbooks
@@ -169,9 +168,9 @@ def run_ansible_in_environment(
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            shell=True,
         )
 
     # execute all other roles
@@ -183,9 +182,9 @@ def run_ansible_in_environment(
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            shell=True,
             env=env,
         )
 
@@ -211,7 +210,8 @@ def run_ansible_in_environment(
 
     # process all other results
     else:
-        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+        while p.poll() is None:
+            line = p.stdout.readline().decode("utf-8")
             if publish:
                 redis.xadd(request_id, {"type": "stdout", "content": line})
             result += line
@@ -260,7 +260,7 @@ def handle_task(t, wait, format, timeout):
                     redis.xdel(str(t.task_id), last_id)
 
                     if message_type == "stdout":
-                        print(message_content, end="")
+                        print(message_content, end="", flush=True)
                     elif message_type == "rc":
                         rc = int(message_content)
                     elif message_type == "action" and message_content == "quit":
