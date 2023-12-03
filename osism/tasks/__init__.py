@@ -266,6 +266,16 @@ def handle_task(t, wait, format, timeout):
                     elif message_type == "action" and message_content == "quit":
                         redis.close()
                         return rc
+        else:
+            logger.info(
+                f"There has been no output from the task {t.task_id} for {timeout} seconds. "
+                "This timeout can be adjusted using the --timeout parameter."
+            )
+            logger.info(
+                f"Task {t.task_id} is still running in background. No more output here. Check ARA for logs. "
+                f"Use this command to continue waiting for this task: osism wait --output --delay 2 {t.task_id}"
+            )
+            return 1
 
     else:
         if format == "log":
