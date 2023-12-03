@@ -261,6 +261,12 @@ def handle_task(t, wait, format, timeout):
 
                     if message_type == "stdout":
                         print(message_content, end="", flush=True)
+                        if "PLAY RECAP" in message_content:
+                            logger.info(
+                                "Play has been completed. There may now be a delay until "
+                                "all logs have been written. Please wait and do not abort "
+                                "execution."
+                            )
                     elif message_type == "rc":
                         rc = int(message_content)
                     elif message_type == "action" and message_content == "quit":
