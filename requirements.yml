@@ -31,4 +31,4 @@ collections:
   - name: netbox.netbox
     version: 3.15.0
   - name: openstack.cloud
-    version: 2.1.0
+    version: 2.2.0
