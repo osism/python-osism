@@ -9,7 +9,7 @@ collections:
   - name: cloud.common
     version: 2.1.4
   - name: community.crypto
-    version: 2.16.0
+    version: 2.16.1
   - name: community.docker
     version: 3.4.11
   - name: community.general
