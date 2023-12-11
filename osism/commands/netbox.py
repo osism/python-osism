@@ -8,6 +8,7 @@ from cliff.command import Command
 from loguru import logger
 from redis import Redis
 from tabulate import tabulate
+
 from osism import settings
 from osism.tasks import conductor, netbox, reconciler, ansible, openstack, handle_task
 
