@@ -5,6 +5,7 @@ import argparse
 from cliff.command import Command
 from loguru import logger
 from redis import Redis
+
 from osism import settings
 from osism.tasks import ansible
 

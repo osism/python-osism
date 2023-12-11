@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Dict, Any
+
 import yaml
 
 MAP_ROLE2ENVIRONMENT: Dict[str, Any] = {}

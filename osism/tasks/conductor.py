@@ -7,6 +7,7 @@ from loguru import logger
 import openstack
 from redis import Redis
 import yaml
+
 from osism import settings
 from osism.tasks import Config
 
