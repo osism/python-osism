@@ -7,7 +7,7 @@ celery[redis]==5.3.6
 cliff==4.4.0
 deepdiff==6.7.1
 docker==7.0.0
-fastapi==0.106.0
+fastapi==0.108.0
 flower==2.0.1
 hiredis==2.3.2
 kombu==5.3.4
