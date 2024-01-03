@@ -279,7 +279,8 @@ def handle_task(t, wait, format, timeout):
             )
             logger.info(
                 f"Task {t.task_id} is still running in background. No more output here. Check ARA for logs. "
-                f"Use this command to continue waiting for this task: osism wait --output --delay 2 {t.task_id}"
+                "Use this command to continue waiting for this task: "
+                "osism wait --output --live --delay 2 {t.task_id}"
             )
             return 1
 
