@@ -191,16 +191,7 @@ class Run(Command):
                 environment = overwrite
 
             if environment in ["custom"] or role not in MAP_ROLE2ENVIRONMENT:
-                task_timeout = 60
-                timeout = 60
-
-                logger.info(
-                    "An attempt is made to execute a role that is provided in the "
-                    "configuration repository. If there is no further output "
-                    f"following this output, the role {role} in the environment "
-                    f"{environment} was not found. The timeout is explicitly "
-                    f"set to {timeout} seconds."
-                )
+                logger.info(f"Trying to run play {role} in environment {environment}")
 
             t = ansible.run.delay(
                 environment, role, arguments, auto_release_time=task_timeout
