@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Timeout on custom plays explicitly set to 60 seconds.
