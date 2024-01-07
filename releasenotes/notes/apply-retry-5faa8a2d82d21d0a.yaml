@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Sometimes it is sufficient to run a play again if it could not be
+    completed successfully on the first run. The `--retry` argument for
+    the `apply` command can be used to specify the number of retries to
+    be attempted.

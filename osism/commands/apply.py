@@ -63,6 +63,13 @@ class Run(Command):
             choices=["script", "log"],
         ),
         parser.add_argument(
+            "--retry",
+            "-r",
+            default=0,
+            type=int,
+            help="Retry the play up to x times if it has failed",
+        )
+        parser.add_argument(
             "--timeout",
             default=300,
             type=int,
@@ -212,6 +219,7 @@ class Run(Command):
         overwrite = parsed_args.overwrite
         role = parsed_args.role
         sub = parsed_args.sub
+        retry = parsed_args.retry
         timeout = parsed_args.timeout
         task_timeout = parsed_args.task_timeout
         wait = not parsed_args.no_wait
@@ -229,32 +237,44 @@ class Run(Command):
 
         elif role in enums.MAP_ROLE2ROLE:
             for role_inner in enums.MAP_ROLE2ROLE[role]:
+                outer_break = False
+                for i in range(0, retry + 1):
+                    rc = self.handle_role(
+                        arguments,
+                        environment,
+                        overwrite,
+                        sub,
+                        role_inner,
+                        action,
+                        wait,
+                        format,
+                        timeout,
+                        task_timeout,
+                    )
+
+                    if rc != 0 and i == retry:
+                        outer_break = True
+                        break
+                    elif rc == 0:
+                        break
+
+                if outer_break:
+                    break
+        else:
+            for i in range(0, retry + 1):
                 rc = self.handle_role(
                     arguments,
                     environment,
                     overwrite,
                     sub,
-                    role_inner,
+                    role,
                     action,
                     wait,
                     format,
                     timeout,
                     task_timeout,
                 )
-                if rc != 0:
+                if rc == 0:
                     break
-        else:
-            rc = self.handle_role(
-                arguments,
-                environment,
-                overwrite,
-                sub,
-                role,
-                action,
-                wait,
-                format,
-                timeout,
-                task_timeout,
-            )
 
         return rc
