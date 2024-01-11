@@ -79,8 +79,10 @@
         - hadolint
         - mypy
         - python-black
-        - container-image-python-osism-push
         - python-osism-test-setup
+    periodic-midnight:
+      jobs:
+        - container-image-python-osism-push
     post:
       jobs:
         - container-image-python-osism-push:
