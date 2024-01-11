@@ -11,6 +11,7 @@ fastapi==0.108.0
 flower==2.0.1
 hiredis==2.3.2
 kombu==5.3.4
+kubernetes==29.0.0
 loguru==0.7.2
 netmiko==4.3.0
 pottery==3.0.0
