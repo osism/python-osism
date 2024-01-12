@@ -110,27 +110,25 @@ VALIDATE_PLAYBOOKS = {
 }
 
 MAP_ROLE2ROLE = {
-    "ceph-basic": [
-        "ceph-infra",
-        "ceph-mons",
-        "ceph-mgrs",
-        "ceph-osds",
-        "ceph-crash",
-    ],
-    "infrastructure-basic": [
+    "infrastructure": [
         "openstackclient",
         "common",
         "loadbalancer",
-        "elasticsearch",
-        "kibana",
+        "opensearch",
         "openvswitch",
+        "ovn",
         "memcached",
         "redis",
         "mariadb",
         "rabbitmq",
         "phpmyadmin",
     ],
-    "openstack-basic": [
+    "kubernetes": [
+        "k3s",
+        "kubectl",
+        "kubeconfig",
+    ],
+    "openstack": [
         "keystone",
         "horizon",
         "placement",
@@ -142,5 +140,4 @@ MAP_ROLE2ROLE = {
         "designate",
         "octavia",
     ],
-    "openstack-extended": ["gnocchi", "ceilometer", "aodh", "senlin"],
 }
