@@ -20,6 +20,7 @@ LOADBALANCER_PLAYBOOKS = [
     "loadbalancer-neutron",
     "loadbalancer-nova",
     "loadbalancer-octavia",
+    "loadbalancer-opensearch",
     "loadbalancer-placement",
     "loadbalancer-prometheus",
     "loadbalancer-rabbitmq",
