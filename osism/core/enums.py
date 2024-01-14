@@ -142,7 +142,6 @@ MAP_ROLE2ROLE = {
         "octavia",
     ],
     "ceph": [
-        "ceph",
         "copy-ceph-keys",
         "cephclient",
         "ceph-bootstrap-dashboard",
