@@ -175,6 +175,41 @@ class Run(Command):
                 )
                 | g
             ).apply_async()
+        elif role == "infrastructure-ng":
+            if sub:
+                environment = f"{environment}.{sub}"
+
+            if action == "rolling-upgrade":
+                action = "rolling_upgrade"
+
+            m1 = [
+                "openstackclient",
+                "common",
+                "opensearch",
+                "openvswitch",
+                "memcached",
+                "redis",
+                "rabbitmq",
+                "phpmyadmin",
+            ]
+            g1 = group(
+                kolla.run.si(
+                    environment, playbook, arguments, auto_release_time=task_timeout
+                )
+                for playbook in m1
+            )
+
+            m2 = [
+                "mariadb",
+                "ovn",
+            ]
+            g2 = group(
+                kolla.run.si(
+                    environment, playbook, arguments, auto_release_time=task_timeout
+                )
+                for playbook in m2
+            )
+            t = (g1 | g2).apply_async()
         elif environment == "kolla":
             if sub:
                 environment = f"{environment}.{sub}"
@@ -205,7 +240,7 @@ class Run(Command):
                 environment, role, arguments, auto_release_time=task_timeout
             )
 
-        if isinstance(t, GroupResult):
+        if isinstance(t, GroupResult) and role == "loadbalancer-ng":
             rc = self._handle_loadbalancer(t, wait, format, timeout)
         else:
             rc = handle_task(t, wait, format, timeout)
