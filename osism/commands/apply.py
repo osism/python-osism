@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import os
 
 from celery import group
 from celery.result import GroupResult
@@ -65,7 +66,7 @@ class Run(Command):
         parser.add_argument(
             "--retry",
             "-r",
-            default=0,
+            default=os.environ.get("OSISM_APPLY_RETRY", 0),
             type=int,
             help="Retry the play up to x times if it has failed",
         )
