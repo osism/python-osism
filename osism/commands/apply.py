@@ -51,10 +51,6 @@ class Run(Command):
             ],
             default="deploy",
         )
-        parser.add_argument("role", nargs="?", type=str, help="Role to be applied")
-        parser.add_argument(
-            "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
-        )
         parser.add_argument(
             "--format",
             default="log",
@@ -87,6 +83,10 @@ class Run(Command):
             default=False,
             help="Do not wait until the role has been applied",
             action="store_true",
+        )
+        parser.add_argument("role", nargs="?", type=str, help="Role to be applied")
+        parser.add_argument(
+            "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
         )
         return parser
 
@@ -130,8 +130,9 @@ class Run(Command):
         timeout,
         task_timeout,
     ):
+        logger.info("Task was prepared for execution.")
         logger.info(
-            "Task was prepared for execution. It takes a moment until the task has been started and output is visible here."
+            "It takes a moment until the task has been started and output is visible here."
         )
 
         # There is a special playbook ceph-ceph which should be called
@@ -236,46 +237,48 @@ class Run(Command):
             )
             print(tabulate(table, headers=["Role", "Environment"], tablefmt="psql"))
 
-        elif role in enums.MAP_ROLE2ROLE:
-            for role_inner in enums.MAP_ROLE2ROLE[role]:
-                outer_break = False
-                for i in range(0, retry + 1):
-                    rc = self.handle_role(
-                        arguments,
-                        environment,
-                        overwrite,
-                        sub,
-                        role_inner,
-                        action,
-                        wait,
-                        format,
-                        timeout,
-                        task_timeout,
-                    )
-
-                    if rc != 0 and i == retry:
-                        outer_break = True
-                        break
-                    elif rc == 0:
-                        break
-
-                if outer_break:
-                    break
         else:
-            for i in range(0, retry + 1):
-                rc = self.handle_role(
-                    arguments,
-                    environment,
-                    overwrite,
-                    sub,
-                    role,
-                    action,
-                    wait,
-                    format,
-                    timeout,
-                    task_timeout,
-                )
-                if rc == 0:
-                    break
+            for role_outer in role.split("//"):
+                if role_outer in enums.MAP_ROLE2ROLE:
+                    for role_inner in enums.MAP_ROLE2ROLE[role_outer]:
+                        outer_break = False
+                        for i in range(0, retry + 1):
+                            rc = self.handle_role(
+                                arguments,
+                                environment,
+                                overwrite,
+                                sub,
+                                role_inner,
+                                action,
+                                wait,
+                                format,
+                                timeout,
+                                task_timeout,
+                            )
+
+                            if rc != 0 and i == retry:
+                                outer_break = True
+                                break
+                            elif rc == 0:
+                                break
+
+                        if outer_break:
+                            break
+                else:
+                    for i in range(0, retry + 1):
+                        rc = self.handle_role(
+                            arguments,
+                            environment,
+                            overwrite,
+                            sub,
+                            role_outer,
+                            action,
+                            wait,
+                            format,
+                            timeout,
+                            task_timeout,
+                        )
+                        if rc == 0:
+                            break
 
         return rc
