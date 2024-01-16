@@ -3,7 +3,7 @@
 import argparse
 import os
 
-from celery import group
+from celery import chain, group
 from celery.result import GroupResult
 from cliff.command import Command
 from loguru import logger
@@ -90,7 +90,7 @@ class Run(Command):
         )
         return parser
 
-    def _handle_loadbalancer(self, t, wait, format, timeout):
+    def handle_loadbalancer_task(self, t, wait, format, timeout):
         # process the parent task
         rc = handle_task(t.parent, wait, format, timeout)
 
@@ -117,7 +117,176 @@ class Run(Command):
 
         return rc
 
-    def handle_role(
+    def _handle_collection(
+        self,
+        data,
+        counter,
+        arguments,
+        environment,
+        overwrite,
+        sub,
+        collection,
+        action,
+        wait,
+        format,
+        timeout,
+        task_timeout,
+        retry,
+    ):
+        g = []
+        for item in data:
+            # e.g. ["loadbalancer", ["mariadb"]]
+            if type(item) == list:
+                # e.g. "loadbalancer"
+                logger.info(f"A [{counter}] {'-' * (counter + 1)} {item[0]}")
+                pt = self._prepare_task(
+                    arguments,
+                    environment,
+                    overwrite,
+                    sub,
+                    item[0],
+                    action,
+                    wait,
+                    format,
+                    timeout,
+                    task_timeout,
+                )
+
+                if len(item) > 1 and type(item[1]) == list:
+                    logger.debug(f"X [{counter + 1}] --> {item[1]}")
+                    st = self._handle_collection(
+                        item[1],
+                        counter + 1,
+                        arguments,
+                        environment,
+                        overwrite,
+                        sub,
+                        collection,
+                        action,
+                        wait,
+                        format,
+                        timeout,
+                        task_timeout,
+                        retry,
+                    )
+                    g.append(chain(pt, st))
+                else:
+                    g.append(pt)
+                    for inner_item in item[1:]:
+                        if type(inner_item) == list:
+                            logger.info(
+                                f"B [{counter}] {'-' * (counter + 1)} {inner_item[0]}"
+                            )
+                            pt = self._prepare_task(
+                                arguments,
+                                environment,
+                                overwrite,
+                                sub,
+                                inner_item[0],
+                                action,
+                                wait,
+                                format,
+                                timeout,
+                                task_timeout,
+                            )
+
+                            if len(inner_item) > 1 and type(inner_item[1]) == list:
+                                logger.debug(f"X [{counter + 1 }] --> {inner_item[1]}")
+                                st = self._handle_collection(
+                                    inner_item[1],
+                                    counter + 1,
+                                    arguments,
+                                    environment,
+                                    overwrite,
+                                    sub,
+                                    collection,
+                                    action,
+                                    wait,
+                                    format,
+                                    timeout,
+                                    task_timeout,
+                                    retry,
+                                )
+                                g.append(chain(pt, st))
+                            else:
+                                g.append(pt)
+                        else:
+                            logger.info(
+                                f"C [{counter}] {'-' * (counter + 1)} {inner_item}"
+                            )
+                            g.append(
+                                self._prepare_task(
+                                    arguments,
+                                    environment,
+                                    overwrite,
+                                    sub,
+                                    inner_item,
+                                    action,
+                                    wait,
+                                    format,
+                                    timeout,
+                                    task_timeout,
+                                )
+                            )
+            # e.g. "common"
+            else:
+                logger.info(f"D [{counter}] {'-' * (counter + 1)} {item}")
+                g.append(
+                    self._prepare_task(
+                        arguments,
+                        environment,
+                        overwrite,
+                        sub,
+                        item,
+                        action,
+                        wait,
+                        format,
+                        timeout,
+                        task_timeout,
+                    )
+                )
+
+        if g:
+            return group(g)
+
+    def handle_collection(
+        self,
+        arguments,
+        environment,
+        overwrite,
+        sub,
+        collection,
+        action,
+        wait,
+        format,
+        timeout,
+        task_timeout,
+        retry,
+    ):
+        logger.info(f"Collection {collection} is prepared for execution")
+        t = self._handle_collection(
+            enums.MAP_ROLE2ROLE[collection],
+            0,
+            arguments,
+            environment,
+            overwrite,
+            sub,
+            collection,
+            action,
+            wait,
+            format,
+            timeout,
+            task_timeout,
+            retry,
+        )
+        if t:
+            t.apply_async()
+        logger.info(
+            f"All tasks of the collection {collection} are prepared for execution"
+        )
+        logger.info("Tasks are running in the background")
+
+    def _prepare_task(
         self,
         arguments,
         environment,
@@ -130,11 +299,6 @@ class Run(Command):
         timeout,
         task_timeout,
     ):
-        logger.info("Task was prepared for execution.")
-        logger.info(
-            "It takes a moment until the task has been started and output is visible here."
-        )
-
         # There is a special playbook ceph-ceph which should be called
         # with ceph. Therefore, the environment is set explicitly in
         # this case.
@@ -151,11 +315,11 @@ class Run(Command):
             if sub:
                 environment = f"{environment}.{sub}"
             if role.startswith("ceph-"):
-                t = ceph.run.delay(
+                t = ceph.run.si(
                     environment, role[5:], arguments, auto_release_time=task_timeout
                 )
             else:
-                t = ceph.run.delay(
+                t = ceph.run.si(
                     environment, role, arguments, auto_release_time=task_timeout
                 )
         elif role == "loadbalancer-ng":
@@ -168,14 +332,14 @@ class Run(Command):
                 for playbook in enums.LOADBALANCER_PLAYBOOKS
             )
             t = (
-                kolla.run.s(
+                kolla.run.si(
                     environment,
                     "loadbalancer-ng",
                     arguments,
                     auto_release_time=task_timeout,
                 )
                 | g
-            ).apply_async()
+            )
         elif environment == "kolla":
             if sub:
                 environment = f"{environment}.{sub}"
@@ -191,7 +355,7 @@ class Run(Command):
             else:
                 kolla_arguments = [f"-e kolla_action={action}"] + arguments
 
-            t = kolla.run.delay(
+            t = kolla.run.si(
                 environment, role, kolla_arguments, auto_release_time=task_timeout
             )
         else:
@@ -202,14 +366,49 @@ class Run(Command):
             if environment in ["custom"] or role not in MAP_ROLE2ENVIRONMENT:
                 logger.info(f"Trying to run play {role} in environment {environment}")
 
-            t = ansible.run.delay(
+            t = ansible.run.si(
                 environment, role, arguments, auto_release_time=task_timeout
             )
 
-        if isinstance(t, GroupResult):
-            rc = self._handle_loadbalancer(t, wait, format, timeout)
+        return t
+
+    def handle_role(
+        self,
+        arguments,
+        environment,
+        overwrite,
+        sub,
+        role,
+        action,
+        wait,
+        format,
+        timeout,
+        task_timeout,
+    ):
+        t = self._prepare_task(
+            arguments,
+            environment,
+            overwrite,
+            sub,
+            role,
+            action,
+            wait,
+            format,
+            timeout,
+            task_timeout,
+        )
+        task = t.apply_async()
+
+        logger.info("Task was prepared for execution.")
+        if wait:
+            logger.info(
+                "It takes a moment until the task has been started and output is visible here."
+            )
+
+        if isinstance(task, GroupResult):
+            rc = self.handle_loadbalancer_task(task, wait, format, timeout)
         else:
-            rc = handle_task(t, wait, format, timeout)
+            rc = handle_task(task, wait, format, timeout)
 
         return rc
 
@@ -238,32 +437,24 @@ class Run(Command):
             print(tabulate(table, headers=["Role", "Environment"], tablefmt="psql"))
 
         else:
-            for role_outer in role.split("//"):
-                if role_outer in enums.MAP_ROLE2ROLE:
-                    for role_inner in enums.MAP_ROLE2ROLE[role_outer]:
-                        outer_break = False
-                        for i in range(0, retry + 1):
-                            rc = self.handle_role(
-                                arguments,
-                                environment,
-                                overwrite,
-                                sub,
-                                role_inner,
-                                action,
-                                wait,
-                                format,
-                                timeout,
-                                task_timeout,
-                            )
-
-                            if rc != 0 and i == retry:
-                                outer_break = True
-                                break
-                            elif rc == 0:
-                                break
-
-                        if outer_break:
-                            break
+            for role in role.split("//"):
+                outer_break = False
+                if role in enums.MAP_ROLE2ROLE:
+                    rc = self.handle_collection(
+                        arguments,
+                        environment,
+                        overwrite,
+                        sub,
+                        role,
+                        action,
+                        wait,
+                        format,
+                        timeout,
+                        task_timeout,
+                        retry,
+                    )
+                    if rc != 0:
+                        outer_break = True
                 else:
                     for i in range(0, retry + 1):
                         rc = self.handle_role(
@@ -271,14 +462,19 @@ class Run(Command):
                             environment,
                             overwrite,
                             sub,
-                            role_outer,
+                            role,
                             action,
                             wait,
                             format,
                             timeout,
                             task_timeout,
                         )
-                        if rc == 0:
+                        if rc != 0 and i == retry:
+                            outer_break = True
                             break
+                        elif rc == 0:
+                            break
+                if outer_break:
+                    break
 
         return rc

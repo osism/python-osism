@@ -113,40 +113,98 @@ VALIDATE_PLAYBOOKS = {
 }
 
 MAP_ROLE2ROLE = {
+    "nutshell": [
+        "openstackclient",
+        "phpmyadmin",
+        [
+            "common",
+            [
+                [
+                    "loadbalancer",
+                    [
+                        "opensearch",
+                        [
+                            "mariadb-ng",
+                            [
+                                [
+                                    "keystone",
+                                    [
+                                        "neutron",
+                                        "barbican",
+                                        "designate",
+                                        "octavia",
+                                        "ironic",
+                                        "placement",
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                ["openvswitch", ["ovn"]],
+                "memcached",
+                "redis",
+                "rabbitmq-ng",
+            ],
+        ],
+        ["k3s", ["kubectl", "kubeconfig"]],
+        [
+            "ceph",
+            [
+                [
+                    "copy-ceph-keys",
+                    [
+                        "cephclient",
+                        "ceph-bootstrap-dashboard",
+                        "glance",
+                        "cinder",
+                        "nova",
+                        "netdata",
+                        ["prometheus", ["grafana"]],
+                    ],
+                ],
+            ],
+        ],
+    ],
     "infrastructure": [
         "openstackclient",
-        "common",
-        "loadbalancer",
-        "opensearch",
-        "openvswitch",
-        "ovn",
-        "memcached",
-        "redis",
-        "mariadb",
-        "rabbitmq",
         "phpmyadmin",
+        [
+            "common",
+            [
+                ["loadbalancer", ["opensearch", "mariadb-ng"]],
+                ["openvswitch", ["ovn"]],
+                "memcached",
+                "redis",
+                "rabbitmq-ng",
+            ],
+        ],
     ],
     "kubernetes": [
-        "k3s",
-        "kubectl",
-        "kubeconfig",
+        ["k3s", ["kubectl", "kubeconfig"]],
     ],
     "openstack": [
-        "keystone",
         "horizon",
-        "placement",
-        "glance",
-        "cinder",
-        "neutron",
-        "nova",
-        "barbican",
-        "designate",
-        "octavia",
+        [
+            "keystone",
+            [
+                "glance",
+                "cinder",
+                "neutron",
+                "nova",
+                "barbican",
+                "designate",
+                "octavia",
+                "ironic",
+                ["placement", ["nova"]],
+            ],
+        ],
     ],
     "ceph": [
-        "ceph",
-        "copy-ceph-keys",
-        "cephclient",
-        "ceph-bootstrap-dashboard",
+        ["ceph", [["copy-ceph-keys", ["cephclient", "ceph-bootstrap-dashboard"]]]],
+    ],
+    "monitoring": [
+        ["prometheus", ["grafana"]],
+        "netdata",
     ],
 }
