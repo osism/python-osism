@@ -97,6 +97,9 @@ python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openst
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-simple-stress/requirements.txt
 
+# add tests
+git clone --depth 1 https://github.com/osism/tests.git /tests
+
 # prepare use of clustershell
 ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 
