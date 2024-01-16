@@ -264,9 +264,9 @@ def handle_task(t, wait, format, timeout):
                         if "PLAY RECAP" in message_content:
                             logger.info(
                                 "Play has been completed. There may now be a delay until "
-                                "all logs have been written. Please wait and do not abort "
-                                "execution."
+                                "all logs have been written."
                             )
+                            logger.info("Please wait and do not abort execution.")
                     elif message_type == "rc":
                         rc = int(message_content)
                     elif message_type == "action" and message_content == "quit":
@@ -274,11 +274,15 @@ def handle_task(t, wait, format, timeout):
                         return rc
         else:
             logger.info(
-                f"There has been no output from the task {t.task_id} for {timeout} seconds. "
-                "This timeout can be adjusted using the --timeout parameter."
+                f"There has been no output from the task {t.task_id} for {timeout} seconds."
             )
             logger.info(
-                f"Task {t.task_id} is still running in background. No more output here. Check ARA for logs. "
+                "The task timeout of {timeout} seconds can be adjusted using the --timeout parameter."
+            )
+            logger.info(
+                f"Task {t.task_id} is still running in background. Check ARA for further logs. "
+            )
+            logger.info(
                 "Use this command to continue waiting for this task: "
                 "osism wait --output --live --delay 2 {t.task_id}"
             )
