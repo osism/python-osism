@@ -41,7 +41,7 @@ class Run(Command):
             action="store_true",
         )
         parser.add_argument(
-            "task_id", nargs="+", type=str, help="ID of tasks to wait for"
+            "task_id", nargs="?", type=str, help="ID of tasks to wait for"
         )
         return parser
 
@@ -55,6 +55,16 @@ class Run(Command):
         app = Celery("wait")
         app.config_from_object(Config)
         i = app.control.inspect()
+
+        if not task_ids:
+            task_ids = []
+            for _, tasks in i.scheduled().items():
+                for task in tasks:
+                    task_ids.append(task["id"])
+
+            for _, tasks in i.active().items():
+                for task in tasks:
+                    task_ids.append(task["id"])
 
         while task_ids:
             time.sleep(delay)
