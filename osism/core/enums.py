@@ -166,7 +166,7 @@ MAP_ROLE2ROLE = {
             ],
         ],
     ],
-    "infrastructure": [
+    "all-infrastructure": [
         "openstackclient",
         "phpmyadmin",
         [
@@ -180,10 +180,10 @@ MAP_ROLE2ROLE = {
             ],
         ],
     ],
-    "kubernetes": [
+    "all-kubernetes": [
         ["k3s", ["kubectl", "kubeconfig"]],
     ],
-    "openstack": [
+    "all-openstack": [
         "horizon",
         [
             "keystone",
@@ -200,10 +200,10 @@ MAP_ROLE2ROLE = {
             ],
         ],
     ],
-    "ceph": [
+    "all-ceph": [
         ["ceph", [["copy-ceph-keys", ["cephclient", "ceph-bootstrap-dashboard"]]]],
     ],
-    "monitoring": [
+    "all-monitoring": [
         ["prometheus", ["grafana"]],
         "netdata",
     ],
