@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import re
 import subprocess
 import time
 
@@ -108,26 +109,28 @@ def run_ansible_in_environment(
         if locking:
             lock.acquire()
 
-        if role == "mariadb_backup":
-            command = f"/run.sh backup {role} {joined_arguments}"
-            logger.info(f"RUN {command}")
-            p = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                shell=True,
-                env=env,
-            )
+        if role in ["mariadb-backup", "mariadb_backup"]:
+            action = "backup"
+            role = "mariadb"
+            # Hacky workaround. The handling of kolla_action will be revised in the future.
+            joined_arguments = re.sub(joined_arguments, "", "-e kolla_action=deploy")
+        elif role in ["mariadb-recovery", "mariadb_recovery"]:
+            action = "recovery"
+            role = "mariadb"
+            # Hacky workaround. The handling of kolla_action will be revised in the future.
+            joined_arguments = re.sub(joined_arguments, "", "-e kolla_action=deploy")
         else:
-            command = f"/run.sh deploy {role} {joined_arguments}"
-            logger.info(f"RUN {command}")
-            p = subprocess.Popen(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                shell=True,
-                env=env,
-            )
+            action = "deploy"
+
+        command = f"/run.sh {action} {role} {joined_arguments}"
+        logger.info(f"RUN {command}")
+        p = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=True,
+            env=env,
+        )
 
     # execute roles from ceph-ansible
     elif worker == "ceph-ansible":
