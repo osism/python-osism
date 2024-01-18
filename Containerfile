@@ -1,5 +1,5 @@
 ARG PYTHON_VERSION=3.12
-FROM python:${PYTHON_VERSION} as builder
+FROM python:${PYTHON_VERSION}-slim as builder
 
 COPY . /src
 
@@ -14,6 +14,7 @@ apt-get update
 apt-get install -y --no-install-recommends \
   build-essential \
   gcc \
+  git \
   libldap2-dev \
   libsasl2-dev
 
@@ -34,7 +35,7 @@ git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openst
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-simple-stress/requirements.txt
 EOF
 
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.12
 FROM python:${PYTHON_VERSION}-slim as osism
 
 COPY --from=builder /wheels /wheels
