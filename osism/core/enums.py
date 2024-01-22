@@ -126,6 +126,7 @@ MAP_ROLE2ROLE = {
                         [
                             "mariadb-ng",
                             [
+                                "horizon",
                                 [
                                     "keystone",
                                     [
