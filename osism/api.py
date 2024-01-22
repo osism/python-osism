@@ -89,6 +89,16 @@ async def root():
     return {"message": "Hello World"}
 
 
+@app.post("/meters/sink")
+async def write_sink_meters(request: Request):
+    data = await request.json()
+
+
+@app.post("/events/sink")
+async def write_sink_events(request: Request):
+    data = await request.json()
+
+
 @app.post("/webhook/netbox", response_model=WebhookNetboxResponse, status_code=200)
 async def webhook(
     webhook_input: WebhookNetboxData,
