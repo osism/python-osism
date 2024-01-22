@@ -16,7 +16,7 @@ loguru==0.7.2
 netmiko==4.3.0
 pottery==3.0.0
 prompt-toolkit==3.0.43
-pydantic==1.10.13
+pydantic==1.10.14
 pynetbox==7.3.3
 pytest-testinfra==10.0.0
 sqlmodel==0.0.14
