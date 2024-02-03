@@ -98,6 +98,9 @@ python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openst
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-simple-stress/requirements.txt
 
+# install openstack-resource-manager
+git clone --depth 1 https://github.com/osism/openstack-resource-manager.git /openstack-resource-manager
+
 # add tests
 git clone --depth 1 https://github.com/osism/tests.git /tests
 
