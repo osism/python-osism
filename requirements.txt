@@ -16,6 +16,7 @@ loguru==0.7.2
 netmiko==4.3.0
 nornir-ansible==2023.12.28
 nornir==3.4.1
+poetry-core==1.9.0
 pottery==3.0.0
 prompt-toolkit==3.0.43
 pydantic==1.10.14
@@ -27,3 +28,4 @@ tabulate==0.9.0
 transitions==0.9.0
 uvicorn[standard]==0.27.0.post1
 watchdog==3.0.0
+nornir_paramiko @ git+https://github.com/osism/nornir_paramiko.git@main
