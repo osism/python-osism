@@ -40,6 +40,7 @@ class Run(Command):
             type=str,
             help="Action to be applied (can only be used for OpenStack playbooks) (default: %(default)s)",
             choices=[
+                "bootstrap",
                 "deploy",
                 "precheck",
                 "pull",
