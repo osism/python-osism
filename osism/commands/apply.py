@@ -192,7 +192,7 @@ class Run(Command):
                             )
 
                             if len(inner_item) > 1 and type(inner_item[1]) == list:
-                                logger.debug(f"X [{counter + 1 }] --> {inner_item[1]}")
+                                logger.debug(f"X [{counter + 1}] --> {inner_item[1]}")
                                 st = self._handle_collection(
                                     inner_item[1],
                                     counter + 1,

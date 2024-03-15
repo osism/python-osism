@@ -18,7 +18,7 @@ from osism.actions import (
     manage_device,
     manage_interface,
 )
-from osism.tasks import Config, ansible, openstack
+from osism.tasks import Config, openstack
 
 app = Celery("netbox")
 app.config_from_object(Config)
@@ -54,24 +54,13 @@ def celery_init_worker(**kwargs):
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    if Config.enable_bifrost in ["True", "true", "Yes", "yes"]:
-        # Synchronize the status of Bifrost with Netbox every 5 minutes
-        sender.add_periodic_task(300.0, periodic_synchronize_bifrost.s(), expires=10)
+    pass
 
 
 @app.task(bind=True, name="osism.tasks.netbox.periodic_synchronize_ironic")
 def periodic_synchronize_ironic(self):
     """Synchronize the state of Ironic with Netbox"""
     openstack.baremetal_node_list.apply_async((), link=synchronize_device_state.s())
-
-
-@app.task(bind=True, name="osism.tasks.netbox.periodic_synchronize_bifrost")
-def periodic_synchronize_bifrost(self):
-    """Synchronize the state of Bifrost with Netbox"""
-    ansible.run.apply_async(
-        ("manager", "bifrost-command", "baremetal node list -f json"),
-        link=synchronize_device_state.s(),
-    )
 
 
 @app.task(bind=True, name="osism.tasks.netbox.run")
@@ -115,7 +104,7 @@ def import_device_types(self, vendors, library=False):
 
 @app.task(bind=True, name="osism.tasks.netbox.synchronize_device_state")
 def synchronize_device_state(self, data):
-    """Synchronize the state of Bifrost or Ironic with Netbox"""
+    """Synchronize the state of Ironic with Netbox"""
 
     if type(data) == str:
         data = json.loads(data)
