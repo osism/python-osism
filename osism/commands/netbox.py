@@ -35,18 +35,6 @@ class Run(Command):
         pass
 
 
-class Bifrost(Command):
-    def get_parser(self, prog_name):
-        parser = super(Bifrost, self).get_parser(prog_name)
-        return parser
-
-    def take_action(self, parsed_args):
-        ansible.run.apply_async(
-            ("manager", "bifrost-command", "baremetal node list -f json"),
-            link=netbox.synchronize_device_state.s(),
-        )
-
-
 class Ironic(Command):
     def get_parser(self, prog_name):
         parser = super(Ironic, self).get_parser(prog_name)

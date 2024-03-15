@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-from pathlib import Path
 import re
 import subprocess
 import time
@@ -19,7 +18,6 @@ redis = None
 class Config:
     broker_connection_retry_on_startup = True
     enable_utc = True
-    enable_bifrost = os.environ.get("ENABLE_BIFROST", "False")
     enable_ironic = os.environ.get("ENABLE_IRONIC", "True")
     broker_url = "redis://redis"
     result_backend = "redis://redis"
@@ -142,21 +140,6 @@ def run_ansible_in_environment(
             env=env,
         )
 
-    # execute the bifrost-command role
-    elif (
-        worker == "osism-ansible"
-        and environment == "manager"
-        and role == "bifrost-command"
-    ):
-        command = f'/run-manager.sh bifrost-command "-e bifrost_arguments=\'{joined_arguments}\'" "-e bifrost_result_id={request_id}"'
-        logger.info(f"RUN {command}")
-        p = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True,
-        )
-
     # execute local netbox playbooks
     elif worker == "osism-ansible" and environment == "netbox-local":
         if locking:
@@ -186,42 +169,20 @@ def run_ansible_in_environment(
             env=env,
         )
 
-    # process the bifrost-command result
-    if (
-        worker == "osism-ansible"
-        and environment == "manager"
-        and role == "bifrost-command"
-    ):
-        p.wait()
-
-        # Check for JSON result
-        resultpath = f"/tmp/bifrost-command-{request_id}.json"
-        if os.path.exists(resultpath):
-            result = Path(resultpath).read_text()
-            os.remove(resultpath)
-
-        # Check for non-JSON result
-        resultpath = f"/tmp/bifrost-command-{request_id}.log"
-        if os.path.exists(resultpath):
-            result = Path(resultpath).read_text()
-            os.remove(resultpath)
-
-    # process all other results
-    else:
-        while p.poll() is None:
-            line = p.stdout.readline().decode("utf-8")
-            if publish:
-                redis.xadd(request_id, {"type": "stdout", "content": line})
-            result += line
-
-        rc = p.wait(timeout=60)
-
+    while p.poll() is None:
+        line = p.stdout.readline().decode("utf-8")
         if publish:
-            redis.xadd(request_id, {"type": "rc", "content": rc})
-            redis.xadd(request_id, {"type": "action", "content": "quit"})
+            redis.xadd(request_id, {"type": "stdout", "content": line})
+        result += line
 
-        if locking:
-            lock.release()
+    rc = p.wait(timeout=60)
+
+    if publish:
+        redis.xadd(request_id, {"type": "rc", "content": rc})
+        redis.xadd(request_id, {"type": "action", "content": "quit"})
+
+    if locking:
+        lock.release()
 
     return result
 
