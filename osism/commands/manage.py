@@ -13,28 +13,42 @@ import requests
 
 from osism.data import TEMPLATE_IMAGE_CLUSTERAPI, TEMPLATE_IMAGE_OCTAVIA
 
+SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.27", "1.28", "1.29"]
+
 
 class ImageClusterapi(Command):
     def get_parser(self, prog_name):
         parser = super(ImageClusterapi, self).get_parser(prog_name)
 
         parser.add_argument(
-            "--cloud", type=str, help="Cloud name in clouds.yaml", default="openstack"
-        )
-        parser.add_argument(
             "--base-url",
             type=str,
             help="Base URL",
             default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-k8s-capi-images/",
         )
+        parser.add_argument(
+            "--cloud", type=str, help="Cloud name in clouds.yaml", default="openstack"
+        )
+        parser.add_argument(
+            "--filter",
+            type=str,
+            help="Filter the version to be managed (e.g. 1.28)",
+            default=None,
+        )
         return parser
 
     def take_action(self, parsed_args):
-        cloud = parsed_args.cloud
         base_url = parsed_args.base_url
+        cloud = parsed_args.cloud
+        filter = parsed_args.filter
+
+        if filter:
+            supported_cluterapi_k8s_images = [filter]
+        else:
+            supported_cluterapi_k8s_images = SUPPORTED_CLUSTERAPI_K8S_IMAGES
 
         os.makedirs("/tmp/clusterapi", exist_ok=True)
-        for kubernetes_release in ["1.27", "1.28", "1.29"]:
+        for kubernetes_release in supported_cluterapi_k8s_images:
             url = urljoin(base_url, f"last-{kubernetes_release}")
 
             response = requests.get(url)
