@@ -275,14 +275,14 @@ def handle_task(t, wait, format, timeout):
                 f"There has been no output from the task {t.task_id} for {timeout} seconds."
             )
             logger.info(
-                "The task timeout of {timeout} seconds can be adjusted using the --timeout parameter."
+                f"The task timeout of {timeout} seconds can be adjusted using the --timeout parameter."
             )
             logger.info(
                 f"Task {t.task_id} is still running in background. Check ARA for further logs. "
             )
             logger.info(
                 "Use this command to continue waiting for this task: "
-                "osism wait --output --live --delay 2 {t.task_id}"
+                f"osism wait --output --live --delay 2 {t.task_id}"
             )
             return 1
 
