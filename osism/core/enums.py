@@ -114,6 +114,7 @@ VALIDATE_PLAYBOOKS = {
 
 MAP_ROLE2ROLE = {
     "nutshell": [
+        "netdata",
         "openstackclient",
         "phpmyadmin",
         [
@@ -156,11 +157,10 @@ MAP_ROLE2ROLE = {
                     [
                         "cephclient",
                         "ceph-bootstrap-dashboard",
-                        "kolla-ceph-rgw",
-                        "glance",
-                        "cinder",
-                        "nova",
-                        "netdata",
+                        [
+                            "wait-for-keystone",
+                            ["kolla-ceph-rgw", "glance", "cinder", "nova"],
+                        ],
                         ["prometheus", ["grafana"]],
                     ],
                 ],
