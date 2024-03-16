@@ -61,7 +61,7 @@ class Run(Command):
             for task in tasks:
                 task_ids.append(task["id"])
 
-        return task_ids
+        return sorted(task_ids)
 
     def take_action(self, parsed_args):
         delay = parsed_args.delay
@@ -69,7 +69,7 @@ class Run(Command):
         live = parsed_args.live
         output = parsed_args.output
         refresh = parsed_args.refresh
-        task_ids = parsed_args.task_id
+        task_ids = sorted(parsed_args.task_id)
 
         do_refresh = False
 
@@ -82,6 +82,7 @@ class Run(Command):
             task_ids = self.get_all_task_ids(i)
             do_refresh = True
 
+        tmp_task_ids = []
         while task_ids or do_refresh:
             if task_ids:
                 task_id = task_ids.pop()
@@ -100,7 +101,7 @@ class Run(Command):
                         elif format == "script":
                             print(f"{task_id} = PENDING")
 
-                        task_ids.insert(0, task_id)
+                        tmp_task_ids.insert(0, task_id)
 
                 elif result.state == "SUCCESS":
                     if format == "log":
@@ -158,11 +159,19 @@ class Run(Command):
                                         else:
                                             while_True = False
                     else:
-                        task_ids.insert(0, task_id)
+                        tmp_task_ids.insert(0, task_id)
 
-                if task_ids:
+                if not task_ids and tmp_task_ids:
                     logger.info(f"Wait {delay} second(s) until the next check")
                     time.sleep(delay)
+
+                    if do_refresh:
+                        task_ids = sorted(
+                            list(set(self.get_all_task_ids(i) + tmp_task_ids))
+                        )
+                        tmp_task_ids = []
+                    else:
+                        task_ids = tmp_task_ids
             else:
                 if refresh > 0:
                     refresh = refresh - 1
@@ -171,5 +180,6 @@ class Run(Command):
                     )
                     time.sleep(delay)
                     task_ids = self.get_all_task_ids(i)
+                    tmp_task_ids = []
                 else:
                     do_refresh = False
