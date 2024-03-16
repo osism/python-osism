@@ -156,6 +156,7 @@ MAP_ROLE2ROLE = {
                     [
                         "cephclient",
                         "ceph-bootstrap-dashboard",
+                        "kolla-ceph-rgw",
                         "glance",
                         "cinder",
                         "nova",
@@ -196,6 +197,7 @@ MAP_ROLE2ROLE = {
                 "designate",
                 "octavia",
                 "ironic",
+                "kolla-ceph-rgw",
                 ["placement", ["nova"]],
             ],
         ],
