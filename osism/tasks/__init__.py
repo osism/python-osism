@@ -233,10 +233,10 @@ def handle_task(t, wait, format, timeout):
                         return rc
         else:
             logger.info(
-                f"There has been no output from the task {t.task_id} for {timeout} seconds."
+                f"There has been no output from the task {t.task_id} for {timeout} second(s)."
             )
             logger.info(
-                f"The task timeout of {timeout} seconds can be adjusted using the --timeout parameter."
+                f"The task timeout of {timeout} second(s) can be adjusted using the --timeout parameter."
             )
             logger.info(
                 f"Task {t.task_id} is still running in background. Check ARA for further logs. "

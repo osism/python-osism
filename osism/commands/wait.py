@@ -18,7 +18,7 @@ class Run(Command):
             "--delay",
             default=1,
             type=int,
-            help="Delay in seconds between two task checks",
+            help="Delay in second(s) between two task checks",
         )
         parser.add_argument(
             "--refresh",
@@ -161,12 +161,14 @@ class Run(Command):
                         task_ids.insert(0, task_id)
 
                 if task_ids:
-                    logger.info(f"Wait {delay} seconds until the next check")
+                    logger.info(f"Wait {delay} second(s) until the next check")
                     time.sleep(delay)
             else:
                 if refresh > 0:
                     refresh = refresh - 1
-                    logger.info(f"Wait {delay} seconds until refresh of running tasks")
+                    logger.info(
+                        f"Wait {delay} second(s) until refresh of running tasks"
+                    )
                     time.sleep(delay)
                     task_ids = self.get_all_task_ids(i)
                 else:
