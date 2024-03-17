@@ -114,6 +114,8 @@ VALIDATE_PLAYBOOKS = {
 
 MAP_ROLE2ROLE = {
     "nutshell": [
+        "dotfiles",
+        "homer",
         "netdata",
         "openstackclient",
         "phpmyadmin",
@@ -148,7 +150,7 @@ MAP_ROLE2ROLE = {
                 "rabbitmq-ng",
             ],
         ],
-        ["k3s", ["kubectl", "kubeconfig"]],
+        ["k3s", ["kubectl", ["kubeconfig", ["copy-kubeconfig"]]]],
         [
             "ceph",
             [
@@ -182,7 +184,7 @@ MAP_ROLE2ROLE = {
         ],
     ],
     "all-kubernetes": [
-        ["k3s", ["kubectl", "kubeconfig"]],
+        ["k3s", ["kubectl", ["kubeconfig", ["copy-kubeconfig"]]]],
     ],
     "all-openstack": [
         "horizon",
