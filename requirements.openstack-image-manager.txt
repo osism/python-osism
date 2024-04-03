@@ -1,1 +1,1 @@
-openstack-image-manager==0.20240327.0
+openstack-image-manager==0.20240403.0
