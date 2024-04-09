@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2569f1664662266ef0b44e867e5907e7fcf55824d4070716791121832d8bfdc1"
+            "sha256": "c4f03624a01e9d92e82b2eeadc84f4c8a9335865a3da79c30c3d6634ad02bdd2"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -373,12 +373,12 @@
         },
         "deepdiff": {
             "hashes": [
-                "sha256:4e07da4f2a1ae069b7465d264715764f3b36ce181ec89f47050ead61711b1e9a",
-                "sha256:f7bbb845f83ad6b9453a4ab07c579bdc6f1df712edc515740455a9b88c2bc41a"
+                "sha256:260c16f052d4badbf60351b4f77e8390bee03a0b516246f6839bc813fb429ddf",
+                "sha256:447760081918216aa4fd4ca78a4b6a848b81307b2ea94c810255334b759e1dc3"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==7.0.0"
+            "version": "==7.0.1"
         },
         "docker": {
             "hashes": [
@@ -881,11 +881,11 @@
         },
         "ntc-templates": {
             "hashes": [
-                "sha256:2f630571f510a8c6573c8b2a1f584494b10505577e446b9ee471b5a1c542620d",
-                "sha256:e36274b8ba60e2e2e96f2948e23f6929c79ac0167f87994d4ac4d76e4a8be4ea"
+                "sha256:4fc4e2e9b239bd5b25d3c256c301859eec9262c2d418e17a60ff023ecb6824a5",
+                "sha256:56919fbe83da582de03474f8a204d945dadeef0c98e630743c3c069a9bcf1120"
             ],
             "markers": "python_version >= '3.8' and python_version < '4.0'",
-            "version": "==4.4.0"
+            "version": "==5.0.0"
         },
         "oauthlib": {
             "hashes": [
