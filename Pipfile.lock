@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "c4f03624a01e9d92e82b2eeadc84f4c8a9335865a3da79c30c3d6634ad02bdd2"
+            "sha256": "df90a964596c07a0339def0aff94b33482e463f91a436d77334ec3f7428d8738"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -391,11 +391,11 @@
         },
         "docutils": {
             "hashes": [
-                "sha256:96f387a2c5562db4476f09f13bbab2192e764cac08ebbf3a34a95d9b1e4a59d6",
-                "sha256:f08a4e276c3a1583a86dce3e34aba3fe04d02bba2dd51ed16106244e8a923e3b"
+                "sha256:14c8d34a55b46c88f9f714adb29cefbdd69fb82f3fef825e59c5faab935390d8",
+                "sha256:65249d8a5345bc95e0f40f280ba63c98eb24de35c6c8f5b662e3e8948adea83f"
             ],
-            "markers": "python_version >= '3.7'",
-            "version": "==0.20.1"
+            "markers": "python_version >= '3.9'",
+            "version": "==0.21.1"
         },
         "flower": {
             "hashes": [
@@ -636,11 +636,11 @@
         },
         "idna": {
             "hashes": [
-                "sha256:9ecdbbd083b06798ae1e86adcbfe8ab1479cf864e4ee30fe4e46a003d12491ca",
-                "sha256:c05567e9c24a6b9faaa835c4821bad0590fbb9d5779e7caa6e1cc4978e7eb24f"
+                "sha256:028ff3aadf0609c1fd278d8ea3089299412a7a8b9bd005dd08b9f8285bcb5cfc",
+                "sha256:82fee1fc78add43492d3a1898bfa6d8a904cc97d8427f683ed8e798d07761aa0"
             ],
             "markers": "python_version >= '3.5'",
-            "version": "==3.6"
+            "version": "==3.7"
         },
         "iniconfig": {
             "hashes": [
@@ -661,12 +661,12 @@
         },
         "kombu": {
             "hashes": [
-                "sha256:49f1e62b12369045de2662f62cc584e7df83481a513db83b01f87b5b9785e378",
-                "sha256:f3da5b570a147a5da8280180aa80b03807283d63ea5081fcdb510d18242431d9"
+                "sha256:011c4cd9a355c14a1de8d35d257314a1d2456d52b7140388561acac3cf1a97bf",
+                "sha256:5634c511926309c7f9789f1433e9ed402616b56836ef9878f01bd59267b4c7a9"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==5.3.6"
+            "version": "==5.3.7"
         },
         "kubernetes": {
             "hashes": [
