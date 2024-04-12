@@ -108,9 +108,9 @@ class Init(Command):
         rc = 0
 
         if wait:
-            logger.info("Task was prepared for execution.")
+            logger.info(f"Task {task.task_id} was prepared for execution.")
             logger.info(
-                "It takes a moment until the task has been started and output is visible here."
+                f"It takes a moment until task {task.task_id} has been started and output is visible here."
             )
             rc = handle_task(task, wait, format, 300)
         else:
@@ -212,9 +212,9 @@ class Manage(Command):
             )
 
             if wait:
-                logger.info("Task was prepared for execution.")
+                logger.info(f"Task {task.task_id} was prepared for execution.")
                 logger.info(
-                    "It takes a moment until the task has been started and output is visible here."
+                    f"It takes a moment until task {task.task_id} has been started and output is visible here."
                 )
                 rc = handle_task(task, wait, format, 300)
             else:
