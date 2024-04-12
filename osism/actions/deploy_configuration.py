@@ -70,9 +70,7 @@ def for_device(name, parameters={}, mode="deploy"):
             current_configuration = None
 
         if not current_configuration:
-            logger.error(
-                f"There is now prepared configuration for device {device.name}"
-            )
+            logger.error(f"There is no prepared configuration for device {device.name}")
         else:
             t = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(
                 current_configuration
