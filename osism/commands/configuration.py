@@ -19,13 +19,14 @@ class Sync(Command):
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
 
-        logger.info("Task was prepared for execution.")
-        logger.inf(
-            "It takes a moment until the task has been started and output is visible here."
-        )
-
         t = ansible.run.delay(
             "manager", "configuration", arguments, auto_release_time=60
         )
+
+        logger.info(f"Task {t.task_id} was prepared for execution.")
+        logger.info(
+            f"It takes a moment until task {t.task_id} has been started and output is visible here."
+        )
+
         rc = handle_task(t, True, format, 60)
         return rc
