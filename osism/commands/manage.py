@@ -236,15 +236,25 @@ class Flavors(Command):
         parser.add_argument(
             "--cloud", type=str, help="Cloud name in clouds.yaml", default="admin"
         )
+        parser.add_argument(
+            "--recommended",
+            default=False,
+            help="Also create recommended flavors",
+            action="store_true",
+        )
 
         return parser
 
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
+        recommended = parsed_args.recommended
 
         arguments = []
         if cloud:
             arguments.append(f"--cloud '{cloud}'")
+
+        if recommended:
+            arguments.append("--recommended")
 
         joined_arguments = " ".join(arguments)
         subprocess.call(
