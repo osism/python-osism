@@ -184,9 +184,7 @@ class Images(Command):
         dry_run = parsed_args.dry_run
         filter = parsed_args.filter
         hide = parsed_args.hide
-        hypervisor = parsed_args.hypervisor
         latest = parsed_args.latest
-        names = parsed_args.name
 
         arguments = []
         if cloud:
