@@ -171,12 +171,6 @@ class Images(Command):
             "--cloud", type=str, help="Cloud name in clouds.yaml", default="openstack"
         )
         parser.add_argument(
-            "--hypervisor",
-            type=str,
-            help="Set hypervisor type meta information",
-            default=None,
-        )
-        parser.add_argument(
             "--filter",
             type=str,
             help="Filter images with a regex on their name",
@@ -211,8 +205,6 @@ class Images(Command):
             arguments.append("--latest")
         if hide:
             arguments.append("--hide")
-        if hypervisor:
-            arguments.append(f"--hypervisor '{hypervisor}'")
         if names:
             for name in names:
                 arguments.append(f"--name '{name}'")
