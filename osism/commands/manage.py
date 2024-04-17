@@ -176,12 +176,6 @@ class Images(Command):
             help="Filter images with a regex on their name",
             default=None,
         )
-        parser.add_argument(
-            "--name",
-            type=str,
-            action="append",
-            help="Name of the image to process, use repeatedly for multiple images",
-        )
 
         return parser
 
@@ -205,9 +199,6 @@ class Images(Command):
             arguments.append("--latest")
         if hide:
             arguments.append("--hide")
-        if names:
-            for name in names:
-                arguments.append(f"--name '{name}'")
 
         joined_arguments = " ".join(arguments)
         subprocess.call(
