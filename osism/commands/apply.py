@@ -400,10 +400,11 @@ class Run(Command):
         )
         task = t.apply_async()
 
-        logger.info(f"Task {task.task_id} was prepared for execution.")
+        logger.info(f"Task {task.task_id} ({role}) was prepared for execution.")
+
         if wait:
             logger.info(
-                f"It takes a moment until task {task.task_id} has been started and output is visible here."
+                f"It takes a moment until task {task.task_id} ({role}) has been started and output is visible here."
             )
 
         if isinstance(task, GroupResult):
