@@ -110,6 +110,7 @@ VALIDATE_PLAYBOOKS = {
     "ulimits": {"environment": "generic", "runtime": "osism-ansible"},
     "mariadb-backup": {"environment": "kolla", "runtime": "kolla-ansible"},
     "mariadb-recovery": {"environment": "kolla", "runtime": "kolla-ansible"},
+    "tempest": {"environment": "openstack", "runtime": "osism-ansible"},
 }
 
 MAP_ROLE2ROLE = {
