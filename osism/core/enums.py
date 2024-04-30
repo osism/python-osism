@@ -110,6 +110,10 @@ VALIDATE_PLAYBOOKS = {
     "ulimits": {"environment": "generic", "runtime": "osism-ansible"},
     "mariadb-backup": {"environment": "kolla", "runtime": "kolla-ansible"},
     "mariadb-recovery": {"environment": "kolla", "runtime": "kolla-ansible"},
+
+    # NOTE: The certificates play is available in both osism-ansible and kolla-ansible.
+    # The play in osism-ansible should be used by default.
+    "certificates": {"environment": "generic", "runtime": "osism-ansible"},
 }
 
 MAP_ROLE2ROLE = {
