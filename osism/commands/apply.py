@@ -31,7 +31,7 @@ class Run(Command):
         parser.add_argument(
             "--sub",
             type=str,
-            help="Use a sub-environment (e.g. ceph.zone-b or kolla.zone-b)",
+            help="Use a sub-environment (e.g. zone-a or zone-b)",
         )
         parser.add_argument(
             "--action",
