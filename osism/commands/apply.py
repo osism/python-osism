@@ -10,7 +10,7 @@ from loguru import logger
 from tabulate import tabulate
 
 from osism.core import enums
-from osism.core.playbooks import MAP_ROLE2ENVIRONMENT
+from osism.core.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
 from osism.tasks import ansible, ceph, kolla, handle_task
 
 
@@ -356,9 +356,18 @@ class Run(Command):
             else:
                 kolla_arguments = [f"-e kolla_action={action}"] + arguments
 
-            t = kolla.run.si(
-                environment, role, kolla_arguments, auto_release_time=task_timeout
-            )
+            if (
+                role not in ["common"]
+                and "osism-ansible" in MAP_ROLE2RUNTIME
+                and role in MAP_ROLE2RUNTIME["osism-ansible"]
+            ):
+                t = ansible.run.si(
+                    environment, role, arguments, auto_release_time=task_timeout
+                )
+            else:
+                t = kolla.run.si(
+                    environment, role, kolla_arguments, auto_release_time=task_timeout
+                )
         else:
             # Overwrite the environment
             if overwrite:
