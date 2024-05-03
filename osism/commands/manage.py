@@ -218,6 +218,13 @@ class Flavors(Command):
             "--cloud", type=str, help="Cloud name in clouds.yaml", default="admin"
         )
         parser.add_argument(
+            "--name",
+            type=str,
+            help="Name of flavor definitions",
+            default="scs",
+            choices=["scs", "osism", "local"],
+        )
+        parser.add_argument(
             "--recommended",
             default=False,
             help="Also create recommended flavors",
@@ -228,9 +235,10 @@ class Flavors(Command):
 
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
+        name = parsed_args.name
         recommended = parsed_args.recommended
 
-        arguments = []
+        arguments = [f"--name '{name}'"]
         if cloud:
             arguments.append(f"--cloud '{cloud}'")
 
