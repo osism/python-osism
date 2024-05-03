@@ -42,8 +42,8 @@ COPY --from=builder /wheels /wheels
 
 COPY . /src
 
+COPY files/data  /data
 COPY files/change.sh /change.sh
-COPY files/change.sh /change-osism.sh
 COPY files/run-ansible-console.sh /run-ansible-console.sh
 COPY requirements.yml /ansible/requirements.yml
 
