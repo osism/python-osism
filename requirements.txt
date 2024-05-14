@@ -24,6 +24,6 @@ pytest-testinfra==10.1.0
 sqlmodel==0.0.18
 sushy==5.0.0
 tabulate==0.9.0
-transitions==0.9.0
+transitions==0.9.1
 uvicorn[standard]==0.29.0
 watchdog==4.0.0
