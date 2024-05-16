@@ -11,7 +11,7 @@ PyYAML = "==6.0.1"
 ansible-runner = "==2.3.6"
 ara = "==1.7.1"
 celery = {version = "==5.4.0", extras = ["redis"]}
-cliff = "==4.6.0"
+cliff = "==4.7.0"
 deepdiff = "==7.0.1"
 docker = "==7.0.0"
 flower = "==2.0.1"
