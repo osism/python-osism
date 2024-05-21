@@ -3,6 +3,7 @@
 LOADBALANCER_PLAYBOOKS = [
     "loadbalancer-aodh",
     "loadbalancer-barbican",
+    "loadbalancer-blazar",
     "loadbalancer-ceph-rgw",
     "loadbalancer-cinder",
     "loadbalancer-designate",
@@ -31,6 +32,10 @@ VALIDATE_PLAYBOOKS = {
     "barbican-config": {
         "runtime": "kolla-ansible",
         "playbook": "barbican",
+    },
+    "blazar-config": {
+        "runtime": "kolla-ansible",
+        "playbook": "blazar",
     },
     "designate-config": {
         "runtime": "kolla-ansible",
