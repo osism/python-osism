@@ -1,2 +1,2 @@
-ansible-runner==2.3.6
+ansible-runner==2.4.0
 ansible-core==2.16.6
