@@ -6,7 +6,7 @@ ara==1.7.1
 celery[redis]==5.4.0
 cliff==4.7.0
 deepdiff==7.0.1
-docker==7.0.0
+docker==7.1.0
 fastapi==0.111.0
 flower==2.0.1
 hiredis==2.3.2

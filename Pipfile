@@ -13,7 +13,7 @@ ara = "==1.7.1"
 celery = {version = "==5.4.0", extras = ["redis"]}
 cliff = "==4.7.0"
 deepdiff = "==7.0.1"
-docker = "==7.0.0"
+docker = "==7.1.0"
 flower = "==2.0.1"
 hiredis = "==2.3.2"
 huey = "==2.5.0"
