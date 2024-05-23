@@ -1,5 +1,0 @@
----
-features:
-  - |
-    With the new commands set/noset bootstrap it is possible to set if
-    a node is bootstrapped or not.
