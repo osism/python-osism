@@ -46,7 +46,6 @@ class Run(Command):
                 "pull",
                 "reconfigure",
                 "refresh-containers",
-                "rolling-upgrade",
                 "stop",
                 "upgrade",
             ],
@@ -344,9 +343,6 @@ class Run(Command):
         elif environment == "kolla":
             if sub:
                 environment = f"{environment}.{sub}"
-
-            if action == "rolling-upgrade":
-                action = "rolling_upgrade"
 
             if role.startswith("kolla-"):
                 role = role[6:]
