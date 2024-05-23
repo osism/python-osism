@@ -1,5 +1,0 @@
----
-features:
-  - |
-    It is possible to set the number of retries of the apply command
-    via the environment variable `OSISM_APPLY_RETRY`.

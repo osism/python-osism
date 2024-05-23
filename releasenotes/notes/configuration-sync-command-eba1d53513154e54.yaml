@@ -1,5 +1,0 @@
----
-features:
-  - |
-    With `configuration sync` it is possible to sync the configuration repository.
-    This is an alias for the command `apply configuration`.
