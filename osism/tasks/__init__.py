@@ -111,7 +111,11 @@ def run_ansible_in_environment(
             action = "backup"
             role = "mariadb"
             # Hacky workaround. The handling of kolla_action will be revised in the future.
-            joined_arguments = re.sub(joined_arguments, "", "-e kolla_action=backup")
+            joined_arguments = re.sub(
+                r"-e kolla_action=(bootstrap|deploy|precheck|pull|reconfigure|refresh-containers|stop|upgrade)",
+                r"-e kolla_action=backup",
+                joined_arguments,
+            )
         else:
             action = "deploy"
 
