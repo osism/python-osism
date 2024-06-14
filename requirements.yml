@@ -27,7 +27,7 @@ collections:
   - name: containers.podman
     version: 1.15.2
   - name: kubernetes.core
-    version: 4.0.0
+    version: 5.0.0
   - name: netbox.netbox
     version: 3.19.1
   - name: openstack.cloud
