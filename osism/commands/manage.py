@@ -13,7 +13,7 @@ import requests
 
 from osism.data import TEMPLATE_IMAGE_CLUSTERAPI, TEMPLATE_IMAGE_OCTAVIA
 
-SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.27", "1.28", "1.29", "1.30"]
+SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.28", "1.29", "1.30"]
 
 
 class ImageClusterapi(Command):
