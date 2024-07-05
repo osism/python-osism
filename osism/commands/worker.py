@@ -30,6 +30,9 @@ class Run(Command):
 
         if queue in ["openstack", "netbox", "conductor"]:
             tasks = queue
+        elif queue == "osism-kubernetes":
+            tasks = "kubernetes"
+        # kolla-ansible, ceph-ansible, osism-ansible
         else:
             tasks = queue[:-8]
 
