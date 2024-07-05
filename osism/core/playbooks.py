@@ -10,7 +10,7 @@ import yaml
 MAP_ROLE2ENVIRONMENT: Dict[str, Any] = {}
 MAP_ROLE2RUNTIME: Dict[str, Any] = {}
 
-for path in Path("/interface/playbooks").glob("*-ansible.yml"):
+for path in Path("/interface/playbooks").glob("*.yml"):
     try:
         with open(path) as fp:
             data = yaml.load(fp, Loader=yaml.SafeLoader)
