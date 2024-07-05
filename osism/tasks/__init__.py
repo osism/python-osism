@@ -25,13 +25,14 @@ class Config:
     task_default_queue = "default"
     task_track_started = (True,)
     task_routes = {
+        "osism.tasks.ansible.*": {"queue": "osism-ansible"},
         "osism.tasks.ceph.*": {"queue": "ceph-ansible"},
         "osism.tasks.conductor.*": {"queue": "conductor"},
         "osism.tasks.kolla.*": {"queue": "kolla-ansible"},
+        "osism.tasks.kubernetes.*": {"queue": "kubernetes"},
         "osism.tasks.netbox.*": {"queue": "netbox"},
-        "osism.tasks.ansible.*": {"queue": "osism-ansible"},
-        "osism.tasks.reconciler.*": {"queue": "reconciler"},
         "osism.tasks.openstack.*": {"queue": "openstack"},
+        "osism.tasks.reconciler.*": {"queue": "reconciler"},
     }
 
 
@@ -120,6 +121,21 @@ def run_ansible_in_environment(
             action = "deploy"
 
         command = f"/run.sh {action} {role} {joined_arguments}"
+        logger.info(f"RUN {command}")
+        p = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            shell=True,
+            env=env,
+        )
+
+    # execute roles from kubernetes
+    elif worker == "kubernetes":
+        if locking:
+            lock.acquire()
+
+        command = f"/run.sh {role} {joined_arguments}"
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
