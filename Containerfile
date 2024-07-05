@@ -1,5 +1,5 @@
 ARG PYTHON_VERSION=3.12.3
-FROM python:${PYTHON_VERSION}-slim as builder
+FROM python:${PYTHON_VERSION}-slim AS builder
 
 COPY . /src
 
@@ -35,7 +35,7 @@ git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openst
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-simple-stress/requirements.txt
 EOF
 
-FROM python:${PYTHON_VERSION}-slim as osism
+FROM python:${PYTHON_VERSION}-slim AS osism
 
 COPY --from=builder /wheels /wheels
 
@@ -121,7 +121,7 @@ pyclean /usr
 pip3 uninstall -y pyclean
 EOF
 
-FROM osism as osism-netbox
+FROM osism AS osism-netbox
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
