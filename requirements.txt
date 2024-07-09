@@ -13,7 +13,7 @@ hiredis==2.3.2
 kombu==5.3.7
 kubernetes==30.1.0
 loguru==0.7.2
-netmiko==4.3.0
+netmiko==4.4.0
 nornir-ansible==2023.12.28
 nornir==3.4.1
 pottery==3.0.0
