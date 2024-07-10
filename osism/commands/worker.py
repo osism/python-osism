@@ -32,6 +32,7 @@ class Run(Command):
             tasks = queue
         elif queue == "osism-kubernetes":
             tasks = "kubernetes"
+            queue = "kubernetes"
         # kolla-ansible, ceph-ansible, osism-ansible
         else:
             tasks = queue[:-8]

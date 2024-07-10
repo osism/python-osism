@@ -11,7 +11,7 @@ from tabulate import tabulate
 
 from osism.core import enums
 from osism.core.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
-from osism.tasks import ansible, ceph, kolla, handle_task
+from osism.tasks import ansible, ceph, kolla, kubernetes, handle_task
 
 
 class Run(Command):
@@ -322,6 +322,12 @@ class Run(Command):
                 t = ceph.run.si(
                     environment, role, arguments, auto_release_time=task_timeout
                 )
+        elif environment == "kubernetes":
+            if sub:
+                environment = f"{environment}.{sub}"
+            t = kubernetes.run.si(
+                environment, role, arguments, auto_release_time=task_timeout
+            )
         elif role == "loadbalancer-ng":
             if sub:
                 environment = f"{environment}.{sub}"
