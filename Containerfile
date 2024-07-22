@@ -37,6 +37,8 @@ EOF
 
 FROM python:${PYTHON_VERSION}-slim AS osism
 
+ENV PYTHONWARNINGS="ignore::UserWarning"
+
 COPY --from=builder /wheels /wheels
 
 COPY . /src
