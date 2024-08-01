@@ -104,6 +104,7 @@ VALIDATE_PLAYBOOKS = {
     # NOTE: The playbooks for validating the Ceph deployment are currently
     # in osism/ansible-playbooks. Therefore, they are not executed in
     # ceph-ansible but in osism-ansible.
+    "ceph-connectivity": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-mgrs": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-mons": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-osds": {"environment": "ceph", "runtime": "osism-ansible"},
