@@ -44,7 +44,7 @@ images:
     multi: false
     meta:
       architecture: x86_64
-      hw_disk_bus: virtio
+      hw_disk_bus: scsi
       hw_rng_model: virtio
       hw_scsi_model: virtio-scsi
       hw_watchdog_action: reset
