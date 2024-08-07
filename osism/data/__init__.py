@@ -32,7 +32,7 @@ images:
 
 TEMPLATE_IMAGE_CLUSTERAPI = """---
 images:
-  - name: Kubernetes CAPI
+  - name: ubuntu-capi-image
     enable: true
     keep: true
     format: qcow2

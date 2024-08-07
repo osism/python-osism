@@ -96,7 +96,7 @@ class ImageClusterapi(Command):
             "--cloud",
             cloud,
             "--filter",
-            "Kubernetes CAPI",
+            "ubuntu-capi-image",
         ]
         if tag is not None:
             args.extend(["--tag", tag])
