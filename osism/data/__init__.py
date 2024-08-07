@@ -55,7 +55,7 @@ images:
       provided_until: none
     tags: []
     versions:
-      - version: "{{ image_version }}"
+      - version: "v{{ image_version }}"
         url: "{{ image_url }}"
         checksum: "{{ image_checksum }}"
         build_date: {{ image_builddate }}
