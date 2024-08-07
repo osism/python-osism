@@ -35,6 +35,12 @@ class ImageClusterapi(Command):
             help="Do not perform any changes (--dry-run passed to openstack-image-manager)",
         )
         parser.add_argument(
+            "--tag",
+            type=str,
+            help="Name of the tag used to identify managed images (use openstack-image-manager's default if unset)",
+            default=None,
+        )
+        parser.add_argument(
             "--filter",
             type=str,
             help="Filter the version to be managed (e.g. 1.28)",
@@ -46,6 +52,7 @@ class ImageClusterapi(Command):
         base_url = parsed_args.base_url
         cloud = parsed_args.cloud
         filter = parsed_args.filter
+        tag = parsed_args.tag
 
         if filter:
             supported_cluterapi_k8s_images = [filter]
@@ -91,6 +98,8 @@ class ImageClusterapi(Command):
             "--filter",
             "Kubernetes CAPI",
         ]
+        if tag is not None:
+            args.extend(["--tag", tag])
         if parsed_args.dry_run:
             args.append("--dry-run")
         subprocess.call(args)
