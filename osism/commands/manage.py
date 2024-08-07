@@ -27,7 +27,10 @@ class ImageClusterapi(Command):
             default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-k8s-capi-images/",
         )
         parser.add_argument(
-            "--cloud", type=str, help="Cloud name in clouds.yaml (will be overruled by OS_AUTH_URL envvar)", default="admin"
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml (will be overruled by OS_AUTH_URL envvar)",
+            default="admin",
         )
         parser.add_argument(
             "--dry-run",
