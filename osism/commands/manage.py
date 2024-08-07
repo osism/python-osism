@@ -30,6 +30,11 @@ class ImageClusterapi(Command):
             "--cloud", type=str, help="Cloud name in clouds.yaml (will be overruled by OS_AUTH_URL envvar)", default="admin"
         )
         parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Do not perform any changes (--dry-run passed to openstack-image-manager)",
+        )
+        parser.add_argument(
             "--filter",
             type=str,
             help="Filter the version to be managed (e.g. 1.28)",
@@ -86,6 +91,8 @@ class ImageClusterapi(Command):
             "--filter",
             "Kubernetes CAPI",
         ]
+        if parsed_args.dry_run:
+            args.append("--dry-run")
         subprocess.call(args)
 
 
