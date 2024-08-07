@@ -78,10 +78,15 @@ class ImageClusterapi(Command):
             with open(f"/tmp/clusterapi/k8s-{kubernetes_release}.yml", "w+") as fp:
                 fp.write(result)
 
-        subprocess.call(
-            "/usr/local/bin/openstack-image-manager --images=/tmp/clusterapi --cloud admin --filter 'Kubernetes CAPI'",
-            shell=True,
-        )
+        args = [
+            "openstack-image-manager",
+            "--images=/tmp/clusterapi",
+            "--cloud",
+            "admin",
+            "--filter",
+            "Kubernetes CAPI",
+        ]
+        subprocess.call(args)
 
 
 class ImageOctavia(Command):
