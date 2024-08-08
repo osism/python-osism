@@ -27,7 +27,21 @@ class ImageClusterapi(Command):
             default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-k8s-capi-images/",
         )
         parser.add_argument(
-            "--cloud", type=str, help="Cloud name in clouds.yaml", default="openstack"
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml (will be overruled by OS_AUTH_URL envvar)",
+            default="admin",
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Do not perform any changes (--dry-run passed to openstack-image-manager)",
+        )
+        parser.add_argument(
+            "--tag",
+            type=str,
+            help="Name of the tag used to identify managed images (use openstack-image-manager's default if unset)",
+            default=None,
         )
         parser.add_argument(
             "--filter",
@@ -41,6 +55,7 @@ class ImageClusterapi(Command):
         base_url = parsed_args.base_url
         cloud = parsed_args.cloud
         filter = parsed_args.filter
+        tag = parsed_args.tag
 
         if filter:
             supported_cluterapi_k8s_images = [filter]
@@ -78,10 +93,19 @@ class ImageClusterapi(Command):
             with open(f"/tmp/clusterapi/k8s-{kubernetes_release}.yml", "w+") as fp:
                 fp.write(result)
 
-        subprocess.call(
-            "/usr/local/bin/openstack-image-manager --images=/tmp/clusterapi --cloud admin --filter 'Kubernetes CAPI'",
-            shell=True,
-        )
+        args = [
+            "openstack-image-manager",
+            "--images=/tmp/clusterapi",
+            "--cloud",
+            cloud,
+            "--filter",
+            "ubuntu-capi-image",
+        ]
+        if tag is not None:
+            args.extend(["--tag", tag])
+        if parsed_args.dry_run:
+            args.append("--dry-run")
+        subprocess.call(args)
 
 
 class ImageOctavia(Command):

@@ -32,7 +32,7 @@ images:
 
 TEMPLATE_IMAGE_CLUSTERAPI = """---
 images:
-  - name: Kubernetes CAPI
+  - name: ubuntu-capi-image
     enable: true
     keep: true
     format: qcow2
@@ -44,17 +44,18 @@ images:
     multi: false
     meta:
       architecture: x86_64
-      hw_disk_bus: virtio
+      hw_disk_bus: scsi
       hw_rng_model: virtio
       hw_scsi_model: virtio-scsi
       hw_watchdog_action: reset
+      hypervisor_type: qemu
       os_distro: ubuntu
       replace_frequency: never
       uuid_validity: none
       provided_until: none
     tags: []
     versions:
-      - version: "{{ image_version }}"
+      - version: "v{{ image_version }}"
         url: "{{ image_url }}"
         checksum: "{{ image_checksum }}"
         build_date: {{ image_builddate }}
