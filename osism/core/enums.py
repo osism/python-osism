@@ -110,6 +110,7 @@ VALIDATE_PLAYBOOKS = {
     "ceph-osds": {"environment": "ceph", "runtime": "osism-ansible"},
     "container-status": {"environment": "generic", "runtime": "osism-ansible"},
     "kernel-version": {"environment": "generic", "runtime": "osism-ansible"},
+    "kolla-connectivity": {"environment": "kolla", "runtime": "osism-ansible"},
     "mysql-open-files-limit": {"environment": "generic", "runtime": "osism-ansible"},
     "refstack": {"environment": "openstack", "runtime": "osism-ansible"},
     "system-encoding": {"environment": "generic", "runtime": "osism-ansible"},
