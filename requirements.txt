@@ -19,7 +19,7 @@ nornir==3.4.1
 pottery==3.0.0
 prompt-toolkit==3.0.47
 pydantic==1.10.17
-pynetbox==7.3.4
+pynetbox==7.4.0
 pytest-testinfra==10.1.1
 sqlmodel==0.0.21
 sushy==5.1.1
