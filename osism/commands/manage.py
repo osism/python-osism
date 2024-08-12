@@ -200,6 +200,12 @@ class Images(Command):
             help="Filter images with a regex on their name",
             default=None,
         )
+        parser.add_argument(
+            "--images",
+            type=str,
+            help="Path to the directory containing all image files or path to single image file",
+            default=None,
+        )
 
         return parser
 
@@ -209,6 +215,7 @@ class Images(Command):
         filter = parsed_args.filter
         hide = parsed_args.hide
         latest = parsed_args.latest
+        images = parsed_args.images
 
         arguments = []
         if cloud:
@@ -221,6 +228,8 @@ class Images(Command):
             arguments.append("--latest")
         if hide:
             arguments.append("--hide")
+        if images:
+            arguments.append("--images '{images}'")
 
         joined_arguments = " ".join(arguments)
         subprocess.call(
