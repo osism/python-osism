@@ -255,7 +255,13 @@ class Flavors(Command):
             type=str,
             help="Name of flavor definitions",
             default="scs",
-            choices=["scs", "osism", "local"],
+            choices=["scs", "osism", "local", "url"],
+        )
+        parser.add_argument(
+            "--url",
+            type=str,
+            help="Overwrite the default URL where the flavor definitions are available",
+            default=None,
         )
         parser.add_argument(
             "--recommended",
@@ -270,6 +276,7 @@ class Flavors(Command):
         cloud = parsed_args.cloud
         name = parsed_args.name
         recommended = parsed_args.recommended
+        url = parsed_args.url
 
         arguments = [f"--name '{name}'"]
         if cloud:
@@ -277,6 +284,9 @@ class Flavors(Command):
 
         if recommended:
             arguments.append("--recommended")
+
+        if url:
+            arguments.append(f"--url '{url}'")
 
         joined_arguments = " ".join(arguments)
         subprocess.call(
