@@ -229,7 +229,7 @@ class Images(Command):
         if hide:
             arguments.append("--hide")
         if images:
-            arguments.append("--images '{images}'")
+            arguments.append(f"--images '{images}'")
 
         joined_arguments = " ".join(arguments)
         subprocess.call(
