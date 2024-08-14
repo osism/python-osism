@@ -113,7 +113,6 @@ VALIDATE_PLAYBOOKS = {
     "kolla-connectivity": {"environment": "kolla", "runtime": "osism-ansible"},
     "mysql-open-files-limit": {"environment": "generic", "runtime": "osism-ansible"},
     "ntp": {"environment": "generic", "runtime": "osism-ansible"},
-    "refstack": {"environment": "openstack", "runtime": "osism-ansible"},
     "system-encoding": {"environment": "generic", "runtime": "osism-ansible"},
     "ulimits": {"environment": "generic", "runtime": "osism-ansible"},
     "mariadb-backup": {"environment": "kolla", "runtime": "kolla-ansible"},
