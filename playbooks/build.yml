@@ -144,5 +144,12 @@
             -v "$version" \
             -f sbom.json \
             -a
+
+          /usr/local/bin/syft scan "${repository}-netbox:$version" -o cyclonedx-json > sbom.json
+          {{ python_venv_dir }}/bin/dtrackauditor \
+            -p osism-netbox \
+            -v "$version" \
+            -f sbom.json \
+            -a
       when: push_sbom | default(false) | bool
       changed_when: true
