@@ -2,10 +2,15 @@
 - name: Build python-osism image
   hosts: all
 
+  vars:
+    python_venv_dir: /tmp/venv
+
   environment:
     registry: "{{ docker_registry }}"
     repository: "{{ docker_namespace }}/osism"
     version: "{{ zuul['tag'] | default('latest') }}"
+    DTRACK_SERVER: "https://osism.dtrack.regio.digital"
+    DTRACK_API_KEY: "{{ secret.DTRACK_API_KEY | default('') }}"
 
   tasks:
     - name: Log into registry
@@ -13,7 +18,7 @@
         registry_url: "{{ docker_registry }}"
         username: "{{ secret.DOCKER_USERNAME }}"
         password: "{{ secret.DOCKER_PASSWORD }}"
-      when: push_image | bool
+      when: push_image | default(false) | bool
 
     - name: Run build script
       ansible.builtin.shell:
@@ -109,6 +114,35 @@
           docker tag "netbox-$revision" "${repository}-netbox:$version"
           docker push "${repository}-netbox:$version"
 
-      when: push_image | bool
+      when: push_image | default(false) | bool
       changed_when: true
       no_log: true
+
+    - name: Run sbom script
+      ansible.builtin.shell:
+        executable: /bin/bash
+        chdir: "{{ zuul.project.src_dir | default('.') }}"
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          if [[ -n $registry ]]; then
+              repository="$registry/$repository"
+          fi
+
+          {% raw %}
+          if [[ $version != "latest" ]]; then
+              version="${version:1:${#version}-1}"
+          fi
+          {% endraw %}
+
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
+          /usr/local/bin/syft scan "$repository:$version" -o cyclonedx-json > sbom.json
+          {{ python_venv_dir }}/bin/dtrackauditor \
+            -p osism \
+            -v "$version" \
+            -f sbom.json \
+            -a
+      when: push_sbom | default(false) | bool
+      changed_when: true
