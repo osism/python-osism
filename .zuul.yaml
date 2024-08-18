@@ -2,6 +2,17 @@
 - secret:
     name: SECRET_CONTAINER_IMAGE_PYTHON_OSISM
     data:
+      DTRACK_API_KEY: !encrypted/pkcs1-oaep
+        - d5n1i0B+zzxqJa7VkogvaOnbg9asMYPwKZtWj4qJkpcchrQIqHVLewfJc5XAY21pQzlIn
+          Vbhr7z7MgGsv6t4b6Xgj0AyrsLcs+cRrHP9DWYXdaQ543rNE6gJyW5sU3UhzXJyQMTifx
+          AGlwfhkcph3u4FI+a4hVZouECgPkfTnhiZNS6qcIgQ7roYDTcbqwOaXbbwqpLBH1cNOQA
+          N9ZTWc2/ewk3USKdUtfg5830CWCDrPwhoYRjmgS/kQSX4o3tBwGjev51Sev+BhOWz1ZQ1
+          G50xfw/s/0rym2thT/60AIY0qOPgbA4GsGAs21/r6HIj09mLuKkd52UtgXNgLZhlbvVPI
+          PNsChvO7+ml90LefBo6IKpOSTM3sM02S0tC5zfcXhkeD/JiLxcNbfcFoZ0RSH67Lj7NBq
+          tUBA1xjKdyADswVd6ZrBiRZyzQ5hDwAc9gY75xX/FDDUPTPwqozx/zPhMkia8x/r7eTbC
+          mU+OAt+4e0QB2uz4G6DP1CEGi7WeQUHsg5X6JyBaSsChnNhEAhSGHOAR4/tJ4MiBO/Yvh
+          kFTWO8qXQCoCLkBIL2qP9/DPZlwmgpXfsC7Q5WQur5s995qZQ1XSLUhQfiSTV0Pejkd+v
+          vu0iZSdT6kB8avOk41naIIVNVGmL347b1EqRL5ZSvQQ2gk9WGvzbFA+J8TXS5Y=
       DOCKER_USERNAME: !encrypted/pkcs1-oaep
         - hYgmzA7YuWHeFJOqY2uXu3l8WHHD7DVMwjtRVHjZxXtqaG+2Ioo3qB+QOg+widHh7b8nN
           oX5KVF2NGOSYjwcgMZYkbSh9NqG8Ubwh9OYWIqOzUBF1a+riO3P8zC1WEREkGlLAT6Dzt
@@ -36,7 +47,6 @@
     vars:
       docker_namespace: osism
       docker_registry: osism.harbor.regio.digital
-      push_image: false
 
 - job:
     name: container-image-python-osism-push
@@ -48,6 +58,7 @@
       docker_namespace: osism
       docker_registry: osism.harbor.regio.digital
       push_image: true
+      push_sbom: true
     secrets:
       - name: secret
         secret: SECRET_CONTAINER_IMAGE_PYTHON_OSISM
