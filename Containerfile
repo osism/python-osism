@@ -81,9 +81,6 @@ mkdir -p /ansible/logs
 ansible-galaxy collection install -v -f -r /ansible/requirements.yml -p /usr/share/ansible/collections
 ln -s /usr/share/ansible/collections /ansible/collections
 
-# prepare mappings
-git clone --depth 1 https://github.com/osism/mappings /mappings
-
 # copy image definitions for the openstack-image-manager
 git clone --depth 1 https://github.com/osism/openstack-image-manager.git /openstack-image-manager
 mkdir -p /etc/images
