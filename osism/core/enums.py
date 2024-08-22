@@ -162,6 +162,7 @@ MAP_ROLE2ROLE = {
         [
             "ceph",
             [
+                "ceph-pools",
                 [
                     "copy-ceph-keys",
                     [
@@ -214,7 +215,13 @@ MAP_ROLE2ROLE = {
         ],
     ],
     "all-ceph": [
-        ["ceph", [["copy-ceph-keys", ["cephclient", "ceph-bootstrap-dashboard"]]]],
+        [
+            "ceph",
+            [
+                "ceph-pools",
+                ["copy-ceph-keys", ["cephclient", "ceph-bootstrap-dashboard"]],
+            ],
+        ],
     ],
     "all-monitoring": [
         ["prometheus", ["grafana"]],
