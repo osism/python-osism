@@ -158,7 +158,7 @@ MAP_ROLE2ROLE = {
                 "rabbitmq-ng",
             ],
         ],
-        ["k3s", ["kubectl", ["kubeconfig", ["copy-kubeconfig"]]]],
+        ["kubernetes", ["kubeconfig", ["copy-kubeconfig"]]],
         [
             "ceph",
             [
@@ -192,7 +192,7 @@ MAP_ROLE2ROLE = {
         ],
     ],
     "all-kubernetes": [
-        ["k3s", ["kubectl", ["kubeconfig", ["copy-kubeconfig"]]]],
+        ["kubernetes", ["kubeconfig", ["copy-kubeconfig"]]],
     ],
     "all-openstack": [
         "horizon",
