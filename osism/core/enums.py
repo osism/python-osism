@@ -207,7 +207,6 @@ MAP_ROLE2ROLE = {
                 "glance",
                 "cinder",
                 "neutron",
-                "nova",
                 "barbican",
                 "designate",
                 "octavia",
