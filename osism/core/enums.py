@@ -182,7 +182,7 @@ MAP_ROLE2ROLE = {
             ],
         ],
     ],
-    "all-infrastructure": [
+    "collection-infrastructure": [
         "openstackclient",
         "phpmyadmin",
         [
@@ -196,10 +196,10 @@ MAP_ROLE2ROLE = {
             ],
         ],
     ],
-    "all-kubernetes": [
+    "collection-kubernetes": [
         ["kubernetes", ["kubeconfig", ["copy-kubeconfig"]]],
     ],
-    "all-openstack": [
+    "collection-openstack": [
         "horizon",
         [
             "keystone",
@@ -218,7 +218,7 @@ MAP_ROLE2ROLE = {
             ],
         ],
     ],
-    "all-ceph": [
+    "collection-ceph": [
         [
             "ceph",
             [
@@ -229,7 +229,7 @@ MAP_ROLE2ROLE = {
             ],
         ],
     ],
-    "all-monitoring": [
+    "collection-monitoring": [
         ["prometheus", ["grafana"]],
         "netdata",
     ],
