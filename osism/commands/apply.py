@@ -85,6 +85,12 @@ class Run(Command):
             help="Do not wait until the role has been applied",
             action="store_true",
         )
+        parser.add_argument(
+            "--dry-run",
+            default=False,
+            help="Dry run, do not initiate tasks (for collections only)",
+            action="store_true",
+        )
         parser.add_argument("role", nargs="?", type=str, help="Role to be applied")
         parser.add_argument(
             "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
@@ -133,6 +139,7 @@ class Run(Command):
         timeout,
         task_timeout,
         retry,
+        dry_run,
     ):
         g = []
         for item in data:
@@ -140,18 +147,22 @@ class Run(Command):
             if type(item) == list:
                 # e.g. "loadbalancer"
                 logger.info(f"A [{counter}] {'-' * (counter + 1)} {item[0]}")
-                pt = self._prepare_task(
-                    arguments,
-                    environment,
-                    overwrite,
-                    sub,
-                    item[0],
-                    action,
-                    wait,
-                    format,
-                    timeout,
-                    task_timeout,
-                )
+
+                if dry_run:
+                    pt = ansible.noop.si()
+                else:
+                    pt = self._prepare_task(
+                        arguments,
+                        environment,
+                        overwrite,
+                        sub,
+                        item[0],
+                        action,
+                        wait,
+                        format,
+                        timeout,
+                        task_timeout,
+                    )
 
                 if len(item) > 1 and type(item[1]) == list:
                     logger.debug(f"X [{counter + 1}] --> {item[1]}")
@@ -169,6 +180,7 @@ class Run(Command):
                         timeout,
                         task_timeout,
                         retry,
+                        dry_run,
                     )
                     g.append(chain(pt, st))
                 else:
@@ -178,18 +190,22 @@ class Run(Command):
                             logger.info(
                                 f"B [{counter}] {'-' * (counter + 1)} {inner_item[0]}"
                             )
-                            pt = self._prepare_task(
-                                arguments,
-                                environment,
-                                overwrite,
-                                sub,
-                                inner_item[0],
-                                action,
-                                wait,
-                                format,
-                                timeout,
-                                task_timeout,
-                            )
+
+                            if dry_run:
+                                pt = ansible.noop.si()
+                            else:
+                                pt = self._prepare_task(
+                                    arguments,
+                                    environment,
+                                    overwrite,
+                                    sub,
+                                    inner_item[0],
+                                    action,
+                                    wait,
+                                    format,
+                                    timeout,
+                                    task_timeout,
+                                )
 
                             if len(inner_item) > 1 and type(inner_item[1]) == list:
                                 logger.debug(f"X [{counter + 1}] --> {inner_item[1]}")
@@ -207,6 +223,7 @@ class Run(Command):
                                     timeout,
                                     task_timeout,
                                     retry,
+                                    dry_run,
                                 )
                                 g.append(chain(pt, st))
                             else:
@@ -263,8 +280,13 @@ class Run(Command):
         timeout,
         task_timeout,
         retry,
+        dry_run,
     ):
-        logger.info(f"Collection {collection} is prepared for execution")
+        if dry_run:
+            logger.info(f"Dry run for collection {collection}. No tasks are scheduled.")
+        else:
+            logger.info(f"Collection {collection} is prepared for execution")
+
         t = self._handle_collection(
             enums.MAP_ROLE2ROLE[collection],
             0,
@@ -279,13 +301,17 @@ class Run(Command):
             timeout,
             task_timeout,
             retry,
+            dry_run,
         )
         if t:
             t.apply_async()
-        logger.info(
-            f"All tasks of the collection {collection} are prepared for execution"
-        )
-        logger.info("Tasks are running in the background")
+        if dry_run:
+            logger.info("Dry run. No tasks are running in the background")
+        else:
+            logger.info(
+                f"All tasks of the collection {collection} are prepared for execution"
+            )
+            logger.info("Tasks are running in the background")
 
     def _prepare_task(
         self,
@@ -438,6 +464,7 @@ class Run(Command):
         timeout = parsed_args.timeout
         task_timeout = parsed_args.task_timeout
         wait = not parsed_args.no_wait
+        dry_run = parsed_args.dry_run
 
         rc = 0
 
@@ -466,6 +493,7 @@ class Run(Command):
                         timeout,
                         task_timeout,
                         retry,
+                        dry_run,
                     )
                     if rc != 0:
                         outer_break = True

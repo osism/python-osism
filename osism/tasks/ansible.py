@@ -58,3 +58,8 @@ def run(
         locking,
         auto_release_time,
     )
+
+
+@app.task(bind=True, name="osism.tasks.ansible.noop")
+def noop(self):
+    return True
