@@ -232,4 +232,53 @@ MAP_ROLE2ROLE = {
         ["prometheus", ["grafana"]],
         "netdata",
     ],
+    "collection-bootstrap": [
+        [
+            "gather-facts",
+            [
+                [
+                    "hostname",
+                    [
+                        [
+                            "hosts",
+                            [
+                                [
+                                    "proxy",
+                                    [
+                                        [
+                                            "resolvconf",
+                                            [
+                                                [
+                                                    "repository",
+                                                    [
+                                                        "rsyslog",
+                                                        "journald",
+                                                        "systohc",
+                                                        "configfs",
+                                                        "packages",
+                                                        "sysctl",
+                                                        "limits",
+                                                        "services",
+                                                        "motd",
+                                                        "rng",
+                                                        "smartd",
+                                                        "cleanup",
+                                                        "timezone",
+                                                        "docker",
+                                                        "docker-compose",
+                                                        "chrony",
+                                                        "lldpd",
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ],
 }
