@@ -162,18 +162,20 @@ MAP_ROLE2ROLE = {
         [
             "ceph",
             [
-                "ceph-pools",
                 [
+                    "ceph-pools",
                     [
-                        "copy-ceph-keys",
                         [
-                            "cephclient",
-                            "ceph-bootstrap-dashboard",
+                            "copy-ceph-keys",
                             [
-                                "wait-for-keystone",
-                                ["kolla-ceph-rgw", "glance", "cinder", "nova"],
+                                "cephclient",
+                                "ceph-bootstrap-dashboard",
+                                [
+                                    "wait-for-keystone",
+                                    ["kolla-ceph-rgw", "glance", "cinder", "nova"],
+                                ],
+                                ["prometheus", ["grafana"]],
                             ],
-                            ["prometheus", ["grafana"]],
                         ],
                     ],
                 ],
@@ -220,8 +222,10 @@ MAP_ROLE2ROLE = {
         [
             "ceph",
             [
-                "ceph-pools",
-                [["copy-ceph-keys", ["cephclient", "ceph-bootstrap-dashboard"]]],
+                [
+                    "ceph-pools",
+                    [["copy-ceph-keys", ["cephclient", "ceph-bootstrap-dashboard"]]],
+                ],
             ],
         ],
     ],
