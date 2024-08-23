@@ -305,9 +305,7 @@ class Run(Command):
         )
         if t:
             t.apply_async()
-        if dry_run:
-            logger.info("Dry run. No tasks are running in the background")
-        else:
+        if not dry_run:
             logger.info(
                 f"All tasks of the collection {collection} are prepared for execution"
             )
