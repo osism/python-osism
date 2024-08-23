@@ -466,6 +466,9 @@ class Run(Command):
         wait = not parsed_args.no_wait
         dry_run = parsed_args.dry_run
 
+        logger.info(dry_run)
+        sys.exit(1)
+
         rc = 0
 
         if not role:
