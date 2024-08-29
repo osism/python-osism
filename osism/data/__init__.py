@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 TEMPLATE_IMAGE_OCTAVIA = """---
 images:
   - name: OpenStack Octavia Amphora
