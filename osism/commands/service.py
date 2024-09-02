@@ -71,11 +71,7 @@ class Run(Command):
             event_handler_inventory = FileSystemEventHandler()
             event_handler_inventory.on_any_event = self.watchdog_inventory_on_any_event
 
-            # We are not interested in being notified directly of any changes.
-            # Therefore not the Inotify Observer but the Polling Observer. It
-            # checks for changes every 10 seconds.
-
-            observer = PollingObserver(10.0)
+            observer = PollingObserver()
             observer.schedule(
                 event_handler_inventory, "/opt/configuration/inventory", recursive=True
             )
