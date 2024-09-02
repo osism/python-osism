@@ -64,7 +64,8 @@ apt-get install -y --no-install-recommends \
   git \
   less \
   openssh-client \
-  procps
+  procps \
+  tini
 
 # install python packages
 python3 -m pip --no-cache-dir install -U 'pip==24.2'
@@ -119,6 +120,8 @@ pip3 install --no-cache-dir pyclean==3.0.0
 pyclean /usr
 pip3 uninstall -y pyclean
 EOF
+
+ENTRYPOINT ["/sbin/tini", "--"]
 
 FROM osism AS osism-netbox
 
