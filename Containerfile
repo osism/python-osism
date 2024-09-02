@@ -121,7 +121,7 @@ pyclean /usr
 pip3 uninstall -y pyclean
 EOF
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 FROM osism AS osism-netbox
 
@@ -133,7 +133,8 @@ set -x
 
 apt-get update
 apt-get install -y --no-install-recommends \
-  git
+  git \
+  tini
 
 mkdir -p /import
 git clone --depth 1 https://github.com/netbox-community/devicetype-library /devicetype-library
