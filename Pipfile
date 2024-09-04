@@ -9,7 +9,7 @@ GitPython = "==3.1.43"
 Jinja2 = "==3.1.4"
 PyYAML = "==6.0.2"
 ansible-runner = "==2.4.0"
-ara = "==1.7.1"
+ara = "==1.7.2"
 celery = {version = "==5.4.0", extras = ["redis"]}
 cliff = "==4.7.0"
 deepdiff = "==8.0.1"
