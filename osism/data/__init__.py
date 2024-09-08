@@ -37,7 +37,7 @@ images:
   - name: ubuntu-capi-image
     enable: true
     keep: true
-    separator: -
+    separator: "-"
     format: qcow2
     login: ubuntu
     min_disk: 20
