@@ -18,6 +18,7 @@ images:
       hw_rng_model: virtio
       hw_scsi_model: virtio-scsi
       hw_watchdog_action: reset
+      hypervisor_type: qemu
       os_distro: ubuntu
       replace_frequency: quarterly
       uuid_validity: last-1
