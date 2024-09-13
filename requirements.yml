@@ -29,6 +29,6 @@ collections:
   - name: kubernetes.core
     version: 5.0.0
   - name: netbox.netbox
-    version: 3.19.1
+    version: 3.20.0
   - name: openstack.cloud
     version: 2.2.0
