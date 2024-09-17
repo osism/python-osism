@@ -77,10 +77,6 @@ VALIDATE_PLAYBOOKS = {
         "runtime": "kolla-ansible",
         "playbook": "ceilometer",
     },
-    "cloudkitty-config": {
-        "runtime": "kolla-ansible",
-        "playbook": "cloudkitty",
-    },
     "ironic-config": {
         "runtime": "kolla-ansible",
         "playbook": "ironic",
@@ -88,10 +84,6 @@ VALIDATE_PLAYBOOKS = {
     "manila-config": {
         "runtime": "kolla-ansible",
         "playbook": "manila",
-    },
-    "senlin-config": {
-        "runtime": "kolla-ansible",
-        "playbook": "senlin",
     },
     # NOTE: The command should be "osism validate ceph-config". However,
     # the corresponding playbook is called ceph-validate because ceph-config
