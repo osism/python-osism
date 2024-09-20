@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "e34cd0587bf6ce107c18619f859f2ebecb6c11aab56fd547b8d4824ec5269f14"
+            "sha256": "d3ffa16dcdfb394edaf2d5e4335378a1d4adfcb1313a32f2b40014a292658a37"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -407,6 +407,12 @@
             "markers": "python_version >= '3.9'",
             "version": "==0.21.2"
         },
+        "durationpy": {
+            "hashes": [
+                "sha256:8447c43df4f1a0b434e70c15a38d77f5c9bd17284bfc1ff1d430f233d5083732"
+            ],
+            "version": "==0.7"
+        },
         "flower": {
             "hashes": [
                 "sha256:5ab717b979530770c16afb48b50d2a98d23c3e9fe39851dcf6bc4d01845a02a0",
@@ -443,11 +449,11 @@
         },
         "google-auth": {
             "hashes": [
-                "sha256:72fd4733b80b6d777dcde515628a9eb4a577339437012874ea286bca7261ee65",
-                "sha256:8eb87396435c19b20d32abd2f984e31c191a15284af72eb922f10e5bde9c04cc"
+                "sha256:25df55f327ef021de8be50bad0dfd4a916ad0de96da86cd05661c9297723ad3f",
+                "sha256:f4c64ed4e01e8e8b646ef34c018f8bf3338df0c8e37d8b3bba40e7f574a3278a"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==2.34.0"
+            "version": "==2.35.0"
         },
         "greenlet": {
             "hashes": [
@@ -673,12 +679,12 @@
         },
         "kubernetes": {
             "hashes": [
-                "sha256:41e4c77af9f28e7a6c314e3bd06a8c6229ddd787cad684e0ab9f69b498e98ebc",
-                "sha256:e212e8b7579031dd2e512168b617373bc1e03888d41ac4e04039240a292d478d"
+                "sha256:28945de906c8c259c1ebe62703b56a03b714049372196f854105afe4e6d014c0",
+                "sha256:bf141e2d380c8520eada8b351f4e319ffee9636328c137aa432bc486ca1200e1"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.6'",
-            "version": "==30.1.0"
+            "version": "==31.0.0"
         },
         "lockfile": {
             "hashes": [
