@@ -107,8 +107,6 @@ VALIDATE_PLAYBOOKS = {
     "ntp": {"environment": "generic", "runtime": "osism-ansible"},
     "system-encoding": {"environment": "generic", "runtime": "osism-ansible"},
     "ulimits": {"environment": "generic", "runtime": "osism-ansible"},
-    "mariadb-backup": {"environment": "kolla", "runtime": "kolla-ansible"},
-    "mariadb-recovery": {"environment": "kolla", "runtime": "kolla-ansible"},
 }
 
 MAP_ROLE2ROLE = {
