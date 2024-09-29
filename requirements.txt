@@ -21,6 +21,7 @@ prompt-toolkit==3.0.48
 pydantic==1.10.18
 pynetbox==7.4.0
 pytest-testinfra==10.1.1
+python-dateutil==2.9.0.post0
 sqlmodel==0.0.22
 sushy==5.2.0
 tabulate==0.9.0
