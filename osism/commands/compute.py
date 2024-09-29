@@ -45,6 +45,49 @@ class ComputeList(Command):
         )
 
 
+class ComputeStart(Command):
+    def get_parser(self, prog_name):
+        parser = super(ComputeStart, self).get_parser(prog_name)
+        parser.add_argument(
+            "--yes",
+            default=False,
+            help="Always say yes",
+            action="store_true",
+        )
+        parser.add_argument(
+            "host",
+            nargs=1,
+            type=str,
+            help="Host on that all running instances are to be started",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        yes = parsed_args.yes
+        host = parsed_args.host[0]
+        conn = get_cloud_connection()
+        result = []
+
+        for server in conn.compute.servers(all_projects=True, node=host):
+            result.append([server.id, server.name, server.status])
+
+        for server in result:
+            if server[2] not in ["SHUTOFF"]:
+                logger.info(
+                    f"{server[0]} ({server[1]}) in status {server[2]} cannot be started"
+                )
+                continue
+
+            if yes:
+                answer = "yes"
+            else:
+                answer = prompt(f"Start server {server[0]} ({server[1]}) [yes/no]: ")
+
+            if answer in ["yes", "y"]:
+                logger.info(f"Starting server {server[0]}")
+                conn.compute.start_server(server[0])
+
+
 class ComputeStop(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeStop, self).get_parser(prog_name)
@@ -78,7 +121,9 @@ class ComputeStop(Command):
                 )
                 continue
 
-            if not yes:
+            if yes:
+                answer = "yes"
+            else:
                 answer = prompt(f"Stop server {server[0]} ({server[1]}) [yes/no]: ")
 
             if answer in ["yes", "y"]:
