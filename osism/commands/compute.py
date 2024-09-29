@@ -17,6 +17,57 @@ def get_cloud_connection():
     return conn
 
 
+class ComputeEnable(Command):
+    def get_parser(self, prog_name):
+        parser = super(ComputeEnable, self).get_parser(prog_name)
+        parser.add_argument(
+            "host",
+            nargs=1,
+            type=str,
+            help="Host to be enabled",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        host = parsed_args.host[0]
+        conn = get_cloud_connection()
+
+        services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
+        service = next(services)
+        logger.info(f"Enabling nova-compute binary @ {host} ({service.id})")
+        conn.compute.enable_service(
+            service=service.id,
+            host=host,
+            binary="nova-compute",
+        )
+
+
+class ComputeDisable(Command):
+    def get_parser(self, prog_name):
+        parser = super(ComputeDisable, self).get_parser(prog_name)
+        parser.add_argument(
+            "host",
+            nargs=1,
+            type=str,
+            help="Host to be disabled",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        host = parsed_args.host[0]
+        conn = get_cloud_connection()
+
+        services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
+        service = next(services)
+        logger.info(f"Disabling nova-compute binary @ {host} ({service.id})")
+        conn.compute.disable_service(
+            service=service.id,
+            host=host,
+            binary="nova-compute",
+            disabled_reason="MAINTENANCE",
+        )
+
+
 class ComputeList(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeList, self).get_parser(prog_name)
