@@ -36,6 +36,25 @@ class ComputeEnable(Command):
 
         services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
         service = next(services)
+
+        if service["forced_down"]:
+            logger.info(
+                f"Remove force down from nova-compute binary @ {host} ({service.id})"
+            )
+
+            try:
+                conn.compute.update_service_forced_down(
+                    service=service.id, host=host, binary="nova-compute", forced=False
+                )
+            except openstack.exceptions.BadRequestException:
+                logger.error(
+                    f"Unable to force up host {host} as `done` evacuation migration "
+                    "records remain associated with the host. Ensure the compute service "
+                    "has been restarted, allowing these records to move to `completed` "
+                    "before retrying this request."
+                )
+                return
+
         logger.info(f"Enabling nova-compute binary @ {host} ({service.id})")
         conn.compute.enable_service(
             service=service.id,
@@ -96,6 +115,108 @@ class ComputeList(Command):
                 tablefmt="psql",
             )
         )
+
+
+class ComputeEvacuate(Command):
+    def get_parser(self, prog_name):
+        parser = super(ComputeEvacuate, self).get_parser(prog_name)
+        parser.add_argument(
+            "--yes",
+            default=False,
+            help="Always say yes",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--target",
+            default=None,
+            type=str,
+            help="Host to which all running instances are to be migrated",
+        )
+        parser.add_argument(
+            "host",
+            nargs=1,
+            type=str,
+            help="Host on that all running instances are to be migrated",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        host = parsed_args.host[0]
+        target = parsed_args.target
+        yes = parsed_args.yes
+        conn = get_cloud_connection()
+
+        result = []
+        for server in conn.compute.servers(all_projects=True, node=host):
+            result.append([server.id, server.name, server.status])
+
+        if yes:
+            answer = "yes"
+        else:
+            answer = prompt(f"Evacuate all servers on host {host} [yes/no]: ")
+
+        start = []
+        if answer in ["yes", "y"]:
+            for server in result:
+                if server[2] not in ["ACTIVE", "SHUTOFF"]:
+                    logger.info(
+                        f"{server[0]} ({server[1]}) in status {server[2]} cannot be evacuated"
+                    )
+                    continue
+                if server[2] in ["ACTIVE"]:
+                    logger.info(f"Stopping server {server[0]}")
+                    start.append(str(server[0]))
+                    conn.compute.stop_server(server[0])
+                    inner_wait = True
+                    while inner_wait:
+                        time.sleep(2)
+                        s = conn.compute.get_server(server[0])
+                        if s.status not in ["SHUTOFF"]:
+                            logger.info(
+                                f"Stopping of {server[0]} ({server[1]}) is still in progress"
+                            )
+                            inner_wait = True
+                        else:
+                            inner_wait = False
+
+            services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
+            service = next(services)
+            logger.info(f"Forcing down nova-compute binary @ {host} ({service.id})")
+            conn.compute.update_service_forced_down(
+                service=service.id, host=host, binary="nova-compute", forced=True
+            )
+
+            for server in result:
+                if server[2] in ["ACTIVE", "SHUTOFF"]:
+                    logger.info(f"Evacuating server {server[0]}")
+                    conn.compute.evacuate_server(server[0], host=target)
+
+            if result:
+                logger.info("Waiting 30 seconds")
+                time.sleep(30)
+
+            for server in start:
+                logger.info(f"Starting server {server}")
+                conn.compute.start_server(server)
+                inner_wait = True
+                while inner_wait:
+                    time.sleep(2)
+                    s = conn.compute.get_server(server)
+                    if s.status not in ["ACTIVE"]:
+                        logger.info(
+                            f"Starting of {s.id} ({s.name}) is still in progress"
+                        )
+                        inner_wait = True
+                    else:
+                        inner_wait = False
+
+            logger.info(f"Disabling nova-compute binary @ {host} ({service.id})")
+            conn.compute.disable_service(
+                service=service.id,
+                host=host,
+                binary="nova-compute",
+                disabled_reason="EVACUATE",
+            )
 
 
 class ComputeMigrate(Command):
