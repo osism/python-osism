@@ -94,27 +94,48 @@ class ComputeList(Command):
         parser = super(ComputeList, self).get_parser(prog_name)
         parser.add_argument(
             "host",
-            nargs=1,
+            nargs="?",
             type=str,
             help="Host on that all running instances are to be listed",
+            default=None,
         )
         return parser
 
     def take_action(self, parsed_args):
-        host = parsed_args.host[0]
+        host = parsed_args.host
         conn = get_cloud_connection()
 
         result = []
-        for server in conn.compute.servers(all_projects=True, node=host):
-            result.append([server.id, server.name, server.status])
+        if host:
+            for server in conn.compute.servers(all_projects=True, node=host[0]):
+                result.append([server.id, server.name, server.status])
 
-        print(
-            tabulate(
-                result,
-                headers=["ID", "Name", "Status"],
-                tablefmt="psql",
+            print(
+                tabulate(
+                    result,
+                    headers=["ID", "Name", "Status"],
+                    tablefmt="psql",
+                )
             )
-        )
+
+        else:
+            for service in conn.compute.services(**{"binary": "nova-compute"}):
+                result.append(
+                    [
+                        service.id,
+                        service.host,
+                        service.status,
+                        service.state,
+                    ]
+                )
+
+            print(
+                tabulate(
+                    result,
+                    headers=["ID", "Host", "Status", "State"],
+                    tablefmt="psql",
+                )
+            )
 
 
 class ComputeEvacuate(Command):
