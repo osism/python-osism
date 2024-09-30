@@ -107,7 +107,7 @@ class ComputeList(Command):
 
         result = []
         if host:
-            for server in conn.compute.servers(all_projects=True, node=host[0]):
+            for server in conn.compute.servers(all_projects=True, node=host):
                 result.append([server.id, server.name, server.status])
 
             print(
