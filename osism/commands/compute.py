@@ -288,7 +288,7 @@ class ComputeMigrate(Command):
             result.append([server.id, server.name, server.status])
 
         for server in result:
-            if server[2] not in ["ACTIVE"]:
+            if server[2] not in ["ACTIVE", "PAUSED"]:
                 logger.info(
                     f"{server[0]} ({server[1]}) in status {server[2]} cannot be live migrated"
                 )
@@ -391,7 +391,7 @@ class ComputeStop(Command):
             result.append([server.id, server.name, server.status])
 
         for server in result:
-            if server[2] not in ["ACTIVE"]:
+            if server[2] not in ["ACTIVE", "PAUSED"]:
                 logger.info(
                     f"{server[0]} ({server[1]}) in status {server[2]} cannot be stopped"
                 )
