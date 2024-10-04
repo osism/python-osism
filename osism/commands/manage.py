@@ -228,12 +228,15 @@ class Images(Command):
             arguments.append("--latest")
         if hide:
             arguments.append("--hide")
+
         if images:
             arguments.append(f"--images '{images}'")
+        else:
+            arguments.append("--images /etc/images")
 
         joined_arguments = " ".join(arguments)
         subprocess.call(
-            f"/usr/local/bin/openstack-image-manager --images=/etc/images {joined_arguments}",
+            f"/usr/local/bin/openstack-image-manager {joined_arguments}",
             shell=True,
         )
 
