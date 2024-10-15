@@ -29,10 +29,12 @@ python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ope
 # install openstack-project-manager
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-project-manager/requirements.txt
+rm -rf /openstack-project-manager/.git
 
 # install openstack-simple-stress
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-simple-stress/requirements.txt
+rm -rf /osism/openstack-simple-stress/.git
 EOF
 
 FROM python:${PYTHON_VERSION}-slim AS osism
@@ -92,16 +94,20 @@ rm -rf /openstack-image-manager
 # install openstack-project-manager
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-project-manager/requirements.txt
+rm -rf /openstack-project-manager/.git
 
 # install openstack-simple-stress
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-simple-stress/requirements.txt
+rm -rf /osism/openstack-simple-stress/.git
 
 # install openstack-resource-manager
 git clone --depth 1 https://github.com/osism/openstack-resource-manager.git /openstack-resource-manager
+rm -rf /openstack-resource-manager/.git
 
 # add tests
 git clone --depth 1 https://github.com/osism/tests.git /tests
+rm -rf /tests/.git
 
 # prepare use of clustershell
 ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
