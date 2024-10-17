@@ -101,6 +101,8 @@ VALIDATE_PLAYBOOKS = {
     "ceph-mons": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-osds": {"environment": "ceph", "runtime": "osism-ansible"},
     "container-status": {"environment": "generic", "runtime": "osism-ansible"},
+    "disable-storage-node": {"environment": "ceph", "runtime": "osism-ansible"},
+    "enable-storage-node": {"environment": "ceph", "runtime": "osism-ansible"},
     "kernel-version": {"environment": "generic", "runtime": "osism-ansible"},
     "kolla-connectivity": {"environment": "kolla", "runtime": "osism-ansible"},
     "mysql-open-files-limit": {"environment": "generic", "runtime": "osism-ansible"},
