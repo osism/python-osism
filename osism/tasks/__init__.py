@@ -207,7 +207,7 @@ def run_ansible_in_environment(
     return result
 
 
-def handle_task(t, wait, format, timeout):
+def handle_task(t, wait=True, format="log", timeout=3600):
     global redis
 
     if not redis:
