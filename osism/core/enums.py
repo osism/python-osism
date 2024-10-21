@@ -130,7 +130,7 @@ MAP_ROLE2ROLE = {
                                 [
                                     "keystone",
                                     [
-                                        ["neutron", ["octavia"]],
+                                        ["neutron", ["wait-for-nova", ["octavia"]]],
                                         "barbican",
                                         "designate",
                                         "ironic",
