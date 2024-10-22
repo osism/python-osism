@@ -1,4 +1,4 @@
-ARG PYTHON_VERSION=3.12.3
+ARG PYTHON_VERSION=3.13
 FROM python:${PYTHON_VERSION}-slim AS builder
 
 COPY . /src
@@ -22,9 +22,9 @@ apt-get install -y --no-install-recommends \
 mkdir /wheels
 python3 -m pip --no-cache-dir install -U 'pip==24.2'
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-image-manager.txt
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-flavor-manager.txt
+python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels 'ansible-core==2.17.5'
+python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels 'openstack-image-manager==0.20240906.0'
+python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels 'openstack-flavor-manager==0.20240904.0'
 
 # install openstack-project-manager
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
@@ -67,14 +67,16 @@ apt-get install -y --no-install-recommends \
   less \
   openssh-client \
   procps \
-  tini
+  tini \
+  build-essential \
+  gcc
 
 # install python packages
 python3 -m pip --no-cache-dir install -U 'pip==24.2'
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.ansible.txt
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.openstack-image-manager.txt
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.openstack-flavor-manager.txt
+python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels 'ansible-core==2.17.5'
+python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels 'openstack-image-manager==0.20240906.0'
+python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels 'openstack-flavor-manager==0.20240904.0'
 
 # install python-osism
 python3 -m pip --no-cache-dir install --no-index /src
