@@ -268,6 +268,18 @@ class ComputeMigrate(Command):
             help="Host to which all running instances are to be migrated",
         )
         parser.add_argument(
+            "--project",
+            default=None,
+            type=str,
+            help="Filter by project ID",
+        )
+        parser.add_argument(
+            "--domain",
+            default=None,
+            type=str,
+            help="Filter by domain ID",
+        )
+        parser.add_argument(
             "host",
             nargs=1,
             type=str,
@@ -281,11 +293,24 @@ class ComputeMigrate(Command):
         force = parsed_args.force
         no_wait = parsed_args.no_wait
         yes = parsed_args.yes
+        domain = parsed_args.domain
+        project = parsed_args.project
+
         conn = get_cloud_connection()
 
         result = []
         for server in conn.compute.servers(all_projects=True, node=host):
-            result.append([server.id, server.name, server.status])
+            if project and server.project_id == project:
+                result.append([server.id, server.name, server.status])
+            elif domain:
+                project = conn.identity.get_project(server.project_id)
+                if project.domain_id == domain:
+                    result.append([server.id, server.name, server.status])
+            else:
+                result.append([server.id, server.name, server.status])
+
+        if not result:
+            logger.info(f"No migratable instances found on node {host}")
 
         for server in result:
             if server[2] not in ["ACTIVE", "PAUSED"]:
