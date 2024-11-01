@@ -52,7 +52,7 @@ class ServerMigrate(Command):
             "instance",
             nargs=1,
             type=str,
-            help="Instance to be migrated (specify UUID)",
+            help="Instance to be migrated (specify ID)",
         )
         return parser
 
