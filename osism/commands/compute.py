@@ -3,20 +3,12 @@
 import time
 
 from cliff.command import Command
-import keystoneauth1
 from loguru import logger
 import openstack
 from tabulate import tabulate
 from prompt_toolkit import prompt
 
-
-def get_cloud_connection():
-    try:
-        conn = openstack.connect(cloud="admin")
-    except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions:
-        pass
-
-    return conn
+from osism.commands import get_cloud_connection, get_cloud_project
 
 
 class ComputeEnable(Command):
@@ -303,8 +295,8 @@ class ComputeMigrate(Command):
             if project and server.project_id == project:
                 result.append([server.id, server.name, server.status])
             elif domain:
-                project = conn.identity.get_project(server.project_id)
-                if project.domain_id == domain:
+                server_project = get_cloud_project(server.project_id)
+                if server_project.domain_id == domain:
                     result.append([server.id, server.name, server.status])
             else:
                 result.append([server.id, server.name, server.status])
