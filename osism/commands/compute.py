@@ -85,6 +85,18 @@ class ComputeList(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeList, self).get_parser(prog_name)
         parser.add_argument(
+            "--project",
+            default=None,
+            type=str,
+            help="Filter by project ID",
+        )
+        parser.add_argument(
+            "--domain",
+            default=None,
+            type=str,
+            help="Filter by domain ID",
+        )
+        parser.add_argument(
             "host",
             nargs="?",
             type=str,
@@ -96,11 +108,20 @@ class ComputeList(Command):
     def take_action(self, parsed_args):
         host = parsed_args.host
         conn = get_cloud_connection()
+        domain = parsed_args.domain
+        project = parsed_args.project
 
         result = []
         if host:
             for server in conn.compute.servers(all_projects=True, node=host):
-                result.append([server.id, server.name, server.status])
+                if project and server.project_id == project:
+                    result.append([server.id, server.name, server.status])
+                elif domain:
+                    server_project = get_cloud_project(server.project_id)
+                    if server_project.domain_id == domain:
+                        result.append([server.id, server.name, server.status])
+                else:
+                    result.append([server.id, server.name, server.status])
 
             print(
                 tabulate(
