@@ -97,6 +97,12 @@ class ComputeList(Command):
             help="Filter by domain ID",
         )
         parser.add_argument(
+            "--aggregate",
+            default=None,
+            type=str,
+            help="Filter by aggregate",
+        )
+        parser.add_argument(
             "host",
             nargs="?",
             type=str,
@@ -110,6 +116,7 @@ class ComputeList(Command):
         conn = get_cloud_connection()
         domain = parsed_args.domain
         project = parsed_args.project
+        aggregate = parsed_args.aggregate
 
         result = []
         if host:
@@ -132,6 +139,10 @@ class ComputeList(Command):
             )
 
         else:
+            hypervisors = conn.compute.hypervisors()
+            for hypervisor in conn.compute.hypervisors(details=True):
+                print(hypervisor)
+
             for service in conn.compute.services(**{"binary": "nova-compute"}):
                 result.append(
                     [
