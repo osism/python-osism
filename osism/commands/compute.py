@@ -3,6 +3,7 @@
 import time
 
 from cliff.command import Command
+from jc import parse
 from loguru import logger
 import openstack
 from tabulate import tabulate
@@ -97,6 +98,12 @@ class ComputeList(Command):
             help="Filter by domain ID",
         )
         parser.add_argument(
+            "--details",
+            default=False,
+            help="Show details",
+            action="store_true",
+        )
+        parser.add_argument(
             "host",
             nargs="?",
             type=str,
@@ -110,6 +117,7 @@ class ComputeList(Command):
         conn = get_cloud_connection()
         domain = parsed_args.domain
         project = parsed_args.project
+        details = parsed_args.details
 
         result = []
         if host:
@@ -132,23 +140,72 @@ class ComputeList(Command):
             )
 
         else:
-            for service in conn.compute.services(**{"binary": "nova-compute"}):
-                result.append(
-                    [
-                        service.id,
-                        service.host,
-                        service.status,
-                        service.state,
-                    ]
-                )
+            if details:
+                hypervisors = conn.compute.hypervisors(details=True)
+                for hypervisor in hypervisors:
+                    if hypervisor.get("uptime"):
+                        try:
+                            uptime = parse("uptime", hypervisor.get("uptime"))
+                        except:
+                            uptime = None
+                    else:
+                        uptime = None
 
-            print(
-                tabulate(
-                    result,
-                    headers=["ID", "Host", "Status", "State"],
-                    tablefmt="psql",
+                    if not uptime:
+                        uptime = {
+                            "uptime": "-",
+                            "load_1m": "-",
+                            "load_5m": "-",
+                            "load_15m": "-",
+                        }
+
+                    result.append(
+                        [
+                            hypervisor.get("id"),
+                            hypervisor.name,
+                            hypervisor.get("status"),
+                            hypervisor.get("state"),
+                            uptime["uptime"],
+                            uptime["load_1m"],
+                            uptime["load_5m"],
+                            uptime["load_15m"],
+                        ]
+                    )
+
+                print(
+                    tabulate(
+                        result,
+                        headers=[
+                            "ID",
+                            "Host",
+                            "Status",
+                            "State",
+                            "Uptime",
+                            "Load 1",
+                            "Load 5",
+                            "Load 15",
+                        ],
+                        tablefmt="psql",
+                    )
                 )
-            )
+            else:
+                for service in conn.compute.services(**{"binary": "nova-compute"}):
+                    result.append(
+                        [
+                            service.id,
+                            service.host,
+                            service.status,
+                            service.state,
+                        ]
+                    )
+
+                print(
+                    tabulate(
+                        result,
+                        headers=["ID", "Host", "Status", "State"],
+                        tablefmt="psql",
+                    )
+                )
 
 
 class ComputeEvacuate(Command):
