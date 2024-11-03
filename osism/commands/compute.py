@@ -293,6 +293,12 @@ class ComputeMigrate(Command):
             help="Filter by domain ID",
         )
         parser.add_argument(
+            "--filter",
+            default=None,
+            type=str,
+            help="Filter by string",
+        )
+        parser.add_argument(
             "host",
             nargs=1,
             type=str,
@@ -308,6 +314,7 @@ class ComputeMigrate(Command):
         yes = parsed_args.yes
         domain = parsed_args.domain
         project = parsed_args.project
+        xfilter = parsed_args.filter
 
         conn = get_cloud_connection()
 
@@ -318,6 +325,9 @@ class ComputeMigrate(Command):
             elif domain:
                 server_project = get_cloud_project(server.project_id)
                 if server_project.domain_id == domain:
+                    result.append([server.id, server.name, server.status])
+            elif xfilter:
+                if xfilter in server.name:
                     result.append([server.id, server.name, server.status])
             else:
                 result.append([server.id, server.name, server.status])
