@@ -140,8 +140,8 @@ class ComputeList(Command):
             )
 
         else:
+            hypervisors = conn.compute.hypervisors(details=True)
             if details:
-                hypervisors = conn.compute.hypervisors(details=True)
                 for hypervisor in hypervisors:
                     if hypervisor.get("uptime"):
                         try:
@@ -189,13 +189,13 @@ class ComputeList(Command):
                     )
                 )
             else:
-                for service in conn.compute.services(**{"binary": "nova-compute"}):
+                for hypervisor in hypervisors:
                     result.append(
                         [
-                            service.id,
-                            service.host,
-                            service.status,
-                            service.state,
+                            hypervisor.get("id"),
+                            hypervisor.name,
+                            hypervisor.get("status"),
+                            hypervisor.get("state"),
                         ]
                     )
 
