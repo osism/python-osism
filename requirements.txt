@@ -11,7 +11,7 @@ dtrack-auditor==1.4.0
 fastapi==0.115.5
 flower==2.0.1
 hiredis==3.0.0
-jc==1.25.3
+jc==1.25.4
 kombu==5.4.2
 kubernetes==31.0.0
 loguru==0.7.2
