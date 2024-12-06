@@ -1,4 +1,4 @@
-ARG PYTHON_VERSION=3.12.3
+ARG PYTHON_VERSION=3.13
 FROM python:${PYTHON_VERSION}-slim AS builder
 
 COPY . /src
@@ -21,6 +21,7 @@ apt-get install -y --no-install-recommends \
 # install python packages
 mkdir /wheels
 python3 -m pip --no-cache-dir install -U 'pip==25.0.1'
+python3 -m pip --no-cache-dir install -U 'setuptools==76.0.0'
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-image-manager.txt
