@@ -186,6 +186,12 @@ class Images(Command):
             action="store_true",
         )
         parser.add_argument(
+            "--delete",
+            default=False,
+            help="Delete images that should be deleted",
+            action="store_true",
+        )
+        parser.add_argument(
             "--latest",
             default=False,
             help="Only import the latest version for images of type multi",
@@ -210,26 +216,29 @@ class Images(Command):
         return parser
 
     def take_action(self, parsed_args):
-        cloud = parsed_args.cloud
-        dry_run = parsed_args.dry_run
-        filter = parsed_args.filter
-        hide = parsed_args.hide
-        latest = parsed_args.latest
-        images = parsed_args.images
+        arg_cloud = parsed_args.cloud
+        arg_delete = parsed_args.delete
+        arg_dry_run = parsed_args.dry_run
+        arg_filter = parsed_args.filter
+        arg_hide = parsed_args.hide
+        arg_images = parsed_args.images
+        arg_latest = parsed_args.latest
 
         arguments = []
-        if cloud:
+        if arg_cloud:
             arguments.append(f"--cloud '{cloud}'")
-        if filter:
+        if arg_filter:
             arguments.append(f"--filter '{filter}'")
-        if dry_run:
+        if arg_delete:
+            arguments.append("--delete")
+        if arg_dry_run:
             arguments.append("--dry-run")
-        if latest:
+        if arg_latest:
             arguments.append("--latest")
-        if hide:
+        if arg_hide:
             arguments.append("--hide")
 
-        if images:
+        if arg_images:
             arguments.append(f"--images '{images}'")
         else:
             arguments.append("--images /etc/images")
