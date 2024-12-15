@@ -226,6 +226,12 @@ class Images(Command):
             action="store_true",
         )
         parser.add_argument(
+            "--delete",
+            default=False,
+            help="Delete images that should be deleted",
+            action="store_true",
+        )
+        parser.add_argument(
             "--latest",
             default=False,
             help="Only import the latest version for images of type multi",
@@ -251,32 +257,28 @@ class Images(Command):
 
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
-        cloud = parsed_args.cloud
-        dry_run = parsed_args.dry_run
-        filter = parsed_args.filter
-        hide = parsed_args.hide
-        latest = parsed_args.latest
-        images = parsed_args.images
 
         arguments = []
-        if cloud:
+        if parsed_args.cloud:
             arguments.append("--cloud")
-            arguments.append(cloud)
-        if filter:
+            arguments.append(parsed_args.cloud)
+        if parsed_args.filter:
             arguments.append("--filter")
-            arguments.append(filter)
-        if dry_run:
+            arguments.append(parsed_args.filter)
+        if parsed_args.delete:
+            arguments.append("--delete")
+            arguments.append("--yes-i-really-know-what-i-do")
+        if parsed_args.dry_run:
             arguments.append("--dry-run")
-        if latest:
+        if parsed_args.latest:
             arguments.append("--latest")
-        if hide:
+        if parsed_args.hide:
             arguments.append("--hide")
 
-        if images:
-            arguments.append("--images")
-            arguments.append(images)
+        arguments.append("--images")
+        if parsed_args.images:
+            arguments.append(parsed_args.images)
         else:
-            arguments.append("--images")
             arguments.append("/etc/images")
 
         task_signature = openstack.image_manager.si(*arguments)
