@@ -40,17 +40,21 @@
               local version="$2"
               local attempt_num=1
 
-              until pip3 install --dry-run osism==$version; do
-                  if (( attempt_num++ == max_attempts )); then
-                      return 1
+              while true; do
+                  AVAILABLE_VERSION=$(curl -s https://pypi.org/pypi/osism/json | jq -r ".releases | keys[]" | grep "^${version}$")
+                  if [[ "$AVAILABLE_VERSION" == "$version" ]]; then
+                      break
                   else
-                      sleep 60
+                      if (( attempt_num++ == max_attempts )); then
+                          return 1
+                      else
+                          sleep 60
+                      fi
                   fi
               done
           }
 
           if [[ $version != "latest" ]]; then
-              pip3 install -U pip
               wait_for_pypi_version 20 $version
           fi
 
