@@ -41,7 +41,7 @@
               local attempt_num=1
 
               while true; do
-                  AVAILABLE_VERSION=$(curl -s https://pypi.org/pypi/osism/json | jq -r ".releases | keys[]" | grep "^${version}$")
+                  AVAILABLE_VERSION=$(curl -s https://pypi.org/pypi/osism/json | jq -r ".releases | keys[]" | grep "^${version}$" || exit 0)
                   if [[ "$AVAILABLE_VERSION" == "$version" ]]; then
                       break
                   else
@@ -55,7 +55,7 @@
           }
 
           if [[ $version != "latest" ]]; then
-              wait_for_pypi_version 20 $version
+              wait_for_pypi_version 20 "${version:1}"
           fi
 
           docker buildx build \
