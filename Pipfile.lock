@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "f2fa7f6c290674ff2c5d87860ef1005f0922a1325ef4dde9111222e40c994905"
+            "sha256": "6cb88c36bf2bdb9593f9fc618c6e0d803a6abaee107020d8a2cea3ee1192e2da"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -1158,11 +1158,11 @@
         },
         "pygments": {
             "hashes": [
-                "sha256:786ff802f32e91311bff3889f6e9a86e81505fe99f2735bb6d60ae0c5004f199",
-                "sha256:b8e6aca0523f3ab76fee51799c488e38782ac06eafcf95e7ba832985c8e7b13a"
+                "sha256:4755e6e64d22161d5b61432c0600c923c5927214e7c956e31c23923c89251a9b",
+                "sha256:afc4146269910d4bdfabcd27c24923137a74d562a23a320a41a55ad303e19783"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==2.18.0"
+            "version": "==2.19.0"
         },
         "pynacl": {
             "hashes": [
@@ -1351,11 +1351,11 @@
         },
         "ruamel.yaml": {
             "hashes": [
-                "sha256:1b7e14f28a4b8d09f8cd40dca158852db9b22ac84f22da5bb711def35cb5c548",
-                "sha256:a7c02af6ec9789495b4d19335addabc4d04ab1e0dad3e491c0c9457bbc881100"
+                "sha256:59d0f8b10c658bd55ecd107e334d4117d766a2b9cc8f5176afcdadcff6f84a5e",
+                "sha256:c17d2a7ccf7fd2dd4b6d699111c37e94f12277a1db71e847ad7f3d19b8e3e9f4"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==0.18.8"
+            "version": "==0.18.9"
         },
         "scp": {
             "hashes": [
@@ -1366,12 +1366,12 @@
         },
         "setuptools": {
             "hashes": [
-                "sha256:8199222558df7c86216af4f84c30e9b34a61d8ba19366cc914424cdbd28252f6",
-                "sha256:ce74b49e8f7110f9bf04883b730f4765b774ef3ef28f722cce7c273d253aaf7d"
+                "sha256:84fb203f278ebcf5cd08f97d3fb96d3fbed4b629d500b29ad60d11e00769b183",
+                "sha256:886ff7b16cd342f1d1defc16fc98c9ce3fde69e087a4e1983d7ab634e5f41f4f"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.9'",
-            "version": "==75.6.0"
+            "version": "==75.7.0"
         },
         "six": {
             "hashes": [
