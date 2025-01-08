@@ -22,7 +22,7 @@ nornir==3.4.1
 openstacksdk==4.2.0
 pottery==3.0.0
 prompt-toolkit==3.0.48
-pydantic==1.10.19
+pydantic==1.10.20
 pynetbox==7.4.1
 pytest-testinfra==10.1.1
 python-dateutil==2.9.0.post0
