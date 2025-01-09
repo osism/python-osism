@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d4327aa9d3f185590abf29817ee8c5767049325ed5ccbf545c3e305034cd7990"
+            "sha256": "664561634f40df4691795d866b215d1fafe13a559fc38bf5c2badce5185edaf4"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -890,14 +890,6 @@
             "markers": "python_version >= '3.8'",
             "version": "==5.0.1"
         },
-        "mypy-extensions": {
-            "hashes": [
-                "sha256:4392f6c0eb8a5668a69e23d168ffa70f0be9ccfd32b5cc2d26a34ae5b844552d",
-                "sha256:75dbf8955dc00442a438fc4d0666508a9a97b6bd41aa2f0ffe9d2f2725af0782"
-            ],
-            "markers": "python_version >= '3.5'",
-            "version": "==1.0.0"
-        },
         "netmiko": {
             "hashes": [
                 "sha256:42d81fb906339af1fb5c6899f181f5cb5c9b03311262ba56c696b113e1f2f61a",
@@ -909,12 +901,12 @@
         },
         "nornir": {
             "hashes": [
-                "sha256:82a90a3478a3890bef8ad51b256fa966e6e4ca326cbe20a230918ef907cf68c3",
-                "sha256:db079cb95e3baf855530f4f40cb6ee93f93e1bf3cb74ac08180546adb1b987b8"
+                "sha256:7e273d7b2aa519fa84b4fbbeb74ac5df3595d80105009049f0157c72a345b0b2",
+                "sha256:f0d212999a37bc5962534738c47099b3e11a45d8f7dc8bc855530f7fb73d2f64"
             ],
             "index": "pypi",
-            "markers": "python_version >= '3.8' and python_version < '4.0'",
-            "version": "==3.4.1"
+            "markers": "python_version >= '3.9' and python_version < '4.0'",
+            "version": "==3.5.0"
         },
         "nornir-ansible": {
             "hashes": [

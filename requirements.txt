@@ -18,7 +18,7 @@ kubernetes==31.0.0
 loguru==0.7.3
 netmiko==4.5.0
 nornir-ansible==2023.12.28
-nornir==3.4.1
+nornir==3.5.0
 openstacksdk==4.2.0
 pottery==3.0.0
 prompt-toolkit==3.0.48
