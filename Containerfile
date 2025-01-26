@@ -20,7 +20,7 @@ apt-get install -y --no-install-recommends \
 
 # install python packages
 mkdir /wheels
-python3 -m pip --no-cache-dir install -U 'pip==24.3.1'
+python3 -m pip --no-cache-dir install -U 'pip==25.0'
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt
 python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-image-manager.txt
@@ -70,7 +70,7 @@ apt-get install -y --no-install-recommends \
   tini
 
 # install python packages
-python3 -m pip --no-cache-dir install -U 'pip==24.3.1'
+python3 -m pip --no-cache-dir install -U 'pip==25.0'
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.ansible.txt
 python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.openstack-image-manager.txt
