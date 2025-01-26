@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-ClusterShell = "==1.9.2"
+ClusterShell = "==1.9.3"
 GitPython = "==3.1.44"
 Jinja2 = "==3.1.5"
 PyYAML = "==6.0.2"
