@@ -9,7 +9,7 @@
     registry: "{{ docker_registry }}"
     repository: "{{ docker_namespace }}/osism"
     version: "{{ zuul['tag'] | default('latest') }}"
-    DTRACK_SERVER: "https://osism.dtrack.regio.digital"
+    DTRACK_SERVER: "https://dtrack.osism.tech"
     DTRACK_API_KEY: "{{ secret.DTRACK_API_KEY | default('') }}"
 
   tasks:
