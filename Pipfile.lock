@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "e64757314d2d96258fe451e70d5a50aa37d57ffed6e4b565b85cd7dae8888f55"
+            "sha256": "b9475f6929a222cd887a32182a8712dc56fb740e11a088dae9d04a6954aa3331"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -89,11 +89,11 @@
         },
         "cachetools": {
             "hashes": [
-                "sha256:70f238fbba50383ef62e55c6aff6d9673175fe59f7c6782c7a0b9e38f4a9df95",
-                "sha256:b76651fdc3b24ead3c648bbdeeb940c1b04d365b38b4af66788f9ec4a81d42bb"
+                "sha256:1a661caa9175d26759571b2e19580f9d6393969e5dfca11fdb1f947a23e640d4",
+                "sha256:d26a22bcc62eb95c3beabd9f1ee5e820d3d2704fe2967cbe350e20c8ffcd3f0a"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==5.5.1"
+            "version": "==5.5.2"
         },
         "celery": {
             "extras": [
@@ -747,12 +747,12 @@
         },
         "keystoneauth1": {
             "hashes": [
-                "sha256:71b98835aec72a01f71c5b919c3193dac95342555e89aa35c86d3d86c4ff5f73",
-                "sha256:fb0c66d842d5b964752264fff20b3b4ab73610d66d9b8d20d0dcf796ba09dc43"
+                "sha256:34b870dbbcf806cdb5aec98483b62820a6568d364eca7b1174ca6a8b5a9c77ed",
+                "sha256:fd634febb02708d7ab520495168009f1e119cbda96d3478e66a7d9b5b0146f5d"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.9'",
-            "version": "==5.9.1"
+            "version": "==5.10.0"
         },
         "kombu": {
             "hashes": [
@@ -1523,11 +1523,11 @@
         },
         "stevedore": {
             "hashes": [
-                "sha256:79e92235ecb828fe952b6b8b0c6c87863248631922c8e8e0fa5b17b232c4514d",
-                "sha256:b0be3c4748b3ea7b854b265dcb4caa891015e442416422be16f8b31756107857"
+                "sha256:3135b5ae50fe12816ef291baff420acb727fcd356106e3e9cbfa9e5985cd6f4b",
+                "sha256:d10a31c7b86cba16c1f6e8d15416955fc797052351a56af15e608ad20811fcfe"
             ],
             "markers": "python_version >= '3.9'",
-            "version": "==5.4.0"
+            "version": "==5.4.1"
         },
         "sushy": {
             "hashes": [
