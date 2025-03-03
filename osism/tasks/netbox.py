@@ -10,14 +10,7 @@ import pynetbox
 from redis import Redis
 
 from osism import settings
-from osism.actions import (
-    check_configuration,
-    deploy_configuration,
-    diff_configuration,
-    generate_configuration,
-    manage_device,
-    manage_interface,
-)
+from osism.actions import manage_device, manage_interface
 from osism.tasks import Config, openstack
 
 app = Celery("netbox")
@@ -73,35 +66,6 @@ def update_network_interface_name(self, mac_address, network_interface_name):
     manage_interface.update_network_interface_name(mac_address, network_interface_name)
 
 
-@app.task(bind=True, name="osism.tasks.netbox.import_device_types")
-def import_device_types(self, vendors, library=False):
-    global redis
-
-    if library:
-        env = {**os.environ, "BASE_PATH": "/devicetype-library/device-types/"}
-    else:
-        env = {**os.environ, "BASE_PATH": "/netbox/device-types/"}
-
-    if vendors:
-        p = subprocess.Popen(
-            f"python3 /import/main.py --vendors {vendors}",
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            env=env,
-        )
-    else:
-        p = subprocess.Popen(
-            "python3 /import/main.py",
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            env=env,
-        )
-
-    p.communicate()
-
-
 @app.task(bind=True, name="osism.tasks.netbox.synchronize_device_state")
 def synchronize_device_state(self, data):
     """Synchronize the state of Ironic with Netbox"""
@@ -123,23 +87,6 @@ def states(self, data):
     return result
 
 
-@app.task(bind=True, name="osism.tasks.netbox.transitions")
-def transitions(self, data):
-    result = manage_device.get_transitions(data.keys())
-    return result
-
-
-@app.task(bind=True, name="osism.tasks.netbox.data")
-def data(self, collection, device, state):
-    result = manage_device.load_data_from_filesystem(collection, device, state)
-    return result
-
-
-@app.task(bind=True, name="osism.tasks.netbox.connect")
-def connect(self, device=None, state=None, data={}, enforce=False):
-    manage_device.run(device, state, data, enforce)
-
-
 @app.task(bind=True, name="osism.tasks.netbox.set_state")
 def set_state(self, device=None, state=None, state_type=None):
     manage_device.set_state(device, state, state_type)
@@ -150,47 +97,7 @@ def set_maintenance(self, device=None, state=None):
     manage_device.set_maintenance(device, state)
 
 
-@app.task(bind=True, name="osism.tasks.netbox.disable")
-def disable(self, name):
-    global nb
-
-    for interface in nb.dcim.interfaces.filter(device=name):
-        if str(interface.type) in ["Virtual"]:
-            continue
-
-        if "Port-Channel" in interface.name:
-            continue
-
-        if not interface.connected_endpoint and interface.enabled:
-            interface.enabled = False
-            interface.save()
-
-        # FIXME: only enable devices that are not disabled by configuration
-        if interface.connected_endpoint and not interface.enabled:
-            interface.enabled = True
-            interface.save()
-
-
-@app.task(bind=True, name="osism.tasks.netbox.generate")
-def generate(self, name, template=None):
-    generate_configuration.for_device(name, template)
-
-
-@app.task(bind=True, name="osism.tasks.netbox.deploy")
-def deploy(self, name):
-    deploy_configuration.for_device(name)
-
-
-@app.task(bind=True, name="osism.tasks.netbox.check")
-def check(self, name):
-    check_configuration.for_device(name)
-
-
 @app.task(bind=True, name="osism.tasks.netbox.diff")
-def diff(self, name):
-    diff_configuration.for_device(name)
-
-
 @app.task(bind=True, name="osism.tasks.netbox.get_devices_not_yet_registered_in_ironic")
 def get_devices_not_yet_registered_in_ironic(
     self, status="active", tags=["managed-by-ironic"], ironic_enabled=True
@@ -234,6 +141,50 @@ def get_devices_that_should_have_an_allocation_in_ironic(self):
 
     for device in devices:
         result.append(device.name)
+
+    return result
+
+
+@app.task(bind=True, name="osism.tasks.netbox.manage")
+def manage(self, *arguments, publish=True, locking=False, auto_release_time=3600):
+    result = ""
+    netbox_manager_env = os.environ.copy()
+    netbox_manager_env.update(
+        {
+            "NETBOX_MANAGER_URL": str(settings.NETBOX_URL),
+            "NETBOX_MANAGER_TOKEN": str(settings.NETBOX_TOKEN),
+            "NETBOX_MANAGER_IGNORE_SSL_ERRORS": str(settings.IGNORE_SSL_ERRORS),
+            "NETBOX_MANAGER_VERBOSE": "true",
+        }
+    )
+
+    if locking:
+        lock = Redlock(
+            key=f"lock-netbox-manager",
+            masters={redis},
+            auto_release_time=auto_release_time,
+        )
+
+    p = subprocess.Popen(
+        ["/usr/local/bin/netbox-manager"] + list(arguments),
+        env=netbox_manager_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    while p.poll() is None:
+        line = p.stdout.readline().decode("utf-8")
+        if publish:
+            redis.xadd(self.request.id, {"type": "stdout", "content": line})
+        result += line
+
+    rc = p.wait(timeout=60)
+
+    if publish:
+        redis.xadd(self.request.id, {"type": "rc", "content": rc})
+        redis.xadd(self.request.id, {"type": "action", "content": "quit"})
+
+    if locking:
+        lock.release()
 
     return result
 
