@@ -40,7 +40,6 @@ class BaremetalEvents:
                     },
                     "maintenance_set": {"end": self.node_maintenance_set_end},
                     "provision_set": {
-                        "start": self.node_provision_set_start,
                         "end": self.node_provision_set_end,
                         "success": self.node_provision_set_success,
                     },
@@ -97,28 +96,6 @@ class BaremetalEvents:
         )
         netbox.set_maintenance.delay(name, object_data["maintenance"])
 
-    def node_provision_set_start(self, payload: dict[Any, Any]) -> None:
-        object_data = self.get_object_data(payload)
-        name = object_data["name"]
-        logger.info(
-            f"baremetal.node.provision_set.start ## {name} ## {object_data['provision_state']}"
-        )
-
-        if object_data["event"] == "inspect":
-            # system should be in state a
-            netbox.connect.delay(name, "a")
-
-        if object_data["provision_state"] == "cleaning":
-            # system should be in state b
-            netbox.connect.delay(name, "b")
-
-        if object_data["provision_state"] == "available":
-            # system should be in state c
-            netbox.connect.delay(name, "c")
-
-        if object_data["target_provision_state"] == "active":
-            pass
-
     def node_provision_set_success(self, payload: dict[Any, Any]) -> None:
         # A provision status was successfully set, update it in the netbox
         object_data = self.get_object_data(payload)
@@ -127,10 +104,6 @@ class BaremetalEvents:
             f"baremetal.node.provision_set.success ## {name} ## {object_data['provision_state']}"
         )
         netbox.set_state.delay(name, object_data["provision_state"], "provision")
-
-        if object_data["provision_state"] == "manageable":
-            # system should be in state c
-            netbox.connect.delay(name, "c")
 
     def node_provision_set_end(self, payload: dict[Any, Any]) -> None:
         object_data = self.get_object_data(payload)
@@ -146,16 +119,6 @@ class BaremetalEvents:
         ):
             netbox.set_state.delay(name, "introspected", "introspection")
             openstack.baremetal_set_node_provision_state.delay(name, "provide")
-
-        elif object_data["previous_provision_state"] == "wait call-back":
-            pass
-
-        elif (
-            object_data["previous_provision_state"] == "cleaning"
-            and object_data["provision_state"] == "available"
-        ):  # noqa
-            # system should be in state c
-            netbox.connect.delay(name, "c")
 
     def port_create_end(self, payload: dict[Any, Any]) -> None:
         object_data = self.get_object_data(payload)
@@ -205,9 +168,6 @@ class BaremetalEvents:
         netbox.set_state.delay(name, None, "power")
         netbox.set_state.delay(name, None, "introspection")
         netbox.set_state.delay(name, None, "deployment")
-
-        # system should be in state a
-        netbox.connect.delay(name, "a")
 
         # remove internal flavor
         openstack.baremetal_delete_internal_flavor.delay(name)

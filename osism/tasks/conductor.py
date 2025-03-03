@@ -45,6 +45,7 @@ def celery_init_worker(**kwargs):
             logger.warning(
                 "The conductor configuration is empty. That's probably wrong"
             )
+            configuration = {}
             return
 
         # Resolve all IDs in the conductor.yml
@@ -53,6 +54,7 @@ def celery_init_worker(**kwargs):
                 logger.error(
                     "ironic_parameters not found in the conductor configuration"
                 )
+                configuration = {}
                 return
 
             # TODO: use osism.tasks.openstack in the future
