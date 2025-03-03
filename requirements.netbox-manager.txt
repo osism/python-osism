@@ -1,0 +1,1 @@
+netbox-manager==v0.20250314.0

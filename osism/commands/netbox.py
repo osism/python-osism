@@ -1,16 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
-from glob import glob
-from os.path import basename
 
 from cliff.command import Command
 from loguru import logger
 from redis import Redis
-from tabulate import tabulate
 
 from osism import settings
-from osism.tasks import conductor, netbox, reconciler, ansible, openstack, handle_task
+from osism.tasks import conductor, netbox, reconciler, openstack, handle_task
 
 
 redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
@@ -77,368 +74,82 @@ class Sync(Command):
             task.wait(timeout=None, interval=0.5)
 
 
-class Init(Command):
-    def get_parser(self, prog_name):
-        parser = super(Init, self).get_parser(prog_name)
-        parser.add_argument(
-            "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
-        )
-        parser.add_argument(
-            "--no-wait",
-            default=False,
-            help="Do not wait until the role has been applied",
-            action="store_true",
-        )
-        parser.add_argument(
-            "--format",
-            default="log",
-            help="Output type",
-            const="log",
-            nargs="?",
-            choices=["script", "log"],
-        ),
-        return parser
-
-    def take_action(self, parsed_args):
-        arguments = parsed_args.arguments
-        format = parsed_args.format
-        wait = not parsed_args.no_wait
-
-        task = ansible.run.delay("netbox-local", "init", arguments)
-        rc = 0
-
-        if wait:
-            logger.info(f"Task {task.task_id} was prepared for execution.")
-            logger.info(
-                f"It takes a moment until task {task.task_id} has been started and output is visible here."
-            )
-            rc = handle_task(task, wait, format, 300)
-        else:
-            logger.info(
-                f"Task {task.task_id} is running in background. No more output. Check ARA for logs."
-            )
-
-        return rc
-
-
-class Import(Command):
-    def get_parser(self, prog_name):
-        parser = super(Import, self).get_parser(prog_name)
-        parser.add_argument(
-            "--vendors",
-            help="Vendors from which all available device types are to be imported",
-            required=False,
-        )
-        parser.add_argument(
-            "--library",
-            default=False,
-            help="Do import device types from the device type library",
-            action="store_true",
-        )
-        parser.add_argument(
-            "--no-wait",
-            default=False,
-            help="Do not wait until the role has been applied",
-            action="store_true",
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        vendors = parsed_args.vendors
-        wait = not parsed_args.no_wait
-
-        task = netbox.import_device_types.delay(vendors, parsed_args.library)
-
-        if wait:
-            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
-            task.wait(timeout=None, interval=0.5)
-
-
 class Manage(Command):
     def get_parser(self, prog_name):
         parser = super(Manage, self).get_parser(prog_name)
         parser.add_argument(
-            "--type",
-            type=str,
-            help="Type of the resource to manage",
-            required=False,
-            default="rack",
-        )
-        parser.add_argument(
-            "name", nargs="?", type=str, help="Name of the resource to manage"
-        )
-        parser.add_argument(
-            "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
-        )
-        parser.add_argument(
             "--no-wait",
             default=False,
-            help="Do not wait until the changes have been made",
+            help="Do not wait until the management of the netbox has been completed",
             action="store_true",
         )
         parser.add_argument(
-            "--format",
-            default="log",
-            help="Output type",
-            const="log",
-            nargs="?",
-            choices=["script", "log"],
-        ),
-        return parser
-
-    def take_action(self, parsed_args):
-        arguments = parsed_args.arguments
-        format = parsed_args.format
-        name = parsed_args.name
-        type_of_resource = parsed_args.type
-        wait = not parsed_args.no_wait
-
-        rc = 0
-        if not name:
-            logger.info("No name of an object to be managed was given")
-            table = []
-            for playbook_type in ["rack"]:
-                playbooks = glob(
-                    f"/opt/configuration/netbox/playbooks/{playbook_type}-*.yml"
-                )
-                for playbook in playbooks:
-                    name = basename(playbook)[len(playbook_type) + 1 : -4]  # noqa E203
-                    table.append([playbook_type, name])
-
-            print(tabulate(table, headers=["Type", "Name"], tablefmt="psql"))
-        else:
-            task = ansible.run.delay(
-                "netbox-local", f"{type_of_resource}-{name}", arguments
-            )
-
-            if wait:
-                logger.info(f"Task {task.task_id} was prepared for execution.")
-                logger.info(
-                    f"It takes a moment until task {task.task_id} has been started and output is visible here."
-                )
-                rc = handle_task(task, wait, format, 300)
-            else:
-                logger.info(
-                    f"Task {task.task_id} is running in background. No more output. Check ARA for logs."
-                )
-
-        return rc
-
-
-class Connect(Command):
-    def get_parser(self, prog_name):
-        parser = super(Connect, self).get_parser(prog_name)
-        parser.add_argument(
-            "name",
-            nargs="?",
-            type=str,
-            help="Name of the resource (a collection or a device) to connect",
-        )
-        parser.add_argument(
-            "--collection",
-            type=str,
-            help="Name of the collection to connect",
-            required=False,
-        ),
-        parser.add_argument(
-            "--device", type=str, help="Name of the device to connect", required=False
-        )
-        parser.add_argument(
-            "--enforce",
+            "--no-netbox-wait",
             default=False,
-            help="Ignore the current transition of a device",
+            help="Do not wait for the netbox API to be ready",
             action="store_true",
         )
         parser.add_argument(
-            "--state", type=str, help="State to use", default=None, required=False
+            "--limit",
+            type=str,
+            default=None,
+            help="Limit files by prefix",
         )
         parser.add_argument(
-            "--type",
-            type=str,
-            default="collection",
-            help="Type of the resource to connection (when not using --collection or --device)",
-            required=False,
+            "--skipdtl",
+            default=False,
+            help="Skip devicetype library",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--skipmtl",
+            default=False,
+            help="Skip moduletype library",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--skipres",
+            default=False,
+            help="Skip resources",
+            action="store_true",
         )
         return parser
 
     def take_action(self, parsed_args):
-        name = parsed_args.name
-        collection = parsed_args.device
-        device = parsed_args.device
-        state = parsed_args.state
-        type_of_resource = parsed_args.type
-        enforce = parsed_args.enforce
+        wait = not parsed_args.no_wait
+        arguments = []
 
-        task = None
-
-        if name:
-            if type_of_resource == "collection":
-                task = netbox.data.delay(name, "", state)
-            elif type_of_resource == "device":
-                task = netbox.data.delay("", name, state)
+        if parsed_args.no_netbox_wait:
+            arguments.append("--no-wait")
         else:
-            task = netbox.data.delay(collection, device, state)
-            name = f"{collection}-{device}"
+            arguments.append("--wait")
 
-        task.wait(timeout=None, interval=0.5)
-        data = task.get()
+        if parsed_args.limit:
+            arguments.append("--limit {parsed_args.limit}")
 
-        for device in data:
-            t = netbox.connect.delay(device, state, data, enforce)
+        if parsed_args.skipdtl:
+            arguments.append("--skipdtl")
+        else:
+            arguments.append("--no-skipdtl")
+
+        if parsed_args.skipmtl:
+            arguments.append("--skipmtl")
+        else:
+            arguments.append("--no-skipmtl")
+
+        if parsed_args.skipres:
+            arguments.append("--skipres")
+        else:
+            arguments.append("--no-skipres")
+
+        task_signature = netbox.manage.si(*arguments)
+        task = task_signature.apply_async()
+        if wait:
             logger.info(
-                f"Task {t.task_id} for device {device} is running in background"
+                f"It takes a moment until task {task.task_id} (netbox-manager) has been started and output is visible here."
             )
-        logger.info(
-            "Tasks are running in background. No more output. Check Flower for logs."
-        )
 
-
-class Disable(Command):
-    def get_parser(self, prog_name):
-        parser = super(Disable, self).get_parser(prog_name)
-        parser.add_argument(
-            "name",
-            nargs=1,
-            type=str,
-            help="Name of the device to check for unused interfaces",
-        )
-        parser.add_argument(
-            "--no-wait",
-            default=False,
-            help="Do not wait until the changes have been made",
-            action="store_true",
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        name = parsed_args.name[0]
-        wait = not parsed_args.no_wait
-
-        task = netbox.disable.delay(name)
-
-        if wait:
-            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
-            task.wait(timeout=None, interval=0.5)
-
-
-class Generate(Command):
-    def get_parser(self, prog_name):
-        parser = super(Generate, self).get_parser(prog_name)
-        parser.add_argument(
-            "name",
-            nargs=1,
-            type=str,
-            help="Name of the device for which the configuration is to be generated.",
-        )
-        parser.add_argument(
-            "--no-wait",
-            default=False,
-            help="Do not wait until the changes have been made",
-            action="store_true",
-        )
-        parser.add_argument(
-            "--template", type=str, help="Name of the template to use", required=False
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        name = parsed_args.name[0]
-        template = parsed_args.template
-        wait = not parsed_args.no_wait
-
-        task = netbox.generate.delay(name, template)
-
-        if wait:
-            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
-            task.wait(timeout=None, interval=0.5)
-
-
-class Deploy(Command):
-    def get_parser(self, prog_name):
-        parser = super(Deploy, self).get_parser(prog_name)
-        parser.add_argument(
-            "name",
-            nargs=1,
-            type=str,
-            help="Name of the device for which the configuration is to be deployed",
-        )
-        parser.add_argument(
-            "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
-        )
-        parser.add_argument(
-            "--no-wait",
-            default=False,
-            help="Do not wait until the changes have been made",
-            action="store_true",
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        name = parsed_args.name[0]
-        # arguments = parsed_args.arguments
-        wait = not parsed_args.no_wait
-
-        task = netbox.deploy.delay(name)
-
-        if wait:
-            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
-            task.wait(timeout=None, interval=0.5)
-
-
-class Check(Command):
-    def get_parser(self, prog_name):
-        parser = super(Check, self).get_parser(prog_name)
-        parser.add_argument(
-            "name",
-            nargs=1,
-            type=str,
-            help="Name of the device for which the configuration is to be checked",
-        )
-        parser.add_argument(
-            "--no-wait",
-            default=False,
-            help="Do not wait until the changes have been made",
-            action="store_true",
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        name = parsed_args.name[0]
-        wait = not parsed_args.no_wait
-
-        task = netbox.check.delay(name)
-
-        if wait:
-            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
-            task.wait(timeout=None, interval=0.5)
-
-
-class Diff(Command):
-    def get_parser(self, prog_name):
-        parser = super(Diff, self).get_parser(prog_name)
-        parser.add_argument(
-            "name",
-            nargs=1,
-            type=str,
-            help="Name of the device for which the configuration is to be diffed",
-        )
-        parser.add_argument(
-            "--no-wait",
-            default=False,
-            help="Do not wait until the changes have been made",
-            action="store_true",
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        name = parsed_args.name[0]
-        wait = not parsed_args.no_wait
-
-        task = netbox.diff.delay(name)
-
-        if wait:
-            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
-            task.wait(timeout=None, interval=0.5)
+        return handle_task(task, wait, format="script", timeout=3600)
 
 
 class Ping(Command):
