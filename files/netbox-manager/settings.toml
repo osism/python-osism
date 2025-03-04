@@ -1,0 +1,3 @@
+DEVICETYPE_LIBRARY = "/opt/configuration/netbox/devicetypes"
+MODULETYPE_LIBRARY = "/opt/configuration/netbox/moduletypes"
+RESOURCES = "/opt/configuration/netbox/resources"

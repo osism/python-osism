@@ -12,6 +12,16 @@ from starlette.middleware.cors import CORSMiddleware
 
 from osism.tasks import reconciler
 from osism import settings
+from osism.services.listener import BaremetalEvents
+
+
+class NotificationBaremetal(BaseModel):
+    priority: str
+    event_type: str
+    timestamp: str
+    publisher_id: str
+    message_id: UUID
+    payload: dict
 
 
 class WebhookNetboxResponse(BaseModel):
@@ -66,6 +76,7 @@ dictConfig(LogConfig().dict())
 logger = logging.getLogger("api")
 
 nb = None
+baremetal_events = BaremetalEvents()
 
 
 @app.on_event("startup")
@@ -97,6 +108,13 @@ async def write_sink_meters(request: Request):
 @app.post("/events/sink")
 async def write_sink_events(request: Request):
     data = await request.json()
+
+
+@app.post("/notifications/baremetal", status_code=204)
+async def notifications_baremetal(notification: NotificationBaremetal) -> None:
+
+    handler = baremetal_events.get_handler(notification.event_type)
+    handler(notification.payload)
 
 
 @app.post("/webhook/netbox", response_model=WebhookNetboxResponse, status_code=200)
