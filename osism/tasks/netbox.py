@@ -11,7 +11,7 @@ from redis import Redis
 
 from osism import settings
 from osism.actions import manage_device, manage_interface
-from osism.tasks import Config, openstack
+from osism.tasks import Config, openstack, run_command
 
 app = Celery("netbox")
 app.config_from_object(Config)
@@ -147,46 +147,22 @@ def get_devices_that_should_have_an_allocation_in_ironic(self):
 
 @app.task(bind=True, name="osism.tasks.netbox.manage")
 def manage(self, *arguments, publish=True, locking=False, auto_release_time=3600):
-    result = ""
-    netbox_manager_env = os.environ.copy()
-    netbox_manager_env.update(
-        {
-            "NETBOX_MANAGER_URL": str(settings.NETBOX_URL),
-            "NETBOX_MANAGER_TOKEN": str(settings.NETBOX_TOKEN),
-            "NETBOX_MANAGER_IGNORE_SSL_ERRORS": str(settings.IGNORE_SSL_ERRORS),
-            "NETBOX_MANAGER_VERBOSE": "true",
-        }
+    netbox_manager_env = {
+        "NETBOX_MANAGER_URL": str(settings.NETBOX_URL),
+        "NETBOX_MANAGER_TOKEN": str(settings.NETBOX_TOKEN),
+        "NETBOX_MANAGER_IGNORE_SSL_ERRORS": str(settings.IGNORE_SSL_ERRORS),
+        "NETBOX_MANAGER_VERBOSE": "true",
+    }
+
+    return run_command(
+        self.request.id,
+        "/usr/local/bin/netbox-manager",
+        netbox_manager_env,
+        *arguments,
+        publish=publish,
+        locking=locking,
+        auto_release_time=auto_release_time
     )
-
-    if locking:
-        lock = Redlock(
-            key=f"lock-netbox-manager",
-            masters={redis},
-            auto_release_time=auto_release_time,
-        )
-
-    p = subprocess.Popen(
-        ["/usr/local/bin/netbox-manager"] + list(arguments),
-        env=netbox_manager_env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    while p.poll() is None:
-        line = p.stdout.readline().decode("utf-8")
-        if publish:
-            redis.xadd(self.request.id, {"type": "stdout", "content": line})
-        result += line
-
-    rc = p.wait(timeout=60)
-
-    if publish:
-        redis.xadd(self.request.id, {"type": "rc", "content": rc})
-        redis.xadd(self.request.id, {"type": "action", "content": "quit"})
-
-    if locking:
-        lock.release()
-
-    return result
 
 
 @app.task(bind=True, name="osism.tasks.netbox.ping")
