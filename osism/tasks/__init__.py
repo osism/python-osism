@@ -160,20 +160,6 @@ def run_ansible_in_environment(
             env=env,
         )
 
-    # execute local netbox playbooks
-    elif worker == "osism-ansible" and environment == "netbox-local":
-        if locking:
-            lock.acquire()
-
-        command = f"/run-{environment}.sh {role} {joined_arguments}"
-        logger.info(f"RUN {command}")
-        p = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True,
-        )
-
     # execute all other roles
     else:
         if locking:
@@ -189,6 +175,50 @@ def run_ansible_in_environment(
             env=env,
         )
 
+    while p.poll() is None:
+        line = p.stdout.readline().decode("utf-8")
+        if publish:
+            redis.xadd(request_id, {"type": "stdout", "content": line})
+        result += line
+
+    rc = p.wait(timeout=60)
+
+    if publish:
+        redis.xadd(request_id, {"type": "rc", "content": rc})
+        redis.xadd(request_id, {"type": "action", "content": "quit"})
+
+    if locking:
+        lock.release()
+
+    return result
+
+
+def run_command(
+    request_id,
+    command,
+    env,
+    *arguments,
+    publish=True,
+    locking=False,
+    auto_release_time=3600,
+):
+    result = ""
+    command_env = os.environ.copy()
+    command_env.update(env)
+
+    if locking:
+        lock = Redlock(
+            key=f"lock-{command}",
+            masters={redis},
+            auto_release_time=auto_release_time,
+        )
+
+    p = subprocess.Popen(
+        [command] + list(arguments),
+        env=command_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
     while p.poll() is None:
         line = p.stdout.readline().decode("utf-8")
         if publish:
