@@ -96,6 +96,12 @@ class Manage(Command):
             help="Limit files by prefix",
         )
         parser.add_argument(
+            "--parallel",
+            type=int,
+            default=1,
+            help="Process up to n files in parallel",
+        )
+        parser.add_argument(
             "--skipdtl",
             default=False,
             help="Skip devicetype library",
@@ -125,7 +131,11 @@ class Manage(Command):
             arguments.append("--wait")
 
         if parsed_args.limit:
-            arguments.append("--limit {parsed_args.limit}")
+            arguments.append("--limit")
+            arguments.append(parsed_args.limit)
+
+        arguments.append("--parallel")
+        arguments.append(parsed_args.parallel)
 
         if parsed_args.skipdtl:
             arguments.append("--skipdtl")
