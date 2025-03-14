@@ -143,9 +143,6 @@ apt-get install -y --no-install-recommends \
   tini
 
 mkdir -p /import
-git clone --depth 1 https://github.com/netbox-community/devicetype-library /devicetype-library
-rm -rf /devicetype-library/.git
-rm -rf /devicetype-library/elevation-images
 
 apt-get clean
 rm -rf \
