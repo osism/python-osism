@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from re import findall
-import subprocess
 from urllib.parse import urljoin
 
 from cliff.command import Command
@@ -12,6 +10,7 @@ from loguru import logger
 import requests
 
 from osism.data import TEMPLATE_IMAGE_CLUSTERAPI, TEMPLATE_IMAGE_OCTAVIA
+from osism.tasks import openstack, handle_task
 
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.29", "1.30", "1.31"]
 
@@ -20,6 +19,12 @@ class ImageClusterapi(Command):
     def get_parser(self, prog_name):
         parser = super(ImageClusterapi, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until image management has been completed",
+            action="store_true",
+        )
         parser.add_argument(
             "--base-url",
             type=str,
@@ -56,13 +61,14 @@ class ImageClusterapi(Command):
         cloud = parsed_args.cloud
         filter = parsed_args.filter
         tag = parsed_args.tag
+        wait = not parsed_args.no_wait
 
         if filter:
             supported_cluterapi_k8s_images = [filter]
         else:
             supported_cluterapi_k8s_images = SUPPORTED_CLUSTERAPI_K8S_IMAGES
 
-        os.makedirs("/tmp/clusterapi", exist_ok=True)
+        result = []
         for kubernetes_release in supported_cluterapi_k8s_images:
             url = urljoin(base_url, f"last-{kubernetes_release}")
 
@@ -84,18 +90,18 @@ class ImageClusterapi(Command):
             logger.info(f"checksum: {splitted_checksum[0]}")
 
             template = Template(TEMPLATE_IMAGE_CLUSTERAPI)
-            result = template.render(
-                image_url=url,
-                image_checksum=f"sha256:{splitted_checksum[0]}",
-                image_version=r[0].strip(),
-                image_builddate=splitted[0],
+            result.extend(
+                [
+                    template.render(
+                        image_url=url,
+                        image_checksum=f"sha256:{splitted_checksum[0]}",
+                        image_version=r[0].strip(),
+                        image_builddate=splitted[0],
+                    )
+                ]
             )
-            with open(f"/tmp/clusterapi/k8s-{kubernetes_release}.yml", "w+") as fp:
-                fp.write(result)
 
         args = [
-            "openstack-image-manager",
-            "--images=/tmp/clusterapi",
             "--cloud",
             cloud,
             "--filter",
@@ -105,15 +111,32 @@ class ImageClusterapi(Command):
             args.extend(["--tag", tag])
         if parsed_args.dry_run:
             args.append("--dry-run")
-        subprocess.call(args)
+
+        task_signature = openstack.image_manager.si(*args, configs=result)
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (image-manager) has been started and output is visible here."
+            )
+
+        return handle_task(task, wait, format="script", timeout=3600)
 
 
 class ImageOctavia(Command):
     def get_parser(self, prog_name):
         parser = super(ImageOctavia, self).get_parser(prog_name)
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until image management has been completed",
+            action="store_true",
+        )
 
         parser.add_argument(
-            "--cloud", type=str, help="Cloud name in clouds.yaml", default="openstack"
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml (will be overruled by OS_AUTH_URL envvar)",
+            default="octavia",
         )
         parser.add_argument(
             "--base-url",
@@ -124,6 +147,7 @@ class ImageOctavia(Command):
         return parser
 
     def take_action(self, parsed_args):
+        wait = not parsed_args.no_wait
         cloud = parsed_args.cloud
         base_url = parsed_args.base_url
 
@@ -147,21 +171,31 @@ class ImageOctavia(Command):
         logger.info(f"checksum: {splitted_checksum[0]}")
 
         template = Template(TEMPLATE_IMAGE_OCTAVIA)
-        result = template.render(
-            image_url=url,
-            image_checksum=f"sha256:{splitted_checksum[0]}",
-            image_version=splitted[0],
-            image_builddate=splitted[0],
+        result = []
+        result.extend(
+            [
+                template.render(
+                    image_url=url,
+                    image_checksum=f"sha256:{splitted_checksum[0]}",
+                    image_version=splitted[0],
+                    image_builddate=splitted[0],
+                )
+            ]
         )
+        arguments = [
+            "--cloud",
+            cloud,
+            "--deactivate",
+        ]
 
-        os.makedirs("/tmp/octavia", exist_ok=True)
-        with open("/tmp/octavia/octavia.yml", "w+") as fp:
-            fp.write(result)
+        task_signature = openstack.image_manager.si(*arguments, configs=result)
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (image-manager) has been started and output is visible here."
+            )
 
-        subprocess.call(
-            "/usr/local/bin/openstack-image-manager --images=/tmp/octavia --cloud octavia --deactivate",
-            shell=True,
-        )
+        return handle_task(task, wait, format="script", timeout=3600)
 
 
 class Images(Command):
@@ -173,6 +207,12 @@ class Images(Command):
         # to typer. Then openstack-image-manager can simply be included directly at this
         # point.
 
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until image management has been completed",
+            action="store_true",
+        )
         parser.add_argument(
             "--dry-run",
             default=False,
@@ -210,6 +250,7 @@ class Images(Command):
         return parser
 
     def take_action(self, parsed_args):
+        wait = not parsed_args.no_wait
         cloud = parsed_args.cloud
         dry_run = parsed_args.dry_run
         filter = parsed_args.filter
@@ -219,9 +260,11 @@ class Images(Command):
 
         arguments = []
         if cloud:
-            arguments.append(f"--cloud '{cloud}'")
+            arguments.append("--cloud")
+            arguments.append(cloud)
         if filter:
-            arguments.append(f"--filter '{filter}'")
+            arguments.append("--filter")
+            arguments.append(filter)
         if dry_run:
             arguments.append("--dry-run")
         if latest:
@@ -230,15 +273,20 @@ class Images(Command):
             arguments.append("--hide")
 
         if images:
-            arguments.append(f"--images '{images}'")
+            arguments.append("--images")
+            arguments.append(images)
         else:
-            arguments.append("--images /etc/images")
+            arguments.append("--images")
+            arguments.append("/etc/images")
 
-        joined_arguments = " ".join(arguments)
-        subprocess.call(
-            f"/usr/local/bin/openstack-image-manager {joined_arguments}",
-            shell=True,
-        )
+        task_signature = openstack.image_manager.si(*arguments)
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (image-manager) has been started and output is visible here."
+            )
+
+        return handle_task(task, wait, format="script", timeout=3600)
 
 
 class Flavors(Command):
@@ -250,6 +298,12 @@ class Flavors(Command):
         # to typer. Then openstack-flavor-manager can simply be included directly at this
         # point.
 
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until flavor management has been completed",
+            action="store_true",
+        )
         parser.add_argument(
             "--cloud", type=str, help="Cloud name in clouds.yaml", default="admin"
         )
@@ -276,23 +330,29 @@ class Flavors(Command):
         return parser
 
     def take_action(self, parsed_args):
+        wait = not parsed_args.no_wait
         cloud = parsed_args.cloud
         name = parsed_args.name
         recommended = parsed_args.recommended
         url = parsed_args.url
 
-        arguments = [f"--name '{name}'"]
+        arguments = ["--name", name]
         if cloud:
-            arguments.append(f"--cloud '{cloud}'")
+            arguments.append("--cloud")
+            arguments.append(cloud)
 
         if recommended:
             arguments.append("--recommended")
 
         if url:
-            arguments.append(f"--url '{url}'")
+            arguments.append("--url")
+            arguments.append(url)
 
-        joined_arguments = " ".join(arguments)
-        subprocess.call(
-            f"/usr/local/bin/openstack-flavor-manager {joined_arguments}",
-            shell=True,
-        )
+        task_signature = openstack.flavor_manager.si(*arguments)
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (flavor-manager) has been started and output is visible here."
+            )
+
+        return handle_task(task, wait, format="script", timeout=3600)

@@ -13,9 +13,10 @@ import kombu.utils
 import openstack
 from pottery import Redlock
 from redis import Redis
+import tempfile
 
 from osism import settings
-from osism.tasks import Config, conductor, netbox
+from osism.tasks import Config, conductor, netbox, run_command
 from osism import utils
 
 # https://github.com/celery/kombu/issues/1804
@@ -267,3 +268,65 @@ def baremetal_create_internal_flavor(self, node):
 def baremetal_delete_internal_flavor(self, node):
     flavor = conn.compute.get_flavor(f"osism-{node}")
     conn.compute.delete_flavor(flavor)
+
+
+@app.task(bind=True, name="osism.tasks.openstack.image_manager")
+def image_manager(
+    self, *arguments, configs=None, publish=True, locking=False, auto_release_time=3600
+):
+    command = "/usr/local/bin/openstack-image-manager"
+    if configs:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for config in configs:
+                with tempfile.NamedTemporaryFile(
+                    mode="w+", suffix=".yml", dir=temp_dir, delete=False
+                ) as temp_file:
+                    temp_file.write(config)
+
+            sanitized_args = [
+                arg for arg in arguments if not arg.startswith("--images=")
+            ]
+
+            try:
+                images_index = sanitized_args.index("--images")
+                sanitized_args.pop(images_index)
+                sanitized_args.pop(images_index)
+            except ValueError:
+                pass
+            sanitized_args.extend(["--images", temp_dir])
+            rc = run_command(
+                self.request.id,
+                command,
+                {},
+                *sanitized_args,
+                publish=publish,
+                locking=locking,
+                auto_release_time=auto_release_time,
+            )
+        return rc
+    else:
+        return run_command(
+            self.request.id,
+            command,
+            {},
+            *arguments,
+            publish=publish,
+            locking=locking,
+            auto_release_time=auto_release_time,
+        )
+
+
+@app.task(bind=True, name="osism.tasks.openstack.flavor_manager")
+def flavor_manager(
+    self, *arguments, publish=True, locking=False, auto_release_time=3600
+):
+    command = "/usr/local/bin/openstack-flavor-manager"
+    return run_command(
+        self.request.id,
+        command,
+        {},
+        *arguments,
+        publish=publish,
+        locking=locking,
+        auto_release_time=auto_release_time,
+    )
