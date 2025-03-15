@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import argparse
-
 from cliff.command import Command
 from loguru import logger
 from redis import Redis
@@ -12,24 +10,6 @@ from osism.tasks import conductor, netbox, reconciler, openstack, handle_task
 
 redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
 redis.ping()
-
-
-class Run(Command):
-    def get_parser(self, prog_name):
-        parser = super(Run, self).get_parser(prog_name)
-        parser.add_argument(
-            "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
-        )
-        parser.add_argument(
-            "--no-wait",
-            default=False,
-            help="Do not wait until the role has been applied",
-            action="store_true",
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        pass
 
 
 class Ironic(Command):
