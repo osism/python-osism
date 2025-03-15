@@ -90,6 +90,12 @@ class Manage(Command):
             action="store_true",
         )
         parser.add_argument(
+            "--parallel",
+            type=str,
+            default=None,
+            help="Process up to n files in parallel",
+        )
+        parser.add_argument(
             "--limit",
             type=str,
             default=None,
@@ -124,8 +130,13 @@ class Manage(Command):
         else:
             arguments.append("--wait")
 
+        if parsed_args.parallel:
+            arguments.append("--parallel")
+            arguments.append(parsed_args.parallel)
+
         if parsed_args.limit:
-            arguments.append("--limit {parsed_args.limit}")
+            arguments.append("--limit")
+            arguments.append(parsed_args.limit)
 
         if parsed_args.skipdtl:
             arguments.append("--skipdtl")
