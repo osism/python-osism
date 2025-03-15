@@ -1,31 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import functools
 import io
 import subprocess
-from threading import RLock
 
 from celery import Celery
 from celery.signals import worker_process_init
-import kombu.utils
 from loguru import logger
 from pottery import Redlock
 from redis import Redis
-
 from osism import settings
 from osism.tasks import Config
-
-
-# https://github.com/celery/kombu/issues/1804
-if not getattr(kombu.utils.cached_property, "lock", None):
-    setattr(
-        kombu.utils.cached_property,
-        "lock",
-        functools.cached_property(lambda _: RLock()),
-    )
-    # Must call __set_name__ here since this cached property is not defined in the context of a class
-    # Refer to https://docs.python.org/3/reference/datamodel.html#object.__set_name__
-    kombu.utils.cached_property.lock.__set_name__(kombu.utils.cached_property, "lock")
 
 app = Celery("reconciler")
 app.config_from_object(Config)

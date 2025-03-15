@@ -1,15 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import functools
 import copy
 import ipaddress
-from threading import RLock
 
 from celery import Celery
 from celery.signals import worker_process_init
 import jinja2
 import keystoneauth1
-import kombu.utils
 import openstack
 from pottery import Redlock
 from redis import Redis
@@ -18,17 +15,6 @@ import tempfile
 from osism import settings
 from osism.tasks import Config, conductor, netbox, run_command
 from osism import utils
-
-# https://github.com/celery/kombu/issues/1804
-if not getattr(kombu.utils.cached_property, "lock", None):
-    setattr(
-        kombu.utils.cached_property,
-        "lock",
-        functools.cached_property(lambda _: RLock()),
-    )
-    # Must call __set_name__ here since this cached property is not defined in the context of a class
-    # Refer to https://docs.python.org/3/reference/datamodel.html#object.__set_name__
-    kombu.utils.cached_property.lock.__set_name__(kombu.utils.cached_property, "lock")
 
 app = Celery("openstack")
 app.config_from_object(Config)
