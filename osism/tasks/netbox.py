@@ -2,12 +2,12 @@
 
 from celery import Celery
 from celery.signals import worker_process_init
-import json
+from loguru import logger
+from pottery import Redlock
 import pynetbox
 
 from osism import settings, utils
-from osism.actions import manage_device, manage_interface
-from osism.tasks import Config, openstack, run_command
+from osism.tasks import Config, run_command
 
 app = Celery("netbox")
 app.config_from_object(Config)
@@ -32,95 +32,99 @@ def setup_periodic_tasks(sender, **kwargs):
     pass
 
 
-@app.task(bind=True, name="osism.tasks.netbox.periodic_synchronize_ironic")
-def periodic_synchronize_ironic(self):
-    """Synchronize the state of Ironic with Netbox"""
-    openstack.baremetal_node_list.apply_async((), link=synchronize_device_state.s())
-
-
 @app.task(bind=True, name="osism.tasks.netbox.run")
 def run(self, action, arguments):
     pass
 
 
-@app.task(bind=True, name="osism.tasks.netbox.update_network_interface_name")
-def update_network_interface_name(self, mac_address, network_interface_name):
-    manage_interface.update_network_interface_name(mac_address, network_interface_name)
-
-
-@app.task(bind=True, name="osism.tasks.netbox.synchronize_device_state")
-def synchronize_device_state(self, data):
-    """Synchronize the state of Ironic with Netbox"""
-
-    if type(data) == str:
-        data = json.loads(data)
-
-    if not data:
-        return
-
-    for device in data:
-        manage_device.set_provision_state(device["Name"], device["Provisioning State"])
-        manage_device.set_power_state(device["Name"], device["Power State"])
-
-
-@app.task(bind=True, name="osism.tasks.netbox.states")
-def states(self, data):
-    result = manage_device.get_states(data.keys())
-    return result
-
-
-@app.task(bind=True, name="osism.tasks.netbox.set_state")
-def set_state(self, device=None, state=None, state_type=None):
-    manage_device.set_state(device, state, state_type)
-
-
 @app.task(bind=True, name="osism.tasks.netbox.set_maintenance")
-def set_maintenance(self, device=None, state=None):
-    manage_device.set_maintenance(device, state)
+def set_maintenance(self, device_name, state=True):
+    """Set the maintenance state for a device in the Netbox."""
 
-
-@app.task(bind=True, name="osism.tasks.netbox.diff")
-@app.task(bind=True, name="osism.tasks.netbox.get_devices_not_yet_registered_in_ironic")
-def get_devices_not_yet_registered_in_ironic(
-    self, status="active", tags=["managed-by-ironic"], ironic_enabled=True
-):
-    devices = utils.nb.dcim.devices.filter(
-        tag=tags, status=status, cf_ironic_enabled=[ironic_enabled]
+    lock = Redlock(
+        key=f"lock_osism_tasks_netbox_set_maintenance_{device_name}",
+        masters={utils.redis},
+        auto_release_time=60,
     )
+    if lock.acquire(timeout=20):
+        try:
+            logger.info(f"Set maintenance state of device {device_name} = {state}")
 
-    result = []
+            device = utils.nb.dcim.devices.get(name=device_name)
+            if device:
+                device.custom_fields.update({"maintenance": state})
+                device.save()
+            else:
+                logger.error(f"Could not set maintenance for {device_name}")
+        finally:
+            lock.release()
+    else:
+        logger.error("Could not acquire lock for node {device_name}")
 
-    for device in devices:
-        if (
-            "ironic_state" in device.custom_fields
-            and device.custom_fields["ironic_state"] != "registered"
-        ):
-            result.append(device.name)
 
-    return result
+@app.task(bind=True, name="osism.tasks.netbox.set_provision_state")
+def set_provision_state(self, device_name, state):
+    """Set the provision state for a device in the Netbox."""
 
-
-@app.task(
-    bind=True,
-    name="osism.tasks.netbox.get_devices_that_should_have_an_allocation_in_ironic",
-)
-def get_devices_that_should_have_an_allocation_in_ironic(self):
-    devices = utils.nb.dcim.devices.filter(
-        tag=["managed-by-ironic", "managed-by-osism"],
-        status="active",
-        cf_ironic_enabled=[True],
-        cf_ironic_state=["registered"],
-        cf_provision_state=["available"],
-        cf_introspection_state=["introspected"],
-        cf_device_type=["server"],
+    lock = Redlock(
+        key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
+        masters={utils.redis},
+        auto_release_time=60,
     )
+    if lock.acquire(timeout=20):
+        try:
+            logger.info(f"Set provision state of device {device_name} = {state}")
 
-    result = []
+            device = utils.nb.dcim.devices.get(name=device_name)
+            if device:
+                device.custom_fields.update({"provision_state": state})
+                device.save()
+            else:
+                logger.error(f"Could not set provision state for {device_name}")
+        finally:
+            lock.release()
+    else:
+        logger.error("Could not acquire lock for node {device_name}")
 
-    for device in devices:
-        result.append(device.name)
 
-    return result
+@app.task(bind=True, name="osism.tasks.netbox.set_power_state")
+def set_power_state(self, device_name, state):
+    """Set the provision state for a device in the Netbox."""
+
+    lock = Redlock(
+        key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
+        masters={utils.redis},
+        auto_release_time=60,
+    )
+    if lock.acquire(timeout=20):
+        try:
+            logger.info(f"Set power state of device {device_name} = {state}")
+
+            device = utils.nb.dcim.devices.get(name=device_name)
+            if device:
+                device.custom_fields.update({"power_state": state})
+                device.save()
+            else:
+                logger.error(f"Could not set power state for {device_name}")
+        finally:
+            lock.release()
+    else:
+        logger.error("Could not acquire lock for node {device_name}")
+
+
+@app.task(bind=True, name="osism.tasks.netbox.get_devices")
+def get_devices_by_tags(self, tags, state="active"):
+    return utils.nb.dcim.devices.filter(tag=tags, state=state)
+
+
+@app.task(bind=True, name="osism.tasks.netbox.get_devices")
+def get_device_by_name(self, name):
+    return utils.nb.dcim.devices.get(name=name)
+
+
+@app.task(bind=True, name="osism.tasks.netbox.get_interfaces_by_device")
+def get_interfaces_by_device(self, device_name):
+    return utils.nb.dcim.interfaces.filter(device=device_name)
 
 
 @app.task(bind=True, name="osism.tasks.netbox.manage")
@@ -139,7 +143,7 @@ def manage(self, *arguments, publish=True, locking=False, auto_release_time=3600
         *arguments,
         publish=publish,
         locking=locking,
-        auto_release_time=auto_release_time
+        auto_release_time=auto_release_time,
     )
 
 

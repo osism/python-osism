@@ -11,8 +11,7 @@ from loguru import logger
 import json
 import requests
 
-from osism import utils
-from osism.tasks import netbox, openstack
+from osism.tasks import netbox
 from osism import settings
 
 EXCHANGE_NAME = "ironic"
@@ -40,15 +39,12 @@ class BaremetalEvents:
                     },
                     "maintenance_set": {"end": self.node_maintenance_set_end},
                     "provision_set": {
+                        "start": self.node_provision_set_start,
                         "end": self.node_provision_set_end,
                         "success": self.node_provision_set_success,
                     },
                     "delete": {"end": self.node_delete_end},
                     "create": {"end": self.node_create_end},
-                },
-                "port": {
-                    "create": {"end": self.port_create_end},
-                    "update": {"end": self.port_update_end},
                 },
             }
         }
@@ -78,7 +74,7 @@ class BaremetalEvents:
         logger.info(
             f"baremetal.node.power_set.end ## {name} ## {object_data['power_state']}"
         )
-        netbox.set_state.delay(name, object_data["power_state"], "power")
+        netbox.set_power_state.delay(name, object_data["power_state"])
 
     def node_power_state_corrected_success(self, payload: dict[Any, Any]) -> None:
         object_data = self.get_object_data(payload)
@@ -86,7 +82,7 @@ class BaremetalEvents:
         logger.info(
             f"baremetal.node.power_state_corrected.success ## {name} ## {object_data['power_state']}"
         )
-        netbox.set_state.delay(name, object_data["power_state"], "power")
+        netbox.set_power_state.delay(name, object_data["power_state"])
 
     def node_maintenance_set_end(self, payload: dict[Any, Any]) -> None:
         object_data = self.get_object_data(payload)
@@ -94,7 +90,7 @@ class BaremetalEvents:
         logger.info(
             f"baremetal.node.maintenance_set.end ## {name} ## {object_data['maintenance']}"
         )
-        netbox.set_maintenance.delay(name, object_data["maintenance"])
+        netbox.set_maintenance.delay(name, state=object_data["maintenance"])
 
     def node_provision_set_success(self, payload: dict[Any, Any]) -> None:
         # A provision status was successfully set, update it in the netbox
@@ -103,7 +99,15 @@ class BaremetalEvents:
         logger.info(
             f"baremetal.node.provision_set.success ## {name} ## {object_data['provision_state']}"
         )
-        netbox.set_state.delay(name, object_data["provision_state"], "provision")
+        netbox.set_provision_state.delay(name, object_data["provision_state"])
+
+    def node_provision_set_start(self, payload: dict[Any, Any]) -> None:
+        object_data = self.get_object_data(payload)
+        name = object_data["name"]
+        logger.info(
+            f"baremetal.node.provision_set.start ## {name} ## {object_data['provision_state']}"
+        )
+        netbox.set_provision_state.delay(name, object_data["provision_state"])
 
     def node_provision_set_end(self, payload: dict[Any, Any]) -> None:
         object_data = self.get_object_data(payload)
@@ -111,72 +115,21 @@ class BaremetalEvents:
         logger.info(
             f"baremetal.node.provision_set.end ## {name} ## {object_data['provision_state']}"
         )
-        netbox.set_state.delay(name, object_data["provision_state"], "provision")
-
-        if (
-            object_data["previous_provision_state"] == "inspect wait"
-            and object_data["event"] == "done"
-        ):
-            netbox.set_state.delay(name, "introspected", "introspection")
-            openstack.baremetal_set_node_provision_state.delay(name, "provide")
-
-    def port_create_end(self, payload: dict[Any, Any]) -> None:
-        object_data = self.get_object_data(payload)
-        name = object_data["name"]
-        logger.info(f"baremetal.port.create.end ## {object_data['uuid']}")
-
-        mac_address = object_data["address"]
-        interface_a = utils.nb.dcim.interfaces.get(mac_address=mac_address)
-        device_a = interface_a.device
-
-        task = openstack.baremetal_get_network_interface_name.delay(
-            device_a.name, mac_address
-        )
-        task.wait(timeout=None, interval=0.5)
-        network_interface_name = task.get()
-
-        netbox.update_network_interface_name.delay(
-            object_data["address"], network_interface_name
-        )
-
-    def port_update_end(self, payload: dict[Any, Any]) -> None:
-        object_data = self.get_object_data(payload)
-        name = object_data["name"]
-        logger.info(f"baremetal.port.update.end ## {object_data['uuid']}")
-
-        mac_address = object_data["address"]
-        interface_a = utils.nb.dcim.interfaces.get(mac_address=mac_address)
-        device_a = interface_a.device
-
-        task = openstack.baremetal_get_network_interface_name.delay(
-            device_a.name, mac_address
-        )
-        task.wait(timeout=None, interval=0.5)
-        network_interface_name = task.get()
-
-        netbox.update_network_interface_name.delay(
-            object_data["address"], network_interface_name
-        )
+        netbox.set_provision_state.delay(name, object_data["provision_state"])
 
     def node_delete_end(self, payload: dict[Any, Any]) -> None:
         object_data = self.get_object_data(payload)
         name = object_data["name"]
         logger.info(f"baremetal.node.delete.end ## {name}")
-
-        netbox.set_state.delay(name, "unregistered", "ironic")
-        netbox.set_state.delay(name, None, "provision")
-        netbox.set_state.delay(name, None, "power")
-        netbox.set_state.delay(name, None, "introspection")
-        netbox.set_state.delay(name, None, "deployment")
-
-        # remove internal flavor
-        openstack.baremetal_delete_internal_flavor.delay(name)
+        netbox.set_provision_state.delay(name, None)
+        netbox.set_power_state.delay(name, None)
 
     def node_create_end(self, payload: dict[Any, Any]) -> None:
         object_data = self.get_object_data(payload)
         name = object_data["name"]
         logger.info(f"baremetal.node.create.end ## {name}")
-        netbox.set_state.delay(name, "registered", "ironic")
+        netbox.set_provision_state.delay(name, object_data["provision_state"])
+        netbox.set_power_state.delay(name, object_data["power_state"])
 
 
 class NotificationsDump(ConsumerMixin):
@@ -207,7 +160,17 @@ class NotificationsDump(ConsumerMixin):
 
     def on_message(self, body, message):
         data = json.loads(body["oslo.message"])
-        # logger.info(data)
+        logger.debug(
+            data["event_type"]
+            + ": "
+            + str(
+                {
+                    k: v
+                    for k, v in data["payload"]["ironic_object.data"].items()
+                    if k in ["provision_state", "power_state"]
+                }
+            )
+        )
 
         if self.osism_api_session:
             tries = 1
@@ -267,8 +230,6 @@ class NotificationsDump(ConsumerMixin):
         else:
             handler = self.baremetal_events.get_handler(data["event_type"])
             handler(data["payload"])
-
-        logger.info(self.baremetal_events.get_object_data(data["payload"]))
 
 
 def main():
