@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8dca2203ed109fbef8322e0b12bf07b164aeedf0c9dfb3ec93fadf8949add8e4"
+            "sha256": "fefadfb97ad48602271685cebe47bc4332641ef8db37ec9b7c0f4bfec3231ffa"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -1110,12 +1110,12 @@
         },
         "pottery": {
             "hashes": [
-                "sha256:0190323bbb1289d40c5cd683feb04c4b8cff76a6c723f3ded9137c8bcc9fb5f8",
-                "sha256:adda303e9357442bcac1d4c7f86aa7deec855e0190c101d09448afbcf5676a74"
+                "sha256:22db1268d7b035800a8c1d225e3806f8b35748f1f5191cbcf364f06fbe11104d",
+                "sha256:c0e223ccfa72d620e4ba16e7e381ab6498745f875e6c939c6b396525e9aee112"
             ],
             "index": "pypi",
-            "markers": "python_version >= '3.7' and python_version < '4'",
-            "version": "==3.0.0"
+            "markers": "python_version >= '3.9' and python_version < '4'",
+            "version": "==3.0.1"
         },
         "prettytable": {
             "hashes": [
@@ -1253,6 +1253,14 @@
             ],
             "markers": "python_version >= '3.8'",
             "version": "==2.19.1"
+        },
+        "pyjwt": {
+            "hashes": [
+                "sha256:3b02fb0f44517787776cf48f2ae25d8e14f300e6d7545a4315cee571a415e850",
+                "sha256:7e1e5b56cc735432a7369cbfa0efe50fa113ebecdc04ae6922deba8b84582d0c"
+            ],
+            "markers": "python_version >= '3.8'",
+            "version": "==2.9.0"
         },
         "pynacl": {
             "hashes": [
@@ -1394,11 +1402,11 @@
         },
         "redis": {
             "hashes": [
-                "sha256:585dc516b9eb042a619ef0a39c3d7d55fe81bdb4df09a52c9cdde0d07bf1aa7d",
-                "sha256:e2b03db868160ee4591de3cb90d40ebb50a90dd302138775937f6a42b7ed183c"
+                "sha256:6e62c20bb261a5bd718f6a41ab33aeb8ea151d1f59034f974d66455dbba908f8",
+                "sha256:fb0104559a9c56f94aabd944f0b7004be79d21211226da47edbda4f37e205edc"
             ],
-            "markers": "python_version >= '3.7'",
-            "version": "==4.6.0"
+            "markers": "python_version >= '3.8'",
+            "version": "==5.3.0b5"
         },
         "requests": {
             "hashes": [
