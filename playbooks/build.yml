@@ -59,7 +59,6 @@
           fi
 
           docker buildx build \
-              --target osism \
               --build-arg "VERSION=$version" \
               --label "org.opencontainers.image.created=$created" \
               --label "org.opencontainers.image.documentation=https://osism.tech/docs/" \
