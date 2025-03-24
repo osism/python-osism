@@ -1,50 +1,11 @@
-ARG PYTHON_VERSION=3.12.3
-FROM python:${PYTHON_VERSION}-slim AS builder
+ARG PYTHON_VERSION=3.13.2
 
-COPY . /src
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-RUN <<EOF
-set -e
-set -x
-
-# install required packages
-apt-get update
-apt-get install -y --no-install-recommends \
-  build-essential \
-  gcc \
-  git \
-  libldap2-dev \
-  libsasl2-dev
-
-# install python packages
-mkdir /wheels
-python3 -m pip --no-cache-dir install -U 'pip==25.0.1'
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.txt
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.ansible.txt
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-image-manager.txt
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.openstack-flavor-manager.txt
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /src/requirements.netbox-manager.txt
-
-# install openstack-project-manager
-git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-project-manager/requirements.txt
-rm -rf /openstack-project-manager/.git
-
-# install openstack-simple-stress
-git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
-python3 -m pip wheel --no-cache-dir --wheel-dir=/wheels -r /openstack-simple-stress/requirements.txt
-rm -rf /osism/openstack-simple-stress/.git
-EOF
-
-FROM python:${PYTHON_VERSION}-slim AS osism
+FROM python:${PYTHON_VERSION}-slim
 
 ENV PYTHONWARNINGS="ignore::UserWarning"
 
-COPY --from=builder /wheels /wheels
-
 COPY . /src
+COPY --from=ghcr.io/astral-sh/uv:0.6.9 /uv /usr/local/bin/uv
 
 COPY files/data  /data
 COPY files/change.sh /change.sh
@@ -70,18 +31,21 @@ apt-get install -y --no-install-recommends \
   less \
   openssh-client \
   procps \
-  tini
+  tini \
+  build-essential \
+  gcc \
+  libldap2-dev \
+  libsasl2-dev
 
 # install python packages
-python3 -m pip --no-cache-dir install -U 'pip==25.0.1'
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.txt
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.ansible.txt
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.openstack-image-manager.txt
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.openstack-flavor-manager.txt
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /src/requirements.netbox-manager.txt
+uv pip install --no-cache --system -r /src/requirements.txt
+uv pip install --no-cache --system -r /src/requirements.ansible.txt
+uv pip install --no-cache --system -r /src/requirements.openstack-image-manager.txt
+uv pip install --no-cache --system -r /src/requirements.openstack-flavor-manager.txt
+uv pip install --no-cache --system -r /src/requirements.netbox-manager.txt
 
 # install python-osism
-python3 -m pip --no-cache-dir install --no-index /src
+uv pip install --no-cache --system /src
 
 # install ansible collections
 mkdir -p /ansible/logs
@@ -98,12 +62,12 @@ rm -rf /openstack-image-manager
 
 # install openstack-project-manager
 git clone --depth 1 https://github.com/osism/openstack-project-manager.git /openstack-project-manager
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-project-manager/requirements.txt
+uv pip install --no-cache --system -r /openstack-project-manager/requirements.txt
 rm -rf /openstack-project-manager/.git
 
 # install openstack-simple-stress
 git clone --depth 1 https://github.com/osism/openstack-simple-stress.git /openstack-simple-stress
-python3 -m pip --no-cache-dir install --no-index --find-links=/wheels -r /openstack-simple-stress/requirements.txt
+uv pip install --no-cache --system -r /openstack-simple-stress/requirements.txt
 rm -rf /osism/openstack-simple-stress/.git
 
 # install openstack-resource-manager
@@ -118,6 +82,12 @@ rm -rf /tests/.git
 ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 
 # cleanup
+apt-get remove -y \
+  build-essential \
+  gcc \
+  libldap2-dev \
+  libsasl2-dev
+apt-get autoremove -y
 apt-get clean
 rm -rf \
   /src \
@@ -127,9 +97,9 @@ rm -rf \
   /var/lib/apt/lists/* \
   /var/tmp/*
 
-pip3 install --no-cache-dir pyclean==3.0.0
+uv pip install --no-cache --system pyclean==3.0.0
 pyclean /usr
-pip3 uninstall -y pyclean
+uv pip uninstall --system pyclean
 EOF
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
