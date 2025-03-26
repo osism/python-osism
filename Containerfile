@@ -5,7 +5,7 @@ FROM python:${PYTHON_VERSION}-slim
 ENV PYTHONWARNINGS="ignore::UserWarning"
 
 COPY . /src
-COPY --from=ghcr.io/astral-sh/uv:0.6.9 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.6.10 /uv /usr/local/bin/uv
 
 COPY files/data  /data
 COPY files/change.sh /change.sh
