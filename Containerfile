@@ -97,9 +97,8 @@ rm -rf \
   /var/lib/apt/lists/* \
   /var/tmp/*
 
-uv pip install --no-cache --system pyclean==3.0.0
-pyclean /usr
-uv pip uninstall --system pyclean
+python3 -m compileall -q /usr/local/lib
+find /usr/local/lib -name "*.py" -type f -delete
 EOF
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
