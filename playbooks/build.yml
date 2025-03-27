@@ -99,10 +99,6 @@
 
           docker tag "$revision" "$repository:$version"
           docker push "$repository:$version"
-
-          docker tag "netbox-$revision" "${repository}-netbox:$version"
-          docker push "${repository}-netbox:$version"
-
       when: push_image | default(false) | bool
       changed_when: true
       no_log: true
@@ -130,13 +126,6 @@
           /usr/local/bin/syft scan "$repository:$version" -o cyclonedx-json > sbom.json
           {{ python_venv_dir }}/bin/dtrackauditor \
             -p osism \
-            -v "$version" \
-            -f sbom.json \
-            -a
-
-          /usr/local/bin/syft scan "${repository}-netbox:$version" -o cyclonedx-json > sbom.json
-          {{ python_venv_dir }}/bin/dtrackauditor \
-            -p osism-netbox \
             -v "$version" \
             -f sbom.json \
             -a
