@@ -1,6 +1,7 @@
 ARG PYTHON_VERSION=3.13.2
+ARG ALPINE_VERSION=3.21
 
-FROM python:${PYTHON_VERSION}-slim
+FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
 
 ENV PYTHONWARNINGS="ignore::UserWarning"
 
@@ -18,6 +19,8 @@ COPY files/clustershell/groups.conf /etc/clustershell/groups.conf
 
 COPY files/netbox-manager/settings.toml /usr/local/config/settings.toml
 
+RUN apk add --no-cache bash
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN <<EOF
@@ -25,17 +28,18 @@ set -e
 set -x
 
 # install required packages
-apt-get update
-apt-get install -y --no-install-recommends \
+apk add --no-cache --virtual .build-deps \
+  build-base \
+  gcc \
+  linux-headers \
+  musl-dev \
+  openldap-dev
+apk add --no-cache \
   git \
   less \
   openssh-client \
   procps \
-  tini \
-  build-essential \
-  gcc \
-  libldap2-dev \
-  libsasl2-dev
+  tini
 
 # install python packages
 uv pip install --no-cache --system -r /src/requirements.txt
@@ -82,19 +86,12 @@ rm -rf /tests/.git
 ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 
 # cleanup
-apt-get remove -y \
-  build-essential \
-  gcc \
-  libldap2-dev \
-  libsasl2-dev
-apt-get autoremove -y
-apt-get clean
+apk del .build-deps
 rm -rf \
   /src \
   /tmp/* \
   /usr/share/doc/* \
   /usr/share/man/* \
-  /var/lib/apt/lists/* \
   /var/tmp/*
 
 uv pip install --no-cache --system pyclean==3.0.0
