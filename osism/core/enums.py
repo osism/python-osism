@@ -107,6 +107,7 @@ VALIDATE_PLAYBOOKS = {
     "ntp": {"environment": "generic", "runtime": "osism-ansible"},
     "system-encoding": {"environment": "generic", "runtime": "osism-ansible"},
     "ulimits": {"environment": "generic", "runtime": "osism-ansible"},
+    "stress": {"environment": "generic", "runtime": "osism-ansible"},
 }
 
 MAP_ROLE2ROLE = {
