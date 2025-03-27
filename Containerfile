@@ -99,4 +99,4 @@ pyclean /usr
 uv pip uninstall --system pyclean
 EOF
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
+ENTRYPOINT ["/sbin/tini", "--"]
