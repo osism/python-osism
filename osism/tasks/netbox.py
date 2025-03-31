@@ -6,7 +6,7 @@ import json
 import pynetbox
 from redis import Redis
 
-from osism import settings
+from osism import settings, utils
 from osism.actions import manage_device, manage_interface
 from osism.tasks import Config, openstack, run_command
 
@@ -14,12 +14,10 @@ app = Celery("netbox")
 app.config_from_object(Config)
 
 redis = None
-nb = None
 
 
 @worker_process_init.connect
 def celery_init_worker(**kwargs):
-    global nb
     global redis
 
     redis = Redis(
@@ -31,7 +29,7 @@ def celery_init_worker(**kwargs):
     redis.ping()
 
     if settings.NETBOX_URL and settings.NETBOX_TOKEN:
-        nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
+        utils.nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
 
         if settings.IGNORE_SSL_ERRORS:
             import requests
@@ -39,7 +37,7 @@ def celery_init_worker(**kwargs):
             requests.packages.urllib3.disable_warnings()
             session = requests.Session()
             session.verify = False
-            nb.http_session = session
+            utils.nb.http_session = session
 
 
 @app.on_after_configure.connect
@@ -99,9 +97,7 @@ def set_maintenance(self, device=None, state=None):
 def get_devices_not_yet_registered_in_ironic(
     self, status="active", tags=["managed-by-ironic"], ironic_enabled=True
 ):
-    global nb
-
-    devices = nb.dcim.devices.filter(
+    devices = utils.nb.dcim.devices.filter(
         tag=tags, status=status, cf_ironic_enabled=[ironic_enabled]
     )
 
@@ -122,9 +118,7 @@ def get_devices_not_yet_registered_in_ironic(
     name="osism.tasks.netbox.get_devices_that_should_have_an_allocation_in_ironic",
 )
 def get_devices_that_should_have_an_allocation_in_ironic(self):
-    global nb
-
-    devices = nb.dcim.devices.filter(
+    devices = utils.nb.dcim.devices.filter(
         tag=["managed-by-ironic", "managed-by-osism"],
         status="active",
         cf_ironic_enabled=[True],
@@ -164,8 +158,6 @@ def manage(self, *arguments, publish=True, locking=False, auto_release_time=3600
 
 @app.task(bind=True, name="osism.tasks.netbox.ping")
 def ping(self):
-    global nb
-
-    status = nb.status()
+    status = utils.nb.status()
 
     return status
