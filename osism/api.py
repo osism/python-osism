@@ -11,7 +11,7 @@ import pynetbox
 from starlette.middleware.cors import CORSMiddleware
 
 from osism.tasks import reconciler
-from osism import settings
+from osism import settings, utils
 from osism.services.listener import BaremetalEvents
 
 
@@ -75,16 +75,13 @@ app.add_middleware(CORSMiddleware)
 dictConfig(LogConfig().dict())
 logger = logging.getLogger("api")
 
-nb = None
 baremetal_events = BaremetalEvents()
 
 
 @app.on_event("startup")
 async def startup_event():
-    global nb
-
     if settings.NETBOX_URL and settings.NETBOX_TOKEN:
-        nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
+        utils.nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
 
         if settings.IGNORE_SSL_ERRORS:
             import requests
@@ -92,7 +89,7 @@ async def startup_event():
             requests.packages.urllib3.disable_warnings()
             session = requests.Session()
             session.verify = False
-            nb.http_session = session
+            utils.nb.http_session = session
 
 
 @app.get("/")
@@ -125,9 +122,7 @@ async def webhook(
     content_length: int = Header(...),
     x_hook_signature: str = Header(None),
 ):
-    global nb
-
-    if nb:
+    if utils.nb:
         data = webhook_input.data
         url = data["url"]
         name = data["name"]
@@ -146,7 +141,7 @@ async def webhook(
             device_type = "interface"
 
             device_id = data["device"]["id"]
-            device = nb.dcim.devices.get(id=device_id)
+            device = utils.nb.dcim.devices.get(id=device_id)
             tags = [str(x) for x in device.tags]
             custom_fields = device.custom_fields
 
