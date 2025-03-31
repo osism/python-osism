@@ -9,32 +9,20 @@ import jinja2
 import keystoneauth1
 import openstack
 from pottery import Redlock
-from redis import Redis
 import tempfile
 
-from osism import settings
-from osism.tasks import Config, conductor, netbox, run_command
 from osism import utils
+from osism.tasks import Config, conductor, netbox, run_command
 
 app = Celery("openstack")
 app.config_from_object(Config)
 
-redis = None
 conn = None
 
 
 @worker_process_init.connect
 def celery_init_worker(**kwargs):
     global conn
-    global redis
-
-    redis = Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        socket_keepalive=True,
-    )
-    redis.ping()
 
     # Parameters come from the environment, OS_*
     try:
@@ -224,7 +212,7 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
 def baremetal_check_allocations(self):
     lock = Redlock(
         key="lock_osism_tasks_openstack_baremetal_check_allocations",
-        masters={redis},
+        masters={utils.redis},
         auto_release_time=60,
     )
 

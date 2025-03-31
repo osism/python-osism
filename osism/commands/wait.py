@@ -6,8 +6,7 @@ from celery import Celery
 from celery.result import AsyncResult
 from cliff.command import Command
 from loguru import logger
-from redis import Redis
-from osism import settings
+from osism import utils
 from osism.tasks import Config
 
 
@@ -119,18 +118,12 @@ class Run(Command):
                         print(f"{task_id} = STARTED")
 
                     if live:
-                        redis = Redis(
-                            host=settings.REDIS_HOST,
-                            port=settings.REDIS_PORT,
-                            db=settings.REDIS_DB,
-                            socket_keepalive=True,
-                        )
-                        redis.ping()
+                        utils.redis.ping()
 
                         last_id = 0
                         while_True = True
                         while while_True:
-                            data = redis.xread(
+                            data = utils.redis.xread(
                                 {str(task_id): last_id}, count=1, block=1000
                             )
                             if data:
@@ -143,7 +136,7 @@ class Run(Command):
                                     logger.debug(
                                         f"Processing message {last_id} of type {message_type}"
                                     )
-                                    redis.xdel(str(task_id), last_id)
+                                    utils.redis.xdel(str(task_id), last_id)
 
                                     if message_type == "stdout":
                                         print(message_content, end="")
@@ -153,7 +146,7 @@ class Run(Command):
                                         message_type == "action"
                                         and message_content == "quit"
                                     ):
-                                        redis.close()
+                                        utils.redis.close()
                                         if len(task_ids) == 1:
                                             return rc
                                         else:

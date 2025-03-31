@@ -2,14 +2,8 @@
 
 from cliff.command import Command
 from loguru import logger
-from redis import Redis
 
-from osism import settings
 from osism.tasks import conductor, netbox, reconciler, openstack, handle_task
-
-
-redis = Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=settings.REDIS_DB)
-redis.ping()
 
 
 class Ironic(Command):
