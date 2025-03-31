@@ -5,14 +5,10 @@ import re
 import subprocess
 import time
 
-from celery.signals import worker_process_init
 from loguru import logger
-from redis import Redis
 from pottery import Redlock
 
-from osism import settings
-
-redis = None
+from osism import utils
 
 
 class Config:
@@ -34,19 +30,6 @@ class Config:
         "osism.tasks.openstack.*": {"queue": "openstack"},
         "osism.tasks.reconciler.*": {"queue": "reconciler"},
     }
-
-
-@worker_process_init.connect
-def celery_init_worker(**kwargs):
-    global redis
-
-    redis = Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        socket_keepalive=True,
-    )
-    redis.ping()
 
 
 def run_ansible_in_environment(
@@ -88,7 +71,7 @@ def run_ansible_in_environment(
 
     # NOTE: This is a first step to make Ansible Vault usable via OSISM workers.
     #       It's not ready in that form yet.
-    ansible_vault_password = redis.get("ansible_vault_password")
+    ansible_vault_password = utils.redis.get("ansible_vault_password")
     if ansible_vault_password:
         env["VAULT"] = "/ansible-vault.py"
 
@@ -96,7 +79,7 @@ def run_ansible_in_environment(
     if locking:
         lock = Redlock(
             key=f"lock-ansible-{environment}-{role}",
-            masters={redis},
+            masters={utils.redis},
             auto_release_time=auto_release_time,
         )
 
@@ -178,14 +161,14 @@ def run_ansible_in_environment(
     while p.poll() is None:
         line = p.stdout.readline().decode("utf-8")
         if publish:
-            redis.xadd(request_id, {"type": "stdout", "content": line})
+            utils.redis.xadd(request_id, {"type": "stdout", "content": line})
         result += line
 
     rc = p.wait(timeout=60)
 
     if publish:
-        redis.xadd(request_id, {"type": "rc", "content": rc})
-        redis.xadd(request_id, {"type": "action", "content": "quit"})
+        utils.redis.xadd(request_id, {"type": "rc", "content": rc})
+        utils.redis.xadd(request_id, {"type": "action", "content": "quit"})
 
     if locking:
         lock.release()
@@ -209,7 +192,7 @@ def run_command(
     if locking:
         lock = Redlock(
             key=f"lock-{command}",
-            masters={redis},
+            masters={utils.redis},
             auto_release_time=auto_release_time,
         )
 
@@ -222,14 +205,14 @@ def run_command(
     while p.poll() is None:
         line = p.stdout.readline().decode("utf-8")
         if publish:
-            redis.xadd(request_id, {"type": "stdout", "content": line})
+            utils.redis.xadd(request_id, {"type": "stdout", "content": line})
         result += line
 
     rc = p.wait(timeout=60)
 
     if publish:
-        redis.xadd(request_id, {"type": "rc", "content": rc})
-        redis.xadd(request_id, {"type": "action", "content": "quit"})
+        utils.redis.xadd(request_id, {"type": "rc", "content": rc})
+        utils.redis.xadd(request_id, {"type": "action", "content": "quit"})
 
     if locking:
         lock.release()
@@ -238,23 +221,12 @@ def run_command(
 
 
 def handle_task(t, wait=True, format="log", timeout=3600):
-    global redis
-
-    if not redis:
-        redis = Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
-            db=settings.REDIS_DB,
-            socket_keepalive=True,
-        )
-        redis.ping()
-
     rc = 0
     if wait:
         stoptime = time.time() + timeout
         last_id = 0
         while time.time() < stoptime:
-            data = redis.xread(
+            data = utils.redis.xread(
                 {str(t.task_id): last_id}, count=1, block=(timeout * 1000)
             )
             if data:
@@ -266,7 +238,7 @@ def handle_task(t, wait=True, format="log", timeout=3600):
                     message_content = message[b"content"].decode()
 
                     logger.debug(f"Processing message {last_id} of type {message_type}")
-                    redis.xdel(str(t.task_id), last_id)
+                    utils.redis.xdel(str(t.task_id), last_id)
 
                     if message_type == "stdout":
                         print(message_content, end="", flush=True)
@@ -279,7 +251,7 @@ def handle_task(t, wait=True, format="log", timeout=3600):
                     elif message_type == "rc":
                         rc = int(message_content)
                     elif message_type == "action" and message_content == "quit":
-                        redis.close()
+                        utils.redis.close()
                         return rc
         else:
             logger.info(

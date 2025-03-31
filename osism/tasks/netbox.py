@@ -4,7 +4,6 @@ from celery import Celery
 from celery.signals import worker_process_init
 import json
 import pynetbox
-from redis import Redis
 
 from osism import settings, utils
 from osism.actions import manage_device, manage_interface
@@ -13,21 +12,9 @@ from osism.tasks import Config, openstack, run_command
 app = Celery("netbox")
 app.config_from_object(Config)
 
-redis = None
-
 
 @worker_process_init.connect
 def celery_init_worker(**kwargs):
-    global redis
-
-    redis = Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        socket_keepalive=True,
-    )
-    redis.ping()
-
     if settings.NETBOX_URL and settings.NETBOX_TOKEN:
         utils.nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
 

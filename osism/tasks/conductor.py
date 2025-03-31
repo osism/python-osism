@@ -5,10 +5,8 @@ from celery.signals import worker_process_init
 import keystoneauth1
 from loguru import logger
 import openstack
-from redis import Redis
 import yaml
 
-from osism import settings
 from osism.tasks import Config
 
 app = Celery("conductor")
@@ -16,21 +14,11 @@ app.config_from_object(Config)
 
 
 configuration = {}
-redis = None
 
 
 @worker_process_init.connect
 def celery_init_worker(**kwargs):
     global configuration
-    global redis
-
-    redis = Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        db=settings.REDIS_DB,
-        socket_keepalive=True,
-    )
-    redis.ping()
 
     # Parameters come from the environment, OS_*
     try:
