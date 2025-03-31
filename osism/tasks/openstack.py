@@ -4,10 +4,8 @@ import copy
 import ipaddress
 
 from celery import Celery
-from celery.signals import worker_process_init
 import jinja2
-import keystoneauth1
-import openstack
+from openstack.exceptions import ConflictException, ResourceNotFound, ResourceFailure
 from pottery import Redlock
 import tempfile
 
@@ -17,19 +15,6 @@ from osism.tasks import Config, conductor, netbox, run_command
 app = Celery("openstack")
 app.config_from_object(Config)
 
-conn = None
-
-
-@worker_process_init.connect
-def celery_init_worker(**kwargs):
-    global conn
-
-    # Parameters come from the environment, OS_*
-    try:
-        conn = openstack.connect()
-    except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions:
-        pass
-
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
@@ -38,24 +23,28 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task(bind=True, name="osism.tasks.openstack.image_get")
 def image_get(self, image_name):
+    conn = utils.get_openstack_connection()
     result = conn.image.find_image(image_name)
     return result.id
 
 
 @app.task(bind=True, name="osism.tasks.openstack.network_get")
 def network_get(self, network_name):
+    conn = utils.get_openstack_connection()
     result = conn.network.find_network(network_name)
     return result.id
 
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_show")
 def baremetal_node_show(self, node_id_or_name):
+    conn = utils.get_openstack_connection()
     result = conn.baremetal.find_node(node_id_or_name)
     return result
 
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_list")
 def baremetal_node_list(self):
+    conn = utils.get_openstack_connection()
     nodes = conn.baremetal.nodes()
     result = []
 
@@ -90,7 +79,7 @@ def baremetal_introspection_status(self, node_id_or_name):
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_get_network_interface_name")
 def baremetal_get_network_interface_name(self, node_name, mac_address):
-    global conn
+    conn = utils.get_openstack_connection()
 
     introspection = conn.baremetal_introspection.get_introspection(node_name)
 
@@ -112,18 +101,18 @@ def baremetal_get_network_interface_name(self, node_name, mac_address):
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_set_node_provision_state")
 def baremetal_set_node_provision_state(self, node, state):
-    global conn
+    conn = utils.get_openstack_connection()
     conn.baremetal.set_node_provision_state(node, state)
 
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_create_allocations")
 def baremetal_create_allocations(self, nodes):
-    global conn
+    conn = utils.get_openstack_connection()
 
     for node in nodes:
         try:
             allocation_a = conn.baremetal.get_allocation(allocation=node)
-        except openstack.exceptions.ResourceNotFound:
+        except ResourceNotFound:
             allocation_a = None
 
         if not allocation_a:
@@ -142,7 +131,7 @@ def baremetal_create_allocations(self, nodes):
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_create_nodes")
 def baremetal_create_nodes(self, nodes, ironic_parameters):
-    global conn
+    conn = utils.get_openstack_connection()
 
     for node in nodes:
         # TODO: Filter on mgmt_only
@@ -196,10 +185,10 @@ def baremetal_create_nodes(self, nodes, ironic_parameters):
             }
             device_a.save()
 
-        except openstack.exceptions.ResourceFailure:
+        except ResourceFailure:
             # TODO: Do something useful here
             pass
-        except openstack.exceptions.ConflictException:
+        except ConflictException:
             # The node already exists and has a wronge state in the Netbox
             device_a = utils.nb.dcim.devices.get(name=node)
             device_a.custom_fields = {
@@ -225,6 +214,8 @@ def baremetal_check_allocations(self):
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_create_internal_flavor")
 def baremetal_create_internal_flavor(self, node):
+    conn = utils.get_openstack_connection()
+
     flavor_a = conn.compute.create_flavor(
         name=f"osism-{node}", ram=1, vcpus=1, disk=1, is_public=False
     )
@@ -240,6 +231,8 @@ def baremetal_create_internal_flavor(self, node):
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_delete_internal_flavor")
 def baremetal_delete_internal_flavor(self, node):
+    conn = utils.get_openstack_connection()
+
     flavor = conn.compute.get_flavor(f"osism-{node}")
     conn.compute.delete_flavor(flavor)
 

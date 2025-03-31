@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import keystoneauth1
+import openstack
 import pynetbox
 from redis import Redis
 import urllib3
@@ -27,6 +29,15 @@ if settings.NETBOX_URL and settings.NETBOX_TOKEN:
 
 else:
     nb = None
+
+
+def get_openstack_connection():
+    try:
+        conn = openstack.connect()
+    except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions:
+        pass
+
+    return conn
 
 
 # https://stackoverflow.com/questions/2361426/get-the-first-item-from-an-iterable-that-matches-a-condition
