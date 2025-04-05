@@ -3,29 +3,33 @@
 from cliff.command import Command
 from loguru import logger
 
-from osism.tasks import conductor, netbox, reconciler, openstack, handle_task
+from osism.tasks import conductor, netbox, reconciler, handle_task
 
 
 class Ironic(Command):
     def get_parser(self, prog_name):
         parser = super(Ironic, self).get_parser(prog_name)
+        parser.add_argument(
+            "--no-wait",
+            help="Do not wait until the sync has been completed",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--force-update",
+            help="Force update of baremetal nodes (Used to update non-comparable items like passwords)",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
-        # Get Ironic parameters from the conductor
-        task = conductor.get_ironic_parameters.delay()
-        task.wait(timeout=None, interval=0.5)
-        ironic_parameters = task.get()
+        wait = not parsed_args.no_wait
 
-        # Add all unregistered systems from the Netbox in Ironic
-        netbox.get_devices_not_yet_registered_in_ironic.apply_async(
-            (), link=openstack.baremetal_create_nodes.s(ironic_parameters)
+        task = conductor.sync_netbox_with_ironic.delay(
+            force_update=parsed_args.force_update
         )
-
-        # Synchronize the current status in Ironic with the Netbox
-        # openstack.baremetal_node_list.apply_async((), link=netbox.synchronize_device_state.s())
-
-        # Remove systems from Ironic that are no longer present in the Netbox
+        if wait:
+            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
+            task.wait(timeout=None, interval=0.5)
 
 
 class Sync(Command):
@@ -33,7 +37,6 @@ class Sync(Command):
         parser = super(Sync, self).get_parser(prog_name)
         parser.add_argument(
             "--no-wait",
-            default=False,
             help="Do not wait until the sync has been completed",
             action="store_true",
         )
