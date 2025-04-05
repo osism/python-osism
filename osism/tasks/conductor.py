@@ -147,7 +147,7 @@ def sync_netbox_with_ironic(self, force_update=False):
             if (
                 not node["Instance UUID"]
                 and node["Provisioning State"] in ["enroll", "manageable", "available"]
-                and node["Power State"] == "power off"
+                and node["Power State"] in ["power off", None]
             ):
                 logger.info(
                     f"Cleaning up baremetal node not found in netbox: {node['Name']}"
