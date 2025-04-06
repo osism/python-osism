@@ -188,7 +188,7 @@ MAP_ROLE2ROLE = {
         [
             "common",
             [
-                ["loadbalancer", ["opensearch", "mariadb-ng"]],
+                ["loadbalancer", ["letsencrypt", "opensearch", "mariadb-ng"]],
                 ["openvswitch", ["ovn"]],
                 "memcached",
                 "redis",
