@@ -12,7 +12,7 @@ import requests
 from osism.data import TEMPLATE_IMAGE_CLUSTERAPI, TEMPLATE_IMAGE_OCTAVIA
 from osism.tasks import openstack, handle_task
 
-SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.29", "1.30", "1.31"]
+SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.30", "1.31", "1.32"]
 
 
 class ImageClusterapi(Command):
@@ -51,7 +51,7 @@ class ImageClusterapi(Command):
         parser.add_argument(
             "--filter",
             type=str,
-            help="Filter the version to be managed (e.g. 1.31)",
+            help="Filter the version to be managed (e.g. 1.32)",
             default=None,
         )
         return parser
