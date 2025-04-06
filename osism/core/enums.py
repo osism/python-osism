@@ -199,6 +199,19 @@ MAP_ROLE2ROLE = {
     "collection-kubernetes": [
         ["kubernetes", ["kubeconfig", ["copy-kubeconfig"]]],
     ],
+    "collection-openstack-core": [
+        "horizon",
+        [
+            "keystone",
+            [
+                "glance",
+                "cinder",
+                ["neutron", ["octavia"]],
+                "designate",
+                ["placement", ["nova"]],
+            ],
+        ],
+    ],
     "collection-openstack": [
         "horizon",
         [
