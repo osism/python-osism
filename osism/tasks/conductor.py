@@ -9,6 +9,7 @@ from loguru import logger
 from pottery import Redlock
 import yaml
 
+from osism import settings
 from osism import utils
 from osism.tasks import Config, netbox, openstack
 
@@ -17,6 +18,7 @@ app.config_from_object(Config)
 
 
 configuration = {}
+nb_device_query_list = None
 
 
 @worker_process_init.connect
@@ -91,6 +93,49 @@ def celery_init_worker(**kwargs):
                         "provisioning_network"
                     ] = result.id
 
+    global nb_device_query_list
+
+    try:
+        supported_nb_device_filters = [
+            "site",
+            "region",
+            "site_group",
+            "location",
+            "rack",
+            "tag",
+            "state",
+        ]
+        nb_device_query_list = yaml.safe_load(
+            settings.OSISM_CONDUCTOR_NETBOX_FILTER_LIST
+        )
+        if type(nb_device_query_list) is not list:
+            raise TypeError
+        for nb_device_query in nb_device_query_list:
+            if type(nb_device_query) is not dict:
+                raise TypeError
+            for key in list(nb_device_query.keys()):
+                if key not in supported_nb_device_filters:
+                    raise ValueError
+                # NOTE: Only "location_id" and "rack_id" are supported by netbox
+                if key in ["location", "rack"]:
+                    value_name = nb_device_query.pop(key, "")
+                    if key == "location":
+                        value_id = netbox.get_location_id(value_name)
+                    elif key == "rack":
+                        value_id = netbox.get_rack_id(value_name)
+                    if value_id:
+                        nb_device_query.update({key + "_id": value_id})
+                    else:
+                        raise ValueError(f"Invalid name {value_name} for {key}")
+    except (yaml.YAMLError, TypeError):
+        logger.error(
+            f"Setting OSISM_CONDUCTOR_NETBOX_FILTER_LIST needs to be an array of mappings containing supported netbox device filters: {supported_nb_device_filters}"
+        )
+        nb_device_query_list = []
+    except ValueError as exc:
+        logger.error(f"Unknown value in OSISM_CONDUCTOR_NETBOX_FILTER_LIST: {exc}")
+        nb_device_query_list = []
+
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
@@ -135,10 +180,12 @@ def sync_netbox_with_ironic(self, force_update=False):
         },
     }
 
-    devices = list(netbox.get_devices_by_tags(["managed-by-ironic"]))
+    devices = set()
+    for nb_device_query in nb_device_query_list:
+        devices |= set(netbox.get_devices(**nb_device_query))
 
     # NOTE: Find nodes in Ironic which are no longer present in netbox and remove them
-    device_names = [dev.name for dev in devices]
+    device_names = {dev.name for dev in devices}
     nodes = openstack.baremetal_node_list()
     for node in nodes:
         logger.info(f"Looking for {node['Name']} in netbox")

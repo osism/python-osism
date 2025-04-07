@@ -112,12 +112,36 @@ def set_power_state(self, device_name, state):
         logger.error("Could not acquire lock for node {device_name}")
 
 
-@app.task(bind=True, name="osism.tasks.netbox.get_devices")
-def get_devices_by_tags(self, tags, state="active"):
-    return utils.nb.dcim.devices.filter(tag=tags, state=state)
+@app.task(bind=True, name="osism.tasks.netbox.get_location_id")
+def get_location_id(self, location_name):
+    try:
+        location = utils.nb.dcim.locations.get(name=location_name)
+    except ValueError:
+        return None
+    if location:
+        return location.id
+    else:
+        return None
+
+
+@app.task(bind=True, name="osism.tasks.netbox.get_rack_id")
+def get_rack_id(self, rack_name):
+    try:
+        rack = utils.nb.dcim.racks.get(name=rack_name)
+    except ValueError:
+        return None
+    if rack:
+        return rack.id
+    else:
+        return None
 
 
 @app.task(bind=True, name="osism.tasks.netbox.get_devices")
+def get_devices(self, **query):
+    return utils.nb.dcim.devices.filter(**query)
+
+
+@app.task(bind=True, name="osism.tasks.netbox.get_device_by_name")
 def get_device_by_name(self, name):
     return utils.nb.dcim.devices.get(name=name)
 
