@@ -93,36 +93,131 @@ class ServerMigrate(Command):
 class ServerList(Command):
     def get_parser(self, prog_name):
         parser = super(ServerList, self).get_parser(prog_name)
+        parser.add_argument(
+            "--domain",
+            help="List all servers of a specific domain",
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            "--project",
+            help="List all servers of a specific project",
+            type=str,
+            default=None,
+        )
+        parser.add_argument(
+            "--project-domain", help="Domain of the project", type=str, default=None
+        )
         return parser
 
     def take_action(self, parsed_args):
         conn = get_cloud_connection()
+        domain = parsed_args.domain
+        project = parsed_args.project
+        project_domain = parsed_args.project_domain
 
         result = []
-        for server in conn.compute.servers(all_projects=True, status="build"):
-            duration = datetime.now(timezone.utc) - dateutil.parser.parse(
-                server.created_at
-            )
-            if duration.total_seconds() > 7200:
-                logger.info(
-                    f"Server {server.id} hangs in BUILD status for more than 2 hours"
-                )
-                result.append([server.id, server.name, server.status])
+        if domain:
+            _domain = conn.identity.find_domain(domain)
+            if not _domain:
+                logger.error(f"Domain {domain} not found")
+                return
+            projects = list(conn.identity.projects(domain_id=_domain.id))
 
-        for server in conn.compute.servers(all_projects=True, status="error"):
-            duration = datetime.now(timezone.utc) - dateutil.parser.parse(
-                server.created_at
-            )
-            if duration.total_seconds() > 7200:
-                logger.info(
-                    f"Server {server.id} hangs in ERRORstatus for more than 2 hours"
-                )
-                result.append([server.id, server.name, server.status])
+            for project in projects:
+                query = {"project_id": project.id}
+                for server in conn.compute.servers(all_projects=True, **query):
+                    result.append(
+                        [
+                            project.name,
+                            project.id,
+                            server.id,
+                            server.name,
+                            server.flavor["original_name"],
+                            server.status,
+                        ]
+                    )
 
-        print(
-            tabulate(
-                result,
-                headers=["ID", "Name", "Status"],
-                tablefmt="psql",
+            print(
+                tabulate(
+                    result,
+                    headers=["Project", "Project ID", "ID", "Name", "Flavor", "Status"],
+                    tablefmt="psql",
+                )
             )
-        )
+
+        elif project:
+            if project_domain:
+                _project_domain = conn.identity.find_domain(project_domain)
+                if not _project_domain:
+                    logger.error(f"Project domain {project_domain} not found")
+                    return
+                query = {"domain_id": _project_domain.id}
+                _project = conn.identity.find_project(project, **query)
+            else:
+                _project = conn.identity.find_project(project)
+            if not _project:
+                logger.error(f"Project {project} not found")
+                return
+            query = {"project_id": _project.id}
+
+            for server in conn.compute.servers(all_projects=True, **query):
+                result.append(
+                    [
+                        server.id,
+                        server.name,
+                        server.flavor["original_name"],
+                        server.status,
+                    ]
+                )
+
+            print(
+                tabulate(
+                    result,
+                    headers=["ID", "Name", "Flavor", "Status"],
+                    tablefmt="psql",
+                )
+            )
+
+        else:
+            for server in conn.compute.servers(all_projects=True, status="build"):
+                duration = datetime.now(timezone.utc) - dateutil.parser.parse(
+                    server.created_at
+                )
+                if duration.total_seconds() > 7200:
+                    logger.info(
+                        f"Server {server.id} hangs in BUILD status for more than 2 hours"
+                    )
+                    result.append(
+                        [
+                            server.id,
+                            server.name,
+                            server.flavor["original_name"],
+                            server.status,
+                        ]
+                    )
+
+            for server in conn.compute.servers(all_projects=True, status="error"):
+                duration = datetime.now(timezone.utc) - dateutil.parser.parse(
+                    server.created_at
+                )
+                if duration.total_seconds() > 7200:
+                    logger.info(
+                        f"Server {server.id} hangs in ERRORstatus for more than 2 hours"
+                    )
+                    result.append(
+                        [
+                            server.id,
+                            server.name,
+                            server.flavor["original_name"],
+                            server.status,
+                        ]
+                    )
+
+            print(
+                tabulate(
+                    result,
+                    headers=["ID", "Name", "Flavor", "Status"],
+                    tablefmt="psql",
+                )
+            )
