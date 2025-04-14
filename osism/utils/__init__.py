@@ -1,12 +1,33 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import keystoneauth1
+from loguru import logger
 import openstack
 import pynetbox
 from redis import Redis
 import urllib3
+import yaml
 
 from osism import settings
+
+
+def get_netbox_connection(netbox_url, netbox_token, ignore_ssl_errors=False):
+    if netbox_url and netbox_token:
+        nb = pynetbox.api(netbox_url, token=netbox_token)
+
+        if ignore_ssl_errors and nb:
+            import requests
+
+            urllib3.disable_warnings()
+            session = requests.Session()
+            session.verify = False
+            nb.http_session = session
+
+    else:
+        nb = None
+
+    return nb
+
 
 redis = Redis(
     host=settings.REDIS_HOST,
@@ -16,19 +37,53 @@ redis = Redis(
 )
 redis.ping()
 
-if settings.NETBOX_URL and settings.NETBOX_TOKEN:
-    nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
+nb = get_netbox_connection(
+    settings.NETBOX_URL, settings.NETBOX_TOKEN, settings.IGNORE_SSL_ERRORS
+)
 
-    if settings.IGNORE_SSL_ERRORS and nb:
-        import requests
+try:
+    secondary_nb_settings_list = yaml.safe_load(settings.NETBOX_SECONDARIES)
+    supported_secondary_nb_keys = ["NETBOX_URL", "NETBOX_TOKEN", "IGNORE_SSL_ERRORS"]
+    secondary_nb_list = []
+    if type(secondary_nb_settings_list) is not list:
+        raise TypeError(
+            f"Setting NETBOX_SECONDARIES needs to be an array of mappings containing supported netbox API configuration: {supported_secondary_nb_keys}"
+        )
+    for secondary_nb_settings in secondary_nb_settings_list:
+        if type(secondary_nb_settings) is not dict:
+            raise TypeError(
+                f"Elements in setting NETBOX_SECONDARIES need to be mappings containing supported netbox API configuration: {supported_secondary_nb_keys}"
+            )
+        for key in list(secondary_nb_settings.keys()):
+            if key not in supported_secondary_nb_keys:
+                raise ValueError(
+                    f"Unknown key in element of setting NETBOX_SECONDARIES. Supported keys: {supported_secondary_nb_keys}"
+                )
+        if (
+            "NETBOX_URL" not in secondary_nb_settings
+            or not secondary_nb_settings["NETBOX_URL"]
+        ):
+            raise ValueError(
+                "All NETBOX_URL values in the elements of setting NETBOX_SECONDARIES need to be valid netbox URLs"
+            )
+        if (
+            "NETBOX_TOKEN" not in secondary_nb_settings
+            or not secondary_nb_settings["NETBOX_TOKEN"]
+        ):
+            raise ValueError(
+                "All NETBOX_TOKEN values in the elements of setting NETBOX_SECONDARIES need to be valid netbox tokens"
+            )
 
-        urllib3.disable_warnings()
-        session = requests.Session()
-        session.verify = False
-        nb.http_session = session
-
-else:
-    nb = None
+        secondary_nb_list.append(
+            get_netbox_connection(
+                secondary_nb_settings["NETBOX_URL"],
+                secondary_nb_settings["NETBOX_TOKEN"],
+                secondary_nb_settings.get("IGNORE_SSL_ERRORS", True),
+            )
+        )
+except (yaml.YAMLError, TypeError, ValueError) as exc:
+    logger.error(f"Error parsing settings NETBOX_SECONDARIES: {exc}")
+    secondary_nb_list = []
 
 
 def get_openstack_connection():

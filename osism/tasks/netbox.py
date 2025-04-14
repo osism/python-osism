@@ -37,6 +37,9 @@ def run(self, action, arguments):
     pass
 
 
+# NOTE: While `get_*` tasks only operate on the netbox configured in NETBOX_URL, `set_*` tasks additionally operate on all netbox instances listed in NETBOX_SECONDARIES
+
+
 @app.task(bind=True, name="osism.tasks.netbox.set_maintenance")
 def set_maintenance(self, device_name, state=True):
     """Set the maintenance state for a device in the Netbox."""
@@ -48,14 +51,18 @@ def set_maintenance(self, device_name, state=True):
     )
     if lock.acquire(timeout=20):
         try:
-            logger.info(f"Set maintenance state of device {device_name} = {state}")
-
-            device = utils.nb.dcim.devices.get(name=device_name)
-            if device:
-                device.custom_fields.update({"maintenance": state})
-                device.save()
-            else:
-                logger.error(f"Could not set maintenance for {device_name}")
+            for nb in [utils.nb] + utils.secondary_nb_list:
+                logger.info(
+                    f"Set maintenance state of device {device_name} = {state} on {nb.base_url}"
+                )
+                device = nb.dcim.devices.get(name=device_name)
+                if device:
+                    device.custom_fields.update({"maintenance": state})
+                    device.save()
+                else:
+                    logger.error(
+                        f"Could not set maintenance for {device_name} on {nb.base_url}"
+                    )
         finally:
             lock.release()
     else:
@@ -73,14 +80,19 @@ def set_provision_state(self, device_name, state):
     )
     if lock.acquire(timeout=20):
         try:
-            logger.info(f"Set provision state of device {device_name} = {state}")
 
-            device = utils.nb.dcim.devices.get(name=device_name)
-            if device:
-                device.custom_fields.update({"provision_state": state})
-                device.save()
-            else:
-                logger.error(f"Could not set provision state for {device_name}")
+            for nb in [utils.nb] + utils.secondary_nb_list:
+                logger.info(
+                    f"Set provision state of device {device_name} = {state} on {nb.base_url}"
+                )
+                device = nb.dcim.devices.get(name=device_name)
+                if device:
+                    device.custom_fields.update({"provision_state": state})
+                    device.save()
+                else:
+                    logger.error(
+                        f"Could not set provision state for {device_name} on {nb.base_url}"
+                    )
         finally:
             lock.release()
     else:
@@ -98,14 +110,18 @@ def set_power_state(self, device_name, state):
     )
     if lock.acquire(timeout=20):
         try:
-            logger.info(f"Set power state of device {device_name} = {state}")
-
-            device = utils.nb.dcim.devices.get(name=device_name)
-            if device:
-                device.custom_fields.update({"power_state": state})
-                device.save()
-            else:
-                logger.error(f"Could not set power state for {device_name}")
+            for nb in [utils.nb] + utils.secondary_nb_list:
+                logger.info(
+                    f"Set power state of device {device_name} = {state} on {nb.base_url}"
+                )
+                device = nb.dcim.devices.get(name=device_name)
+                if device:
+                    device.custom_fields.update({"power_state": state})
+                    device.save()
+                else:
+                    logger.error(
+                        f"Could not set power state for {device_name} on {nb.base_url}"
+                    )
         finally:
             lock.release()
     else:
