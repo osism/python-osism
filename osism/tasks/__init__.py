@@ -183,11 +183,16 @@ def run_command(
     *arguments,
     publish=True,
     locking=False,
+    ignore_env=False,
     auto_release_time=3600,
 ):
     result = ""
-    command_env = os.environ.copy()
-    command_env.update(env)
+
+    if ignore_env:
+        command_env = env
+    else:
+        command_env = os.environ.copy()
+        command_env.update(env)
 
     if locking:
         lock = Redlock(

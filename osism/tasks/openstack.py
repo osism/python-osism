@@ -179,7 +179,13 @@ def compute_flavor_delete_extra_specs_property(self, flavor, prop):
 
 @app.task(bind=True, name="osism.tasks.openstack.image_manager")
 def image_manager(
-    self, *arguments, configs=None, publish=True, locking=False, auto_release_time=3600
+    self,
+    *arguments,
+    configs=None,
+    publish=True,
+    locking=False,
+    auto_release_time=3600,
+    ignore_env=False
 ):
     command = "/usr/local/bin/openstack-image-manager"
     if configs:
@@ -209,6 +215,7 @@ def image_manager(
                 publish=publish,
                 locking=locking,
                 auto_release_time=auto_release_time,
+                ignore_env=ignore_env,
             )
         return rc
     else:
@@ -220,6 +227,7 @@ def image_manager(
             publish=publish,
             locking=locking,
             auto_release_time=auto_release_time,
+            ignore_env=ignore_env,
         )
 
 
