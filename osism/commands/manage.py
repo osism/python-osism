@@ -188,7 +188,9 @@ class ImageOctavia(Command):
             "--deactivate",
         ]
 
-        task_signature = openstack.image_manager.si(*arguments, configs=result)
+        task_signature = openstack.image_manager.si(
+            *arguments, configs=result, ignore_env=True
+        )
         task = task_signature.apply_async()
         if wait:
             logger.info(
