@@ -1,30 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from celery import Celery
-from celery.signals import worker_process_init
 from loguru import logger
 from pottery import Redlock
-import pynetbox
 
 from osism import settings, utils
 from osism.tasks import Config, run_command
 
 app = Celery("netbox")
 app.config_from_object(Config)
-
-
-@worker_process_init.connect
-def celery_init_worker(**kwargs):
-    if settings.NETBOX_URL and settings.NETBOX_TOKEN:
-        utils.nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
-
-        if settings.IGNORE_SSL_ERRORS:
-            import requests
-
-            requests.packages.urllib3.disable_warnings()
-            session = requests.Session()
-            session.verify = False
-            utils.nb.http_session = session
 
 
 @app.on_after_configure.connect

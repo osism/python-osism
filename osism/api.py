@@ -7,11 +7,10 @@ from uuid import UUID
 
 from fastapi import FastAPI, Header, Request, Response
 from pydantic import BaseModel
-import pynetbox
 from starlette.middleware.cors import CORSMiddleware
 
 from osism.tasks import reconciler
-from osism import settings, utils
+from osism import utils
 from osism.services.listener import BaremetalEvents
 
 
@@ -76,20 +75,6 @@ dictConfig(LogConfig().dict())
 logger = logging.getLogger("api")
 
 baremetal_events = BaremetalEvents()
-
-
-@app.on_event("startup")
-async def startup_event():
-    if settings.NETBOX_URL and settings.NETBOX_TOKEN:
-        utils.nb = pynetbox.api(settings.NETBOX_URL, token=settings.NETBOX_TOKEN)
-
-        if settings.IGNORE_SSL_ERRORS:
-            import requests
-
-            requests.packages.urllib3.disable_warnings()
-            session = requests.Session()
-            session.verify = False
-            utils.nb.http_session = session
 
 
 @app.get("/")
