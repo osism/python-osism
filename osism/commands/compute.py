@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import time
+import datetime
 
 from cliff.command import Command
 from jc import parse
@@ -461,6 +462,201 @@ class ComputeMigrate(Command):
                                 f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) completed with status {s.status}"
                             )
                             break
+
+
+class ComputeMigrationList(Command):
+    def get_parser(self, prog_name):
+        parser = super(ComputeMigrationList, self).get_parser(prog_name)
+        parser.add_argument(
+            "--host",
+            default=None,
+            type=str,
+            help="Only list migrations with the given host as source or destination",
+        )
+        parser.add_argument(
+            "--server",
+            default=None,
+            type=str,
+            help="Only list migrations for the given instance (name or ID)",
+        )
+        parser.add_argument(
+            "--user",
+            default=None,
+            type=str,
+            help="Only list migrations for the given user (name or ID)",
+        )
+        parser.add_argument(
+            "--user-domain",
+            default=None,
+            type=str,
+            help="Domain the user belongs to (name or ID)",
+        )
+        parser.add_argument(
+            "--project",
+            default=None,
+            type=str,
+            help="Only list migrations for the given project (name or ID)",
+        )
+        parser.add_argument(
+            "--project-domain",
+            default=None,
+            type=str,
+            help="Domain the project belongs to (name or ID)",
+        )
+        parser.add_argument(
+            "--status",
+            default=None,
+            type=str,
+            help="Only list migrations with the given status",
+        )
+        parser.add_argument(
+            "--type",
+            default=None,
+            choices=["migration", "live-migration", "evacuation", "resize"],
+            type=str,
+            help="Only list migrations with the given type",
+        )
+        parser.add_argument(
+            "--changes-since",
+            default=None,
+            type=datetime.datetime.fromisoformat,
+            help="Only list migrations last chganged since the given date in ISO 8601 format (CCYY-MM-DDThh:mm:ss±hh:mm)",
+        )
+        parser.add_argument(
+            "--changes-before",
+            default=None,
+            type=datetime.datetime.fromisoformat,
+            help="Only list migrations last chganged before the given date in ISO 8601 format (CCYY-MM-DDThh:mm:ss±hh:mm)",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        host = parsed_args.host
+        server = parsed_args.server
+        user = parsed_args.user
+        user_domain = parsed_args.user_domain
+        project = parsed_args.project
+        project_domain = parsed_args.project_domain
+        status = parsed_args.status
+        migration_type = parsed_args.type
+        changes_since = parsed_args.changes_since
+        changes_before = parsed_args.changes_before
+
+        if changes_before and changes_since:
+            if not changes_since <= changes_before:
+                logger.error(
+                    "changes-since needs to be less or equal to changes-before"
+                )
+                return
+
+        conn = get_cloud_connection()
+
+        user_id = None
+        if user:
+            user_query = {}
+
+            if user_domain:
+                u_d = conn.identity.find_domain(user_domain, ignore_missing=True)
+                if u_d and "id" in u_d:
+                    user_query = dict(domain_id=u_d.id)
+                else:
+                    logger.error(f"No domain found for {user_domain}")
+                    return
+
+            u = conn.identity.find_user(user, ignore_missing=True, **user_query)
+            if u and "id" in u:
+                user_id = u.id
+            else:
+                logger.error(f"No user found for {user}")
+                return
+
+        project_id = None
+        if project:
+            project_query = {}
+
+            if project_domain:
+                p_d = conn.identity.find_domain(project_domain, ignore_missing=True)
+                if p_d and "id" in p_d:
+                    project_query = dict(domain_id=p_d.id)
+                else:
+                    logger.error(f"No domain found for {project_domain}")
+                    return
+
+            p = conn.identity.find_project(
+                project, ignore_missing=True, **project_query
+            )
+            if p and "id" in p:
+                project_id = p.id
+            else:
+                logger.error(f"No project found for {project}")
+                return
+
+        instance_uuid = None
+        if server:
+            try:
+                s = conn.compute.find_server(
+                    server, details=False, ignore_missing=False, all_projects=True
+                )
+                if s and "id" in s:
+                    instance_uuid = s.id
+                else:
+                    raise openstack.exceptions.NotFoundException
+            except openstack.exceptions.DuplicateResource:
+                logger.error(f"Multiple servers where found for {server}")
+                return
+            except openstack.exceptions.NotFoundException:
+                logger.error(f"No server found for {server}")
+                return
+
+        query = {}
+        if host:
+            query.update(dict(host=host))
+        if instance_uuid:
+            query.update(dict(instance_uuid=instance_uuid))
+        if status:
+            query.update(dict(status=status))
+        if migration_type:
+            query.update(dict(migration_type=migration_type))
+        if user_id:
+            query.update(dict(user_id=user_id))
+        if project_id:
+            query.update(dict(project_id=project_id))
+        if changes_since:
+            query.update(dict(changes_since=changes_since))
+        if changes_before:
+            query.update(dict(changes_before=changes_before))
+
+        migrations = conn.compute.migrations(**query)
+        result = [
+            [
+                m.source_compute,
+                m.dest_compute,
+                m.status,
+                m.migration_type,
+                m["instance_uuid"],
+                m.user_id,
+                m.created_at,
+                m.updated_at,
+            ]
+            for m in migrations
+        ]
+
+        print(
+            tabulate(
+                result,
+                headers=[
+                    "Source",
+                    "Destintion",
+                    "Status",
+                    "Type",
+                    "Server UUID",
+                    "User",
+                    "Created At",
+                    "Updated At",
+                ],
+                tablefmt="psql",
+            )
+        )
 
 
 class ComputeStart(Command):
