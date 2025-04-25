@@ -39,3 +39,7 @@ OSISM_CONDUCTOR_NETBOX_FILTER_LIST = os.getenv(
     "OSISM_CONDUCTOR_NETBOX_FILTER_LIST",
     "[{'state': 'active', 'tag': ['managed-by-ironic']}]",
 )
+
+NETBOX_SECONDARIES = (
+    os.getenv("NETBOX_SECONDARIES", read_secret("NETBOX_SECONDARIES")) or "[]"
+)
