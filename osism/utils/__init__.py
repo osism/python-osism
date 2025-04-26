@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+from cryptography.fernet import Fernet
 import keystoneauth1
 from loguru import logger
 import openstack
@@ -93,6 +94,22 @@ def get_openstack_connection():
         pass
 
     return conn
+
+
+def get_ansible_vault_password():
+    keyfile = "/share/ansible_vault_password.key"
+
+    try:
+        with open(keyfile, "r") as fp:
+            key = fp.read()
+        f = Fernet(key)
+
+        encrypted_ansible_vault_password = redis.get("ansible_vault_password")
+        ansible_vault_password = f.decrypt(encrypted_ansible_vault_password)
+        return ansible_vault_password.decode("utf-8")
+    except Exception as exc:
+        logger.error("Unable to get ansible vault password")
+        raise exc
 
 
 # https://stackoverflow.com/questions/2361426/get-the-first-item-from-an-iterable-that-matches-a-condition
