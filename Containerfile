@@ -6,7 +6,7 @@ FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
 ENV PYTHONWARNINGS="ignore::UserWarning"
 
 COPY . /src
-COPY --from=ghcr.io/astral-sh/uv:0.6.17 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.7.0 /uv /usr/local/bin/uv
 
 COPY files/data  /data
 COPY files/change.sh /change.sh
