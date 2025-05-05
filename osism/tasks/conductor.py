@@ -198,11 +198,6 @@ def sync_netbox_with_ironic(self, force_update=False):
                 logger.info(
                     f"Cleaning up baremetal node not found in netbox: {node['Name']}"
                 )
-                flavor_name = "osism-" + node["Name"]
-                flavor = openstack.compute_flavor_get(flavor_name)
-                if flavor:
-                    logger.info(f"Deleting flavor {flavor_name}")
-                    openstack.compute_flavor_delete(flavor)
                 for port in openstack.baremetal_port_list(
                     details=False, attributes=dict(node_uuid=node["UUID"])
                 ):
@@ -271,19 +266,6 @@ def sync_netbox_with_ironic(self, force_update=False):
             for interface in node_interfaces
             if interface.enabled and not interface.mgmt_only and interface.mac_address
         ]
-        flavor_attributes = {
-            "ram": 1,
-            "disk": 0,
-            "vcpus": 1,
-            "is_public": False,
-            "extra_specs": {
-                "resources:CUSTOM_"
-                + device.name.upper().replace("-", "_").replace(".", "_"): "1",
-                "resources:VCPU": "0",
-                "resources:MEMORY_MB": "0",
-                "resources:DISK_GB": "0",
-            },
-        }
 
         lock = Redlock(
             key=f"lock_osism_tasks_conductor_sync_netbox_with_ironic-{device.name}",
@@ -413,48 +395,6 @@ def sync_netbox_with_ironic(self, force_update=False):
                     logger.info(
                         f"Validation of management interface failed for baremetal node for {device.name}\nReason: {node_validation['management'].reason}"
                     )
-
-                flavor_name = "osism-" + device.name
-                flavor = openstack.compute_flavor_get(flavor_name)
-                if not flavor:
-                    logger.info(f"Creating flavor for {flavor_name}")
-                    flavor = openstack.compute_flavor_create(
-                        flavor_name, flavor_attributes
-                    )
-                else:
-                    flavor_updates = {}
-                    deep_compare(flavor_attributes, flavor, flavor_updates)
-                    flavor_updates_extra_specs = flavor_updates.pop("extra_specs", None)
-                    if flavor_updates:
-                        logger.info(
-                            f"Updating flavor for {device.name} with {flavor_updates}"
-                        )
-                        openstack.compute_flavor_delete(flavor)
-                        flavor = openstack.compute_flavor_create(
-                            flavor_name, flavor_attributes
-                        )
-                    elif flavor_updates_extra_specs:
-                        logger.info(
-                            f"Updating flavor extra_specs for {device.name} with {flavor_updates_extra_specs}"
-                        )
-                        openstack.compute_flavor_update_extra_specs(
-                            flavor, flavor_updates_extra_specs
-                        )
-                        flavor = openstack.compute_flavor_get(flavor_name)
-                    for extra_specs_key in flavor["extra_specs"].keys():
-                        if (
-                            extra_specs_key
-                            not in flavor_attributes["extra_specs"].keys()
-                        ):
-                            logger.info(
-                                f"Deleting flavor extra_specs property {extra_specs_key} for {device.name}"
-                            )
-                            flavor = (
-                                openstack.compute_flavor_delete_extra_specs_property(
-                                    flavor, extra_specs_key
-                                )
-                            )
-
             except Exception as exc:
                 logger.info(
                     f"Could not fully synchronize device {device.name} with ironic: {exc}"

@@ -136,47 +136,6 @@ def baremetal_port_delete(self, port_or_id):
     return result
 
 
-@app.task(bind=True, name="osism.tasks.openstack.compute_flavor_get")
-def compute_flavor_get(self, name_or_id):
-    conn = utils.get_openstack_connection()
-    result = conn.compute.find_flavor(
-        name_or_id, ignore_missing=True, get_extra_specs=True
-    )
-    return result
-
-
-@app.task(bind=True, name="osism.tasks.openstack.compute_flavor_create")
-def compute_flavor_create(self, name, attributes=None):
-    if attributes is None:
-        attributes = {}
-    attributes.update({"name": name})
-    extra_specs = attributes.pop("extra_specs", None)
-    conn = utils.get_openstack_connection()
-    flavor = conn.compute.create_flavor(**attributes)
-    if extra_specs:
-        flavor = conn.compute.create_flavor_extra_specs(flavor, extra_specs)
-    return flavor
-
-
-@app.task(bind=True, name="osism.tasks.openstack.compute_flavor_delete")
-def compute_flavor_delete(self, flavor):
-    conn = utils.get_openstack_connection()
-    conn.compute.delete_flavor(flavor, ignore_missing=True)
-
-
-@app.task(bind=True, name="osism.tasks.openstack.compute_flavor_update_extra_specs")
-def compute_flavor_update_extra_specs(self, flavor, extra_specs={}):
-    conn = utils.get_openstack_connection()
-    for key, value in extra_specs.items():
-        conn.compute.update_flavor_extra_specs_property(flavor, key, value)
-
-
-@app.task(bind=True, name="osism.tasks.openstack.compute_flavor_delete_extra_specs")
-def compute_flavor_delete_extra_specs_property(self, flavor, prop):
-    conn = utils.get_openstack_connection()
-    conn.compute.delete_flavor_extra_specs_property(flavor, prop)
-
-
 @app.task(bind=True, name="osism.tasks.openstack.image_manager")
 def image_manager(
     self,
