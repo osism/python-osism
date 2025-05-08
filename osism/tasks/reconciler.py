@@ -63,33 +63,3 @@ def run_on_change(self):
         p.wait()
 
         lock.release()
-
-
-@app.task(bind=True, name="osism.tasks.reconciler.sync_inventory_with_netbox")
-def sync_inventory_with_netbox(self):
-    lock = Redlock(
-        key="lock_osism_tasks_reconciler_sync_inventory_with_netbox",
-        masters={utils.redis},
-        auto_release_time=60,
-    )
-
-    if lock.acquire(timeout=20):
-        p = subprocess.Popen(
-            "/sync-inventory-with-netbox.sh",
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-
-        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-            # NOTE: use task_id or request_id in future
-            utils.redis.publish(
-                "netbox-sync-inventory-with-netbox", {"type": "stdout", "content": line}
-            )
-
-        lock.release()
-
-    # NOTE: use task_id or request_id in future
-    utils.redis.publish(
-        "netbox-sync-inventory-with-netbox", {"type": "action", "content": "quit"}
-    )

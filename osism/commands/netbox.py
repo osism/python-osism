@@ -3,7 +3,7 @@
 from cliff.command import Command
 from loguru import logger
 
-from osism.tasks import conductor, netbox, reconciler, handle_task
+from osism.tasks import conductor, netbox, handle_task
 
 
 class Ironic(Command):
@@ -27,25 +27,6 @@ class Ironic(Command):
         task = conductor.sync_netbox_with_ironic.delay(
             force_update=parsed_args.force_update
         )
-        if wait:
-            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
-            task.wait(timeout=None, interval=0.5)
-
-
-class Sync(Command):
-    def get_parser(self, prog_name):
-        parser = super(Sync, self).get_parser(prog_name)
-        parser.add_argument(
-            "--no-wait",
-            help="Do not wait until the sync has been completed",
-            action="store_true",
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        wait = not parsed_args.no_wait
-
-        task = reconciler.sync_inventory_with_netbox.delay()
         if wait:
             logger.info(f"Task {task.task_id} is running. Wait. No more output.")
             task.wait(timeout=None, interval=0.5)
@@ -140,9 +121,9 @@ class Manage(Command):
         return handle_task(task, wait, format="script", timeout=3600)
 
 
-class Ping(Command):
+class Versions(Command):
     def get_parser(self, prog_name):
-        parser = super(Ping, self).get_parser(prog_name)
+        parser = super(Versions, self).get_parser(prog_name)
         return parser
 
     def take_action(self, parsed_args):
