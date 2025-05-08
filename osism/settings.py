@@ -23,7 +23,7 @@ REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
 
 
-NETBOX_URL = os.getenv("NETBOX_API")
+NETBOX_URL = os.getenv("NETBOX_API", os.getenv("NETBOX_URL"))
 NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))
 IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", "True") == "True"
 
