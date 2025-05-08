@@ -6,6 +6,7 @@
   "pip_requirements": {
     "fileMatch": [
       "requirements.ansible.txt",
+      "requirements.netbox-manager.txt",
       "requirements.openstack-flavor-manager.txt",
       "requirements.openstack-image-manager.txt",
       "requirements.txt"
