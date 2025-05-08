@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "6255a99d63f8b053f68de9feb5ecc6a8df5e88c125744d320aea7033e004654a"
+            "sha256": "38d13b863007d6c0634b82c7b1c08457786a49b908d7f451bd6c3e5c7592859e"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -964,24 +964,6 @@
             "index": "pypi",
             "markers": "python_version >= '3.9' and python_version < '4.0'",
             "version": "==4.5.0"
-        },
-        "nornir": {
-            "hashes": [
-                "sha256:7e273d7b2aa519fa84b4fbbeb74ac5df3595d80105009049f0157c72a345b0b2",
-                "sha256:f0d212999a37bc5962534738c47099b3e11a45d8f7dc8bc855530f7fb73d2f64"
-            ],
-            "index": "pypi",
-            "markers": "python_version >= '3.9' and python_version < '4.0'",
-            "version": "==3.5.0"
-        },
-        "nornir-ansible": {
-            "hashes": [
-                "sha256:1cc6b17880e66413607b953277a9659e1b98fcc7a5b767e6e1b7583b1244c031",
-                "sha256:c04166b2a8584fcdcc592a010530757c64b414eacc98b15efae8c5ccf69a5230"
-            ],
-            "index": "pypi",
-            "markers": "python_version >= '3.8'",
-            "version": "==2023.12.28"
         },
         "ntc-templates": {
             "hashes": [
