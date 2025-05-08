@@ -16,6 +16,7 @@ keystoneauth1==5.10.0
 kombu==5.5.3
 kubernetes==32.0.1
 loguru==0.7.3
+nbcli==0.10.0.dev2
 netmiko==4.5.0
 nornir-ansible==2023.12.28
 nornir==3.5.0
