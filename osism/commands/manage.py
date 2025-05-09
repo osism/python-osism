@@ -12,7 +12,7 @@ import requests
 from osism.data import TEMPLATE_IMAGE_CLUSTERAPI, TEMPLATE_IMAGE_OCTAVIA
 from osism.tasks import openstack, handle_task
 
-SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.30", "1.31", "1.32", "1.33"]
+SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.31", "1.32", "1.33"]
 
 
 class ImageClusterapi(Command):
