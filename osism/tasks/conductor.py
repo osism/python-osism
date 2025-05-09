@@ -281,9 +281,7 @@ def sync_netbox_with_ironic(self, force_update=False):
                 # NOTE: Render driver address field
                 address_key = driver_params[node_attributes["driver"]]["address"]
                 if address_key in node_attributes["driver_info"]:
-                    if "oob_address" in device.custom_fields:
-                        node_mgmt_address = device.custom_fields["oob_address"]
-                    elif "address" in device.oob_ip:
+                    if "address" in device.oob_ip:
                         node_mgmt_address = device.oob_ip["address"]
                     else:
                         node_mgmt_addresses = [
@@ -310,16 +308,6 @@ def sync_netbox_with_ironic(self, force_update=False):
                     else:
                         logger.error(f"Could not find out-of-band address for {device}")
                         node_attributes["driver_info"].pop(address_key, None)
-                # NOTE: Add BMC port
-                if (
-                    "port" in driver_params[node_attributes["driver"]]
-                    and "oob_port" in device.custom_fields
-                    and device.custom_fields["oob_port"]
-                ):
-                    port_key = driver_params[node_attributes["driver"]]["port"]
-                    node_attributes["driver_info"].update(
-                        {port_key: device.custom_fields["oob_port"]}
-                    )
         node_attributes.update({"resource_class": device.name})
         ports_attributes = [
             dict(address=interface.mac_address)
