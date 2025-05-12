@@ -1,7 +1,8 @@
 ARG PYTHON_VERSION=3.13.3
 ARG ALPINE_VERSION=3.21
+ARG IMAGE=registry.osism.tech/dockerhub/python
 
-FROM python:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
+FROM ${IMAGE}:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
 
 ENV PYTHONWARNINGS="ignore::UserWarning"
 
