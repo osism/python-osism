@@ -116,7 +116,7 @@ class Run(Command):
         if format == "log":
             for c in t.children:
                 logger.info(
-                    f"Task {c.task_id} is running in background. No more output. Check ARA for logs."
+                    f"Task {c.task_id} (loadbalancer) is running in background. No more output. Check ARA for logs."
                 )
 
         # As explained above, it is neceesary to wait for all tasks.

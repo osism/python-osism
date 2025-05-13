@@ -52,7 +52,7 @@ class Run(Command):
         )
         return parser
 
-    def _handle_task(self, t, wait, format, timeout):
+    def _handle_task(self, t, wait, format, timeout, playbook):
         rc = 0
         if wait:
             stoptime = time.time() + timeout
@@ -85,7 +85,7 @@ class Run(Command):
         else:
             if format == "log":
                 logger.info(
-                    f"Task {t.task_id} is running in background. No more output. Check ARA for logs."
+                    f"Task {t.task_id} (validate {playbook}) is running in background. No more output. Check ARA for logs."
                 )
             elif format == "script":
                 print(f"{t.task_id}")
@@ -120,6 +120,6 @@ class Run(Command):
             environment = VALIDATE_PLAYBOOKS[validator]["environment"]
             t = ansible.run.delay(environment, playbook, arguments)
 
-        rc = self._handle_task(t, wait, format, timeout)
+        rc = self._handle_task(t, wait, format, timeout, playbook)
 
         return rc

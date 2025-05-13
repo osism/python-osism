@@ -28,7 +28,9 @@ class Ironic(Command):
             force_update=parsed_args.force_update
         )
         if wait:
-            logger.info(f"Task {task.task_id} is running. Wait. No more output.")
+            logger.info(
+                f"Task {task.task_id} (sync ironic) is running. Wait. No more output."
+            )
             task.wait(timeout=None, interval=0.5)
 
 
