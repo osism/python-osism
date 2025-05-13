@@ -47,7 +47,7 @@ class Sync(Command):
         t = reconciler.run.delay(publish=wait)
         if wait:
             logger.info(
-                f"Task {t.task_id} is running in background. Output coming soon."
+                f"Task {t.task_id} (sync inventory) is running in background. Output coming soon."
             )
             rc = 0
             stoptime = time.time() + task_timeout
@@ -77,4 +77,6 @@ class Sync(Command):
                             redis.close()
                             return rc
         else:
-            logger.info(f"Task {t.task_id} is running in background. No more output.")
+            logger.info(
+                f"Task {t.task_id} (sync inventory) is running in background. No more output."
+            )

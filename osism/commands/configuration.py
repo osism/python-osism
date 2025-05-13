@@ -23,9 +23,11 @@ class Sync(Command):
             "manager", "configuration", arguments, auto_release_time=60
         )
 
-        logger.info(f"Task {t.task_id} was prepared for execution.")
         logger.info(
-            f"It takes a moment until task {t.task_id} has been started and output is visible here."
+            f"Task {t.task_id} (sync configuration) was prepared for execution."
+        )
+        logger.info(
+            f"It takes a moment until task {t.task_id} (sync configuration) has been started and output is visible here."
         )
 
         rc = handle_task(t, True, format, 60)
