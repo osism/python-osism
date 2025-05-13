@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+from ansible import constants as ansible_constants
+from ansible.parsing.vault import VaultLib, VaultSecret
 from celery import Celery
 from celery.signals import worker_process_init
 import copy
@@ -168,6 +170,31 @@ def sync_netbox_with_ironic(self, force_update=False):
                 if not updates[key]:
                     updates.pop(key)
 
+    def deep_merge(a, b):
+        for key, value in b.items():
+            if value == "DELETE":
+                # NOTE: Use special string to remove keys
+                a.pop(key, None)
+            elif (
+                key not in a.keys()
+                or not isinstance(a[key], dict)
+                or not isinstance(value, dict)
+            ):
+                a[key] = value
+            else:
+                deep_merge(a[key], value)
+
+    def deep_decrypt(a, vault):
+        for key, value in list(a.items()):
+            if not isinstance(value, dict):
+                if vault.is_encrypted(value):
+                    try:
+                        a[key] = vault.decrypt(value).decode()
+                    except Exception:
+                        a.pop(key, None)
+            else:
+                deep_decrypt(a[key], vault)
+
     driver_params = {
         "ipmi": {
             "address": "ipmi_address",
@@ -216,10 +243,42 @@ def sync_netbox_with_ironic(self, force_update=False):
 
         node_attributes = get_ironic_parameters()
         if (
+            "ironic_parameters" in device.custom_fields
+            and device.custom_fields["ironic_parameters"]
+        ):
+            # NOTE: Update node attributes with overrides from netbox device
+            deep_merge(node_attributes, device.custom_fields["ironic_parameters"])
+        # NOTE: Decrypt ansible vaulted secrets
+        try:
+            vault_secret = utils.get_ansible_vault_password()
+            vault = VaultLib(
+                [
+                    (
+                        ansible_constants.DEFAULT_VAULT_ID_MATCH,
+                        VaultSecret(vault_secret.encode()),
+                    )
+                ]
+            )
+        except Exception:
+            logger.error("Unable to get vault secret. Dropping encrypted entries")
+            vault = VaultLib()
+        deep_decrypt(node_attributes, vault)
+        if (
             "driver" in node_attributes
             and node_attributes["driver"] in driver_params.keys()
         ):
             if "driver_info" in node_attributes:
+                # NOTE: Pop all fields belonging to a different driver
+                unused_drivers = [
+                    driver
+                    for driver in driver_params.keys()
+                    if driver != node_attributes["driver"]
+                ]
+                for key in list(node_attributes["driver_info"].keys()):
+                    for driver in unused_drivers:
+                        if key.startswith(driver + "_"):
+                            node_attributes["driver_info"].pop(key, None)
+                # NOTE: Render driver address field
                 address_key = driver_params[node_attributes["driver"]]["address"]
                 if address_key in node_attributes["driver_info"]:
                     if "oob_address" in device.custom_fields:
@@ -251,6 +310,7 @@ def sync_netbox_with_ironic(self, force_update=False):
                     else:
                         logger.error(f"Could not find out-of-band address for {device}")
                         node_attributes["driver_info"].pop(address_key, None)
+                # NOTE: Add BMC port
                 if (
                     "port" in driver_params[node_attributes["driver"]]
                     and "oob_port" in device.custom_fields
