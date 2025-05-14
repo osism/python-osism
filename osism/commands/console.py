@@ -3,6 +3,7 @@
 import subprocess
 
 from cliff.command import Command
+from loguru import logger
 from prompt_toolkit import prompt
 
 
@@ -12,12 +13,13 @@ class Run(Command):
         parser.add_argument(
             "--type",
             default="ssh",
-            choices=["ansible", "clush", "container", "ssh"],
+            choices=["ansible", "clush", "container", "netbox", "ssh"],
             help="Type of the console (default: %(default)s)",
         )
         parser.add_argument(
             "host",
-            nargs=1,
+            nargs="?",
+            default=None,
             type=str,
             help="Hostname or address of the console to connect",
         )
@@ -25,7 +27,18 @@ class Run(Command):
 
     def take_action(self, parsed_args):
         type_console = parsed_args.type
-        host = parsed_args.host[0]
+        if not parsed_args.host and type_console in [
+            "ansible",
+            "clush",
+            "container",
+            "ssh",
+        ]:
+            logger.error(f"Host or group required for console of type '{type_console}'")
+            return
+        elif parsed_args.host:
+            host = parsed_args.host[0]
+        else:
+            host = None
 
         # If certain characters are contained in the hostname, then
         # enforce a certain console type.
@@ -52,6 +65,11 @@ class Run(Command):
         elif type_console == "clush":
             subprocess.call(
                 f"/usr/local/bin/clush -l dragon -g {host}",
+                shell=True,
+            )
+        elif type_console == "netbox":
+            subprocess.call(
+                "nbcli",
                 shell=True,
             )
         elif type_console == "ssh":
