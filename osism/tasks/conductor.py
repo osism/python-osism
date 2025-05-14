@@ -20,83 +20,9 @@ app.config_from_object(Config)
 
 
 configuration = {}
-nb_device_query_list = None
 
 
-@worker_process_init.connect
-def celery_init_worker(**kwargs):
-    global configuration
-
-    with open("/etc/conductor.yml") as fp:
-        configuration = yaml.load(fp, Loader=yaml.SafeLoader)
-
-        if not configuration:
-            logger.warning(
-                "The conductor configuration is empty. That's probably wrong"
-            )
-            configuration = {}
-            return
-
-        # Resolve all IDs in the conductor.yml
-        if Config.enable_ironic.lower() in ["true", "yes"]:
-            if "ironic_parameters" not in configuration:
-                logger.error(
-                    "ironic_parameters not found in the conductor configuration"
-                )
-                return
-
-            if "driver_info" in configuration["ironic_parameters"]:
-                if "deploy_kernel" in configuration["ironic_parameters"]["driver_info"]:
-                    result = openstack.image_get(
-                        configuration["ironic_parameters"]["driver_info"][
-                            "deploy_kernel"
-                        ]
-                    )
-                    configuration["ironic_parameters"]["driver_info"][
-                        "deploy_kernel"
-                    ] = result.id
-
-                if (
-                    "deploy_ramdisk"
-                    in configuration["ironic_parameters"]["driver_info"]
-                ):
-                    result = openstack.image_get(
-                        configuration["ironic_parameters"]["driver_info"][
-                            "deploy_ramdisk"
-                        ]
-                    )
-                    configuration["ironic_parameters"]["driver_info"][
-                        "deploy_ramdisk"
-                    ] = result.id
-
-                if (
-                    "cleaning_network"
-                    in configuration["ironic_parameters"]["driver_info"]
-                ):
-                    result = openstack.network_get(
-                        configuration["ironic_parameters"]["driver_info"][
-                            "cleaning_network"
-                        ]
-                    )
-                    configuration["ironic_parameters"]["driver_info"][
-                        "cleaning_network"
-                    ] = result.id
-
-                if (
-                    "provisioning_network"
-                    in configuration["ironic_parameters"]["driver_info"]
-                ):
-                    result = openstack.network_get(
-                        configuration["ironic_parameters"]["driver_info"][
-                            "provisioning_network"
-                        ]
-                    )
-                    configuration["ironic_parameters"]["driver_info"][
-                        "provisioning_network"
-                    ] = result.id
-
-    global nb_device_query_list
-
+def get_nb_device_query_list():
     try:
         supported_nb_device_filters = [
             "site",
@@ -135,6 +61,74 @@ def celery_init_worker(**kwargs):
     except ValueError as exc:
         logger.error(f"Unknown value in NETBOX_FILTER_LIST: {exc}")
         nb_device_query_list = []
+
+    return nb_device_query_list
+
+
+def get_configuration():
+    with open("/etc/conductor.yml") as fp:
+        configuration = yaml.load(fp, Loader=yaml.SafeLoader)
+
+        if not configuration:
+            logger.warning(
+                "The conductor configuration is empty. That's probably wrong"
+            )
+            return {}
+
+        if Config.enable_ironic.lower() not in ["true", "yes"]:
+            return configuration
+
+        if "ironic_parameters" not in configuration:
+            logger.error("ironic_parameters not found in the conductor configuration")
+            return configuration
+
+        if "driver_info" in configuration["ironic_parameters"]:
+            if "deploy_kernel" in configuration["ironic_parameters"]["driver_info"]:
+                result = openstack.image_get(
+                    configuration["ironic_parameters"]["driver_info"]["deploy_kernel"]
+                )
+                configuration["ironic_parameters"]["driver_info"][
+                    "deploy_kernel"
+                ] = result.id
+
+            if "deploy_ramdisk" in configuration["ironic_parameters"]["driver_info"]:
+                result = openstack.image_get(
+                    configuration["ironic_parameters"]["driver_info"]["deploy_ramdisk"]
+                )
+                configuration["ironic_parameters"]["driver_info"][
+                    "deploy_ramdisk"
+                ] = result.id
+
+            if "cleaning_network" in configuration["ironic_parameters"]["driver_info"]:
+                result = openstack.network_get(
+                    configuration["ironic_parameters"]["driver_info"][
+                        "cleaning_network"
+                    ]
+                )
+                configuration["ironic_parameters"]["driver_info"][
+                    "cleaning_network"
+                ] = result.id
+
+            if (
+                "provisioning_network"
+                in configuration["ironic_parameters"]["driver_info"]
+            ):
+                result = openstack.network_get(
+                    configuration["ironic_parameters"]["driver_info"][
+                        "provisioning_network"
+                    ]
+                )
+                configuration["ironic_parameters"]["driver_info"][
+                    "provisioning_network"
+                ] = result.id
+
+        return configuration
+
+
+@worker_process_init.connect
+def celery_init_worker(**kwargs):
+    global configuration
+    configuration = get_configuration()
 
 
 @app.on_after_configure.connect
@@ -206,6 +200,7 @@ def sync_netbox_with_ironic(self, force_update=False):
     }
 
     devices = set()
+    nb_device_query_list = get_nb_device_query_list()
     for nb_device_query in nb_device_query_list:
         devices |= set(netbox.get_devices(**nb_device_query))
 
@@ -236,6 +231,7 @@ def sync_netbox_with_ironic(self, force_update=False):
     # NOTE: Find nodes in netbox which are not present in Ironic and add them
     for device in devices:
         logger.info(f"Looking for {device.name} in ironic")
+        logger.info(device)
 
         node_interfaces = list(netbox.get_interfaces_by_device(device.name))
 
@@ -279,7 +275,7 @@ def sync_netbox_with_ironic(self, force_update=False):
                 # NOTE: Render driver address field
                 address_key = driver_params[node_attributes["driver"]]["address"]
                 if address_key in node_attributes["driver_info"]:
-                    if "address" in device.oob_ip:
+                    if device.oob_ip and "address" in device.oob_ip:
                         node_mgmt_address = device.oob_ip["address"]
                     else:
                         node_mgmt_addresses = [
@@ -303,9 +299,6 @@ def sync_netbox_with_ironic(self, force_update=False):
                                 )
                             )
                         )
-                    else:
-                        logger.error(f"Could not find out-of-band address for {device}")
-                        node_attributes["driver_info"].pop(address_key, None)
         node_attributes.update({"resource_class": device.name})
         ports_attributes = [
             dict(address=interface.mac_address)
@@ -316,9 +309,9 @@ def sync_netbox_with_ironic(self, force_update=False):
         lock = Redlock(
             key=f"lock_osism_tasks_conductor_sync_netbox_with_ironic-{device.name}",
             masters={utils.redis},
-            auto_release_time=60,
+            auto_release_time=600,
         )
-        if lock.acquire(timeout=20):
+        if lock.acquire(timeout=120):
             try:
                 logger.info(f"Processing device {device.name}")
                 node = openstack.baremetal_node_show(device.name, ignore_missing=True)
