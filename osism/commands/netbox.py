@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import subprocess
+
 from cliff.command import Command
 from loguru import logger
+import yaml
 
 from osism.tasks import conductor, netbox, handle_task
 
@@ -133,3 +137,65 @@ class Versions(Command):
         task.wait(timeout=None, interval=0.5)
         result = task.get()
         print(result)
+
+
+class Console(Command):
+    def get_parser(self, prog_name):
+        parser = super(Console, self).get_parser(prog_name)
+        parser.add_argument(
+            "type",
+            nargs=1,
+            choices=["info", "search", "filter", "shell"],
+            help="Type of the console (default: %(default)s)",
+        )
+        parser.add_argument(
+            "arguments", nargs="*", type=str, default="", help="Additional arguments"
+        )
+
+        return parser
+
+    def take_action(self, parsed_args):
+        type_console = parsed_args.type[0]
+        arguments = " ".join(
+            [f"'{item}'" if " " in item else item for item in parsed_args.arguments]
+        )
+
+        home_dir = os.path.expanduser("~")
+        nbcli_dir = os.path.join(home_dir, ".nbcli")
+        if not os.path.exists(nbcli_dir):
+            os.mkdir(nbcli_dir)
+
+        nbcli_file = os.path.join(nbcli_dir, "user_config.yml")
+        if not os.path.exists(nbcli_file):
+            try:
+                with open("/run/secrets/NETBOX_TOKEN", "r") as fp:
+                    token = fp.read().strip()
+            except FileNotFoundError:
+                token = None
+
+            url = os.environ.get("NETBOX_API", None)
+
+            if not token or not url:
+                logger.error("Netbox integration not configured.")
+                return
+
+            subprocess.call(
+                ["/usr/local/bin/nbcli", "init"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            os.remove(nbcli_file)
+
+            nbcli_config = {
+                "pynetbox": {
+                    "url": url,
+                    "token": token,
+                },
+                "requests": {"verify": False},
+                "nbcli": {"filter_limit": 50},
+                "user": {},
+            }
+            with open(nbcli_file, "w") as fp:
+                yaml.dump(nbcli_config, fp, default_flow_style=False)
+
+        subprocess.call(f"/usr/local/bin/nbcli {type_console} {arguments}", shell=True)
