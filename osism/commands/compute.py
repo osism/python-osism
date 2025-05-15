@@ -322,7 +322,13 @@ class ComputeMigrate(Command):
         parser.add_argument(
             "--no-wait",
             default=False,
-            help="Do not wait for completion of migration",
+            help="Do not wait for completion of migration (Resize of cold migrated instances will not be confirmed!)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--no-cold-migration",
+            default=False,
+            help="Do not cold migrate instances",
             action="store_true",
         )
         parser.add_argument(
@@ -368,6 +374,7 @@ class ComputeMigrate(Command):
         target = parsed_args.target
         force = parsed_args.force
         no_wait = parsed_args.no_wait
+        no_cold_migration = parsed_args.no_cold_migration
         yes = parsed_args.yes
         domain = parsed_args.domain
         project = parsed_args.project
@@ -393,9 +400,13 @@ class ComputeMigrate(Command):
             logger.info(f"No migratable instances found on node {host}")
 
         for server in result:
-            if server[2] not in ["ACTIVE", "PAUSED"]:
+            if server[2] in ["ACTIVE", "PAUSED"]:
+                migration_type = "live"
+            elif server[2] in ["SHUTOFF"] and not no_cold_migration:
+                migration_type = "cold"
+            else:
                 logger.info(
-                    f"{server[0]} ({server[1]}) in status {server[2]} cannot be live migrated"
+                    f"{server[0]} ({server[1]}) in status {server[2]} cannot be migrated"
                 )
                 continue
 
@@ -403,27 +414,53 @@ class ComputeMigrate(Command):
                 answer = "yes"
             else:
                 answer = prompt(
-                    f"Live migrate server {server[0]} ({server[1]}) [yes/no]: "
+                    f"{migration_type.capitalize()} migrate server {server[0]} ({server[1]}) [yes/no]: "
                 )
 
             if answer in ["yes", "y"]:
-                logger.info(f"Live migrating server {server[0]}")
-                conn.compute.live_migrate_server(
-                    server[0], host=target, block_migration="auto", force=force
+                logger.info(
+                    f"{migration_type.capitalize()} migrating server {server[0]}"
                 )
+                if migration_type == "live":
+                    conn.compute.live_migrate_server(
+                        server[0], host=target, block_migration="auto", force=force
+                    )
+                elif migration_type == "cold":
+                    conn.compute.migrate_server(server[0], host=target)
 
                 if not no_wait:
-                    inner_wait = True
-                    while inner_wait:
+                    while True:
                         time.sleep(2)
                         s = conn.compute.get_server(server[0])
-                        if s.status in ["MIGRATING"]:
+                        if (
+                            migration_type == "live"
+                            and s.status in ["MIGRATING"]
+                            or migration_type == "cold"
+                            and s.status in ["RESIZE"]
+                        ):
                             logger.info(
-                                f"Live migration of {server[0]} ({server[1]}) is still in progress"
+                                f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) is still in progress"
                             )
-                            inner_wait = True
+                        elif migration_type == "cold" and s.status in ["VERIFY_RESIZE"]:
+                            try:
+                                conn.compute.confirm_server_resize(s)
+                                logger.info(
+                                    f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) confirmed"
+                                )
+                            except Exception as exc:
+                                logger.error(
+                                    f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) could not be confirmed"
+                                )
+                                raise exc
+                            # NOTE: There seems to be no simple way to check whether the resize
+                            # has been confirmed. The state is still "VERIFY_RESIZE" afterwards.
+                            # Therefore we drop out without waiting for the "SHUTOFF" state
+                            break
                         else:
-                            inner_wait = False
+                            logger.info(
+                                f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) completed with status {s.status}"
+                            )
+                            break
 
 
 class ComputeStart(Command):
