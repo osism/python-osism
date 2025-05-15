@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "3561218649f16294ed3c52d9b1100db6a0a522997afc14059053d0aef3277212"
+            "sha256": "d49d16a110413368ebd2c876da5a4d05576cbcac3bf60d86611870ec97e129f8"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -1079,11 +1079,11 @@
         },
         "pluggy": {
             "hashes": [
-                "sha256:2cffa88e94fdc978c4c574f15f9e59b7f4201d439195c3715ca9e2486f1d0cf1",
-                "sha256:44e1ad92c8ca002de6377e165f3e0f1be63266ab4d554740532335b9d75ea669"
+                "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3",
+                "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
             ],
-            "markers": "python_version >= '3.8'",
-            "version": "==1.5.0"
+            "markers": "python_version >= '3.9'",
+            "version": "==1.6.0"
         },
         "polling": {
             "hashes": [
@@ -1608,12 +1608,12 @@
         },
         "sushy": {
             "hashes": [
-                "sha256:39604a0b7e78d330f3f679997e4f48770c77fa67bba448c2e5bc2a273c392477",
-                "sha256:8889ba3e9d6f21450d60ce0b62f0cc7843052412f3d43c3ed57c69e8d82f81fa"
+                "sha256:77be2b48bbdecd5d2d72a9c04c722219ea059c76b7d55a56441249a579f09df5",
+                "sha256:bb836a71f9edd402dd154b2b7f60257836847efc77760cd6082cd137323a1f7d"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.9'",
-            "version": "==5.5.0"
+            "version": "==5.6.0"
         },
         "textfsm": {
             "hashes": [
