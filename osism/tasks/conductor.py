@@ -317,6 +317,7 @@ def sync_netbox_with_ironic(self, force_update=False):
                 node = openstack.baremetal_node_show(device.name, ignore_missing=True)
                 if not node:
                     logger.info(f"Creating baremetal node for {device.name}")
+                    print(node_attributes)
                     node = openstack.baremetal_node_create(device.name, node_attributes)
                 else:
                     # NOTE: The listener service only reacts to changes in the baremetal node. Explicitly sync provision and power state in case updates were missed by the listener.
