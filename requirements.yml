@@ -13,7 +13,7 @@ collections:
   - name: community.docker
     version: 4.6.0
   - name: community.general
-    version: 10.6.0
+    version: 10.7.0
   - name: community.grafana
     version: 2.2.0
   - name: community.hashi_vault
