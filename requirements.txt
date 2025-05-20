@@ -21,7 +21,7 @@ netmiko==4.5.0
 openstacksdk==4.5.0
 pottery==3.0.1
 prompt-toolkit==3.0.51
-pynetbox==7.4.1
+pynetbox==7.5.0
 pytest-testinfra==10.2.2
 python-dateutil==2.9.0.post0
 setuptools==80.7.1
