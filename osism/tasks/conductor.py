@@ -145,8 +145,13 @@ def get_ironic_parameters(self):
     return {}
 
 
-@app.task(bind=True, name="osism.tasks.conductor.sync_netbox_with_ironic")
-def sync_netbox_with_ironic(self, force_update=False):
+@app.task(bind=True, name="osism.tasks.conductor.sync_netbox")
+def sync_netbox(self, force_update=False):
+    logger.info("Not implemented")
+
+
+@app.task(bind=True, name="osism.tasks.conductor.sync_ironic")
+def sync_ironic(self, force_update=False):
     def deep_compare(a, b, updates):
         """
         Find items in a that do not exist in b or are different.
@@ -307,7 +312,7 @@ def sync_netbox_with_ironic(self, force_update=False):
         ]
 
         lock = Redlock(
-            key=f"lock_osism_tasks_conductor_sync_netbox_with_ironic-{device.name}",
+            key=f"lock_osism_tasks_conductor_sync_ironic-{device.name}",
             masters={utils.redis},
             auto_release_time=600,
         )
