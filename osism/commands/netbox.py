@@ -49,7 +49,7 @@ class Sync(Command):
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
 
-        task = conductor.sync_netbox.delay(force_update=parsed_args.force_update)
+        task = conductor.sync_netbox.delay()
         if wait:
             logger.info(
                 f"Task {task.task_id} (sync netbox) is running. Wait. No more output."
