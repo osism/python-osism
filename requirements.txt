@@ -24,7 +24,7 @@ prompt-toolkit==3.0.51
 pynetbox==7.5.0
 pytest-testinfra==10.2.2
 python-dateutil==2.9.0.post0
-setuptools==80.7.1
+setuptools==80.8.0
 sqlmodel==0.0.24
 sushy==5.6.0
 tabulate==0.9.0
