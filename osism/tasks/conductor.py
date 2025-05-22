@@ -10,6 +10,7 @@ import jinja2
 from loguru import logger
 from pottery import Redlock
 import yaml
+import json
 
 from osism import settings
 from osism import utils
@@ -305,6 +306,27 @@ def sync_ironic(self, force_update=False):
                             )
                         )
         node_attributes.update({"resource_class": device.name})
+        # NOTE: Write metadata used for provisioning into 'extra' field, so that it is available during node deploy without querying the netbox again
+        if "extra" not in node_attributes:
+            node_attributes["extra"] = {}
+        if (
+            "netplan_parameters" in device.custom_fields
+            and device.custom_fields["netplan_parameters"]
+        ):
+            node_attributes["extra"].update(
+                {
+                    "netplan_parameters": json.dumps(
+                        device.custom_fields["netplan_parameters"]
+                    )
+                }
+            )
+        if (
+            "frr_parameters" in device.custom_fields
+            and device.custom_fields["frr_parameters"]
+        ):
+            node_attributes["extra"].update(
+                {"frr_parameters": json.dumps(device.custom_fields["frr_parameters"])}
+            )
         ports_attributes = [
             dict(address=interface.mac_address)
             for interface in node_interfaces
