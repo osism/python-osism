@@ -170,3 +170,68 @@ class BaremetalDeploy(Command):
                     f"Node {node.name} ({node.id}) could not be moved to active state: {exc}"
                 )
                 continue
+
+
+class BaremetalUndeploy(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalUndeploy, self).get_parser(prog_name)
+
+        parser_exc_group = parser.add_mutually_exclusive_group(required=True)
+        parser_exc_group.add_argument(
+            "--all",
+            default=False,
+            help="Undeploy all baremetal nodes",
+            action="store_true",
+        )
+        parser_exc_group.add_argument(
+            "--name",
+            default=[],
+            help="Undeploy given baremetal node. May be specified multiple times",
+            action="append",
+        )
+        parser.add_argument(
+            "--yes-i-really-really-mean-it",
+            default=False,
+            help="Specify this to actually undeploy all nodes",
+            action="store_true",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        all_nodes = parsed_args.all
+        names = parsed_args.name
+        yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
+
+        if all_nodes and not yes_i_really_really_mean_it:
+            logger.error(
+                "Please assure that you rally want to undeploy all nodes by specifying '--yes-i-really-really-mean-it'"
+            )
+            return
+
+        conn = get_cloud_connection()
+
+        if all_nodes:
+            deploy_nodes = list(conn.baremetal.nodes())
+        else:
+            deploy_nodes = [
+                conn.baremetal.find_node(name, ignore_missing=True, details=False)
+                for name in names
+            ]
+
+        for node_idx, node in enumerate(deploy_nodes):
+            if not node:
+                logger.warning(f"Could not find node {names[node_idx]}")
+                continue
+
+            if node.provision_state in ["active", "deploy failed", "error"]:
+                try:
+                    conn.baremetal.set_node_provision_state(node.id, "undeploy")
+                except Exception as exc:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
+                    )
+                    continue
+            else:
+                logger.warning(
+                    f"Node {node.name} ({node.id}) not in supported provision state"
+                )
