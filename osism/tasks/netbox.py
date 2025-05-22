@@ -151,6 +151,11 @@ def get_interfaces_by_device(self, device_name):
     return utils.nb.dcim.interfaces.filter(device=device_name)
 
 
+@app.task(bind=True, name="osism.tasks.netbox.get_addresses_by_device_and_interface")
+def get_addresses_by_device_and_interface(self, device_name, interface_name):
+    return utils.nb.dcim.addresses.filter(device=device_name, interface=interface_name)
+
+
 @app.task(bind=True, name="osism.tasks.netbox.manage")
 def manage(self, *arguments, publish=True, locking=False, auto_release_time=3600):
     netbox_manager_env = {
