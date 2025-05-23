@@ -10,6 +10,7 @@ import jinja2
 from loguru import logger
 from pottery import Redlock
 import yaml
+import json
 
 from osism import settings
 from osism import utils
@@ -305,6 +306,50 @@ def sync_ironic(self, force_update=False):
                             )
                         )
         node_attributes.update({"resource_class": device.name})
+        # NOTE: Write metadata used for provisioning into 'extra' field, so that it is available during node deploy without querying the netbox again
+        if "extra" not in node_attributes:
+            node_attributes["extra"] = {}
+        node_attributes["extra"].update(
+            {
+                "osism_meta_data": json.dumps(
+                    {
+                        "hostname": str(device.name),
+                        "ASN": "",
+                        "interfaces": [
+                            {
+                                "name": str(interface.name),
+                                "MAC": str(interface.primary_mac_address),
+                                "ASN": "",
+                            }
+                            for interface in node_interfaces
+                            if (
+                                interface.enabled
+                                and interface.type not in ["virtual", "bridge"]
+                                and not interface.mgmt_only
+                            )
+                        ],
+                        "ipv4": [
+                            [
+                                str(address.address)
+                                for address in interface.addresses
+                                if address.family == "IPv4"
+                            ]
+                            for interface in node_interfaces
+                            if interface.enabled and interface.name == "Dummy0"
+                        ],
+                        "ipv6": [
+                            [
+                                str(address.address)
+                                for address in interface.addresses
+                                if address.family == "IPv6"
+                            ]
+                            for interface in node_interfaces
+                            if interface.enabled and interface.name == "Dummy0"
+                        ],
+                    }
+                )
+            }
+        )
         ports_attributes = [
             dict(address=interface.mac_address)
             for interface in node_interfaces
