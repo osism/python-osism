@@ -15,9 +15,10 @@ app.config_from_object(Config)
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    sender.add_periodic_task(
-        settings.INVENTORY_RECONCILER_SCHEDULE, run_on_change.s(), expires=10
-    )
+    if settings.INVENTORY_RECONCILER_SCHEDULE > 0:
+        sender.add_periodic_task(
+            settings.INVENTORY_RECONCILER_SCHEDULE, run_on_change.s(), expires=10
+        )
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
