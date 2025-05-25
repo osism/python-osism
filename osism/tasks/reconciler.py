@@ -6,6 +6,7 @@ import subprocess
 from celery import Celery
 from loguru import logger
 from pottery import Redlock
+
 from osism import settings, utils
 from osism.tasks import Config
 
@@ -15,7 +16,11 @@ app.config_from_object(Config)
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    if settings.INVENTORY_RECONCILER_SCHEDULE > 0:
+    lock = Redlock(
+        key="lock_osism_tasks_reconciler_setup_periodic_tasks",
+        masters={utils.redis},
+    )
+    if settings.INVENTORY_RECONCILER_SCHEDULE > 0 and lock.acquire(timeout=10):
         sender.add_periodic_task(
             settings.INVENTORY_RECONCILER_SCHEDULE, run_on_change.s(), expires=10
         )
