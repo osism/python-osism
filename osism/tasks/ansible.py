@@ -11,9 +11,10 @@ app.config_from_object(Config)
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    sender.add_periodic_task(
-        settings.GATHER_FACTS_SCHEDULE, gather_facts.s(), expires=10
-    )
+    if settings.GATHER_FACTS_SCHEDULE > 0:
+        sender.add_periodic_task(
+            settings.GATHER_FACTS_SCHEDULE, gather_facts.s(), expires=10
+        )
 
 
 @app.task(bind=True, name="osism.tasks.ansible.gather_facts")
