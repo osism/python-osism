@@ -105,7 +105,7 @@ class BaremetalDeploy(Command):
 
         if all_nodes and rebuild and not yes_i_really_really_mean_it:
             logger.error(
-                "Please assure that you rally want to rebuild all nodes by specifying '--yes-i-really-really-mean-it'"
+                "Please confirm that you wish to rebuild all nodes by specifying '--yes-i-really-really-mean-it'"
             )
             return
 
@@ -204,7 +204,7 @@ class BaremetalUndeploy(Command):
 
         if all_nodes and not yes_i_really_really_mean_it:
             logger.error(
-                "Please assure that you rally want to undeploy all nodes by specifying '--yes-i-really-really-mean-it'"
+                "Please confirm that you wish to undeploy all nodes by specifying '--yes-i-really-really-mean-it'"
             )
             return
 
