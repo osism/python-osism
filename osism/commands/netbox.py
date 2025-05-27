@@ -106,7 +106,7 @@ class Manage(Command):
 
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
-        arguments = []
+        arguments = ["run"]
 
         if parsed_args.no_netbox_wait:
             arguments.append("--no-wait")
