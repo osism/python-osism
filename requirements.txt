@@ -13,7 +13,7 @@ flower==2.0.1
 hiredis==3.2.1
 jc==1.25.5
 keystoneauth1==5.11.0
-kombu==5.5.3
+kombu==5.5.4
 kubernetes==32.0.1
 loguru==0.7.3
 nbcli==0.10.0.dev2
