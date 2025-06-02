@@ -34,7 +34,7 @@ class Sync(Command):
         )
         parser.add_argument(
             "--task-timeout",
-            default=3600,
+            default=300,
             type=int,
             help="Timeout for a scheduled task that has not been executed yet",
         )
