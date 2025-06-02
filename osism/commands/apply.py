@@ -69,7 +69,7 @@ class Run(Command):
         )
         parser.add_argument(
             "--timeout",
-            default=300,
+            default=os.environ.get("OSISM_TASK_TIMEOUT", 300),
             type=int,
             help="Timeout to end if there is no output",
         )

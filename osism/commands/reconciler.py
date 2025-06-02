@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import subprocess
 import time
 
@@ -34,7 +35,7 @@ class Sync(Command):
         )
         parser.add_argument(
             "--task-timeout",
-            default=300,
+            default=os.environ.get("OSISM_TASK_TIMEOUT", 300),
             type=int,
             help="Timeout for a scheduled task that has not been executed yet",
         )
