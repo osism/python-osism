@@ -23,6 +23,15 @@ def get_configuration():
             logger.error("ironic_parameters not found in the conductor configuration")
             return configuration
 
+        if "instance_info" in configuration["ironic_parameters"]:
+            if "image_source" in configuration["ironic_parameters"]["instance_info"]:
+                result = openstack.image_get(
+                    configuration["ironic_parameters"]["instance_info"]["image_source"]
+                )
+                configuration["ironic_parameters"]["instance_info"][
+                    "image_source"
+                ] = result.id
+
         if "driver_info" in configuration["ironic_parameters"]:
             if "deploy_kernel" in configuration["ironic_parameters"]["driver_info"]:
                 result = openstack.image_get(
