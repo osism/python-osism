@@ -39,15 +39,26 @@ def deep_merge(a, b):
 
 
 def deep_decrypt(a, vault):
-    for key, value in list(a.items()):
-        if not isinstance(value, dict):
-            if vault.is_encrypted(value):
+    if a is None:
+        return
+    if isinstance(a, dict):
+        for key, value in list(a.items()):
+            if isinstance(value, (dict, list)):
+                deep_decrypt(a[key], vault)
+            elif vault.is_encrypted(value):
                 try:
                     a[key] = vault.decrypt(value).decode()
                 except Exception:
                     a.pop(key, None)
-        else:
-            deep_decrypt(a[key], vault)
+    elif isinstance(a, list):
+        for i, item in enumerate(a):
+            if isinstance(item, (dict, list)):
+                deep_decrypt(item, vault)
+            elif vault.is_encrypted(item):
+                try:
+                    a[i] = vault.decrypt(item).decode()
+                except Exception:
+                    pass
 
 
 def get_vault():
