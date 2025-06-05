@@ -23,10 +23,12 @@ driver_params = {
         "address": "ipmi_address",
         "port": "ipmi_port",
         "password": "ipmi_password",
+        "username": "ipmi_username",
     },
     "redfish": {
         "address": "redfish_address",
         "password": "redfish_password",
+        "username": "redfish_username",
     },
 }
 
@@ -98,6 +100,19 @@ def sync_ironic(get_ironic_parameters, force_update=False):
                     for driver in unused_drivers:
                         if key.startswith(driver + "_"):
                             node_attributes["driver_info"].pop(key, None)
+
+                # NOTE: Render driver username field
+                username_key = driver_params[node_attributes["driver"]]["username"]
+                if username_key in node_attributes["driver_info"]:
+                    node_attributes["driver_info"][username_key] = (
+                        jinja2.Environment(loader=jinja2.BaseLoader())
+                        .from_string(node_attributes["driver_info"][username_key])
+                        .render(
+                            remote_board_username=str(
+                                node_secrets.get("remote_board_username", "admin")
+                            )
+                        )
+                    )
 
                 # NOTE: Render driver password field
                 password_key = driver_params[node_attributes["driver"]]["password"]
