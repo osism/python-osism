@@ -5,6 +5,7 @@
 
 import os
 import subprocess
+import sys
 
 from cliff.command import Command
 from cryptography.fernet import Fernet
@@ -31,7 +32,14 @@ class SetPassword(Command):
 
         f = Fernet(key)
 
-        ansible_vault_password = prompt("Ansible Vault password: ", is_password=True)
+        # Check if password is being piped from STDIN
+        if not sys.stdin.isatty():
+            ansible_vault_password = sys.stdin.read().strip()
+        else:
+            ansible_vault_password = prompt(
+                "Ansible Vault password: ", is_password=True
+            )
+
         redis.set(
             "ansible_vault_password", f.encrypt(ansible_vault_password.encode("utf-8"))
         )
