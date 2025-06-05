@@ -4,7 +4,6 @@ import logging
 import os
 import re
 import subprocess
-import time
 
 from loguru import logger
 from pottery import Redlock
@@ -163,14 +162,13 @@ def run_ansible_in_environment(
     while p.poll() is None:
         line = p.stdout.readline().decode("utf-8")
         if publish:
-            utils.redis.xadd(request_id, {"type": "stdout", "content": line})
+            utils.push_task_output(request_id, line)
         result += line
 
     rc = p.wait(timeout=60)
 
     if publish:
-        utils.redis.xadd(request_id, {"type": "rc", "content": rc})
-        utils.redis.xadd(request_id, {"type": "action", "content": "quit"})
+        utils.finish_task_output(request_id, rc=rc)
 
     if locking:
         lock.release()
@@ -212,14 +210,13 @@ def run_command(
     while p.poll() is None:
         line = p.stdout.readline().decode("utf-8")
         if publish:
-            utils.redis.xadd(request_id, {"type": "stdout", "content": line})
+            utils.push_task_output(request_id, line)
         result += line
 
     rc = p.wait(timeout=60)
 
     if publish:
-        utils.redis.xadd(request_id, {"type": "rc", "content": rc})
-        utils.redis.xadd(request_id, {"type": "action", "content": "quit"})
+        utils.finish_task_output(request_id, rc=rc)
 
     if locking:
         lock.release()
@@ -228,39 +225,10 @@ def run_command(
 
 
 def handle_task(t, wait=True, format="log", timeout=3600):
-    rc = 0
     if wait:
-        stoptime = time.time() + timeout
-        last_id = 0
-        while time.time() < stoptime:
-            data = utils.redis.xread(
-                {str(t.task_id): last_id}, count=1, block=(timeout * 1000)
-            )
-            if data:
-                stoptime = time.time() + timeout
-                messages = data[0]
-                for message_id, message in messages[1]:
-                    last_id = message_id.decode()
-                    message_type = message[b"type"].decode()
-                    message_content = message[b"content"].decode()
-
-                    logger.debug(f"Processing message {last_id} of type {message_type}")
-                    utils.redis.xdel(str(t.task_id), last_id)
-
-                    if message_type == "stdout":
-                        print(message_content, end="", flush=True)
-                        if "PLAY RECAP" in message_content:
-                            logger.info(
-                                "Play has been completed. There may now be a delay until "
-                                "all logs have been written."
-                            )
-                            logger.info("Please wait and do not abort execution.")
-                    elif message_type == "rc":
-                        rc = int(message_content)
-                    elif message_type == "action" and message_content == "quit":
-                        utils.redis.close()
-                        return rc
-        else:
+        try:
+            return utils.fetch_task_output(t.id, timeout=timeout)
+        except TimeoutError:
             logger.info(
                 f"There has been no output from the task {t.task_id} for {timeout} second(s)."
             )
@@ -284,4 +252,4 @@ def handle_task(t, wait=True, format="log", timeout=3600):
         elif format == "script":
             print(f"{t.task_id}")
 
-        return rc
+        return 0

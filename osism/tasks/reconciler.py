@@ -40,15 +40,14 @@ def run(self, publish=True):
             "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
 
-        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-            if publish:
-                utils.redis.xadd(self.request.id, {"type": "stdout", "content": line})
+        if publish:
+            for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
+                utils.push_task_output(self.request.id, line)
 
         rc = p.wait(timeout=60)
 
         if publish:
-            utils.redis.xadd(self.request.id, {"type": "rc", "content": rc})
-            utils.redis.xadd(self.request.id, {"type": "action", "content": "quit"})
+            utils.finish_task_output(self.request.id, rc=rc)
 
         lock.release()
 

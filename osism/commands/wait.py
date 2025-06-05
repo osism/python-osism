@@ -119,38 +119,15 @@ class Run(Command):
 
                     if live:
                         utils.redis.ping()
-
-                        last_id = 0
-                        while_True = True
-                        while while_True:
-                            data = utils.redis.xread(
-                                {str(task_id): last_id}, count=1, block=1000
+                        try:
+                            rc = utils.fetch_task_output(task_id)
+                        except TimeoutError:
+                            logger.error(
+                                f"Timeout while waiting for further output of task {task_id}"
                             )
-                            if data:
-                                messages = data[0]
-                                for message_id, message in messages[1]:
-                                    last_id = message_id.decode()
-                                    message_type = message[b"type"].decode()
-                                    message_content = message[b"content"].decode()
 
-                                    logger.debug(
-                                        f"Processing message {last_id} of type {message_type}"
-                                    )
-                                    utils.redis.xdel(str(task_id), last_id)
-
-                                    if message_type == "stdout":
-                                        print(message_content, end="")
-                                    elif message_type == "rc":
-                                        rc = int(message_content)
-                                    elif (
-                                        message_type == "action"
-                                        and message_content == "quit"
-                                    ):
-                                        utils.redis.close()
-                                        if len(task_ids) == 1:
-                                            return rc
-                                        else:
-                                            while_True = False
+                        if len(task_ids) == 1:
+                            return rc
                     else:
                         tmp_task_ids.insert(0, task_id)
 
