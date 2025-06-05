@@ -124,7 +124,7 @@ def sync_ironic(get_ironic_parameters, force_update=False):
                         .from_string(node_attributes["driver_info"][password_key])
                         .render(
                             remote_board_password=str(
-                                node_secrets.get("remote_board_password", "")
+                                node_secrets.get("remote_board_password", "password")
                             )
                         )
                     )
