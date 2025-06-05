@@ -75,15 +75,20 @@ def sync_ironic(get_ironic_parameters, force_update=False):
         ):
             # NOTE: Update node attributes with overrides from netbox device
             deep_merge(node_attributes, device.custom_fields["ironic_parameters"])
+
         # NOTE: Decrypt ansible vaulted secrets
         vault = get_vault()
         deep_decrypt(node_attributes, vault)
+
+        node_secrets = device.custom_fields["secrets"]
+        deep_decrypt(node_secrets, vault)
+
         if (
             "driver" in node_attributes
             and node_attributes["driver"] in driver_params.keys()
         ):
             if "driver_info" in node_attributes:
-                # NOTE: Pop all fields belonging to a different driver
+                # NOTE: Remove all fields belonging to a different driver
                 unused_drivers = [
                     driver
                     for driver in driver_params.keys()
@@ -93,6 +98,20 @@ def sync_ironic(get_ironic_parameters, force_update=False):
                     for driver in unused_drivers:
                         if key.startswith(driver + "_"):
                             node_attributes["driver_info"].pop(key, None)
+
+                # NOTE: Render driver password field
+                password_key = driver_params[node_attributes["driver"]]["password"]
+                if password_key in node_attributes["driver_info"]:
+                    node_attributes["driver_info"][password_key] = (
+                        jinja2.Environment(loader=jinja2.BaseLoader())
+                        .from_string(node_attributes["driver_info"][password_key])
+                        .render(
+                            remote_board_password=str(
+                                node_secrets.get("remote_board_password", "")
+                            )
+                        )
+                    )
+
                 # NOTE: Render driver address field
                 address_key = driver_params[node_attributes["driver"]]["address"]
                 if address_key in node_attributes["driver_info"]:
