@@ -82,7 +82,7 @@ def sync_ironic(get_ironic_parameters, force_update=False):
         vault = get_vault()
         deep_decrypt(node_attributes, vault)
 
-        node_secrets = device.custom_fields["secrets"]
+        node_secrets = device.custom_fields.get("secrets", {})
         deep_decrypt(node_secrets, vault)
 
         if (
