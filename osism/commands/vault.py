@@ -35,6 +35,7 @@ class SetPassword(Command):
         # Check if password is being piped from STDIN
         if not sys.stdin.isatty():
             ansible_vault_password = sys.stdin.read().strip()
+            print(ansible_vault_password)
         else:
             ansible_vault_password = prompt(
                 "Ansible Vault password: ", is_password=True
