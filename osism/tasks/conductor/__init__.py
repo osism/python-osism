@@ -43,7 +43,7 @@ def sync_netbox(self, force_update=False):
 
 @app.task(bind=True, name="osism.tasks.conductor.sync_ironic")
 def sync_ironic(self, force_update=False):
-    _sync_ironic(get_ironic_parameters, force_update)
+    _sync_ironic(self.request.id, get_ironic_parameters, force_update)
 
 
 __all__ = [
