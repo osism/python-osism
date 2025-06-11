@@ -8,6 +8,7 @@ from loguru import logger
 import yaml
 
 from osism.tasks import conductor, netbox, handle_task
+from osism import utils
 
 
 class Ironic(Command):
@@ -19,6 +20,12 @@ class Ironic(Command):
             action="store_true",
         )
         parser.add_argument(
+            "--task-timeout",
+            default=os.environ.get("OSISM_TASK_TIMEOUT", 300),
+            type=int,
+            help="Timeout for a scheduled task that has not been executed yet",
+        )
+        parser.add_argument(
             "--force-update",
             help="Force update of baremetal nodes (Used to update non-comparable items like passwords)",
             action="store_true",
@@ -27,13 +34,23 @@ class Ironic(Command):
 
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
+        task_timeout = parsed_args.task_timeout
 
         task = conductor.sync_ironic.delay(force_update=parsed_args.force_update)
         if wait:
             logger.info(
-                f"Task {task.task_id} (sync ironic) is running. Wait. No more output."
+                f"Task {task.task_id} (sync ironic) is running in background. Output comming soon."
             )
-            task.wait(timeout=None, interval=0.5)
+            try:
+                return utils.fetch_task_output(task.id, timeout=task_timeout)
+            except TimeoutError:
+                logger.error(
+                    f"Timeout while waiting for further output of task {task.task_id} (sync ironic)"
+                )
+        else:
+            logger.info(
+                f"Task {task.task_id} (sync ironic) is running in background. No more output."
+            )
 
 
 class Sync(Command):

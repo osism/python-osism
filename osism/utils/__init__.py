@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import time
+import os
 from cryptography.fernet import Fernet
 import keystoneauth1
 from loguru import logger
@@ -134,3 +136,48 @@ def first(iterable, condition=lambda x: True):
     """
 
     return next(x for x in iterable if condition(x))
+
+
+def fetch_task_output(
+    task_id, timeout=os.environ.get("OSISM_TASK_TIMEOUT", 300), enable_play_recap=False
+):
+    rc = 0
+    stoptime = time.time() + timeout
+    last_id = 0
+    while time.time() < stoptime:
+        data = redis.xread({str(task_id): last_id}, count=1, block=(timeout * 1000))
+        if data:
+            stoptime = time.time() + timeout
+            messages = data[0]
+            for message_id, message in messages[1]:
+                last_id = message_id.decode()
+                message_type = message[b"type"].decode()
+                message_content = message[b"content"].decode()
+
+                logger.debug(f"Processing message {last_id} of type {message_type}")
+                redis.xdel(str(task_id), last_id)
+
+                if message_type == "stdout":
+                    print(message_content, end="")
+                    if enable_play_recap and "PLAY RECAP" in message_content:
+                        logger.info(
+                            "Play has been completed. There may now be a delay until "
+                            "all logs have been written."
+                        )
+                        logger.info("Please wait and do not abort execution.")
+                elif message_type == "rc":
+                    rc = int(message_content)
+                elif message_type == "action" and message_content == "quit":
+                    redis.close()
+                    return rc
+    raise TimeoutError
+
+
+def push_task_output(task_id, line):
+    redis.xadd(task_id, {"type": "stdout", "content": line})
+
+
+def finish_task_output(task_id, rc=None):
+    if rc:
+        redis.xadd(task_id, {"type": "rc", "content": rc})
+    redis.xadd(task_id, {"type": "action", "content": "quit"})

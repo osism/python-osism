@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
-import time
 
 from cliff.command import Command
 from loguru import logger
 
 from osism.core.enums import VALIDATE_PLAYBOOKS
 from osism.tasks import ansible, ceph, kolla
-from osism.utils import redis
+from osism import utils
 
 
 class Run(Command):
@@ -53,35 +52,13 @@ class Run(Command):
         return parser
 
     def _handle_task(self, t, wait, format, timeout, playbook):
-        rc = 0
         if wait:
-            stoptime = time.time() + timeout
-            last_id = 0
-            while time.time() < stoptime:
-                data = redis.xread(
-                    {str(t.task_id): last_id}, count=1, block=(timeout * 1000)
+            try:
+                return utils.fetch_task_output(t.id, timeout=timeout)
+            except TimeoutError:
+                logger.error(
+                    f"Timeout while waiting for further output of task {t.task_id} (sync inventory)"
                 )
-                if data:
-                    stoptime = time.time() + timeout
-                    messages = data[0]
-                    for message_id, message in messages[1]:
-                        last_id = message_id.decode()
-                        message_type = message[b"type"].decode()
-                        message_content = message[b"content"].decode()
-
-                        logger.debug(
-                            f"Processing message {last_id} of type {message_type}"
-                        )
-                        redis.xdel(str(t.task_id), message_id)
-
-                        if message_type == "stdout":
-                            print(message_content, end="")
-                        elif message_type == "rc":
-                            rc = int(message_content)
-                        elif message_type == "action" and message_content == "quit":
-                            redis.close()
-                            return rc
-
         else:
             if format == "log":
                 logger.info(
@@ -90,7 +67,7 @@ class Run(Command):
             elif format == "script":
                 print(f"{t.task_id}")
 
-            return rc
+            return 0
 
     def take_action(self, parsed_args):
         arguments = parsed_args.arguments
