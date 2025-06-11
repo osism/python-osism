@@ -35,19 +35,19 @@ driver_params = {
 def sync_ironic(request_id, get_ironic_parameters, force_update=False):
     osism_utils.push_task_output(
         request_id,
-        "Starting netbox device synchronisation with ironic\n",
+        "Starting NetBox device synchronisation with ironic\n",
     )
     devices = set()
     nb_device_query_list = get_nb_device_query_list()
     for nb_device_query in nb_device_query_list:
         devices |= set(netbox.get_devices(**nb_device_query))
 
-    # NOTE: Find nodes in Ironic which are no longer present in netbox and remove them
+    # NOTE: Find nodes in Ironic which are no longer present in NetBox and remove them
     device_names = {dev.name for dev in devices}
     nodes = openstack.baremetal_node_list()
     for node in nodes:
         osism_utils.push_task_output(
-            request_id, f"Looking for {node['Name']} in netbox\n"
+            request_id, f"Looking for {node['Name']} in NetBox\n"
         )
         if node["Name"] not in device_names:
             if (
@@ -57,7 +57,7 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
             ):
                 osism_utils.push_task_output(
                     request_id,
-                    f"Cleaning up baremetal node not found in netbox: {node['Name']}\n",
+                    f"Cleaning up baremetal node not found in NetBox: {node['Name']}\n",
                 )
                 for port in openstack.baremetal_port_list(
                     details=False, attributes=dict(node_uuid=node["UUID"])
@@ -69,7 +69,7 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
                     f"Cannot remove baremetal node because it is still provisioned or running: {node}"
                 )
 
-    # NOTE: Find nodes in netbox which are not present in Ironic and add them
+    # NOTE: Find nodes in NetBox which are not present in Ironic and add them
     for device in devices:
         osism_utils.push_task_output(
             request_id, f"Looking for {device.name} in ironic\n"
@@ -82,7 +82,7 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
             "ironic_parameters" in device.custom_fields
             and device.custom_fields["ironic_parameters"]
         ):
-            # NOTE: Update node attributes with overrides from netbox device
+            # NOTE: Update node attributes with overrides from NetBox device
             deep_merge(node_attributes, device.custom_fields["ironic_parameters"])
 
         # NOTE: Decrypt ansible vaulted secrets
@@ -164,7 +164,7 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
                             )
                         )
         node_attributes.update({"resource_class": device.name})
-        # NOTE: Write metadata used for provisioning into 'extra' field, so that it is available during node deploy without querying the netbox again
+        # NOTE: Write metadata used for provisioning into 'extra' field, so that it is available during node deploy without querying the NetBox again
         if "extra" not in node_attributes:
             node_attributes["extra"] = {}
         if (
@@ -260,7 +260,7 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
                         else:
                             node_ports.remove(port[0])
                 for node_port in node_ports:
-                    # NOTE: Delete remaining ports not found in netbox
+                    # NOTE: Delete remaining ports not found in NetBox
                     osism_utils.push_task_output(
                         request_id,
                         f"Deleting baremetal port with MAC address {node_port['address']} for {device.name}\n",

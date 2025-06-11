@@ -93,7 +93,7 @@ class BaremetalEvents:
         netbox.set_maintenance.delay(name, state=object_data["maintenance"])
 
     def node_provision_set_success(self, payload: dict[Any, Any]) -> None:
-        # A provision status was successfully set, update it in the netbox
+        # A provision status was successfully set, update it in the NetBox
         object_data = self.get_object_data(payload)
         name = object_data["name"]
         logger.info(

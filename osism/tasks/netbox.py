@@ -21,12 +21,14 @@ def run(self, action, arguments):
     pass
 
 
-# NOTE: While `get_*` tasks only operate on the netbox configured in NETBOX_URL, `set_*` tasks additionally operate on all netbox instances listed in NETBOX_SECONDARIES
+# NOTE: While `get_*` tasks only operate on the NetBox configured in NETBOX_URL,
+#       `set_*` tasks additionally operate on all NetBox instances listed in
+#       NETBOX_SECONDARIES
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_maintenance")
 def set_maintenance(self, device_name, state=True):
-    """Set the maintenance state for a device in the Netbox."""
+    """Set the maintenance state for a device in the NetBox."""
 
     lock = Redlock(
         key=f"lock_osism_tasks_netbox_set_maintenance_{device_name}",
@@ -55,7 +57,7 @@ def set_maintenance(self, device_name, state=True):
 
 @app.task(bind=True, name="osism.tasks.netbox.set_provision_state")
 def set_provision_state(self, device_name, state):
-    """Set the provision state for a device in the Netbox."""
+    """Set the provision state for a device in the NetBox."""
 
     lock = Redlock(
         key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
@@ -85,7 +87,7 @@ def set_provision_state(self, device_name, state):
 
 @app.task(bind=True, name="osism.tasks.netbox.set_power_state")
 def set_power_state(self, device_name, state):
-    """Set the provision state for a device in the Netbox."""
+    """Set the provision state for a device in the NetBox."""
 
     lock = Redlock(
         key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",

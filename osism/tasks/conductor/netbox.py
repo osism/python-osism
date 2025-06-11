@@ -27,7 +27,7 @@ def get_nb_device_query_list():
             for key in list(nb_device_query.keys()):
                 if key not in supported_nb_device_filters:
                     raise ValueError
-                # NOTE: Only "location_id" and "rack_id" are supported by netbox
+                # NOTE: Only "location_id" and "rack_id" are supported by NetBox
                 if key in ["location", "rack"]:
                     value_name = nb_device_query.pop(key, "")
                     if key == "location":
@@ -40,7 +40,7 @@ def get_nb_device_query_list():
                         raise ValueError(f"Invalid name {value_name} for {key}")
     except (yaml.YAMLError, TypeError):
         logger.error(
-            f"Setting NETBOX_FILTER_CONDUCTOR needs to be an array of mappings containing supported netbox device filters: {supported_nb_device_filters}"
+            f"Setting NETBOX_FILTER_CONDUCTOR needs to be an array of mappings containing supported NetBox device filters: {supported_nb_device_filters}"
         )
         nb_device_query_list = []
     except ValueError as exc:

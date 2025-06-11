@@ -80,13 +80,13 @@ class Manage(Command):
         parser.add_argument(
             "--no-wait",
             default=False,
-            help="Do not wait until the management of the netbox has been completed",
+            help="Do not wait until the management of the NetBox has been completed",
             action="store_true",
         )
         parser.add_argument(
             "--no-netbox-wait",
             default=False,
-            help="Do not wait for the netbox API to be ready",
+            help="Do not wait for the NetBox API to be ready",
             action="store_true",
         )
         parser.add_argument(
@@ -212,7 +212,7 @@ class Console(Command):
             url = os.environ.get("NETBOX_API", None)
 
             if not token or not url:
-                logger.error("Netbox integration not configured.")
+                logger.error("NetBox integration not configured.")
                 return
 
             subprocess.call(
