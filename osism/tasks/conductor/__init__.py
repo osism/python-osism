@@ -46,9 +46,17 @@ def sync_ironic(self, force_update=False):
     _sync_ironic(self.request.id, get_ironic_parameters, force_update)
 
 
+@app.task(bind=True, name="osism.tasks.conductor.sync_sonic")
+def sync_sonic(self):
+    logger.info("Preparing SONIC configuration files")
+    # TODO: Implement SONIC configuration file preparation
+    logger.info("SONIC sync task not yet implemented")
+
+
 __all__ = [
     "app",
     "get_ironic_parameters",
     "sync_netbox",
     "sync_ironic",
+    "sync_sonic",
 ]
