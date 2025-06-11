@@ -50,12 +50,12 @@ try:
     secondary_nb_list = []
     if type(secondary_nb_settings_list) is not list:
         raise TypeError(
-            f"Setting NETBOX_SECONDARIES needs to be an array of mappings containing supported netbox API configuration: {supported_secondary_nb_keys}"
+            f"Setting NETBOX_SECONDARIES needs to be an array of mappings containing supported NetBox API configuration: {supported_secondary_nb_keys}"
         )
     for secondary_nb_settings in secondary_nb_settings_list:
         if type(secondary_nb_settings) is not dict:
             raise TypeError(
-                f"Elements in setting NETBOX_SECONDARIES need to be mappings containing supported netbox API configuration: {supported_secondary_nb_keys}"
+                f"Elements in setting NETBOX_SECONDARIES need to be mappings containing supported NetBox API configuration: {supported_secondary_nb_keys}"
             )
         for key in list(secondary_nb_settings.keys()):
             if key not in supported_secondary_nb_keys:
@@ -67,14 +67,14 @@ try:
             or not secondary_nb_settings["NETBOX_URL"]
         ):
             raise ValueError(
-                "All NETBOX_URL values in the elements of setting NETBOX_SECONDARIES need to be valid netbox URLs"
+                "All NETBOX_URL values in the elements of setting NETBOX_SECONDARIES need to be valid NetBox URLs"
             )
         if (
             "NETBOX_TOKEN" not in secondary_nb_settings
             or not secondary_nb_settings["NETBOX_TOKEN"]
         ):
             raise ValueError(
-                "All NETBOX_TOKEN values in the elements of setting NETBOX_SECONDARIES need to be valid netbox tokens"
+                "All NETBOX_TOKEN values in the elements of setting NETBOX_SECONDARIES need to be valid NetBox tokens"
             )
 
         secondary_nb_list.append(
