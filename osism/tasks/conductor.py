@@ -5,6 +5,7 @@ from osism.tasks.conductor import (
     get_ironic_parameters,
     sync_netbox,
     sync_ironic,
+    sync_sonic,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "get_ironic_parameters",
     "sync_netbox",
     "sync_ironic",
+    "sync_sonic",
 ]
