@@ -43,6 +43,81 @@ def setup_periodic_tasks(sender, **kwargs):
     pass
 
 
+def get_device_platform(device, hwsku):
+    """Get platform for device from sonic_parameters or generate from HWSKU.
+
+    Args:
+        device: NetBox device object
+        hwsku: Hardware SKU name
+
+    Returns:
+        str: Platform string (e.g., 'x86_64-accton_as7326_56x-r0')
+    """
+    platform = None
+    if (
+        hasattr(device, "custom_fields")
+        and "sonic_parameters" in device.custom_fields
+        and device.custom_fields["sonic_parameters"]
+        and "platform" in device.custom_fields["sonic_parameters"]
+    ):
+        platform = device.custom_fields["sonic_parameters"]["platform"]
+
+    if not platform:
+        # Generate platform from hwsku: x86_64-{hwsku_lower_with_underscores}-r0
+        hwsku_formatted = hwsku.lower().replace("-", "_")
+        platform = f"x86_64-{hwsku_formatted}-r0"
+
+    return platform
+
+
+def get_device_hostname(device):
+    """Get hostname for device from inventory_hostname custom field or device name.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        str: Hostname for the device
+    """
+    hostname = device.name
+    if (
+        hasattr(device, "custom_fields")
+        and "inventory_hostname" in device.custom_fields
+        and device.custom_fields["inventory_hostname"]
+    ):
+        hostname = device.custom_fields["inventory_hostname"]
+
+    return hostname
+
+
+def get_device_mac_address(device):
+    """Get MAC address from device's management interface.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        str: MAC address or default '00:00:00:00:00:00'
+    """
+    mac_address = "00:00:00:00:00:00"  # Default MAC
+    try:
+        # Get all interfaces for the device
+        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        for interface in interfaces:
+            # Check if interface is marked as management only
+            if interface.mgmt_only:
+                if interface.mac_address:
+                    mac_address = interface.mac_address
+                    logger.debug(
+                        f"Using MAC address {mac_address} from management interface {interface.name}"
+                    )
+                    break
+    except Exception as e:
+        logger.warning(f"Could not get MAC address for device {device.name}: {e}")
+
+    return mac_address
+
+
 def get_port_config(hwsku):
     """Get port configuration for a given HWSKU.
 
@@ -83,6 +158,64 @@ def get_port_config(hwsku):
     return port_config
 
 
+def generate_sonic_config(device, hwsku):
+    """Generate minimal SONiC config.json for a device.
+
+    Args:
+        device: NetBox device object
+        hwsku: Hardware SKU name
+
+    Returns:
+        dict: Minimal SONiC configuration dictionary
+    """
+    # Get port configuration for the HWSKU
+    port_config = get_port_config(hwsku)
+
+    # Get device metadata using helper functions
+    platform = get_device_platform(device, hwsku)
+    hostname = get_device_hostname(device)
+    mac_address = get_device_mac_address(device)
+
+    # Create minimal config structure
+    config = {
+        "DEVICE_METADATA": {
+            "localhost": {
+                "hostname": hostname,
+                "hwsku": hwsku,
+                "platform": platform,
+                "mac": mac_address,
+                "type": "LeafRouter",
+            }
+        },
+        "PORT": {},
+        "LOOPBACK": {"Loopback0": {"admin_status": "up"}},
+        "LOOPBACK_INTERFACE": {"Loopback0": {}},
+        "FEATURE": {
+            "bgp": {"state": "enabled", "auto_restart": "enabled"},
+            "swss": {"state": "enabled", "auto_restart": "enabled"},
+            "syncd": {"state": "enabled", "auto_restart": "enabled"},
+            "teamd": {"state": "enabled", "auto_restart": "enabled"},
+            "pmon": {"state": "enabled", "auto_restart": "enabled"},
+            "lldp": {"state": "enabled", "auto_restart": "enabled"},
+            "database": {"state": "always_enabled"},
+        },
+        "FLEX_COUNTER_TABLE": {"PORT": {"FLEX_COUNTER_STATUS": "enable"}},
+    }
+
+    # Add port configurations
+    for port_name, port_info in port_config.items():
+        config["PORT"][port_name] = {
+            "admin_status": "down",
+            "alias": port_info["alias"],
+            "index": port_info["index"],
+            "lanes": port_info["lanes"],
+            "speed": port_info["speed"],
+            "mtu": "9100",
+        }
+
+    return config
+
+
 # Tasks
 @app.task(bind=True, name="osism.tasks.conductor.get_ironic_parameters")
 def get_ironic_parameters(self):
@@ -107,6 +240,9 @@ def sync_ironic(self, force_update=False):
 @app.task(bind=True, name="osism.tasks.conductor.sync_sonic")
 def sync_sonic(self):
     logger.info("Preparing SONIC configuration files")
+
+    # Dictionary to store configurations for all devices
+    device_configs = {}
 
     # List of supported HWSKUs
     supported_hwskus = [
@@ -168,11 +304,27 @@ def sync_sonic(self):
             )
             continue
 
-        # TODO: Generate SONIC configuration based on device HWSKU
+        # Generate SONIC configuration based on device HWSKU
+        sonic_config = generate_sonic_config(device, hwsku)
+
+        # Store configuration in the dictionary
+        device_configs[device.name] = sonic_config
+
+        logger.info(
+            f"Generated SONiC config for device {device.name} with {len(sonic_config['PORT'])} ports"
+        )
+
+    logger.info(f"Generated SONiC configurations for {len(device_configs)} devices")
+
+    # Return the dictionary with all device configurations
+    return device_configs
 
 
 __all__ = [
     "app",
+    "get_device_hostname",
+    "get_device_mac_address",
+    "get_device_platform",
     "get_ironic_parameters",
     "get_port_config",
     "sync_netbox",
