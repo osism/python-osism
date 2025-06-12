@@ -18,6 +18,8 @@ ENV CLUSTERSHELL_CFGDIR=/etc/clustershell/
 COPY files/clustershell/clush.conf /etc/clustershell/clush.conf
 COPY files/clustershell/groups.conf /etc/clustershell/groups.conf
 
+COPY files/sonic/port_config/ /etc/sonic/port_config/
+
 COPY files/netbox-manager/settings.toml /usr/local/config/settings.toml
 
 RUN apk add --no-cache bash
