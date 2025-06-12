@@ -9,16 +9,16 @@ from osism.tasks.conductor.netbox import get_nb_device_query_list
 
 # Constants
 DEFAULT_SONIC_ROLES = [
+    "accessleaf",
+    "borderleaf",
+    "computeleaf",
+    "dataleaf",
     "leaf",
+    "serviceleaf",
     "spine",
-    "access-leaf",
+    "storageleaf",
     "switch",
-    "service-leaf",
-    "data-leaf",
-    "storage-leaf",
-    "compute-leaf",
-    "border-leaf",
-    "transfer-leaf",
+    "transferleaf",
 ]
 
 DEFAULT_SONIC_VERSION = "4.5.0"
