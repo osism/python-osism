@@ -251,14 +251,14 @@ def sync_sonic():
         # Query devices with the NETBOX_FILTER_CONDUCTOR criteria
         for device in utils.nb.dcim.devices.filter(**nb_device_query):
             # Check if device role matches allowed roles
-            if device.device_role and device.device_role.slug in DEFAULT_SONIC_ROLES:
+            if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
                 # Check if device has the required tag
                 if device.tags and any(
                     tag.slug == "managed-by-osism" for tag in device.tags
                 ):
                     devices.append(device)
                     logger.debug(
-                        f"Found device: {device.name} with role: {device.device_role.slug}"
+                        f"Found device: {device.name} with role: {device.role.slug}"
                     )
                 else:
                     logger.debug(
