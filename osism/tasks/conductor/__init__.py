@@ -49,6 +49,17 @@ def sync_ironic(self, force_update=False):
 @app.task(bind=True, name="osism.tasks.conductor.sync_sonic")
 def sync_sonic(self):
     logger.info("Preparing SONIC configuration files")
+
+    # List of supported HWSKUs
+    supported_hwskus = [
+        "Accton-AS5835-54T",
+        "Accton-AS7326-56X",
+        "Accton-AS7726-32X",
+        "Accton-AS9716-32D",
+    ]
+
+    logger.debug(f"Supported HWSKUs: {', '.join(supported_hwskus)}")
+
     # TODO: Implement SONIC configuration file preparation
     logger.info("SONIC sync task not yet implemented")
 
