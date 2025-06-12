@@ -3,6 +3,7 @@
 from osism.tasks.conductor import (
     app,
     get_ironic_parameters,
+    get_port_config,
     sync_netbox,
     sync_ironic,
     sync_sonic,
@@ -11,6 +12,7 @@ from osism.tasks.conductor import (
 __all__ = [
     "app",
     "get_ironic_parameters",
+    "get_port_config",
     "sync_netbox",
     "sync_ironic",
     "sync_sonic",
