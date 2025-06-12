@@ -14,7 +14,7 @@ hiredis==3.2.1
 jc==1.25.5
 keystoneauth1==5.11.1
 kombu==5.5.4
-kubernetes==32.0.1
+kubernetes==33.1.0
 loguru==0.7.3
 nbcli==0.10.0.dev2
 netmiko==4.5.0
