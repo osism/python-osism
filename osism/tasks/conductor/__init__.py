@@ -6,9 +6,26 @@ from celery import Celery
 from celery.signals import worker_process_init
 from loguru import logger
 
+from osism import utils
 from osism.tasks import Config
 from osism.tasks.conductor.config import get_configuration
 from osism.tasks.conductor.ironic import sync_ironic as _sync_ironic
+from osism.tasks.conductor.netbox import get_nb_device_query_list
+
+
+# Constants
+DEFAULT_SONIC_ROLES = [
+    "leaf",
+    "spine",
+    "access-leaf",
+    "switch",
+    "service-leaf",
+    "data-leaf",
+    "storage-leaf",
+    "compute-leaf",
+    "border-leaf",
+    "transfer-leaf",
+]
 
 
 # App configuration
@@ -101,8 +118,57 @@ def sync_sonic(self):
 
     logger.debug(f"Supported HWSKUs: {', '.join(supported_hwskus)}")
 
-    # TODO: Implement SONIC configuration file preparation
-    logger.info("SONIC sync task not yet implemented")
+    # Get device query list from NETBOX_FILTER_CONDUCTOR
+    nb_device_query_list = get_nb_device_query_list()
+
+    devices = []
+    for nb_device_query in nb_device_query_list:
+        # Query devices with the NETBOX_FILTER_CONDUCTOR criteria
+        for device in utils.nb.dcim.devices.filter(**nb_device_query):
+            # Check if device role matches allowed roles
+            if device.device_role and device.device_role.slug in DEFAULT_SONIC_ROLES:
+                # Check if device has the required tag
+                if device.tags and any(
+                    tag.slug == "managed-by-osism" for tag in device.tags
+                ):
+                    devices.append(device)
+                    logger.debug(
+                        f"Found device: {device.name} with role: {device.device_role.slug}"
+                    )
+                else:
+                    logger.debug(
+                        f"Skipping device {device.name}: missing 'managed-by-osism' tag"
+                    )
+
+    logger.info(f"Found {len(devices)} devices matching criteria")
+
+    # TODO: Implement SONIC configuration file preparation for each device
+    for device in devices:
+        # Get HWSKU from sonic_parameters custom field, default to None
+        hwsku = None
+        if (
+            hasattr(device, "custom_fields")
+            and "sonic_parameters" in device.custom_fields
+            and device.custom_fields["sonic_parameters"]
+            and "hwsku" in device.custom_fields["sonic_parameters"]
+        ):
+            hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
+
+        # Skip devices without HWSKU
+        if not hwsku:
+            logger.debug(f"Skipping device {device.name}: no HWSKU configured")
+            continue
+
+        logger.debug(f"Processing device: {device.name} with HWSKU: {hwsku}")
+
+        # Validate that HWSKU is supported
+        if hwsku not in supported_hwskus:
+            logger.warning(
+                f"Device {device.name} has unsupported HWSKU: {hwsku}. Supported HWSKUs: {', '.join(supported_hwskus)}"
+            )
+            continue
+
+        # TODO: Generate SONIC configuration based on device HWSKU
 
 
 __all__ = [
