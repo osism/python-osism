@@ -141,6 +141,17 @@ class BaremetalDeploy(Command):
                 )
                 continue
 
+            # NOTE: Ironic removes "instance_info" on undeploy. It was saved to "extra" during sync and needs to be refreshed here.
+            if (
+                "instance_info" in node
+                and not node["instance_info"]
+                and "instance_info" in node["extra"]
+                and node["extra"]["instance_info"]
+            ):
+                node = conn.baremetal.update_node(
+                    node, instance_info=json.loads(node.extra["instance_info"])
+                )
+
             try:
                 conn.baremetal.validate_node(
                     node.id, required=("boot", "deploy", "power")
@@ -231,12 +242,17 @@ class BaremetalUndeploy(Command):
 
             if node.provision_state in ["active", "deploy failed", "error"]:
                 try:
-                    conn.baremetal.set_node_provision_state(node.id, "undeploy")
+                    node = conn.baremetal.set_node_provision_state(node.id, "undeploy")
                 except Exception as exc:
                     logger.warning(
                         f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
                     )
                     continue
+                # NOTE: Ironic removes "instance_info" on undeploy. It was saved to "extra" during sync and needs to be refreshed here.
+                if "instance_info" in node["extra"]:
+                    node = conn.baremetal.update_node(
+                        node, instance_info=json.loads(node.extra["instance_info"])
+                    )
             else:
                 logger.warning(
                     f"Node {node.name} ({node.id}) not in supported provision state"
