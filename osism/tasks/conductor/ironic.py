@@ -139,8 +139,8 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
                 # NOTE: Render driver address field
                 address_key = driver_params[node_attributes["driver"]]["address"]
                 if address_key in node_attributes["driver_info"]:
-                    if device.oob_ip and "address" in device.oob_ip:
-                        node_mgmt_address = device.oob_ip["address"]
+                    if device.oob_ip:
+                        node_mgmt_address = device.oob_ip
                     else:
                         node_mgmt_addresses = [
                             interface["address"]
