@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import re
 from loguru import logger
 
 from osism import utils
@@ -251,8 +252,17 @@ def generate_sonic_config(device, hwsku):
         "VERSIONS": {"DATABASE": {"VERSION": version}},
     }
 
-    # Add port configurations
-    for port_name, port_info in port_config.items():
+    # Add port configurations in sorted order
+    # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
+    def natural_sort_key(port_name):
+        """Extract numeric part from port name for natural sorting."""
+        match = re.search(r"(\d+)", port_name)
+        return int(match.group(1)) if match else 0
+
+    sorted_ports = sorted(port_config.keys(), key=natural_sort_key)
+
+    for port_name in sorted_ports:
+        port_info = port_config[port_name]
         config["PORT"][port_name] = {
             "admin_status": "down",
             "alias": port_info["alias"],
