@@ -162,6 +162,49 @@ def get_port_config(hwsku):
     return port_config
 
 
+def save_config_to_netbox(device, config):
+    """Save SONiC configuration to NetBox device config context.
+
+    Args:
+        device: NetBox device object
+        config: SONiC configuration dictionary
+    """
+    try:
+        # Get existing config contexts for the device
+        config_contexts = utils.nb.extras.config_contexts.filter(device_id=device.id)
+
+        # Look for existing SONiC config context
+        sonic_context = None
+        for context in config_contexts:
+            if context.name == f"SONiC Config - {device.name}":
+                sonic_context = context
+                break
+
+        # Prepare config context data
+        context_data = {
+            "name": f"SONiC Config - {device.name}",
+            "weight": 1000,
+            "data": {"sonic_config": config},
+            "is_active": True,
+        }
+
+        if sonic_context:
+            # Update existing config context
+            sonic_context.data = {"sonic_config": config}
+            sonic_context.save()
+            logger.info(f"Updated SONiC config context for device {device.name}")
+        else:
+            # Create new config context
+            new_context = utils.nb.extras.config_contexts.create(**context_data)
+            # Assign the config context to the device
+            new_context.devices = [device.id]
+            new_context.save()
+            logger.info(f"Created new SONiC config context for device {device.name}")
+
+    except Exception as e:
+        logger.error(f"Failed to save config context for device {device.name}: {e}")
+
+
 def generate_sonic_config(device, hwsku):
     """Generate minimal SONiC config.json for a device.
 
@@ -298,6 +341,9 @@ def sync_sonic():
 
         # Store configuration in the dictionary
         device_configs[device.name] = sonic_config
+
+        # Save the generated configuration to NetBox config context
+        save_config_to_netbox(device, sonic_config)
 
         logger.info(
             f"Generated SONiC config for device {device.name} with {len(sonic_config['PORT'])} ports"
