@@ -206,6 +206,37 @@ def save_config_to_netbox(device, config):
         logger.error(f"Failed to save config context for device {device.name}: {e}")
 
 
+def get_connected_interfaces(device):
+    """Get list of interface names that are connected to other devices.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        set: Set of interface names that are connected
+    """
+    connected_interfaces = set()
+
+    try:
+        # Get all interfaces for the device
+        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+
+        for interface in interfaces:
+            # Check if interface is connected via cable
+            if hasattr(interface, "cable") and interface.cable:
+                connected_interfaces.add(interface.name)
+            # Alternative check using is_connected property if available
+            elif hasattr(interface, "is_connected") and interface.is_connected:
+                connected_interfaces.add(interface.name)
+
+    except Exception as e:
+        logger.warning(
+            f"Could not get interface connections for device {device.name}: {e}"
+        )
+
+    return connected_interfaces
+
+
 def generate_sonic_config(device, hwsku):
     """Generate minimal SONiC config.json for a device.
 
@@ -218,6 +249,9 @@ def generate_sonic_config(device, hwsku):
     """
     # Get port configuration for the HWSKU
     port_config = get_port_config(hwsku)
+
+    # Get connected interfaces to determine admin_status
+    connected_interfaces = get_connected_interfaces(device)
 
     # Get device metadata using helper functions
     platform = get_device_platform(device, hwsku)
@@ -263,8 +297,12 @@ def generate_sonic_config(device, hwsku):
 
     for port_name in sorted_ports:
         port_info = port_config[port_name]
+
+        # Set admin_status to "up" if port is connected, otherwise "down"
+        admin_status = "up" if port_name in connected_interfaces else "down"
+
         config["PORT"][port_name] = {
-            "admin_status": "down",
+            "admin_status": admin_status,
             "alias": port_info["alias"],
             "index": port_info["index"],
             "lanes": port_info["lanes"],
