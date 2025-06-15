@@ -63,6 +63,52 @@ def convert_netbox_interface_to_sonic(interface_name, interface_speed=None):
     return f"Ethernet{sonic_port_number}"
 
 
+def convert_sonic_interface_to_alias(sonic_interface_name, interface_speed=None):
+    """Convert SONiC interface name to NetBox-style alias.
+
+    Args:
+        sonic_interface_name: SONiC interface name (e.g., "Ethernet0", "Ethernet4")
+        interface_speed: Interface speed in Mbps (optional, for speed-based calculation)
+
+    Returns:
+        str: NetBox-style alias (e.g., "Eth1/1", "Eth1/2")
+
+    Examples:
+        - 100G ports: Ethernet0 -> Eth1/1, Ethernet4 -> Eth1/2, Ethernet8 -> Eth1/3
+        - Other speeds: Ethernet0 -> Eth1/1, Ethernet1 -> Eth1/2, Ethernet2 -> Eth1/3
+    """
+    # Extract port number from SONiC format (Ethernet0, Ethernet4, etc.)
+    match = re.match(r"Ethernet(\d+)", sonic_interface_name)
+    if not match:
+        # If it doesn't match expected pattern, return as-is
+        return sonic_interface_name
+
+    sonic_port_number = int(match.group(1))
+
+    # Determine speed category and multiplier
+    high_speed_ports = {
+        100000,
+        200000,
+        400000,
+        800000,
+    }  # 100G, 200G, 400G, 800G in Mbps
+
+    if interface_speed and interface_speed in high_speed_ports:
+        # High-speed ports use 4x multiplier (lanes)
+        multiplier = 4
+    else:
+        # Default for 1G, 10G, 25G ports - sequential numbering
+        multiplier = 1
+
+    # Calculate physical port number
+    physical_port = (sonic_port_number // multiplier) + 1  # Convert to 1-based indexing
+
+    # Assume module 1 for now - could be extended for multi-module systems
+    module = 1
+
+    return f"Eth{module}/{physical_port}"
+
+
 # Constants
 DEFAULT_SONIC_ROLES = [
     "accessleaf",
@@ -379,9 +425,13 @@ def generate_sonic_config(device, hwsku):
         # Set admin_status to "up" if port is connected, otherwise "down"
         admin_status = "up" if port_name in connected_interfaces else "down"
 
+        # Generate correct alias based on port name and speed
+        interface_speed = int(port_info["speed"]) if port_info["speed"] else None
+        correct_alias = convert_sonic_interface_to_alias(port_name, interface_speed)
+
         config["PORT"][port_name] = {
             "admin_status": admin_status,
-            "alias": port_info["alias"],
+            "alias": correct_alias,
             "index": port_info["index"],
             "lanes": port_info["lanes"],
             "speed": port_info["speed"],
