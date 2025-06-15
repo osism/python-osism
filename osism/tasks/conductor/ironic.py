@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import ipaddress
 import json
 
 import jinja2
@@ -8,7 +7,7 @@ from pottery import Redlock
 
 from osism import utils as osism_utils
 from osism.tasks import netbox, openstack
-from osism.tasks.conductor.netbox import get_nb_device_query_list
+from osism.tasks.conductor.netbox import get_device_oob_ip, get_nb_device_query_list
 from osism.tasks.conductor.utils import (
     deep_compare,
     deep_decrypt,
@@ -139,32 +138,19 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
                 # NOTE: Render driver address field
                 address_key = driver_params[node_attributes["driver"]]["address"]
                 if address_key in node_attributes["driver_info"]:
-                    if device.oob_ip:
-                        node_mgmt_address = device.oob_ip
-                    else:
-                        node_mgmt_addresses = [
-                            interface["address"]
-                            for interface in node_interfaces
-                            if interface.mgmt_only
-                            and "address" in interface
-                            and interface["address"]
-                        ]
-                        if len(node_mgmt_addresses) > 0:
-                            node_mgmt_address = node_mgmt_addresses[0]
-                        else:
-                            node_mgmt_address = None
-                    if node_mgmt_address:
+                    oob_ip_result = get_device_oob_ip(device)
+                    if oob_ip_result:
+                        oob_ip, _ = (
+                            oob_ip_result  # Extract IP address, ignore prefix length
+                        )
                         node_attributes["driver_info"][address_key] = (
                             jinja2.Environment(loader=jinja2.BaseLoader())
                             .from_string(node_attributes["driver_info"][address_key])
-                            .render(
-                                remote_board_address=str(
-                                    ipaddress.ip_interface(node_mgmt_address).ip
-                                )
-                            )
+                            .render(remote_board_address=oob_ip)
                         )
         node_attributes.update({"resource_class": device.name})
-        # NOTE: Write metadata used for provisioning into 'extra' field, so that it is available during node deploy without querying the NetBox again
+        # NOTE: Write metadata used for provisioning into 'extra' field, so that
+        #       it is available during node deploy without querying the NetBox again
         if "extra" not in node_attributes:
             node_attributes["extra"] = {}
         if (
