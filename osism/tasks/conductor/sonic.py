@@ -5,7 +5,11 @@ import re
 from loguru import logger
 
 from osism import utils
-from osism.tasks.conductor.netbox import get_device_oob_ip, get_nb_device_query_list
+from osism.tasks.conductor.netbox import (
+    get_device_oob_ip,
+    get_device_vlans,
+    get_nb_device_query_list,
+)
 
 
 # Constants
@@ -256,6 +260,9 @@ def generate_sonic_config(device, hwsku):
     # Get OOB IP for management interface
     oob_ip_result = get_device_oob_ip(device)
 
+    # Get VLAN configuration from NetBox
+    vlan_info = get_device_vlans(device)
+
     # Get device metadata using helper functions
     platform = get_device_platform(device, hwsku)
     hostname = get_device_hostname(device)
@@ -274,6 +281,9 @@ def generate_sonic_config(device, hwsku):
             }
         },
         "PORT": {},
+        "VLAN": {},
+        "VLAN_MEMBER": {},
+        "VLAN_INTERFACE": {},
         "MGMT_INTERFACE": {},
         "LOOPBACK": {"Loopback0": {"admin_status": "up"}},
         "LOOPBACK_INTERFACE": {"Loopback0": {}},
@@ -313,6 +323,42 @@ def generate_sonic_config(device, hwsku):
             "speed": port_info["speed"],
             "mtu": "9100",
         }
+
+    # Add VLAN configuration from NetBox
+    for vid, vlan_data in vlan_info["vlans"].items():
+        vlan_name = f"Vlan{vid}"
+
+        # Get member ports for this VLAN
+        members = []
+        if vid in vlan_info["vlan_members"]:
+            members = list(vlan_info["vlan_members"][vid].keys())
+
+        config["VLAN"][vlan_name] = {
+            "admin_status": "up",
+            "autostate": "enable",
+            "members": members,
+            "vlanid": str(vid),
+        }
+
+    # Add VLAN members
+    for vid, members in vlan_info["vlan_members"].items():
+        vlan_name = f"Vlan{vid}"
+        for port_name, tagging_mode in members.items():
+            # Create VLAN_MEMBER key in format "Vlan<vid>|<port_name>"
+            member_key = f"{vlan_name}|{port_name}"
+            config["VLAN_MEMBER"][member_key] = {"tagging_mode": tagging_mode}
+
+    # Add VLAN interfaces (SVIs)
+    for vid, interface_data in vlan_info["vlan_interfaces"].items():
+        vlan_name = f"Vlan{vid}"
+        if "addresses" in interface_data and interface_data["addresses"]:
+            # Add the VLAN interface
+            config["VLAN_INTERFACE"][vlan_name] = {"admin_status": "up"}
+
+            # Add IP configuration for each address (IPv4 and IPv6)
+            for address in interface_data["addresses"]:
+                ip_key = f"{vlan_name}|{address}"
+                config["VLAN_INTERFACE"][ip_key] = {}
 
     # Add management interface configuration if OOB IP is available
     if oob_ip_result:
