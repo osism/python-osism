@@ -568,6 +568,9 @@ def generate_sonic_config(device, hwsku):
         "LOOPBACK_INTERFACE": {},
         "BREAKOUT_CFG": {},
         "BREAKOUT_PORTS": {},
+        "POLICY_TABLE": {},
+        "POLICY_SECTIONS_TABLE": {},
+        "POLICY_BINDING_TABLE": {},
         "FEATURE": {
             "bgp": {"state": "enabled", "auto_restart": "enabled"},
             "swss": {"state": "enabled", "auto_restart": "enabled"},
@@ -821,6 +824,46 @@ def generate_sonic_config(device, hwsku):
 
     if breakout_info["breakout_ports"]:
         config["BREAKOUT_PORTS"].update(breakout_info["breakout_ports"])
+
+    # Add static QoS policy configuration
+    config["POLICY_TABLE"]["oob-qos-policy"] = {
+        "DESCRIPTION": "QoS Ratelimiting policy for OOB port",
+        "TYPE": "QOS",
+    }
+
+    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-arp"] = {
+        "DESCRIPTION": "",
+        "PRIORITY": "1010",
+        "SET_POLICER_CIR": "256000",
+    }
+
+    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-dhcp-client"] = {
+        "DESCRIPTION": "",
+        "PRIORITY": "1020",
+        "SET_POLICER_CIR": "512000",
+    }
+
+    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-dhcp-server"] = {
+        "DESCRIPTION": "",
+        "PRIORITY": "1015",
+        "SET_POLICER_CIR": "512000",
+    }
+
+    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-ip-multicast"] = {
+        "DESCRIPTION": "",
+        "PRIORITY": "1000",
+        "SET_POLICER_CIR": "256000",
+    }
+
+    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-ipv6-multicast"] = {
+        "DESCRIPTION": "",
+        "PRIORITY": "1005",
+        "SET_POLICER_CIR": "256000",
+    }
+
+    config["POLICY_BINDING_TABLE"]["CtrlPlane"] = {
+        "INGRESS_QOS_POLICY": "oob-qos-policy"
+    }
 
     return config
 
