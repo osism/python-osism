@@ -865,6 +865,15 @@ def generate_sonic_config(device, hwsku):
         "INGRESS_QOS_POLICY": "oob-qos-policy"
     }
 
+    # Add static KDUMP configuration
+    config["KDUMP"] = {
+        "config": {
+            "enabled": "true",
+            "memory": "0M-2G:256M,2G-4G:256M,4G-8G:384M,8G-:448M",
+            "num_dumps": "3",
+        }
+    }
+
     return config
 
 
