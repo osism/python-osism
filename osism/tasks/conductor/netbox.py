@@ -151,6 +151,8 @@ def get_device_vlans(device):
                 # Add interface to VLAN members as untagged
                 if vid not in vlan_members:
                     vlan_members[vid] = {}
+
+                # Use original NetBox interface name - conversion will be done in sonic.py
                 vlan_members[vid][interface.name] = "untagged"
 
             # Process tagged VLANs
@@ -168,6 +170,8 @@ def get_device_vlans(device):
                     # Add interface to VLAN members as tagged
                     if vid not in vlan_members:
                         vlan_members[vid] = {}
+
+                    # Use original NetBox interface name - conversion will be done in sonic.py
                     vlan_members[vid][interface.name] = "tagged"
 
         # Get VLAN interfaces (SVIs) - virtual interfaces with VLAN assignments
