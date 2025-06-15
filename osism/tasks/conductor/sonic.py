@@ -5,7 +5,7 @@ import re
 from loguru import logger
 
 from osism import utils
-from osism.tasks.conductor.netbox import get_nb_device_query_list
+from osism.tasks.conductor.netbox import get_device_oob_ip, get_nb_device_query_list
 
 
 # Constants
@@ -253,6 +253,9 @@ def generate_sonic_config(device, hwsku):
     # Get connected interfaces to determine admin_status
     connected_interfaces = get_connected_interfaces(device)
 
+    # Get OOB IP for management interface
+    oob_ip_result = get_device_oob_ip(device)
+
     # Get device metadata using helper functions
     platform = get_device_platform(device, hwsku)
     hostname = get_device_hostname(device)
@@ -271,6 +274,7 @@ def generate_sonic_config(device, hwsku):
             }
         },
         "PORT": {},
+        "MGMT_INTERFACE": {},
         "LOOPBACK": {"Loopback0": {"admin_status": "up"}},
         "LOOPBACK_INTERFACE": {"Loopback0": {}},
         "FEATURE": {
@@ -309,6 +313,14 @@ def generate_sonic_config(device, hwsku):
             "speed": port_info["speed"],
             "mtu": "9100",
         }
+
+    # Add management interface configuration if OOB IP is available
+    if oob_ip_result:
+        oob_ip, prefix_len = oob_ip_result
+
+        config["MGMT_INTERFACE"]["eth0"] = {"admin_status": "up"}
+        # Add IP configuration to MGMT_INTERFACE with CIDR notation
+        config["MGMT_INTERFACE"][f"eth0|{oob_ip}/{prefix_len}"] = {}
 
     return config
 
