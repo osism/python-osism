@@ -6,6 +6,7 @@ from loguru import logger
 
 from osism import utils
 from osism.tasks.conductor.netbox import (
+    get_device_loopbacks,
     get_device_oob_ip,
     get_device_vlans,
     get_nb_device_query_list,
@@ -263,6 +264,9 @@ def generate_sonic_config(device, hwsku):
     # Get VLAN configuration from NetBox
     vlan_info = get_device_vlans(device)
 
+    # Get Loopback configuration from NetBox
+    loopback_info = get_device_loopbacks(device)
+
     # Get device metadata using helper functions
     platform = get_device_platform(device, hwsku)
     hostname = get_device_hostname(device)
@@ -285,8 +289,8 @@ def generate_sonic_config(device, hwsku):
         "VLAN_MEMBER": {},
         "VLAN_INTERFACE": {},
         "MGMT_INTERFACE": {},
-        "LOOPBACK": {"Loopback0": {"admin_status": "up"}},
-        "LOOPBACK_INTERFACE": {"Loopback0": {}},
+        "LOOPBACK": {},
+        "LOOPBACK_INTERFACE": {},
         "FEATURE": {
             "bgp": {"state": "enabled", "auto_restart": "enabled"},
             "swss": {"state": "enabled", "auto_restart": "enabled"},
@@ -359,6 +363,19 @@ def generate_sonic_config(device, hwsku):
             for address in interface_data["addresses"]:
                 ip_key = f"{vlan_name}|{address}"
                 config["VLAN_INTERFACE"][ip_key] = {}
+
+    # Add Loopback configuration from NetBox
+    for loopback_name, loopback_data in loopback_info["loopbacks"].items():
+        # Add the Loopback interface
+        config["LOOPBACK"][loopback_name] = {"admin_status": "up"}
+
+        # Add base Loopback interface entry
+        config["LOOPBACK_INTERFACE"][loopback_name] = {}
+
+        # Add IP configuration for each address (IPv4 and IPv6)
+        for address in loopback_data["addresses"]:
+            ip_key = f"{loopback_name}|{address}"
+            config["LOOPBACK_INTERFACE"][ip_key] = {}
 
     # Add management interface configuration if OOB IP is available
     if oob_ip_result:
