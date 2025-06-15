@@ -208,3 +208,57 @@ def get_device_vlans(device):
         "vlan_members": vlan_members,
         "vlan_interfaces": vlan_interfaces,
     }
+
+
+def get_device_loopbacks(device):
+    """Get Loopback interfaces configured on device.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        dict: Dictionary with Loopback information
+              {
+                  'loopbacks': {'Loopback0': {'addresses': [ip_with_prefix, ...]}}
+              }
+    """
+    loopbacks = {}
+
+    try:
+        # Get all interfaces for the device
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+
+        for interface in interfaces:
+            # Check if interface is virtual type and is a Loopback interface
+            if (
+                hasattr(interface, "type")
+                and interface.type
+                and interface.type.value == "virtual"
+                and interface.name.startswith("Loopback")
+            ):
+
+                try:
+                    # Get IP addresses for this Loopback interface
+                    ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                        assigned_object_id=interface.id,
+                    )
+
+                    addresses = []
+                    for ip_addr in ip_addresses:
+                        if ip_addr.address:
+                            addresses.append(ip_addr.address)
+
+                    if addresses:
+                        loopbacks[interface.name] = {"addresses": addresses}
+
+                except Exception as e:
+                    logger.debug(
+                        f"Error processing Loopback interface {interface.name}: {e}"
+                    )
+
+    except Exception as e:
+        logger.warning(
+            f"Could not get Loopback interfaces for device {device.name}: {e}"
+        )
+
+    return {"loopbacks": loopbacks}
