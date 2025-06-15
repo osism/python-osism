@@ -76,9 +76,9 @@ def get_device_oob_ip(device):
                 if interface.mgmt_only:
                     # Get IP addresses assigned to this interface
                     ip_addresses = utils.nb.ipam.ip_addresses.filter(
-                        assigned_object_type="dcim.interface",
                         assigned_object_id=interface.id,
                     )
+
                     for ip_addr in ip_addresses:
                         if ip_addr.address:
                             oob_ip_with_prefix = ip_addr.address
@@ -103,3 +103,108 @@ def get_device_oob_ip(device):
         logger.warning(f"Could not get OOB IP for device {device.name}: {e}")
 
     return None
+
+
+def get_device_vlans(device):
+    """Get VLANs configured on device interfaces.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        dict: Dictionary with VLAN information
+              {
+                  'vlans': {vid: {'name': name, 'description': desc}},
+                  'vlan_members': {vid: {'port_name': 'tagging_mode'}},
+                  'vlan_interfaces': {vid: {'addresses': [ip_with_prefix, ...]}}
+              }
+    """
+    vlans = {}
+    vlan_members = {}
+    vlan_interfaces = {}
+
+    try:
+        # Get all interfaces for the device and convert to list for multiple iterations
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+
+        for interface in interfaces:
+            # Skip management interfaces and virtual interfaces
+            if interface.mgmt_only or (
+                hasattr(interface, "type")
+                and interface.type
+                and interface.type.value == "virtual"
+            ):
+                continue
+
+            # Process untagged VLAN
+            if hasattr(interface, "untagged_vlan") and interface.untagged_vlan:
+                vlan = interface.untagged_vlan
+                vid = vlan.vid
+
+                # Add VLAN info if not already present
+                if vid not in vlans:
+                    vlans[vid] = {
+                        "name": vlan.name or f"Vlan{vid}",
+                        "description": vlan.description or "",
+                    }
+
+                # Add interface to VLAN members as untagged
+                if vid not in vlan_members:
+                    vlan_members[vid] = {}
+                vlan_members[vid][interface.name] = "untagged"
+
+            # Process tagged VLANs
+            if hasattr(interface, "tagged_vlans") and interface.tagged_vlans:
+                for vlan in interface.tagged_vlans:
+                    vid = vlan.vid
+
+                    # Add VLAN info if not already present
+                    if vid not in vlans:
+                        vlans[vid] = {
+                            "name": vlan.name or f"Vlan{vid}",
+                            "description": vlan.description or "",
+                        }
+
+                    # Add interface to VLAN members as tagged
+                    if vid not in vlan_members:
+                        vlan_members[vid] = {}
+                    vlan_members[vid][interface.name] = "tagged"
+
+        # Get VLAN interfaces (SVIs) - virtual interfaces with VLAN assignments
+        for interface in interfaces:
+            # Check if interface is virtual type and has VLAN assignment
+            if (
+                hasattr(interface, "type")
+                and interface.type
+                and interface.type.value == "virtual"
+                and interface.name.startswith("Vlan")
+            ):
+                try:
+                    vid = int(interface.name[4:])
+                    # Get IP addresses for this VLAN interface
+                    ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                        assigned_object_id=interface.id,
+                    )
+
+                    addresses = []
+                    for ip_addr in ip_addresses:
+                        if ip_addr.address:
+                            addresses.append(ip_addr.address)
+
+                    if addresses:
+                        if vid not in vlan_interfaces:
+                            vlan_interfaces[vid] = {}
+                        # Store all IP addresses for this VLAN interface
+                        vlan_interfaces[vid]["addresses"] = addresses
+                except (ValueError, IndexError):
+                    # Skip if interface name doesn't follow Vlan<number> pattern
+                    pass
+
+    except Exception as e:
+        logger.warning(f"Could not get VLANs for device {device.name}: {e}")
+
+    return {
+        "vlans": vlans,
+        "vlan_members": vlan_members,
+        "vlan_interfaces": vlan_interfaces,
+    }
