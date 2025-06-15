@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import os
 import re
 from loguru import logger
@@ -548,17 +549,23 @@ def generate_sonic_config(device, hwsku):
     mac_address = get_device_mac_address(device)
     version = get_device_version(device)
 
-    # Create minimal config structure
-    config = {
-        "DEVICE_METADATA": {
-            "localhost": {
-                "hostname": hostname,
-                "hwsku": hwsku,
-                "platform": platform,
-                "mac": mac_address,
-                "type": "LeafRouter",
-            }
-        },
+    # Try to load base configuration from /etc/sonic/config_db.json
+    base_config_path = "/etc/sonic/config_db.json"
+    config = {}
+
+    try:
+        if os.path.exists(base_config_path):
+            with open(base_config_path, "r") as f:
+                config = json.load(f)
+                logger.info(f"Loaded base configuration from {base_config_path}")
+    except Exception as e:
+        logger.warning(
+            f"Could not load base configuration from {base_config_path}: {e}"
+        )
+
+    # Ensure all required sections exist in the config
+    required_sections = {
+        "DEVICE_METADATA": {},
         "PORT": {},
         "VLAN": {},
         "VLAN_MEMBER": {},
@@ -568,21 +575,30 @@ def generate_sonic_config(device, hwsku):
         "LOOPBACK_INTERFACE": {},
         "BREAKOUT_CFG": {},
         "BREAKOUT_PORTS": {},
-        "POLICY_TABLE": {},
-        "POLICY_SECTIONS_TABLE": {},
-        "POLICY_BINDING_TABLE": {},
-        "FEATURE": {
-            "bgp": {"state": "enabled", "auto_restart": "enabled"},
-            "swss": {"state": "enabled", "auto_restart": "enabled"},
-            "syncd": {"state": "enabled", "auto_restart": "enabled"},
-            "teamd": {"state": "enabled", "auto_restart": "enabled"},
-            "pmon": {"state": "enabled", "auto_restart": "enabled"},
-            "lldp": {"state": "enabled", "auto_restart": "enabled"},
-            "database": {"state": "always_enabled"},
-        },
-        "FLEX_COUNTER_TABLE": {"PORT": {"FLEX_COUNTER_STATUS": "enable"}},
-        "VERSIONS": {"DATABASE": {"VERSION": version}},
+        "VERSIONS": {},
     }
+
+    for section, default_value in required_sections.items():
+        if section not in config:
+            config[section] = default_value
+
+    # Update DEVICE_METADATA with NetBox information
+    if "localhost" not in config["DEVICE_METADATA"]:
+        config["DEVICE_METADATA"]["localhost"] = {}
+
+    config["DEVICE_METADATA"]["localhost"].update(
+        {
+            "hostname": hostname,
+            "hwsku": hwsku,
+            "platform": platform,
+            "mac": mac_address,
+            "type": "LeafRouter",
+        }
+    )
+
+    # Update VERSIONS if not present
+    if "DATABASE" not in config["VERSIONS"]:
+        config["VERSIONS"]["DATABASE"] = {"VERSION": version}
 
     # Add port configurations in sorted order
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
@@ -824,46 +840,6 @@ def generate_sonic_config(device, hwsku):
 
     if breakout_info["breakout_ports"]:
         config["BREAKOUT_PORTS"].update(breakout_info["breakout_ports"])
-
-    # Add static QoS policy configuration
-    config["POLICY_TABLE"]["oob-qos-policy"] = {
-        "DESCRIPTION": "QoS Ratelimiting policy for OOB port",
-        "TYPE": "QOS",
-    }
-
-    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-arp"] = {
-        "DESCRIPTION": "",
-        "PRIORITY": "1010",
-        "SET_POLICER_CIR": "256000",
-    }
-
-    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-dhcp-client"] = {
-        "DESCRIPTION": "",
-        "PRIORITY": "1020",
-        "SET_POLICER_CIR": "512000",
-    }
-
-    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-dhcp-server"] = {
-        "DESCRIPTION": "",
-        "PRIORITY": "1015",
-        "SET_POLICER_CIR": "512000",
-    }
-
-    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-ip-multicast"] = {
-        "DESCRIPTION": "",
-        "PRIORITY": "1000",
-        "SET_POLICER_CIR": "256000",
-    }
-
-    config["POLICY_SECTIONS_TABLE"]["oob-qos-policy|class-oob-ipv6-multicast"] = {
-        "DESCRIPTION": "",
-        "PRIORITY": "1005",
-        "SET_POLICER_CIR": "256000",
-    }
-
-    config["POLICY_BINDING_TABLE"]["CtrlPlane"] = {
-        "INGRESS_QOS_POLICY": "oob-qos-policy"
-    }
 
     return config
 
