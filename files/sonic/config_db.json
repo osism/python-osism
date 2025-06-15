@@ -1,0 +1,399 @@
+{
+    "BGP_GLOBALS": {
+        "default": {
+            "always_compare_med": "true",
+            "ebgp_requires_policy": "false",
+            "external_compare_router_id": "false",
+            "fast_external_failover": "true",
+            "holdtime": "180",
+            "ignore_as_path_length": "false",
+            "keepalive": "60",
+            "load_balance_mp_relax": "false",
+            "log_nbr_state_changes": "true",
+            "network_import_check": "true"
+        }
+    },
+    "BGP_GLOBALS_AF": {
+        "default|ipv4_unicast": {
+            "max_ebgp_paths": "1",
+            "max_ibgp_paths": "1",
+            "route_flap_dampen": "false"
+        },
+        "default|ipv6_unicast": {
+            "max_ebgp_paths": "1",
+            "max_ibgp_paths": "1"
+        }
+    },
+    "ECMP_LOADSHARE_TABLE_IPV4": {
+        "ipv4": {
+            "ipv4_dst_ip": "true",
+            "ipv4_l4_dst_port": "true",
+            "ipv4_l4_src_port": "true",
+            "ipv4_protocol": "true",
+            "ipv4_src_ip": "true"
+        }
+    },
+    "ECMP_LOADSHARE_TABLE_IPV6": {
+        "ipv6": {
+            "ipv6_dst_ip": "true",
+            "ipv6_l4_dst_port": "true",
+            "ipv6_l4_src_port": "true",
+            "ipv6_next_hdr": "true",
+            "ipv6_src_ip": "true"
+        }
+    },
+    "COREDUMP": {
+        "config": {
+            "enabled": "true"
+        }
+    },
+    "KDUMP": {
+        "config": {
+            "enabled": "true",
+            "memory": "0M-2G:256M,2G-4G:256M,4G-8G:384M,8G-:448M",
+            "num_dumps": "3"
+        }
+    },
+    "POLICY_BINDING_TABLE": {
+        "CtrlPlane": {
+            "INGRESS_QOS_POLICY": "oob-qos-policy"
+        }
+    },
+    "POLICY_SECTIONS_TABLE": {
+        "oob-qos-policy|class-oob-arp": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1010",
+            "SET_POLICER_CIR": "256000"
+        },
+        "oob-qos-policy|class-oob-dhcp-client": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1020",
+            "SET_POLICER_CIR": "512000"
+        },
+        "oob-qos-policy|class-oob-dhcp-server": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1015",
+            "SET_POLICER_CIR": "512000"
+        },
+        "oob-qos-policy|class-oob-ip-multicast": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1000",
+            "SET_POLICER_CIR": "256000"
+        },
+        "oob-qos-policy|class-oob-ipv6-multicast": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1005",
+            "SET_POLICER_CIR": "256000"
+        }
+    },
+    "POLICY_TABLE": {
+        "oob-qos-policy": {
+            "DESCRIPTION": "QoS Ratelimiting policy for OOB port",
+            "TYPE": "QOS"
+        }
+    },
+    "MGMT_VRF_CONFIG": {
+        "vrf_global": {
+            "mgmtVrfEnabled": "true"
+        }
+    },
+    "NAT_GLOBAL": {
+        "Values": {
+            "admin_mode": "disabled",
+            "nat_tcp_timeout": "86400",
+            "nat_timeout": "600",
+            "nat_udp_timeout": "300"
+        }
+    },
+    "NEIGH_GLOBAL": {
+        "Values": {
+            "ipv4_arp_timeout": "1800",
+            "ipv6_nd_cache_expiry": "1800"
+        }
+    },
+    "FLEX_COUNTER_TABLE": {
+        "PFCWD": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "PHY": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "PORT": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "QUEUE": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "RIF": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "TUNNEL": {
+            "FLEX_COUNTER_STATUS": "enable"
+        }
+    },
+    "HARDWARE": {
+        "ACCESS_LIST": {
+            "COUNTER_MODE": "per-rule",
+            "LOOKUP_MODE": "optimized"
+        }
+    },
+    "HOST_FEATURE": {
+        "caclmgrd": {
+            "check_up_status": "False"
+        },
+        "cron": {
+            "check_up_status": "False"
+        },
+        "docker": {
+            "check_up_status": "False"
+        },
+        "hostcfgd": {
+            "check_up_status": "False"
+        },
+        "warmboot-finalizer": {
+            "check_up_status": "True"
+        },
+        "xphyd": {
+            "check_up_status": "True"
+        }
+    },
+    "FEATURE": {
+        "bgp": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "False",
+            "has_per_asic_scope": "True",
+            "has_timer": "False",
+            "state": "always_enabled"
+        },
+        "database": {
+            "auto_restart": "enabled",
+            "check_up_status": "False",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "True",
+            "has_timer": "False",
+            "state": "always_enabled"
+        },
+        "dhcp_relay": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "eventd": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "always_enabled"
+        },
+        "iccpd": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "l2mcd": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "lldp": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "True",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "mgmt-framework": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "always_enabled"
+        },
+        "nat": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "pmon": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "always_enabled"
+        },
+        "radv": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "sflow": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "snmp": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "stp": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "swss": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "True",
+            "has_timer": "False",
+            "state": "always_enabled"
+        },
+        "syncd": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "False",
+            "has_per_asic_scope": "True",
+            "has_timer": "False",
+            "state": "always_enabled"
+        },
+        "tam": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "teamd": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "False",
+            "has_per_asic_scope": "True",
+            "has_timer": "False",
+            "state": "always_enabled"
+        },
+        "telemetry": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "udld": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        },
+        "vrrp": {
+            "auto_restart": "enabled",
+            "check_up_status": "True",
+            "has_global_scope": "True",
+            "has_per_asic_scope": "False",
+            "has_timer": "False",
+            "state": "enabled"
+        }
+    },
+    "SNMP": {
+        "LOCATION": {
+            "Location": "public"
+        }
+    },
+    "SNMP_COMMUNITY": {
+        "public": {
+            "TYPE": "RO"
+        }
+    },
+    "SSHD_COMMON": {
+        "GLOBAL": {
+            "ciphers": "aes128-ctr,aes192-ctr,aes256-ctr,chacha20-poly1305@openssh.com,aes128-gcm@openssh.com,aes256-gcm@openssh.com",
+            "disable_forwarding": "true",
+            "hostkeyalgorithms": "rsa-sha2-256,rsa-sha2-512,ssh-rsa",
+            "kexalgorithms": "curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256",
+            "macs": "umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512",
+            "permit_root_login": "false",
+            "x11_forwarding": "false"
+        }
+    },
+    "SWITCH": {
+        "switch": {
+            "fdb_aging_time": "600"
+        }
+    },
+    "VRF": {
+        "default": {
+            "enabled": "true"
+        }
+    },
+    "ZTP": {
+        "config": {
+            "admin-mode": "true"
+        }
+    },
+    "CLASSIFIER_TABLE": {
+        "class-oob-arp": {
+            "DESCRIPTION": "",
+            "ETHER_TYPE": "0x806",
+            "MATCH_TYPE": "FIELDS"
+        },
+        "class-oob-dhcp-client": {
+            "DESCRIPTION": "",
+            "ETHER_TYPE": "0x800",
+            "IP_PROTOCOL": "17",
+            "L4_DST_PORT": "68",
+            "MATCH_TYPE": "FIELDS"
+        },
+        "class-oob-dhcp-server": {
+            "DESCRIPTION": "",
+            "ETHER_TYPE": "0x800",
+            "IP_PROTOCOL": "17",
+            "L4_DST_PORT": "67",
+            "MATCH_TYPE": "FIELDS"
+        },
+        "class-oob-ip-multicast": {
+            "DESCRIPTION": "",
+            "DST_IP": "224.0.0.0/4",
+            "ETHER_TYPE": "0x800",
+            "MATCH_TYPE": "FIELDS"
+        },
+        "class-oob-ipv6-multicast": {
+            "DESCRIPTION": "",
+            "DST_IPV6": "ff00::/8",
+            "ETHER_TYPE": "0x86DD",
+            "MATCH_TYPE": "FIELDS"
+        }
+    }
+}
