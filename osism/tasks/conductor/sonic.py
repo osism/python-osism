@@ -13,6 +13,56 @@ from osism.tasks.conductor.netbox import (
 )
 
 
+def convert_netbox_interface_to_sonic(interface_name, interface_speed=None):
+    """Convert NetBox interface name to SONiC interface name.
+
+    Args:
+        interface_name: NetBox interface name (e.g., "Eth1/1", "Eth1/2")
+        interface_speed: Interface speed in Mbps (optional, for future high-speed ports)
+
+    Returns:
+        str: SONiC interface name (e.g., "Ethernet0", "Ethernet4")
+
+    Examples:
+        - 100G ports: Eth1/1 -> Ethernet0, Eth1/2 -> Ethernet4, Eth1/3 -> Ethernet8
+        - Other speeds: Eth1/1 -> Ethernet0, Eth1/2 -> Ethernet1, Eth1/3 -> Ethernet2
+    """
+    # Check if this is already in SONiC format (Ethernet*)
+    if interface_name.startswith("Ethernet"):
+        return interface_name
+
+    # Extract port number from NetBox format (Eth1/1, Eth1/2, etc.)
+    match = re.match(r"Eth(\d+)/(\d+)", interface_name)
+    if not match:
+        # If it doesn't match expected pattern, return as-is
+        return interface_name
+
+    module = int(match.group(1))
+    port = int(match.group(2))
+
+    # Calculate base port number (assuming module 1 starts at port 1)
+    port_number = port - 1  # Convert to 0-based indexing
+
+    # Determine speed category and multiplier
+    high_speed_ports = {
+        100000,
+        200000,
+        400000,
+        800000,
+    }  # 100G, 200G, 400G, 800G in Mbps
+
+    if interface_speed and interface_speed in high_speed_ports:
+        # High-speed ports use 4x multiplier (lanes)
+        multiplier = 4
+    else:
+        # Default for 1G, 10G, 25G ports - sequential numbering
+        multiplier = 1
+
+    sonic_port_number = port_number * multiplier
+
+    return f"Ethernet{sonic_port_number}"
+
+
 # Constants
 DEFAULT_SONIC_ROLES = [
     "accessleaf",
@@ -229,10 +279,20 @@ def get_connected_interfaces(device):
         for interface in interfaces:
             # Check if interface is connected via cable
             if hasattr(interface, "cable") and interface.cable:
-                connected_interfaces.add(interface.name)
+                # Convert NetBox interface name to SONiC format
+                interface_speed = getattr(interface, "speed", None)
+                sonic_interface_name = convert_netbox_interface_to_sonic(
+                    interface.name, interface_speed
+                )
+                connected_interfaces.add(sonic_interface_name)
             # Alternative check using is_connected property if available
             elif hasattr(interface, "is_connected") and interface.is_connected:
-                connected_interfaces.add(interface.name)
+                # Convert NetBox interface name to SONiC format
+                interface_speed = getattr(interface, "speed", None)
+                sonic_interface_name = convert_netbox_interface_to_sonic(
+                    interface.name, interface_speed
+                )
+                connected_interfaces.add(sonic_interface_name)
 
     except Exception as e:
         logger.warning(
@@ -332,10 +392,16 @@ def generate_sonic_config(device, hwsku):
     for vid, vlan_data in vlan_info["vlans"].items():
         vlan_name = f"Vlan{vid}"
 
-        # Get member ports for this VLAN
+        # Get member ports for this VLAN and convert interface names
         members = []
         if vid in vlan_info["vlan_members"]:
-            members = list(vlan_info["vlan_members"][vid].keys())
+            for netbox_interface_name in vlan_info["vlan_members"][vid].keys():
+                # Convert NetBox interface name to SONiC format
+                # We need to get the speed from somewhere - for now assume high-speed for 4x multiplier
+                sonic_interface_name = convert_netbox_interface_to_sonic(
+                    netbox_interface_name
+                )
+                members.append(sonic_interface_name)
 
         config["VLAN"][vlan_name] = {
             "admin_status": "up",
@@ -347,9 +413,13 @@ def generate_sonic_config(device, hwsku):
     # Add VLAN members
     for vid, members in vlan_info["vlan_members"].items():
         vlan_name = f"Vlan{vid}"
-        for port_name, tagging_mode in members.items():
+        for netbox_interface_name, tagging_mode in members.items():
+            # Convert NetBox interface name to SONiC format
+            sonic_interface_name = convert_netbox_interface_to_sonic(
+                netbox_interface_name
+            )
             # Create VLAN_MEMBER key in format "Vlan<vid>|<port_name>"
-            member_key = f"{vlan_name}|{port_name}"
+            member_key = f"{vlan_name}|{sonic_interface_name}"
             config["VLAN_MEMBER"][member_key] = {"tagging_mode": tagging_mode}
 
     # Add VLAN interfaces (SVIs)
