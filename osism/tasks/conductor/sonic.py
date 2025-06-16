@@ -580,6 +580,7 @@ def generate_sonic_config(device, hwsku):
         "LOOPBACK_INTERFACE": {},
         "BREAKOUT_CFG": {},
         "BREAKOUT_PORTS": {},
+        "BGP_GLOBALS": {},
         "BGP_NEIGHBOR_AF": {},
         "VERSIONS": {},
     }
@@ -605,6 +606,18 @@ def generate_sonic_config(device, hwsku):
     # Update VERSIONS if not present
     if "DATABASE" not in config["VERSIONS"]:
         config["VERSIONS"]["DATABASE"] = {"VERSION": version}
+
+    # Add BGP_GLOBALS configuration with router_id set to primary IP address
+    primary_ip = None
+    if device.primary_ip4:
+        primary_ip = str(device.primary_ip4.address).split("/")[0]
+    elif device.primary_ip6:
+        primary_ip = str(device.primary_ip6.address).split("/")[0]
+
+    if primary_ip:
+        if "default" not in config["BGP_GLOBALS"]:
+            config["BGP_GLOBALS"]["default"] = {}
+        config["BGP_GLOBALS"]["default"]["router_id"] = primary_ip
 
     # Add port configurations in sorted order
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
