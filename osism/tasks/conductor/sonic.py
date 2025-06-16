@@ -53,6 +53,8 @@ PORT_TYPE_TO_SPEED_MAP = {
     # 400G Optical
     "400gbase-x-qsfpdd": 400000,  # 400G QSFP-DD
     "400gbase-x-osfp": 400000,  # 400G OSFP
+    # Virtual interface
+    "virtual": 0,  # Virtual interface (no physical speed)
 }
 
 
