@@ -786,6 +786,29 @@ def generate_sonic_config(device, hwsku):
                     "mtu": "9100",
                 }
 
+    # Add tagged VLANs to PORT configuration
+    # Build a mapping of ports to their tagged VLANs
+    port_tagged_vlans = {}
+    for vid, members in vlan_info["vlan_members"].items():
+        for netbox_interface_name, tagging_mode in members.items():
+            # Convert NetBox interface name to SONiC format
+            sonic_interface_name = convert_netbox_interface_to_sonic(
+                netbox_interface_name
+            )
+
+            # Only add if this is a tagged VLAN (not untagged)
+            if tagging_mode == "tagged":
+                if sonic_interface_name not in port_tagged_vlans:
+                    port_tagged_vlans[sonic_interface_name] = []
+                port_tagged_vlans[sonic_interface_name].append(str(vid))
+
+    # Update PORT configuration with tagged VLANs
+    for port_name in config["PORT"]:
+        if port_name in port_tagged_vlans:
+            # Sort the VLAN IDs numerically for consistent ordering
+            tagged_vlans = sorted(port_tagged_vlans[port_name], key=int)
+            config["PORT"][port_name]["tagged_vlans"] = tagged_vlans
+
     # Add INTERFACE configuration for connected interfaces (except management-only)
     # This enables IPv6 link-local only mode for all connected non-management interfaces
     for port_name in config["PORT"]:
