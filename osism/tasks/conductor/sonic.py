@@ -877,6 +877,10 @@ def generate_sonic_config(device, hwsku):
             "lanes": port_lanes,
             "speed": port_speed,
             "mtu": "9100",
+            "adv_speeds": "all",
+            "autoneg": "off",
+            "link_training": "off",
+            "unreliable_los": "auto",
         }
 
     # Add breakout ports that might not be in the original port_config
@@ -954,6 +958,10 @@ def generate_sonic_config(device, hwsku):
                     "lanes": port_lanes,
                     "speed": port_speed,
                     "mtu": "9100",
+                    "adv_speeds": "all",
+                    "autoneg": "off",
+                    "link_training": "off",
+                    "unreliable_los": "auto",
                 }
 
     # Add tagged VLANs to PORT configuration
