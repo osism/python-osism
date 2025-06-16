@@ -40,6 +40,11 @@ NETBOX_FILTER_CONDUCTOR_IRONIC = os.getenv(
     "[{'state': 'active', 'tag': ['managed-by-ironic']}]",
 )
 
+NETBOX_FILTER_CONDUCTOR_SONIC = os.getenv(
+    "NETBOX_FILTER_CONDUCTOR_SONIC",
+    "[{'state': 'active', 'tag': ['managed-by-metalbox']}]",
+)
+
 NETBOX_SECONDARIES = (
     os.getenv("NETBOX_SECONDARIES", read_secret("NETBOX_SECONDARIES")) or "[]"
 )

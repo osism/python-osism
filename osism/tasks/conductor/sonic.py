@@ -10,7 +10,7 @@ from osism.tasks.conductor.netbox import (
     get_device_loopbacks,
     get_device_oob_ip,
     get_device_vlans,
-    get_nb_device_query_list,
+    get_nb_device_query_list_sonic,
 )
 
 
@@ -865,27 +865,19 @@ def sync_sonic():
 
     logger.debug(f"Supported HWSKUs: {', '.join(supported_hwskus)}")
 
-    # Get device query list from NETBOX_FILTER_CONDUCTOR_IRONIC
-    nb_device_query_list = get_nb_device_query_list()
+    # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
+    nb_device_query_list = get_nb_device_query_list_sonic()
 
     devices = []
     for nb_device_query in nb_device_query_list:
-        # Query devices with the NETBOX_FILTER_CONDUCTOR_IRONIC criteria
+        # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
         for device in utils.nb.dcim.devices.filter(**nb_device_query):
             # Check if device role matches allowed roles
             if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
-                # Check if device has the required tag
-                if device.tags and any(
-                    tag.slug == "managed-by-osism" for tag in device.tags
-                ):
-                    devices.append(device)
-                    logger.debug(
-                        f"Found device: {device.name} with role: {device.role.slug}"
-                    )
-                else:
-                    logger.debug(
-                        f"Skipping device {device.name}: missing 'managed-by-osism' tag"
-                    )
+                devices.append(device)
+                logger.debug(
+                    f"Found device: {device.name} with role: {device.role.slug}"
+                )
 
     logger.info(f"Found {len(devices)} devices matching criteria")
 

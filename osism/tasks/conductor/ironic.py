@@ -7,7 +7,10 @@ from pottery import Redlock
 
 from osism import utils as osism_utils
 from osism.tasks import netbox, openstack
-from osism.tasks.conductor.netbox import get_device_oob_ip, get_nb_device_query_list
+from osism.tasks.conductor.netbox import (
+    get_device_oob_ip,
+    get_nb_device_query_list_ironic,
+)
 from osism.tasks.conductor.utils import (
     deep_compare,
     deep_decrypt,
@@ -37,7 +40,7 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
         "Starting NetBox device synchronisation with ironic\n",
     )
     devices = set()
-    nb_device_query_list = get_nb_device_query_list()
+    nb_device_query_list = get_nb_device_query_list_ironic()
     for nb_device_query in nb_device_query_list:
         devices |= set(netbox.get_devices(**nb_device_query))
 
