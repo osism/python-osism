@@ -733,6 +733,7 @@ def generate_sonic_config(device, hwsku):
         "BGP_NEIGHBOR": {},
         "BGP_NEIGHBOR_AF": {},
         "BGP_GLOBALS_AF_NETWORK": {},
+        "NTP_SERVER": {},
         "VERSIONS": {},
     }
 
@@ -1133,6 +1134,47 @@ def generate_sonic_config(device, hwsku):
 
     except Exception as e:
         logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")
+
+    # Add NTP_SERVER configuration using Loopback0 IP addresses from devices with manager or metalbox roles
+    try:
+        # Get devices with manager or metalbox device roles
+        devices_manager = utils.nb.dcim.devices.filter(role="manager")
+        devices_metalbox = utils.nb.dcim.devices.filter(role="metalbox")
+
+        # Combine both device lists
+        ntp_devices = list(devices_manager) + list(devices_metalbox)
+
+        for ntp_device in ntp_devices:
+            # Get interfaces for this device to find Loopback0
+            device_interfaces = utils.nb.dcim.interfaces.filter(device_id=ntp_device.id)
+
+            for interface in device_interfaces:
+                # Look for Loopback0 interface
+                if interface.name == "Loopback0":
+                    # Get IP addresses assigned to this Loopback0 interface
+                    ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                        assigned_object_id=interface.id,
+                    )
+
+                    for ip_addr in ip_addresses:
+                        if ip_addr.address:
+                            # Extract just the IPv4 address without prefix
+                            ip_only = ip_addr.address.split("/")[0]
+
+                            # Check if it's an IPv4 address (simple check)
+                            if "." in ip_only and ":" not in ip_only:
+                                config["NTP_SERVER"][ip_only] = {
+                                    "maxpoll": "10",
+                                    "minpoll": "6",
+                                    "prefer": "false",
+                                }
+                                logger.info(
+                                    f"Added NTP server {ip_only} from device {ntp_device.name} with role {ntp_device.role.slug}"
+                                )
+                    break
+
+    except Exception as e:
+        logger.warning(f"Could not process NTP servers: {e}")
 
     # Add VLAN configuration from NetBox
     for vid, vlan_data in vlan_info["vlans"].items():
