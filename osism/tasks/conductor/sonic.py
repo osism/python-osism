@@ -490,6 +490,10 @@ def get_connected_interfaces(device):
         interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
 
         for interface in interfaces:
+            # Skip management-only interfaces
+            if hasattr(interface, "mgmt_only") and interface.mgmt_only:
+                continue
+
             # Check if interface is connected via cable
             if hasattr(interface, "cable") and interface.cable:
                 # Convert NetBox interface name to SONiC format
@@ -567,6 +571,7 @@ def generate_sonic_config(device, hwsku):
     required_sections = {
         "DEVICE_METADATA": {},
         "PORT": {},
+        "INTERFACE": {},
         "VLAN": {},
         "VLAN_MEMBER": {},
         "VLAN_INTERFACE": {},
@@ -766,6 +771,14 @@ def generate_sonic_config(device, hwsku):
                     "speed": port_speed,
                     "mtu": "9100",
                 }
+
+    # Add INTERFACE configuration for connected interfaces (except management-only)
+    # This enables IPv6 link-local only mode for all connected non-management interfaces
+    for port_name in config["PORT"]:
+        # Check if this port is in the connected interfaces set
+        if port_name in connected_interfaces:
+            # Add interface to INTERFACE section with ipv6_use_link_local_only enabled
+            config["INTERFACE"][port_name] = {"ipv6_use_link_local_only": "enable"}
 
     # Add VLAN configuration from NetBox
     for vid, vlan_data in vlan_info["vlans"].items():
