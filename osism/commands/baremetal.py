@@ -2,10 +2,14 @@
 
 from cliff.command import Command
 
+import tempfile
+import os
 from loguru import logger
 import openstack
 from tabulate import tabulate
 import json
+import yaml
+from openstack.baremetal import configdrive as configdrive_builder
 
 from osism.commands import get_cloud_connection
 
@@ -148,23 +152,60 @@ class BaremetalDeploy(Command):
             except openstack.exceptions.ValidationException:
                 logger.warning(f"Node {node.name} ({node.id}) could not be validated")
                 continue
+            # NOTE: Prepare osism config drive
             try:
-                config_drive = {"meta_data": {}}
+                playbook = []
+                play = {
+                    "name": "Run bootstrap - part 2",
+                    "hosts": "localhost",
+                    "connection": "local",
+                    "gather_facts": True,
+                    "vars": {},
+                    "roles": [
+                        "osism.commons.hostname",
+                        "osism.commons.hosts",
+                    ],
+                }
+                play["vars"].update(
+                    {"hostname_name": node.name, "hosts_type": "template"}
+                )
                 if (
                     "netplan_parameters" in node.extra
                     and node.extra["netplan_parameters"]
                 ):
-                    config_drive["meta_data"].update(
+                    play["vars"].update(
                         {
-                            "netplan_parameters": json.loads(
-                                node.extra["netplan_parameters"]
-                            )
+                            "network_allow_service_restart": True,
                         }
                     )
+                    play["vars"].update(json.loads(node.extra["netplan_parameters"]))
+                    play["roles"].append("osism.commons.network")
                 if "frr_parameters" in node.extra and node.extra["frr_parameters"]:
-                    config_drive["meta_data"].update(
-                        {"frr_parameters": json.loads(node.extra["frr_parameters"])}
+                    play["vars"].update(
+                        {
+                            "frr_dummy_interface": "loopback0",
+                        }
                     )
+                    play["vars"].update(json.loads(node.extra["frr_parameters"]))
+                    play["roles"].append("osism.services.frr")
+                playbook.append(play)
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    with open(os.path.join(tmp_dir, "playbook.yml"), "w") as file:
+                        yaml.dump(
+                            playbook,
+                            file,
+                            default_flow_style=False,
+                            explicit_start=True,
+                            indent=2,
+                            sort_keys=False,
+                        )
+                    config_drive = configdrive_builder.pack(tmp_dir)
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to build config drive for {node.name} ({node.id}): {exc}"
+                )
+                continue
+            try:
                 conn.baremetal.set_node_provision_state(
                     node.id, provision_state, config_drive=config_drive
                 )

@@ -43,7 +43,8 @@ apk add --no-cache \
   less \
   openssh-client \
   procps \
-  tini
+  tini \
+  cdrkit
 
 # install python packages
 uv pip install --no-cache --system -r /src/requirements.txt
