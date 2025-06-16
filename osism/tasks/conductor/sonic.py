@@ -865,12 +865,12 @@ def sync_sonic():
 
     logger.debug(f"Supported HWSKUs: {', '.join(supported_hwskus)}")
 
-    # Get device query list from NETBOX_FILTER_CONDUCTOR
+    # Get device query list from NETBOX_FILTER_CONDUCTOR_IRONIC
     nb_device_query_list = get_nb_device_query_list()
 
     devices = []
     for nb_device_query in nb_device_query_list:
-        # Query devices with the NETBOX_FILTER_CONDUCTOR criteria
+        # Query devices with the NETBOX_FILTER_CONDUCTOR_IRONIC criteria
         for device in utils.nb.dcim.devices.filter(**nb_device_query):
             # Check if device role matches allowed roles
             if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
