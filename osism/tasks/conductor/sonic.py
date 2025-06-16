@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import ipaddress
 import json
 import os
 import re
@@ -622,6 +623,7 @@ def generate_sonic_config(device, hwsku):
         "BREAKOUT_PORTS": {},
         "BGP_GLOBALS": {},
         "BGP_NEIGHBOR_AF": {},
+        "BGP_GLOBALS_AF_NETWORK": {},
         "VERSIONS": {},
     }
 
@@ -937,6 +939,24 @@ def generate_sonic_config(device, hwsku):
         for address in loopback_data["addresses"]:
             ip_key = f"{loopback_name}|{address}"
             config["LOOPBACK_INTERFACE"][ip_key] = {}
+
+        # Add BGP_GLOBALS_AF_NETWORK configuration for Loopback0 devices
+        if loopback_name == "Loopback0":
+            for address in loopback_data["addresses"]:
+                # Determine if this is IPv4 or IPv6 and set appropriate address family
+                try:
+                    ip_obj = ipaddress.ip_interface(address)
+                    if ip_obj.version == 4:
+                        af_key = f"default|ipv4_unicast|{address}"
+                    elif ip_obj.version == 6:
+                        af_key = f"default|ipv6_unicast|{address}"
+                    else:
+                        continue
+
+                    config["BGP_GLOBALS_AF_NETWORK"][af_key] = {}
+                except ValueError:
+                    logger.warning(f"Invalid IP address format: {address}")
+                    continue
 
     # Add management interface configuration if OOB IP is available
     if oob_ip_result:
