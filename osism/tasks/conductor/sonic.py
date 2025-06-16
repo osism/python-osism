@@ -782,10 +782,10 @@ def generate_sonic_config(device, hwsku):
                 )
 
     # Add port configurations in sorted order
-    # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
+    # Sort ports naturally (Ethernet0, Ethernet1, Ethernet2, Ethernet3, Ethernet4, Ethernet8, ...)
     def natural_sort_key(port_name):
         """Extract numeric part from port name for natural sorting."""
-        match = re.search(r"(\d+)", port_name)
+        match = re.search(r"Ethernet(\d+)", port_name)
         return int(match.group(1)) if match else 0
 
     sorted_ports = sorted(port_config.keys(), key=natural_sort_key)
