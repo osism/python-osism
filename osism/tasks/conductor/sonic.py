@@ -580,6 +580,7 @@ def generate_sonic_config(device, hwsku):
         "LOOPBACK_INTERFACE": {},
         "BREAKOUT_CFG": {},
         "BREAKOUT_PORTS": {},
+        "BGP_NEIGHBOR_AF": {},
         "VERSIONS": {},
     }
 
@@ -779,6 +780,18 @@ def generate_sonic_config(device, hwsku):
         if port_name in connected_interfaces:
             # Add interface to INTERFACE section with ipv6_use_link_local_only enabled
             config["INTERFACE"][port_name] = {"ipv6_use_link_local_only": "enable"}
+
+    # Add BGP_NEIGHBOR_AF configuration for connected interfaces (except management-only)
+    # This enables BGP for both IPv4 and IPv6 unicast on all connected non-management interfaces
+    for port_name in config["PORT"]:
+        # Check if this port is in the connected interfaces set
+        if port_name in connected_interfaces:
+            # Add BGP neighbor address family configuration for IPv4 and IPv6
+            ipv4_key = f"default|{port_name}|ipv4_unicast"
+            ipv6_key = f"default|{port_name}|ipv6_unicast"
+
+            config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
+            config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
 
     # Add VLAN configuration from NetBox
     for vid, vlan_data in vlan_info["vlans"].items():
