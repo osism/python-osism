@@ -1017,6 +1017,115 @@ def generate_sonic_config(device, hwsku):
                 "v6only": "true",
             }
 
+    # Add additional BGP_NEIGHBOR configuration using Loopback0 IP addresses from connected devices
+    try:
+        # Get all interfaces for the device to find connected devices
+        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+
+        for interface in interfaces:
+            # Skip management-only interfaces
+            if hasattr(interface, "mgmt_only") and interface.mgmt_only:
+                continue
+
+            # Check if interface is connected via cable
+            if hasattr(interface, "cable") and interface.cable:
+                # Convert NetBox interface name to SONiC format to check if it's in our PORT config
+                interface_speed = getattr(interface, "speed", None)
+                # If speed is not set, try to get it from port type
+                if (
+                    not interface_speed
+                    and hasattr(interface, "type")
+                    and interface.type
+                ):
+                    interface_speed = get_speed_from_port_type(interface.type.value)
+                sonic_interface_name = convert_netbox_interface_to_sonic(
+                    interface.name, interface_speed
+                )
+
+                # Only process if this interface is in our PORT configuration
+                if (
+                    sonic_interface_name in config["PORT"]
+                    and sonic_interface_name in connected_interfaces
+                ):
+                    try:
+                        # Get the cable and find the connected device
+                        cable = interface.cable
+                        connected_device = None
+
+                        # Try to get cable terminations (modern NetBox API)
+                        if hasattr(cable, "a_terminations") and hasattr(
+                            cable, "b_terminations"
+                        ):
+                            for termination in list(cable.a_terminations) + list(
+                                cable.b_terminations
+                            ):
+                                # Termination is the interface object directly
+                                if (
+                                    hasattr(termination, "device")
+                                    and termination.device.id != device.id
+                                ):
+                                    connected_device = termination.device
+                                    break
+
+                        # Fallback: try legacy cable API structure
+                        if not connected_device:
+                            if hasattr(cable, "termination_a") and hasattr(
+                                cable, "termination_b"
+                            ):
+                                if cable.termination_a.device.id != device.id:
+                                    connected_device = cable.termination_a.device
+                                elif cable.termination_b.device.id != device.id:
+                                    connected_device = cable.termination_b.device
+
+                        if connected_device:
+                            # Check if connected device has the required tag
+                            has_osism_tag = False
+                            if connected_device.tags:
+                                has_osism_tag = any(
+                                    tag.slug == "managed-by-osism"
+                                    for tag in connected_device.tags
+                                )
+
+                            if has_osism_tag:
+                                # Get Loopback0 IP addresses from the connected device
+                                connected_device_interfaces = (
+                                    utils.nb.dcim.interfaces.filter(
+                                        device_id=connected_device.id
+                                    )
+                                )
+
+                                for conn_interface in connected_device_interfaces:
+                                    # Look for Loopback0 interface
+                                    if conn_interface.name == "Loopback0":
+                                        # Get IP addresses assigned to this Loopback0 interface
+                                        ip_addresses = (
+                                            utils.nb.ipam.ip_addresses.filter(
+                                                assigned_object_id=conn_interface.id,
+                                            )
+                                        )
+
+                                        for ip_addr in ip_addresses:
+                                            if ip_addr.address:
+                                                # Extract just the IP address without prefix
+                                                ip_only = ip_addr.address.split("/")[0]
+                                                neighbor_key = f"default|{ip_only}"
+                                                config["BGP_NEIGHBOR"][neighbor_key] = {
+                                                    "peer_type": "external"
+                                                }
+                                        break
+                            else:
+                                logger.debug(
+                                    f"Skipping BGP neighbor for device {connected_device.name}: missing 'managed-by-osism' tag"
+                                )
+
+                    except Exception as e:
+                        logger.warning(
+                            f"Could not get connected device for interface {interface.name}: {e}"
+                        )
+
+    except Exception as e:
+        logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")
+
     # Add VLAN configuration from NetBox
     for vid, vlan_data in vlan_info["vlans"].items():
         vlan_name = f"Vlan{vid}"
