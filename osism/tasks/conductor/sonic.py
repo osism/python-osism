@@ -13,6 +13,46 @@ from osism.tasks.conductor.netbox import (
     get_nb_device_query_list_sonic,
 )
 
+# Default AS prefix for local ASN calculation
+DEFAULT_LOCAL_AS_PREFIX = 4200
+
+
+def calculate_local_asn_from_ipv4(
+    ipv4_address: str, prefix: int = DEFAULT_LOCAL_AS_PREFIX
+) -> int:
+    """Calculate AS number from IPv4 address.
+
+    Args:
+        ipv4_address: IPv4 address in format "192.168.45.123/32" or "192.168.45.123"
+        prefix: Four-digit prefix for AS number (default: 4200)
+
+    Returns:
+        AS number calculated as prefix + 3rd octet (padded) + 4th octet (padded)
+        Example: 192.168.45.123 with prefix 4200 -> 4200045123
+
+    Raises:
+        ValueError: If IP address format is invalid
+    """
+    try:
+        # Remove CIDR notation if present
+        ip_only = ipv4_address.split("/")[0]
+        octets = ip_only.split(".")
+
+        if len(octets) != 4:
+            raise ValueError(f"Invalid IPv4 address format: {ipv4_address}")
+
+        # AS = prefix + third octet (3 digits) + fourth octet (3 digits)
+        # Example: 192.168.45.123 -> 4200 + 045 + 123 = 4200045123
+        third_octet = int(octets[2])
+        fourth_octet = int(octets[3])
+
+        if not (0 <= third_octet <= 255 and 0 <= fourth_octet <= 255):
+            raise ValueError(f"Invalid octet values in: {ipv4_address}")
+
+        return int(f"{prefix}{third_octet:03d}{fourth_octet:03d}")
+    except (IndexError, ValueError) as e:
+        raise ValueError(f"Failed to calculate AS from {ipv4_address}: {str(e)}")
+
 
 def convert_netbox_interface_to_sonic(interface_name, interface_speed=None):
     """Convert NetBox interface name to SONiC interface name.
@@ -618,6 +658,16 @@ def generate_sonic_config(device, hwsku):
         if "default" not in config["BGP_GLOBALS"]:
             config["BGP_GLOBALS"]["default"] = {}
         config["BGP_GLOBALS"]["default"]["router_id"] = primary_ip
+
+        # Calculate and add local_asn from router_id (only for IPv4)
+        if device.primary_ip4:
+            try:
+                local_asn = calculate_local_asn_from_ipv4(primary_ip)
+                config["BGP_GLOBALS"]["default"]["local_asn"] = str(local_asn)
+            except ValueError as e:
+                logger.warning(
+                    f"Could not calculate local ASN for device {device.name}: {e}"
+                )
 
     # Add port configurations in sorted order
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
