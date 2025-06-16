@@ -45,6 +45,11 @@ NETBOX_FILTER_CONDUCTOR_SONIC = os.getenv(
     "[{'state': 'active', 'tag': ['managed-by-metalbox']}]",
 )
 
+# SONiC export configuration
+SONIC_EXPORT_DIR = os.getenv("SONIC_EXPORT_DIR", "/etc/sonic/export")
+SONIC_EXPORT_PREFIX = os.getenv("SONIC_EXPORT_PREFIX", "osism_")
+SONIC_EXPORT_SUFFIX = os.getenv("SONIC_EXPORT_SUFFIX", "_config_db.json")
+
 NETBOX_SECONDARIES = (
     os.getenv("NETBOX_SECONDARIES", read_secret("NETBOX_SECONDARIES")) or "[]"
 )
