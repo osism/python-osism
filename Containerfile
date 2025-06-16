@@ -89,6 +89,9 @@ rm -rf /tests/.git
 # prepare use of clustershell
 ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 
+# create /etc/sonic/export directory
+mkdir -p /etc/sonic/export
+
 # cleanup
 apk del .build-deps
 rm -rf \

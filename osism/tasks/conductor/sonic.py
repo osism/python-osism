@@ -7,6 +7,7 @@ import re
 from loguru import logger
 
 from osism import utils
+from osism import settings
 from osism.tasks.conductor.netbox import (
     get_device_loopbacks,
     get_device_oob_ip,
@@ -434,6 +435,39 @@ def save_config_to_netbox(device, config):
 
     except Exception as e:
         logger.error(f"Failed to save config context for device {device.name}: {e}")
+
+
+def export_config_to_file(device, config):
+    """Export SONiC configuration to local file.
+
+    Args:
+        device: NetBox device object
+        config: SONiC configuration dictionary
+    """
+    try:
+        # Get configuration from settings
+        export_dir = settings.SONIC_EXPORT_DIR
+        prefix = settings.SONIC_EXPORT_PREFIX
+        suffix = settings.SONIC_EXPORT_SUFFIX
+
+        # Create export directory if it doesn't exist
+        os.makedirs(export_dir, exist_ok=True)
+
+        # Get device hostname from inventory_hostname custom field or device name
+        hostname = get_device_hostname(device)
+
+        # Generate filename: prefix + hostname + suffix
+        filename = f"{prefix}{hostname}{suffix}"
+        filepath = os.path.join(export_dir, filename)
+
+        # Export configuration to JSON file
+        with open(filepath, "w") as f:
+            json.dump(config, f, indent=2)
+
+        logger.info(f"Exported SONiC config for device {device.name} to {filepath}")
+
+    except Exception as e:
+        logger.error(f"Failed to export config for device {device.name}: {e}")
 
 
 def detect_breakout_ports(device):
@@ -1353,6 +1387,9 @@ def sync_sonic():
 
         # Save the generated configuration to NetBox config context
         save_config_to_netbox(device, sonic_config)
+
+        # Export the generated configuration to local file
+        export_config_to_file(device, sonic_config)
 
         logger.info(
             f"Generated SONiC config for device {device.name} with {len(sonic_config['PORT'])} ports"
