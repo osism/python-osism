@@ -622,6 +622,7 @@ def generate_sonic_config(device, hwsku):
         "BREAKOUT_CFG": {},
         "BREAKOUT_PORTS": {},
         "BGP_GLOBALS": {},
+        "BGP_NEIGHBOR": {},
         "BGP_NEIGHBOR_AF": {},
         "BGP_GLOBALS_AF_NETWORK": {},
         "VERSIONS": {},
@@ -880,6 +881,18 @@ def generate_sonic_config(device, hwsku):
 
             config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
             config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+
+    # Add BGP_NEIGHBOR configuration for connected interfaces (except management-only and virtual)
+    # This configures BGP neighbors as external peers with IPv6-only mode
+    for port_name in config["PORT"]:
+        # Check if this port is in the connected interfaces set
+        if port_name in connected_interfaces:
+            # Add BGP neighbor configuration
+            neighbor_key = f"default|{port_name}"
+            config["BGP_NEIGHBOR"][neighbor_key] = {
+                "peer_type": "external",
+                "v6only": "true",
+            }
 
     # Add VLAN configuration from NetBox
     for vid, vlan_data in vlan_info["vlans"].items():
