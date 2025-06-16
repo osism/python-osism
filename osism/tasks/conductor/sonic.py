@@ -17,6 +17,44 @@ from osism.tasks.conductor.netbox import (
 # Default AS prefix for local ASN calculation
 DEFAULT_LOCAL_AS_PREFIX = 4200
 
+# Port type to speed mapping (in Mbps)
+PORT_TYPE_TO_SPEED_MAP = {
+    # RJ45/BASE-T Types
+    "100base-tx": 100,  # 100Mbps RJ45
+    "1000base-t": 1000,  # 1G RJ45
+    "2.5gbase-t": 2500,  # 2.5G RJ45
+    "5gbase-t": 5000,  # 5G RJ45
+    "10gbase-t": 10000,  # 10G RJ45
+    # CX4
+    "10gbase-cx4": 10000,  # 10G CX4
+    # 1G Optical
+    "1000base-x-gbic": 1000,  # 1G GBIC
+    "1000base-x-sfp": 1000,  # 1G SFP
+    # 10G Optical
+    "10gbase-x-sfpp": 10000,  # 10G SFP+
+    "10gbase-x-xfp": 10000,  # 10G XFP
+    "10gbase-x-xenpak": 10000,  # 10G XENPAK
+    "10gbase-x-x2": 10000,  # 10G X2
+    # 25G Optical
+    "25gbase-x-sfp28": 25000,  # 25G SFP28
+    # 40G Optical
+    "40gbase-x-qsfpp": 40000,  # 40G QSFP+
+    # 50G Optical
+    "50gbase-x-sfp28": 50000,  # 50G SFP28
+    # 100G Optical
+    "100gbase-x-cfp": 100000,  # 100G CFP
+    "100gbase-x-cfp2": 100000,  # 100G CFP2
+    "100gbase-x-cfp4": 100000,  # 100G CFP4
+    "100gbase-x-cpak": 100000,  # 100G CPAK
+    "100gbase-x-qsfp28": 100000,  # 100G QSFP28
+    # 200G Optical
+    "200gbase-x-cfp2": 200000,  # 200G CFP2
+    "200gbase-x-qsfp56": 200000,  # 200G QSFP56
+    # 400G Optical
+    "400gbase-x-qsfpdd": 400000,  # 400G QSFP-DD
+    "400gbase-x-osfp": 400000,  # 400G OSFP
+}
+
 
 def calculate_local_asn_from_ipv4(
     ipv4_address: str, prefix: int = DEFAULT_LOCAL_AS_PREFIX
@@ -53,6 +91,32 @@ def calculate_local_asn_from_ipv4(
         return int(f"{prefix}{third_octet:03d}{fourth_octet:03d}")
     except (IndexError, ValueError) as e:
         raise ValueError(f"Failed to calculate AS from {ipv4_address}: {str(e)}")
+
+
+def get_speed_from_port_type(port_type):
+    """Get speed from port type when speed is not provided.
+
+    Args:
+        port_type: NetBox interface type value (e.g., "10gbase-x-sfpp", "100gbase-x-qsfp28")
+
+    Returns:
+        int: Speed in Mbps, or None if port type is not recognized
+    """
+    if not port_type:
+        return None
+
+    # Convert to lowercase for case-insensitive matching
+    port_type_lower = str(port_type).lower()
+
+    # Try to get speed from mapping
+    speed = PORT_TYPE_TO_SPEED_MAP.get(port_type_lower)
+
+    if speed:
+        logger.debug(f"Resolved port type '{port_type}' to speed {speed} Mbps")
+    else:
+        logger.warning(f"Unknown port type '{port_type}', unable to determine speed")
+
+    return speed
 
 
 def convert_netbox_interface_to_sonic(interface_name, interface_speed=None):
@@ -398,6 +462,9 @@ def detect_breakout_ports(device):
 
         for interface in interfaces:
             interface_speed = getattr(interface, "speed", None)
+            # If speed is not set, try to get it from port type
+            if not interface_speed and hasattr(interface, "type") and interface.type:
+                interface_speed = get_speed_from_port_type(interface.type.value)
 
             # Skip if not high-speed port (100G, 400G, 800G)
             if not interface_speed or interface_speed not in {
@@ -539,6 +606,13 @@ def get_connected_interfaces(device):
             if hasattr(interface, "cable") and interface.cable:
                 # Convert NetBox interface name to SONiC format
                 interface_speed = getattr(interface, "speed", None)
+                # If speed is not set, try to get it from port type
+                if (
+                    not interface_speed
+                    and hasattr(interface, "type")
+                    and interface.type
+                ):
+                    interface_speed = get_speed_from_port_type(interface.type.value)
                 sonic_interface_name = convert_netbox_interface_to_sonic(
                     interface.name, interface_speed
                 )
@@ -547,6 +621,13 @@ def get_connected_interfaces(device):
             elif hasattr(interface, "is_connected") and interface.is_connected:
                 # Convert NetBox interface name to SONiC format
                 interface_speed = getattr(interface, "speed", None)
+                # If speed is not set, try to get it from port type
+                if (
+                    not interface_speed
+                    and hasattr(interface, "type")
+                    and interface.type
+                ):
+                    interface_speed = get_speed_from_port_type(interface.type.value)
                 sonic_interface_name = convert_netbox_interface_to_sonic(
                     interface.name, interface_speed
                 )
@@ -587,6 +668,31 @@ def generate_sonic_config(device, hwsku):
 
     # Get breakout port configuration from NetBox
     breakout_info = detect_breakout_ports(device)
+
+    # Get all interfaces from NetBox with their speeds and types
+    netbox_interfaces = {}
+    try:
+        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        for interface in interfaces:
+            # Convert NetBox interface name to SONiC format for lookup
+            interface_speed = getattr(interface, "speed", None)
+            # If speed is not set, try to get it from port type
+            if not interface_speed and hasattr(interface, "type") and interface.type:
+                interface_speed = get_speed_from_port_type(interface.type.value)
+            sonic_name = convert_netbox_interface_to_sonic(
+                interface.name, interface_speed
+            )
+            netbox_interfaces[sonic_name] = {
+                "speed": interface_speed,
+                "type": (
+                    getattr(interface.type, "value", None)
+                    if hasattr(interface, "type") and interface.type
+                    else None
+                ),
+                "netbox_name": interface.name,
+            }
+    except Exception as e:
+        logger.warning(f"Could not get interface details from NetBox: {e}")
 
     # Get device metadata using helper functions
     platform = get_device_platform(device, hwsku)
@@ -690,6 +796,15 @@ def generate_sonic_config(device, hwsku):
         # Check if this port is a breakout port and adjust speed and lanes accordingly
         port_speed = port_info["speed"]
         port_lanes = port_info["lanes"]
+
+        # Override with NetBox data if available and hardware config has no speed
+        if port_name in netbox_interfaces:
+            netbox_speed = netbox_interfaces[port_name]["speed"]
+            if netbox_speed and (not port_speed or port_speed == "0"):
+                logger.info(
+                    f"Using NetBox speed {netbox_speed} for port {port_name} (hardware config had: {port_speed})"
+                )
+                port_speed = str(netbox_speed)
 
         if port_name in breakout_info["breakout_ports"]:
             # Get the master port to determine original speed and lanes
@@ -845,8 +960,14 @@ def generate_sonic_config(device, hwsku):
     for vid, members in vlan_info["vlan_members"].items():
         for netbox_interface_name, tagging_mode in members.items():
             # Convert NetBox interface name to SONiC format
+            # Try to find speed from netbox_interfaces
+            speed = None
+            for sonic_name, iface_info in netbox_interfaces.items():
+                if iface_info["netbox_name"] == netbox_interface_name:
+                    speed = iface_info["speed"]
+                    break
             sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name
+                netbox_interface_name, speed
             )
 
             # Only add if this is a tagged VLAN (not untagged)
@@ -903,9 +1024,14 @@ def generate_sonic_config(device, hwsku):
         if vid in vlan_info["vlan_members"]:
             for netbox_interface_name in vlan_info["vlan_members"][vid].keys():
                 # Convert NetBox interface name to SONiC format
-                # We need to get the speed from somewhere - for now assume high-speed for 4x multiplier
+                # Try to find speed from netbox_interfaces
+                speed = None
+                for sonic_name, iface_info in netbox_interfaces.items():
+                    if iface_info["netbox_name"] == netbox_interface_name:
+                        speed = iface_info["speed"]
+                        break
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    netbox_interface_name
+                    netbox_interface_name, speed
                 )
                 members.append(sonic_interface_name)
 
@@ -921,8 +1047,14 @@ def generate_sonic_config(device, hwsku):
         vlan_name = f"Vlan{vid}"
         for netbox_interface_name, tagging_mode in members.items():
             # Convert NetBox interface name to SONiC format
+            # Try to find speed from netbox_interfaces
+            speed = None
+            for sonic_name, iface_info in netbox_interfaces.items():
+                if iface_info["netbox_name"] == netbox_interface_name:
+                    speed = iface_info["speed"]
+                    break
             sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name
+                netbox_interface_name, speed
             )
             # Create VLAN_MEMBER key in format "Vlan<vid>|<port_name>"
             member_key = f"{vlan_name}|{sonic_interface_name}"
