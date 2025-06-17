@@ -131,17 +131,21 @@ class BaremetalDeploy(Command):
             if not node:
                 continue
 
-            if node.provision_state in ["available", "deploy failed"]:
+            if (
+                node.provision_state in ["available", "deploy failed"]
+                and not node["maintenance"]
+            ):
                 provision_state = "active"
             elif (
                 node.provision_state == "error"
                 or node.provision_state == "active"
+                and not node["maintenance"]
                 and rebuild
             ):
                 provision_state = "rebuild"
             else:
                 logger.warning(
-                    f"Node {node.name} ({node.id}) not in supported provision state"
+                    f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
                 )
                 continue
 
