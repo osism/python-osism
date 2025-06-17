@@ -152,10 +152,14 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
                             .render(remote_board_address=oob_ip)
                         )
         node_attributes.update({"resource_class": device.name})
-        # NOTE: Write metadata used for provisioning into 'extra' field, so that
-        #       it is available during node deploy without querying the NetBox again
         if "extra" not in node_attributes:
             node_attributes["extra"] = {}
+        # NOTE: Copy instance_info into extra field. because ironic removes it on undeployment. This way it may be readded on undeploy without querying the netbox again
+        if "instance_info" in node_attributes and node_attributes["instance_info"]:
+            node_attributes["extra"].update(
+                {"instance_info": json.dumps(node_attributes["instance_info"])}
+            )
+        # NOTE: Write metadata used for provisioning into 'extra' field, so that it is available during node deploy without querying the netbox again
         if (
             "netplan_parameters" in device.custom_fields
             and device.custom_fields["netplan_parameters"]
