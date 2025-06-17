@@ -1330,6 +1330,7 @@ def sync_sonic():
     # List of supported HWSKUs
     supported_hwskus = [
         "Accton-AS5835-54T",
+        "Accton-AS5835-54X",
         "Accton-AS7326-56X",
         "Accton-AS7726-32X",
         "Accton-AS9716-32D",
