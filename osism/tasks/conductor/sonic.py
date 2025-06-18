@@ -449,15 +449,32 @@ def export_config_to_file(device, config):
         export_dir = settings.SONIC_EXPORT_DIR
         prefix = settings.SONIC_EXPORT_PREFIX
         suffix = settings.SONIC_EXPORT_SUFFIX
+        identifier_type = settings.SONIC_EXPORT_IDENTIFIER
 
         # Create export directory if it doesn't exist
         os.makedirs(export_dir, exist_ok=True)
 
-        # Get device hostname from inventory_hostname custom field or device name
-        hostname = get_device_hostname(device)
+        # Get identifier based on configuration
+        if identifier_type == "serial":
+            # Get serial number from device
+            identifier = (
+                device.serial if hasattr(device, "serial") and device.serial else None
+            )
+            if not identifier:
+                logger.warning(
+                    f"Serial number not found for device {device.name}, falling back to hostname"
+                )
+                identifier = get_device_hostname(device)
+            else:
+                logger.debug(
+                    f"Using serial number {identifier} as identifier for device {device.name}"
+                )
+        else:
+            # Default to hostname (inventory_hostname custom field or device name)
+            identifier = get_device_hostname(device)
 
-        # Generate filename: prefix + hostname + suffix
-        filename = f"{prefix}{hostname}{suffix}"
+        # Generate filename: prefix + identifier + suffix
+        filename = f"{prefix}{identifier}{suffix}"
         filepath = os.path.join(export_dir, filename)
 
         # Export configuration to JSON file
