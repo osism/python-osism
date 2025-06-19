@@ -362,7 +362,7 @@ def get_port_config(hwsku):
 
     Returns:
         dict: Port configuration with port names as keys and their properties as values
-              Example: {'Ethernet0': {'lanes': '2', 'alias': 'tenGigE1', 'index': '1', 'speed': '10000'}}
+              Example: {'Ethernet0': {'lanes': '2', 'alias': 'tenGigE1', 'index': '1', 'speed': '10000', 'valid_speeds': '10000,25000'}}
     """
     port_config = {}
     config_path = f"/etc/sonic/port_config/{hwsku}.ini"
@@ -388,6 +388,9 @@ def get_port_config(hwsku):
                         "index": parts[3],
                         "speed": parts[4],
                     }
+                    # Check for optional valid_speeds column (6th column)
+                    if len(parts) >= 6:
+                        port_config[port_name]["valid_speeds"] = parts[5]
     except Exception as e:
         logger.error(f"Error parsing port config file {config_path}: {e}")
 
@@ -922,7 +925,7 @@ def generate_sonic_config(device, hwsku):
             if master_port in port_config:
                 port_index = port_config[master_port]["index"]
 
-        config["PORT"][port_name] = {
+        port_data = {
             "admin_status": admin_status,
             "alias": correct_alias,
             "index": port_index,
@@ -934,6 +937,12 @@ def generate_sonic_config(device, hwsku):
             "link_training": "off",
             "unreliable_los": "auto",
         }
+
+        # Add valid_speeds if available in port_info
+        if "valid_speeds" in port_info:
+            port_data["valid_speeds"] = port_info["valid_speeds"]
+
+        config["PORT"][port_name] = port_data
 
     # Add breakout ports that might not be in the original port_config
     for port_name in breakout_info["breakout_ports"]:
@@ -1003,7 +1012,7 @@ def generate_sonic_config(device, hwsku):
                                 f"Breakout port {port_name}: subport_index {subport_index} out of range for lanes_list {lanes_list}"
                             )
 
-                config["PORT"][port_name] = {
+                port_data = {
                     "admin_status": admin_status,
                     "alias": correct_alias,
                     "index": port_index,
@@ -1015,6 +1024,15 @@ def generate_sonic_config(device, hwsku):
                     "link_training": "off",
                     "unreliable_los": "auto",
                 }
+
+                # For breakout ports, check if master port has valid_speeds
+                if (
+                    master_port in port_config
+                    and "valid_speeds" in port_config[master_port]
+                ):
+                    port_data["valid_speeds"] = port_config[master_port]["valid_speeds"]
+
+                config["PORT"][port_name] = port_data
 
     # Add tagged VLANs to PORT configuration
     # Build a mapping of ports to their tagged VLANs
