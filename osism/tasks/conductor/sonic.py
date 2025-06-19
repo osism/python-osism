@@ -96,6 +96,145 @@ def calculate_local_asn_from_ipv4(
         raise ValueError(f"Failed to calculate AS from {ipv4_address}: {str(e)}")
 
 
+def find_interconnected_spine_groups(devices, target_roles=["spine", "superspine"]):
+    """Find groups of interconnected spine/superspine switches.
+
+    Args:
+        devices: List of NetBox device objects
+        target_roles: List of device roles to consider (default: ["spine", "superspine"])
+
+    Returns:
+        List of groups, where each group is a list of interconnected devices of the same role
+    """
+    from collections import defaultdict, deque
+
+    # Filter devices by target roles
+    spine_devices = {}
+    for device in devices:
+        if hasattr(device, "role") and device.role and device.role.slug in target_roles:
+            spine_devices[device.id] = device
+
+    if not spine_devices:
+        return []
+
+    # Build connection graph for each role separately
+    role_graphs = defaultdict(lambda: defaultdict(set))
+
+    for device in spine_devices.values():
+        device_role = device.role.slug
+
+        try:
+            # Get all interfaces for this device
+            interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+
+            for interface in interfaces:
+                if interface.cable and interface.cable.status == "connected":
+                    try:
+                        cable = interface.cable
+                        connected_device = None
+
+                        # Try modern NetBox API first
+                        if hasattr(cable, "a_terminations") and hasattr(
+                            cable, "b_terminations"
+                        ):
+                            for termination in list(cable.a_terminations) + list(
+                                cable.b_terminations
+                            ):
+                                if (
+                                    hasattr(termination, "device")
+                                    and termination.device.id != device.id
+                                    and termination.device.id in spine_devices
+                                ):
+                                    connected_device = termination.device
+                                    break
+
+                        # Fallback to legacy API
+                        if not connected_device:
+                            if hasattr(cable, "termination_a") and hasattr(
+                                cable, "termination_b"
+                            ):
+                                if (
+                                    cable.termination_a.device.id != device.id
+                                    and cable.termination_a.device.id in spine_devices
+                                ):
+                                    connected_device = cable.termination_a.device
+                                elif (
+                                    cable.termination_b.device.id != device.id
+                                    and cable.termination_b.device.id in spine_devices
+                                ):
+                                    connected_device = cable.termination_b.device
+
+                        # Only connect devices of the same role
+                        if (
+                            connected_device
+                            and connected_device.role.slug == device_role
+                        ):
+                            role_graphs[device_role][device.id].add(connected_device.id)
+                            role_graphs[device_role][connected_device.id].add(device.id)
+
+                    except Exception as e:
+                        logger.debug(
+                            f"Error processing cable for interface {interface.name} on {device.name}: {e}"
+                        )
+
+        except Exception as e:
+            logger.warning(
+                f"Error processing device {device.name} for spine grouping: {e}"
+            )
+
+    # Find connected components for each role using BFS
+    all_groups = []
+
+    for role, graph in role_graphs.items():
+        visited = set()
+
+        for device_id in graph:
+            if device_id not in visited:
+                # BFS to find all connected devices
+                group = []
+                queue = deque([device_id])
+                visited.add(device_id)
+
+                while queue:
+                    current_id = queue.popleft()
+                    group.append(spine_devices[current_id])
+
+                    for neighbor_id in graph[current_id]:
+                        if neighbor_id not in visited:
+                            visited.add(neighbor_id)
+                            queue.append(neighbor_id)
+
+                if len(group) > 1:  # Only include groups with multiple devices
+                    all_groups.append(group)
+
+    return all_groups
+
+
+def calculate_minimum_as_for_group(device_group, prefix=DEFAULT_LOCAL_AS_PREFIX):
+    """Calculate the minimum AS number for a group of interconnected devices.
+
+    Args:
+        device_group: List of interconnected devices
+        prefix: AS prefix (default: DEFAULT_LOCAL_AS_PREFIX)
+
+    Returns:
+        int: Minimum AS number for the group, or None if no valid AS can be calculated
+    """
+    as_numbers = []
+
+    for device in device_group:
+        if device.primary_ip4:
+            try:
+                as_number = calculate_local_asn_from_ipv4(
+                    str(device.primary_ip4), prefix
+                )
+                as_numbers.append(as_number)
+            except ValueError as e:
+                logger.debug(f"Could not calculate AS for device {device.name}: {e}")
+
+    return min(as_numbers) if as_numbers else None
+
+
 def get_speed_from_port_type(port_type):
     """Get speed from port type when speed is not provided.
 
@@ -249,6 +388,7 @@ DEFAULT_SONIC_ROLES = [
     "serviceleaf",
     "spine",
     "storageleaf",
+    "superspine",
     "switch",
     "transferleaf",
 ]
@@ -674,12 +814,13 @@ def get_connected_interfaces(device):
     return connected_interfaces
 
 
-def generate_sonic_config(device, hwsku):
+def generate_sonic_config(device, hwsku, device_as_mapping=None):
     """Generate minimal SONiC config.json for a device.
 
     Args:
         device: NetBox device object
         hwsku: Hardware SKU name
+        device_as_mapping: Dict mapping device IDs to pre-calculated AS numbers for spine/superspine groups
 
     Returns:
         dict: Minimal SONiC configuration dictionary
@@ -801,7 +942,16 @@ def generate_sonic_config(device, hwsku):
         # Calculate and add local_asn from router_id (only for IPv4)
         if device.primary_ip4:
             try:
-                local_asn = calculate_local_asn_from_ipv4(primary_ip)
+                # Check if device is in a spine/superspine group with pre-calculated AS
+                if device_as_mapping and device.id in device_as_mapping:
+                    local_asn = device_as_mapping[device.id]
+                    logger.debug(
+                        f"Using group-calculated AS {local_asn} for spine/superspine device {device.name}"
+                    )
+                else:
+                    # Use normal AS calculation for leaf switches and non-grouped devices
+                    local_asn = calculate_local_asn_from_ipv4(primary_ip)
+
                 config["BGP_GLOBALS"]["default"]["local_asn"] = str(local_asn)
             except ValueError as e:
                 logger.warning(
@@ -1362,6 +1512,23 @@ def sync_sonic():
 
     logger.info(f"Found {len(devices)} devices matching criteria")
 
+    # Find interconnected spine/superspine groups for special AS calculation
+    spine_groups = find_interconnected_spine_groups(devices)
+    logger.info(f"Found {len(spine_groups)} interconnected spine/superspine groups")
+
+    # Create mapping from device ID to its assigned AS number
+    device_as_mapping = {}
+
+    # Calculate AS numbers for spine/superspine groups
+    for group in spine_groups:
+        min_as = calculate_minimum_as_for_group(group)
+        if min_as:
+            for device in group:
+                device_as_mapping[device.id] = min_as
+            logger.debug(
+                f"Assigned AS {min_as} to {len(group)} devices in spine/superspine group"
+            )
+
     # Generate SONIC configuration for each device
     for device in devices:
         # Get HWSKU from sonic_parameters custom field, default to None
@@ -1389,7 +1556,7 @@ def sync_sonic():
             continue
 
         # Generate SONIC configuration based on device HWSKU
-        sonic_config = generate_sonic_config(device, hwsku)
+        sonic_config = generate_sonic_config(device, hwsku, device_as_mapping)
 
         # Store configuration in the dictionary
         device_configs[device.name] = sonic_config
