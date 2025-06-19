@@ -331,29 +331,6 @@ def get_device_mac_address(device):
     return mac_address
 
 
-def get_device_version(device):
-    """Get SONiC version for device from sonic_parameters or use default.
-
-    Args:
-        device: NetBox device object
-
-    Returns:
-        str: SONiC version formatted for VERSION field (e.g., 'version_4_5_0')
-    """
-    version = DEFAULT_SONIC_VERSION
-    if (
-        hasattr(device, "custom_fields")
-        and "sonic_parameters" in device.custom_fields
-        and device.custom_fields["sonic_parameters"]
-        and "version" in device.custom_fields["sonic_parameters"]
-    ):
-        version = device.custom_fields["sonic_parameters"]["version"]
-
-    # Format version for VERSION field: "4.5.0" -> "version_4_5_0"
-    version_formatted = f"version_{version.replace('.', '_')}"
-    return version_formatted
-
-
 def get_port_config(hwsku):
     """Get port configuration for a given HWSKU.
 
@@ -754,7 +731,6 @@ def generate_sonic_config(device, hwsku):
     platform = get_device_platform(device, hwsku)
     hostname = get_device_hostname(device)
     mac_address = get_device_mac_address(device)
-    version = get_device_version(device)
 
     # Try to load base configuration from /etc/sonic/config_db.json
     base_config_path = "/etc/sonic/config_db.json"
@@ -809,10 +785,6 @@ def generate_sonic_config(device, hwsku):
             "type": "LeafRouter",
         }
     )
-
-    # Update VERSIONS if not present
-    if "DATABASE" not in config["VERSIONS"]:
-        config["VERSIONS"]["DATABASE"] = {"VERSION": version}
 
     # Add BGP_GLOBALS configuration with router_id set to primary IP address
     primary_ip = None
