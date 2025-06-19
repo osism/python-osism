@@ -435,7 +435,7 @@ def export_config_to_file(device, config):
         os.makedirs(export_dir, exist_ok=True)
 
         # Get identifier based on configuration
-        if identifier_type == "serial":
+        if identifier_type == "serial-number":
             # Get serial number from device
             identifier = (
                 device.serial if hasattr(device, "serial") and device.serial else None
