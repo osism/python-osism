@@ -128,53 +128,39 @@ def find_interconnected_spine_groups(devices, target_roles=["spine", "superspine
             interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
 
             for interface in interfaces:
-                if interface.cable and interface.cable.status == "connected":
+                # Check if interface has connected_endpoints
+                if (
+                    hasattr(interface, "connected_endpoints")
+                    and interface.connected_endpoints
+                ):
+                    # Ensure connected_endpoints_reachable is True
+                    if not getattr(interface, "connected_endpoints_reachable", False):
+                        continue
+
                     try:
-                        cable = interface.cable
-                        connected_device = None
+                        # Process each connected endpoint
+                        for endpoint in interface.connected_endpoints:
+                            # Get the connected device from the endpoint
+                            if hasattr(endpoint, "device"):
+                                connected_device = endpoint.device
 
-                        # Try modern NetBox API first
-                        if hasattr(cable, "a_terminations") and hasattr(
-                            cable, "b_terminations"
-                        ):
-                            for termination in list(cable.a_terminations) + list(
-                                cable.b_terminations
-                            ):
+                                # Check if connected device is also a spine/superspine device
                                 if (
-                                    hasattr(termination, "device")
-                                    and termination.device.id != device.id
-                                    and termination.device.id in spine_devices
+                                    connected_device.id in spine_devices
+                                    and connected_device.id != device.id
+                                    and connected_device.role.slug == device_role
                                 ):
-                                    connected_device = termination.device
-                                    break
-
-                        # Fallback to legacy API
-                        if not connected_device:
-                            if hasattr(cable, "termination_a") and hasattr(
-                                cable, "termination_b"
-                            ):
-                                if (
-                                    cable.termination_a.device.id != device.id
-                                    and cable.termination_a.device.id in spine_devices
-                                ):
-                                    connected_device = cable.termination_a.device
-                                elif (
-                                    cable.termination_b.device.id != device.id
-                                    and cable.termination_b.device.id in spine_devices
-                                ):
-                                    connected_device = cable.termination_b.device
-
-                        # Only connect devices of the same role
-                        if (
-                            connected_device
-                            and connected_device.role.slug == device_role
-                        ):
-                            role_graphs[device_role][device.id].add(connected_device.id)
-                            role_graphs[device_role][connected_device.id].add(device.id)
+                                    # Add connection to the graph
+                                    role_graphs[device_role][device.id].add(
+                                        connected_device.id
+                                    )
+                                    role_graphs[device_role][connected_device.id].add(
+                                        device.id
+                                    )
 
                     except Exception as e:
                         logger.debug(
-                            f"Error processing cable for interface {interface.name} on {device.name}: {e}"
+                            f"Error processing connected_endpoints for interface {interface.name} on {device.name}: {e}"
                         )
 
         except Exception as e:
