@@ -798,6 +798,7 @@ def generate_sonic_config(device, hwsku):
 
     config["DEVICE_METADATA"]["localhost"].update(
         {
+            "default_config_profile": "l3",
             "hostname": hostname,
             "hwsku": hwsku,
             "platform": platform,
