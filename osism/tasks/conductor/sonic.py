@@ -108,7 +108,7 @@ def find_interconnected_spine_groups(devices, target_roles=["spine", "superspine
     """
     from collections import defaultdict, deque
 
-    # Filter devices by target roles
+    # Filter devices by target roles and create lookup dict
     spine_devices = {}
     for device in devices:
         if hasattr(device, "role") and device.role and device.role.slug in target_roles:
@@ -123,64 +123,20 @@ def find_interconnected_spine_groups(devices, target_roles=["spine", "superspine
     for device in spine_devices.values():
         device_role = device.role.slug
 
-        try:
-            # Get all interfaces for this device
-            interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        # Use get_connected_interfaces to get connections filtered by target devices
+        connection_info = get_connected_interfaces(
+            device,
+            include_device_info=True,
+            target_device_ids=set(spine_devices.keys()),
+        )
 
-            for interface in interfaces:
-                if interface.cable and interface.cable.status == "connected":
-                    try:
-                        cable = interface.cable
-                        connected_device = None
+        for conn in connection_info:
+            connected_device = conn["connected_device"]
 
-                        # Try modern NetBox API first
-                        if hasattr(cable, "a_terminations") and hasattr(
-                            cable, "b_terminations"
-                        ):
-                            for termination in list(cable.a_terminations) + list(
-                                cable.b_terminations
-                            ):
-                                if (
-                                    hasattr(termination, "device")
-                                    and termination.device.id != device.id
-                                    and termination.device.id in spine_devices
-                                ):
-                                    connected_device = termination.device
-                                    break
-
-                        # Fallback to legacy API
-                        if not connected_device:
-                            if hasattr(cable, "termination_a") and hasattr(
-                                cable, "termination_b"
-                            ):
-                                if (
-                                    cable.termination_a.device.id != device.id
-                                    and cable.termination_a.device.id in spine_devices
-                                ):
-                                    connected_device = cable.termination_a.device
-                                elif (
-                                    cable.termination_b.device.id != device.id
-                                    and cable.termination_b.device.id in spine_devices
-                                ):
-                                    connected_device = cable.termination_b.device
-
-                        # Only connect devices of the same role
-                        if (
-                            connected_device
-                            and connected_device.role.slug == device_role
-                        ):
-                            role_graphs[device_role][device.id].add(connected_device.id)
-                            role_graphs[device_role][connected_device.id].add(device.id)
-
-                    except Exception as e:
-                        logger.debug(
-                            f"Error processing cable for interface {interface.name} on {device.name}: {e}"
-                        )
-
-        except Exception as e:
-            logger.warning(
-                f"Error processing device {device.name} for spine grouping: {e}"
-            )
+            # Only connect devices of the same role
+            if connected_device and connected_device.role.slug == device_role:
+                role_graphs[device_role][device.id].add(connected_device.id)
+                role_graphs[device_role][connected_device.id].add(device.id)
 
     # Find connected components for each role using BFS
     all_groups = []
@@ -755,16 +711,28 @@ def detect_breakout_ports(device):
     return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
 
 
-def get_connected_interfaces(device):
+def get_connected_interfaces(
+    device, include_device_info=False, target_roles=None, target_device_ids=None
+):
     """Get list of interface names that are connected to other devices.
 
     Args:
         device: NetBox device object
+        include_device_info: If True, returns detailed connection info instead of just interface names
+        target_roles: Optional list of device roles to filter connected devices by (e.g., ["spine", "superspine"])
+        target_device_ids: Optional set of device IDs to filter connected devices by
 
     Returns:
-        set: Set of interface names that are connected
+        If include_device_info is False:
+            set: Set of interface names that are connected
+        If include_device_info is True:
+            list: List of dicts with connection info:
+                  [{"interface": "Ethernet0", "connected_device_id": 123, "connected_device": device_obj}, ...]
     """
-    connected_interfaces = set()
+    if include_device_info:
+        connected_info = []
+    else:
+        connected_interfaces = set()
 
     try:
         # Get all interfaces for the device
@@ -776,7 +744,65 @@ def get_connected_interfaces(device):
                 continue
 
             # Check if interface is connected via cable
-            if hasattr(interface, "cable") and interface.cable:
+            if (
+                hasattr(interface, "cable")
+                and interface.cable
+                and interface.cable.status == "connected"
+            ):
+                # Get connected device information if requested
+                connected_device = None
+
+                if include_device_info or target_roles or target_device_ids:
+                    try:
+                        cable = interface.cable
+
+                        # Try modern NetBox API first
+                        if hasattr(cable, "a_terminations") and hasattr(
+                            cable, "b_terminations"
+                        ):
+                            for termination in list(cable.a_terminations) + list(
+                                cable.b_terminations
+                            ):
+                                if (
+                                    hasattr(termination, "device")
+                                    and termination.device.id != device.id
+                                ):
+                                    connected_device = termination.device
+                                    break
+
+                        # Fallback to legacy API
+                        if not connected_device:
+                            if hasattr(cable, "termination_a") and hasattr(
+                                cable, "termination_b"
+                            ):
+                                if cable.termination_a.device.id != device.id:
+                                    connected_device = cable.termination_a.device
+                                elif cable.termination_b.device.id != device.id:
+                                    connected_device = cable.termination_b.device
+
+                        # Apply filters if specified
+                        if connected_device:
+                            # Filter by device role if specified
+                            if target_roles and (
+                                not hasattr(connected_device, "role")
+                                or not connected_device.role
+                                or connected_device.role.slug not in target_roles
+                            ):
+                                continue
+
+                            # Filter by device ID if specified
+                            if (
+                                target_device_ids
+                                and connected_device.id not in target_device_ids
+                            ):
+                                continue
+
+                    except Exception as e:
+                        logger.debug(
+                            f"Error getting connected device for interface {interface.name}: {e}"
+                        )
+                        continue
+
                 # Convert NetBox interface name to SONiC format
                 interface_speed = getattr(interface, "speed", None)
                 # If speed is not set, try to get it from port type
@@ -789,29 +815,26 @@ def get_connected_interfaces(device):
                 sonic_interface_name = convert_netbox_interface_to_sonic(
                     interface.name, interface_speed
                 )
-                connected_interfaces.add(sonic_interface_name)
-            # Alternative check using is_connected property if available
-            elif hasattr(interface, "is_connected") and interface.is_connected:
-                # Convert NetBox interface name to SONiC format
-                interface_speed = getattr(interface, "speed", None)
-                # If speed is not set, try to get it from port type
-                if (
-                    not interface_speed
-                    and hasattr(interface, "type")
-                    and interface.type
-                ):
-                    interface_speed = get_speed_from_port_type(interface.type.value)
-                sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
-                )
-                connected_interfaces.add(sonic_interface_name)
+
+                if include_device_info:
+                    connected_info.append(
+                        {
+                            "interface": sonic_interface_name,
+                            "connected_device_id": (
+                                connected_device.id if connected_device else None
+                            ),
+                            "connected_device": connected_device,
+                        }
+                    )
+                else:
+                    connected_interfaces.add(sonic_interface_name)
 
     except Exception as e:
         logger.warning(
             f"Could not get interface connections for device {device.name}: {e}"
         )
 
-    return connected_interfaces
+    return connected_info if include_device_info else connected_interfaces
 
 
 def generate_sonic_config(device, hwsku, device_as_mapping=None):
