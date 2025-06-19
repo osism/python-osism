@@ -741,16 +741,18 @@ def detect_breakout_ports(device):
     return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
 
 
-def get_connected_interfaces(device):
+def get_connected_interfaces(device, portchannel_info=None):
     """Get list of interface names that are connected to other devices.
 
     Args:
         device: NetBox device object
+        portchannel_info: Optional port channel info dict from detect_port_channels
 
     Returns:
-        set: Set of interface names that are connected
+        tuple: (set of connected interfaces, set of connected port channels)
     """
     connected_interfaces = set()
+    connected_portchannels = set()
 
     try:
         # Get all interfaces for the device
@@ -776,6 +778,15 @@ def get_connected_interfaces(device):
                     interface.name, interface_speed
                 )
                 connected_interfaces.add(sonic_interface_name)
+
+                # If this interface is part of a port channel, mark the port channel as connected
+                if (
+                    portchannel_info
+                    and sonic_interface_name in portchannel_info["member_mapping"]
+                ):
+                    pc_name = portchannel_info["member_mapping"][sonic_interface_name]
+                    connected_portchannels.add(pc_name)
+
             # Alternative check using is_connected property if available
             elif hasattr(interface, "is_connected") and interface.is_connected:
                 # Convert NetBox interface name to SONiC format
@@ -792,12 +803,152 @@ def get_connected_interfaces(device):
                 )
                 connected_interfaces.add(sonic_interface_name)
 
+                # If this interface is part of a port channel, mark the port channel as connected
+                if (
+                    portchannel_info
+                    and sonic_interface_name in portchannel_info["member_mapping"]
+                ):
+                    pc_name = portchannel_info["member_mapping"][sonic_interface_name]
+                    connected_portchannels.add(pc_name)
+
     except Exception as e:
         logger.warning(
             f"Could not get interface connections for device {device.name}: {e}"
         )
 
-    return connected_interfaces
+    return connected_interfaces, connected_portchannels
+
+
+def detect_port_channels(device):
+    """Detect port channels (LAGs) from NetBox device interfaces.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        dict: Dictionary with port channel information
+              {
+                  'portchannels': {
+                      'PortChannel1': {
+                          'members': ['Ethernet120', 'Ethernet124'],
+                          'admin_status': 'up',
+                          'fast_rate': 'false',
+                          'min_links': '1',
+                          'mtu': '9100'
+                      }
+                  },
+                  'member_mapping': {
+                      'Ethernet120': 'PortChannel1',
+                      'Ethernet124': 'PortChannel1'
+                  }
+              }
+    """
+    portchannels = {}
+    member_mapping = {}
+
+    try:
+        # Get all interfaces for the device and convert to list for multiple iterations
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+
+        # First pass: find LAG interfaces
+        lag_interfaces = []
+        for interface in interfaces:
+            # Check if this is a LAG interface
+            if hasattr(interface, "type") and interface.type:
+                if interface.type.value == "lag":
+                    lag_interfaces.append(interface)
+                    logger.debug(f"Found LAG interface: {interface.name}")
+
+        # Second pass: map members to LAGs
+        for interface in interfaces:
+            # Check if this interface has a LAG parent
+            if hasattr(interface, "lag") and interface.lag:
+                lag_parent = interface.lag
+
+                # Convert NetBox interface name to SONiC format
+                interface_speed = getattr(interface, "speed", None)
+                if (
+                    not interface_speed
+                    and hasattr(interface, "type")
+                    and interface.type
+                ):
+                    interface_speed = get_speed_from_port_type(interface.type.value)
+
+                sonic_interface_name = convert_netbox_interface_to_sonic(
+                    interface.name, interface_speed
+                )
+
+                # Extract port channel number from LAG name
+                # Common patterns: PortChannel1, Port-Channel1, LAG1, ae1, bond1
+                pc_number = None
+                if re.match(r"(?i)portchannel(\d+)", lag_parent.name):
+                    match = re.match(r"(?i)portchannel(\d+)", lag_parent.name)
+                    pc_number = match.group(1)
+                elif re.match(r"(?i)port-channel(\d+)", lag_parent.name):
+                    match = re.match(r"(?i)port-channel(\d+)", lag_parent.name)
+                    pc_number = match.group(1)
+                elif re.match(r"(?i)lag(\d+)", lag_parent.name):
+                    match = re.match(r"(?i)lag(\d+)", lag_parent.name)
+                    pc_number = match.group(1)
+                elif re.match(r"(?i)ae(\d+)", lag_parent.name):
+                    match = re.match(r"(?i)ae(\d+)", lag_parent.name)
+                    pc_number = match.group(1)
+                elif re.match(r"(?i)bond(\d+)", lag_parent.name):
+                    match = re.match(r"(?i)bond(\d+)", lag_parent.name)
+                    pc_number = match.group(1)
+                else:
+                    # Try to extract any number from the name
+                    numbers = re.findall(r"\d+", lag_parent.name)
+                    if numbers:
+                        pc_number = numbers[0]
+                    else:
+                        # Generate a number based on the LAG interface order
+                        pc_number = (
+                            str(lag_interfaces.index(lag_parent) + 1)
+                            if lag_parent in lag_interfaces
+                            else "1"
+                        )
+
+                portchannel_name = f"PortChannel{pc_number}"
+
+                # Add member to mapping
+                member_mapping[sonic_interface_name] = portchannel_name
+
+                # Initialize port channel if not exists
+                if portchannel_name not in portchannels:
+                    portchannels[portchannel_name] = {
+                        "members": [],
+                        "admin_status": "up",
+                        "fast_rate": "false",
+                        "min_links": "1",
+                        "mtu": "9100",
+                    }
+
+                # Add member to port channel
+                if (
+                    sonic_interface_name
+                    not in portchannels[portchannel_name]["members"]
+                ):
+                    portchannels[portchannel_name]["members"].append(
+                        sonic_interface_name
+                    )
+
+                logger.debug(
+                    f"Added interface {sonic_interface_name} to {portchannel_name}"
+                )
+
+        # Sort members in each port channel for consistent ordering
+        for pc_name in portchannels:
+            portchannels[pc_name]["members"].sort(
+                key=lambda x: (
+                    int(re.search(r"\d+", x).group()) if re.search(r"\d+", x) else 0
+                )
+            )
+
+    except Exception as e:
+        logger.warning(f"Could not detect port channels for device {device.name}: {e}")
+
+    return {"portchannels": portchannels, "member_mapping": member_mapping}
 
 
 def generate_sonic_config(device, hwsku, device_as_mapping=None):
@@ -814,8 +965,13 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     # Get port configuration for the HWSKU
     port_config = get_port_config(hwsku)
 
+    # Get port channel configuration from NetBox first (needed by get_connected_interfaces)
+    portchannel_info = detect_port_channels(device)
+
     # Get connected interfaces to determine admin_status
-    connected_interfaces = get_connected_interfaces(device)
+    connected_interfaces, connected_portchannels = get_connected_interfaces(
+        device, portchannel_info
+    )
 
     # Get OOB IP for management interface
     oob_ip_result = get_device_oob_ip(device)
@@ -892,6 +1048,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         "BGP_GLOBALS_AF_NETWORK": {},
         "NTP_SERVER": {},
         "VERSIONS": {},
+        "PORTCHANNEL": {},
+        "PORTCHANNEL_INTERFACE": {},
+        "PORTCHANNEL_MEMBER": {},
     }
 
     for section, default_value in required_sections.items():
@@ -956,8 +1115,15 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     for port_name in sorted_ports:
         port_info = port_config[port_name]
 
-        # Set admin_status to "up" if port is connected, otherwise "down"
-        admin_status = "up" if port_name in connected_interfaces else "down"
+        # Set admin_status to "up" if port is connected or is a port channel member, otherwise "down"
+        admin_status = (
+            "up"
+            if (
+                port_name in connected_interfaces
+                or port_name in portchannel_info["member_mapping"]
+            )
+            else "down"
+        )
 
         # Check if this port is a breakout port and adjust speed and lanes accordingly
         port_speed = port_info["speed"]
@@ -1073,8 +1239,15 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
                 else:
                     port_speed = "25000"  # Default fallback
 
-                # Set admin_status based on connection
-                admin_status = "up" if port_name in connected_interfaces else "down"
+                # Set admin_status based on connection or port channel membership
+                admin_status = (
+                    "up"
+                    if (
+                        port_name in connected_interfaces
+                        or port_name in portchannel_info["member_mapping"]
+                    )
+                    else "down"
+                )
 
                 # Generate correct alias (breakout port always gets subport notation)
                 interface_speed = int(port_speed)
@@ -1175,16 +1348,22 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     # Add INTERFACE configuration for connected interfaces (except management-only)
     # This enables IPv6 link-local only mode for all connected non-management interfaces
     for port_name in config["PORT"]:
-        # Check if this port is in the connected interfaces set
-        if port_name in connected_interfaces:
+        # Check if this port is in the connected interfaces set and not a port channel member
+        if (
+            port_name in connected_interfaces
+            and port_name not in portchannel_info["member_mapping"]
+        ):
             # Add interface to INTERFACE section with ipv6_use_link_local_only enabled
             config["INTERFACE"][port_name] = {"ipv6_use_link_local_only": "enable"}
 
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces (except management-only)
     # This enables BGP for both IPv4 and IPv6 unicast on all connected non-management interfaces
     for port_name in config["PORT"]:
-        # Check if this port is in the connected interfaces set
-        if port_name in connected_interfaces:
+        # Check if this port is in the connected interfaces set and not a port channel member
+        if (
+            port_name in connected_interfaces
+            and port_name not in portchannel_info["member_mapping"]
+        ):
             # Add BGP neighbor address family configuration for IPv4 and IPv6
             ipv4_key = f"default|{port_name}|ipv4_unicast"
             ipv6_key = f"default|{port_name}|ipv6_unicast"
@@ -1192,17 +1371,38 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
             config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
             config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
 
+    # Add BGP_NEIGHBOR_AF configuration for connected port channels
+    for pc_name in connected_portchannels:
+        # Add BGP neighbor address family configuration for IPv4 and IPv6
+        ipv4_key = f"default|{pc_name}|ipv4_unicast"
+        ipv6_key = f"default|{pc_name}|ipv6_unicast"
+
+        config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
+        config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+
     # Add BGP_NEIGHBOR configuration for connected interfaces (except management-only and virtual)
     # This configures BGP neighbors as external peers with IPv6-only mode
     for port_name in config["PORT"]:
-        # Check if this port is in the connected interfaces set
-        if port_name in connected_interfaces:
+        # Check if this port is in the connected interfaces set and not a port channel member
+        if (
+            port_name in connected_interfaces
+            and port_name not in portchannel_info["member_mapping"]
+        ):
             # Add BGP neighbor configuration
             neighbor_key = f"default|{port_name}"
             config["BGP_NEIGHBOR"][neighbor_key] = {
                 "peer_type": "external",
                 "v6only": "true",
             }
+
+    # Add BGP_NEIGHBOR configuration for connected port channels
+    for pc_name in connected_portchannels:
+        # Add BGP neighbor configuration
+        neighbor_key = f"default|{pc_name}"
+        config["BGP_NEIGHBOR"][neighbor_key] = {
+            "peer_type": "external",
+            "v6only": "true",
+        }
 
     # Add additional BGP_NEIGHBOR configuration using Loopback0 IP addresses from connected devices
     try:
@@ -1456,6 +1656,31 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
 
     if breakout_info["breakout_ports"]:
         config["BREAKOUT_PORTS"].update(breakout_info["breakout_ports"])
+
+    # Add port channel configuration from NetBox
+    if portchannel_info["portchannels"]:
+        for pc_name, pc_data in portchannel_info["portchannels"].items():
+            # Add PORTCHANNEL configuration
+            config["PORTCHANNEL"][pc_name] = {
+                "admin_status": pc_data["admin_status"],
+                "fast_rate": pc_data["fast_rate"],
+                "min_links": pc_data["min_links"],
+                "mtu": pc_data["mtu"],
+            }
+
+            # Add PORTCHANNEL_INTERFACE configuration to enable IPv6 link-local
+            config["PORTCHANNEL_INTERFACE"][pc_name] = {
+                "ipv6_use_link_local_only": "enable"
+            }
+
+            # Add PORTCHANNEL_MEMBER configuration for each member
+            for member in pc_data["members"]:
+                member_key = f"{pc_name}|{member}"
+                config["PORTCHANNEL_MEMBER"][member_key] = {}
+
+            logger.debug(
+                f"Added port channel {pc_name} with {len(pc_data['members'])} members"
+            )
 
     return config
 
