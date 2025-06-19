@@ -1430,10 +1430,11 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
                     interface.name, interface_speed
                 )
 
-                # Only process if this interface is in our PORT configuration
+                # Only process if this interface is in our PORT configuration and not a port channel member
                 if (
                     sonic_interface_name in config["PORT"]
                     and sonic_interface_name in connected_interfaces
+                    and sonic_interface_name not in portchannel_info["member_mapping"]
                 ):
                     try:
                         # Get the cable and find the connected device
