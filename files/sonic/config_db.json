@@ -1,7 +1,7 @@
 {
     "BGP_GLOBALS": {
         "default": {
-            "always_compare_med": "true",
+            "always_compare_med": "false",
             "ebgp_requires_policy": "false",
             "external_compare_router_id": "false",
             "fast_external_failover": "true",
@@ -15,13 +15,15 @@
     },
     "BGP_GLOBALS_AF": {
         "default|ipv4_unicast": {
-            "max_ebgp_paths": "1",
-            "max_ibgp_paths": "1",
+            "ibgp_equal_cluster_length": "false",
+            "max_ebgp_paths": "2",
+            "max_ibgp_paths": "2",
             "route_flap_dampen": "false"
         },
         "default|ipv6_unicast": {
-            "max_ebgp_paths": "1",
-            "max_ibgp_paths": "1"
+            "ibgp_equal_cluster_length": "false",
+            "max_ebgp_paths": "2",
+            "max_ibgp_paths": "2"
         }
     },
     "ECMP_LOADSHARE_TABLE_IPV4": {
@@ -90,6 +92,15 @@
         "oob-qos-policy": {
             "DESCRIPTION": "QoS Ratelimiting policy for OOB port",
             "TYPE": "QOS"
+        }
+    },
+    "MGMT_PORT": {
+        "eth0": {
+            "admin_status": "up",
+            "autoneg": "true",
+            "description": "Management0",
+            "mtu": "1500",
+            "speed": "1000"
         }
     },
     "MGMT_VRF_CONFIG": {
@@ -405,5 +416,9 @@
             "ETHER_TYPE": "0x86DD",
             "MATCH_TYPE": "FIELDS"
         }
+    },
+    "ROUTE_REDISTRIBUTE": {
+        "default|connected|bgp|ipv4": {},
+        "default|connected|bgp|ipv6": {}
     }
 }
