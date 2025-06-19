@@ -361,7 +361,17 @@
     "ZTP": {
         "config": {
             "admin-mode": "true"
+        },
+        "mode": {
+            "inband": "false",
+            "ipv4": "true",
+            "ipv6": "false",
+            "out-of-band": "true",
+            "profile": "active"
         }
+    },
+    "TELEMETRY": {
+        "gnmi": {}
     },
     "CLASSIFIER_TABLE": {
         "class-oob-arp": {
