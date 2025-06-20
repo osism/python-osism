@@ -15,6 +15,7 @@ from osism.tasks.conductor.netbox import (
     get_device_vlans,
 )
 from .bgp import calculate_local_asn_from_ipv4
+from .connections import get_connected_device, get_device_connections
 from .constants import REQUIRED_CONFIG_SECTIONS
 from .device import get_device_platform, get_device_hostname, get_device_mac_address
 from .interface import (
@@ -558,47 +559,7 @@ def _get_connected_device_for_interface(device, interface_name):
             )
 
             if sonic_name == interface_name:
-                # Check if interface has connected_endpoints
-                if (
-                    hasattr(interface, "connected_endpoints")
-                    and interface.connected_endpoints
-                ):
-                    if not getattr(interface, "connected_endpoints_reachable", False):
-                        continue
-
-                    for endpoint in interface.connected_endpoints:
-                        if (
-                            hasattr(endpoint, "device")
-                            and endpoint.device.id != device.id
-                        ):
-                            return endpoint.device
-
-                # Fallback to cable-based lookup
-                if hasattr(interface, "cable") and interface.cable:
-                    cable = interface.cable
-
-                    # Try modern cable API
-                    if hasattr(cable, "a_terminations") and hasattr(
-                        cable, "b_terminations"
-                    ):
-                        for termination in list(cable.a_terminations) + list(
-                            cable.b_terminations
-                        ):
-                            if (
-                                hasattr(termination, "device")
-                                and termination.device.id != device.id
-                            ):
-                                return termination.device
-
-                    # Try legacy cable API
-                    elif hasattr(cable, "termination_a") and hasattr(
-                        cable, "termination_b"
-                    ):
-                        if cable.termination_a.device.id != device.id:
-                            return cable.termination_a.device
-                        elif cable.termination_b.device.id != device.id:
-                            return cable.termination_b.device
-                break
+                return get_connected_device(interface)
 
     except Exception as e:
         logger.debug(
@@ -656,118 +617,70 @@ def _add_loopback_bgp_neighbors(
 ):
     """Add BGP_NEIGHBOR configuration using Loopback0 IP addresses from connected devices."""
     try:
-        # Get all interfaces for the device to find connected devices
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        # Get all connections for this device
+        connections = get_device_connections(device, skip_mgmt=True)
 
-        for interface in interfaces:
-            # Skip management-only interfaces
-            if hasattr(interface, "mgmt_only") and interface.mgmt_only:
-                continue
+        for local_interface, connected_device, connected_interface in connections:
+            # Convert NetBox interface name to SONiC format
+            interface_speed = getattr(local_interface, "speed", None)
+            if (
+                not interface_speed
+                and hasattr(local_interface, "type")
+                and local_interface.type
+            ):
+                interface_speed = get_speed_from_port_type(local_interface.type.value)
+            sonic_interface_name = convert_netbox_interface_to_sonic(
+                local_interface.name, interface_speed
+            )
 
-            # Check if interface is connected via cable
-            if hasattr(interface, "cable") and interface.cable:
-                # Convert NetBox interface name to SONiC format to check if it's in our PORT config
-                interface_speed = getattr(interface, "speed", None)
-                # If speed is not set, try to get it from port type
-                if (
-                    not interface_speed
-                    and hasattr(interface, "type")
-                    and interface.type
-                ):
-                    interface_speed = get_speed_from_port_type(interface.type.value)
-                sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
-                )
+            # Only process if this interface is in our PORT configuration and not a port channel member
+            if (
+                sonic_interface_name in config["PORT"]
+                and sonic_interface_name in connected_interfaces
+                and sonic_interface_name not in portchannel_info["member_mapping"]
+            ):
+                # Check if connected device has the required tag
+                has_osism_tag = False
+                if connected_device.tags:
+                    has_osism_tag = any(
+                        tag.slug == "managed-by-osism" for tag in connected_device.tags
+                    )
 
-                # Only process if this interface is in our PORT configuration and not a port channel member
-                if (
-                    sonic_interface_name in config["PORT"]
-                    and sonic_interface_name in connected_interfaces
-                    and sonic_interface_name not in portchannel_info["member_mapping"]
-                ):
-                    try:
-                        # Get the cable and find the connected device
-                        cable = interface.cable
-                        connected_device = None
+                if has_osism_tag:
+                    # Get Loopback0 IP addresses from the connected device
+                    connected_device_interfaces = utils.nb.dcim.interfaces.filter(
+                        device_id=connected_device.id
+                    )
 
-                        # Try to get cable terminations (modern NetBox API)
-                        if hasattr(cable, "a_terminations") and hasattr(
-                            cable, "b_terminations"
-                        ):
-                            for termination in list(cable.a_terminations) + list(
-                                cable.b_terminations
-                            ):
-                                # Termination is the interface object directly
-                                if (
-                                    hasattr(termination, "device")
-                                    and termination.device.id != device.id
-                                ):
-                                    connected_device = termination.device
-                                    break
+                    for conn_interface in connected_device_interfaces:
+                        # Look for Loopback0 interface
+                        if conn_interface.name == "Loopback0":
+                            # Get IP addresses assigned to this Loopback0 interface
+                            ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                                assigned_object_id=conn_interface.id,
+                            )
 
-                        # Fallback: try legacy cable API structure
-                        if not connected_device:
-                            if hasattr(cable, "termination_a") and hasattr(
-                                cable, "termination_b"
-                            ):
-                                if cable.termination_a.device.id != device.id:
-                                    connected_device = cable.termination_a.device
-                                elif cable.termination_b.device.id != device.id:
-                                    connected_device = cable.termination_b.device
+                            for ip_addr in ip_addresses:
+                                if ip_addr.address:
+                                    # Extract just the IP address without prefix
+                                    ip_only = ip_addr.address.split("/")[0]
+                                    neighbor_key = f"default|{ip_only}"
 
-                        if connected_device:
-                            # Check if connected device has the required tag
-                            has_osism_tag = False
-                            if connected_device.tags:
-                                has_osism_tag = any(
-                                    tag.slug == "managed-by-osism"
-                                    for tag in connected_device.tags
-                                )
-
-                            if has_osism_tag:
-                                # Get Loopback0 IP addresses from the connected device
-                                connected_device_interfaces = (
-                                    utils.nb.dcim.interfaces.filter(
-                                        device_id=connected_device.id
+                                    # Determine peer_type based on AS comparison
+                                    peer_type = _determine_peer_type(
+                                        device,
+                                        connected_device,
+                                        device_as_mapping,
                                     )
-                                )
 
-                                for conn_interface in connected_device_interfaces:
-                                    # Look for Loopback0 interface
-                                    if conn_interface.name == "Loopback0":
-                                        # Get IP addresses assigned to this Loopback0 interface
-                                        ip_addresses = (
-                                            utils.nb.ipam.ip_addresses.filter(
-                                                assigned_object_id=conn_interface.id,
-                                            )
-                                        )
-
-                                        for ip_addr in ip_addresses:
-                                            if ip_addr.address:
-                                                # Extract just the IP address without prefix
-                                                ip_only = ip_addr.address.split("/")[0]
-                                                neighbor_key = f"default|{ip_only}"
-
-                                                # Determine peer_type based on AS comparison
-                                                peer_type = _determine_peer_type(
-                                                    device,
-                                                    connected_device,
-                                                    device_as_mapping,
-                                                )
-
-                                                config["BGP_NEIGHBOR"][neighbor_key] = {
-                                                    "peer_type": peer_type
-                                                }
-                                        break
-                            else:
-                                logger.debug(
-                                    f"Skipping BGP neighbor for device {connected_device.name}: missing 'managed-by-osism' tag"
-                                )
-
-                    except Exception as e:
-                        logger.warning(
-                            f"Could not get connected device for interface {interface.name}: {e}"
-                        )
+                                    config["BGP_NEIGHBOR"][neighbor_key] = {
+                                        "peer_type": peer_type
+                                    }
+                            break
+                else:
+                    logger.debug(
+                        f"Skipping BGP neighbor for device {connected_device.name}: missing 'managed-by-osism' tag"
+                    )
 
     except Exception as e:
         logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")

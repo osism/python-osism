@@ -2,10 +2,9 @@
 
 """BGP and AS calculation functions for SONiC configuration."""
 
-from collections import defaultdict, deque
 from loguru import logger
 
-from osism import utils
+from .connections import get_interconnected_devices
 from .constants import DEFAULT_LOCAL_AS_PREFIX
 
 
@@ -56,90 +55,13 @@ def find_interconnected_spine_groups(devices, target_roles=["spine", "superspine
     Returns:
         List of groups, where each group is a list of interconnected devices of the same role
     """
-    # Filter devices by target roles
-    spine_devices = {}
-    for device in devices:
-        if hasattr(device, "role") and device.role and device.role.slug in target_roles:
-            spine_devices[device.id] = device
-
-    if not spine_devices:
-        return []
-
-    # Build connection graph for each role separately
-    role_graphs = defaultdict(lambda: defaultdict(set))
-
-    for device in spine_devices.values():
-        device_role = device.role.slug
-
-        try:
-            # Get all interfaces for this device
-            interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
-
-            for interface in interfaces:
-                # Check if interface has connected_endpoints
-                if (
-                    hasattr(interface, "connected_endpoints")
-                    and interface.connected_endpoints
-                ):
-                    # Ensure connected_endpoints_reachable is True
-                    if not getattr(interface, "connected_endpoints_reachable", False):
-                        continue
-
-                    try:
-                        # Process each connected endpoint
-                        for endpoint in interface.connected_endpoints:
-                            # Get the connected device from the endpoint
-                            if hasattr(endpoint, "device"):
-                                connected_device = endpoint.device
-
-                                # Check if connected device is also a spine/superspine device
-                                if (
-                                    connected_device.id in spine_devices
-                                    and connected_device.id != device.id
-                                    and connected_device.role.slug == device_role
-                                ):
-                                    # Add connection to the graph
-                                    role_graphs[device_role][device.id].add(
-                                        connected_device.id
-                                    )
-                                    role_graphs[device_role][connected_device.id].add(
-                                        device.id
-                                    )
-
-                    except Exception as e:
-                        logger.debug(
-                            f"Error processing connected_endpoints for interface {interface.name} on {device.name}: {e}"
-                        )
-
-        except Exception as e:
-            logger.warning(
-                f"Error processing device {device.name} for spine grouping: {e}"
-            )
-
-    # Find connected components for each role using BFS
+    # Use the generalized function from connections module
+    # Since we need groups by role, we'll process each role separately
     all_groups = []
 
-    for role, graph in role_graphs.items():
-        visited = set()
-
-        for device_id in graph:
-            if device_id not in visited:
-                # BFS to find all connected devices
-                group = []
-                queue = deque([device_id])
-                visited.add(device_id)
-
-                while queue:
-                    current_id = queue.popleft()
-                    group.append(spine_devices[current_id])
-
-                    for neighbor_id in graph[current_id]:
-                        if neighbor_id not in visited:
-                            visited.add(neighbor_id)
-                            queue.append(neighbor_id)
-
-                if len(group) > 1:  # Only include groups with multiple devices
-                    all_groups.append(group)
+    for role in target_roles:
+        role_groups = get_interconnected_devices(devices, target_roles=[role])
+        all_groups.extend(role_groups)
 
     return all_groups
 

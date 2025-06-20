@@ -7,6 +7,7 @@ import re
 from loguru import logger
 
 from osism import utils
+from .connections import is_interface_connected
 from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS
 
 
@@ -200,36 +201,8 @@ def get_connected_interfaces(device, portchannel_info=None):
         interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
 
         for interface in interfaces:
-            # Skip management-only interfaces
-            if hasattr(interface, "mgmt_only") and interface.mgmt_only:
-                continue
-
-            # Check if interface is connected via cable
-            if hasattr(interface, "cable") and interface.cable:
-                # Convert NetBox interface name to SONiC format
-                interface_speed = getattr(interface, "speed", None)
-                # If speed is not set, try to get it from port type
-                if (
-                    not interface_speed
-                    and hasattr(interface, "type")
-                    and interface.type
-                ):
-                    interface_speed = get_speed_from_port_type(interface.type.value)
-                sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
-                )
-                connected_interfaces.add(sonic_interface_name)
-
-                # If this interface is part of a port channel, mark the port channel as connected
-                if (
-                    portchannel_info
-                    and sonic_interface_name in portchannel_info["member_mapping"]
-                ):
-                    pc_name = portchannel_info["member_mapping"][sonic_interface_name]
-                    connected_portchannels.add(pc_name)
-
-            # Alternative check using is_connected property if available
-            elif hasattr(interface, "is_connected") and interface.is_connected:
+            # Check if interface is connected using the centralized function
+            if is_interface_connected(interface):
                 # Convert NetBox interface name to SONiC format
                 interface_speed = getattr(interface, "speed", None)
                 # If speed is not set, try to get it from port type
