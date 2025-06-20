@@ -16,7 +16,6 @@ from osism.tasks.conductor.netbox import (
     get_device_vlans,
 )
 from .bgp import calculate_local_asn_from_ipv4
-from .constants import REQUIRED_CONFIG_SECTIONS
 from .device import get_device_platform, get_device_hostname, get_device_mac_address
 from .interface import (
     get_port_config,
@@ -126,11 +125,6 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         )
         # Ensure we start fresh even on error
         config = {}
-
-    # Ensure all required sections exist in the config (create deep copies of defaults)
-    for section, default_value in REQUIRED_CONFIG_SECTIONS.items():
-        if section not in config:
-            config[section] = copy.deepcopy(default_value)
 
     # Update DEVICE_METADATA with NetBox information
     if "localhost" not in config["DEVICE_METADATA"]:

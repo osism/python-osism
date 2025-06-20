@@ -77,27 +77,3 @@ SUPPORTED_HWSKUS = [
     "Accton-AS7726-32X",
     "Accton-AS9716-32D",
 ]
-
-# Required sections in SONiC configuration
-REQUIRED_CONFIG_SECTIONS: dict[str, dict] = {
-    "DEVICE_METADATA": {},
-    "PORT": {},
-    "INTERFACE": {},
-    "VLAN": {},
-    "VLAN_MEMBER": {},
-    "VLAN_INTERFACE": {},
-    "MGMT_INTERFACE": {},
-    "LOOPBACK": {},
-    "LOOPBACK_INTERFACE": {},
-    "BREAKOUT_CFG": {},
-    "BREAKOUT_PORTS": {},
-    "BGP_GLOBALS": {},
-    "BGP_NEIGHBOR": {},
-    "BGP_NEIGHBOR_AF": {},
-    "BGP_GLOBALS_AF_NETWORK": {},
-    "NTP_SERVER": {},
-    "VERSIONS": {},
-    "PORTCHANNEL": {},
-    "PORTCHANNEL_INTERFACE": {},
-    "PORTCHANNEL_MEMBER": {},
-}
