@@ -2,12 +2,16 @@
 
 """Interface conversion and port detection functions for SONiC configuration."""
 
+import copy
 import os
 import re
 from loguru import logger
 
-from osism import utils
-from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS
+from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS, PORT_CONFIG_PATH
+from .cache import get_cached_device_interfaces
+
+# Global cache for port configurations to avoid repeated file reads
+_port_config_cache: dict[str, dict[str, dict[str, str]]] = {}
 
 
 def get_speed_from_port_type(port_type):
@@ -36,47 +40,238 @@ def get_speed_from_port_type(port_type):
     return speed
 
 
-def convert_netbox_interface_to_sonic(interface_name, interface_speed=None):
-    """Convert NetBox interface name to SONiC interface name.
+def convert_netbox_interface_to_sonic(device_interface, device=None):
+    """Convert NetBox interface name to SONiC interface name with device-specific mapping.
 
     Args:
-        interface_name: NetBox interface name (e.g., "Eth1/1", "Eth1/2")
-        interface_speed: Interface speed in Mbps (optional, for future high-speed ports)
+        device_interface: NetBox interface object or interface name string
+        device: NetBox device object (required if device_interface is string)
 
     Returns:
         str: SONiC interface name (e.g., "Ethernet0", "Ethernet4")
-
-    Examples:
-        - 100G ports: Eth1/1 -> Ethernet0, Eth1/2 -> Ethernet4, Eth1/3 -> Ethernet8
-        - Other speeds: Eth1/1 -> Ethernet0, Eth1/2 -> Ethernet1, Eth1/3 -> Ethernet2
     """
+    # Extract interface name and determine device context
+    if isinstance(device_interface, str):
+        # Legacy mode: interface name as string
+        interface_name = device_interface
+        if device is None:
+            logger.warning(
+                "Device object required when interface is provided as string"
+            )
+            return interface_name
+    else:
+        # New mode: interface object
+        interface_name = device_interface.name
+        if device is None:
+            logger.warning(
+                "Device object required for device-specific interface mapping"
+            )
+            return interface_name
+
     # Check if this is already in SONiC format (Ethernet*)
     if interface_name.startswith("Ethernet"):
         return interface_name
 
-    # Extract port number from NetBox format (Eth1/1, Eth1/2, etc.)
-    match = re.match(r"Eth(\d+)/(\d+)", interface_name)
+    # Get HWSKU from device sonic_parameters
+    device_hwsku = None
+    if (
+        hasattr(device, "custom_fields")
+        and "sonic_parameters" in device.custom_fields
+        and device.custom_fields["sonic_parameters"]
+        and "hwsku" in device.custom_fields["sonic_parameters"]
+    ):
+        device_hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
+
+    if not device_hwsku:
+        logger.warning(f"No HWSKU found for device {device.name}")
+        return interface_name
+
+    # Get all device interfaces for breakout detection (using cache)
+    try:
+        all_interfaces = get_cached_device_interfaces(device.id)
+        interface_names = [iface.name for iface in all_interfaces]
+    except Exception as e:
+        logger.warning(f"Could not fetch device interfaces: {e}")
+        return interface_name
+
+    # Get port configuration for HWSKU
+    try:
+        port_config = get_port_config(device_hwsku)
+        if not port_config:
+            logger.warning(f"No port config found for HWSKU {device_hwsku}")
+            return interface_name
+    except Exception as e:
+        logger.warning(f"Could not load port config for {device_hwsku}: {e}")
+        return interface_name
+
+    # Handle different interface naming patterns
+    return _map_interface_name_to_sonic(
+        interface_name, interface_names, port_config, device_hwsku
+    )
+
+
+def _map_interface_name_to_sonic(
+    interface_name, all_interface_names, port_config, device_hwsku
+):
+    """Map interface name to SONiC format based on port config and breakout detection.
+
+    Args:
+        interface_name: The interface name to map
+        all_interface_names: List of all interface names on the device
+        port_config: Port configuration dictionary from HWSKU
+        device_hwsku: Hardware SKU name for logging
+
+    Returns:
+        str: SONiC interface name
+    """
+    # Check for EthX/Y/Z format (potential breakout)
+    breakout_match = re.match(r"Eth(\d+)/(\d+)/(\d+)", interface_name)
+    if breakout_match:
+        return _handle_breakout_interface(
+            interface_name, all_interface_names, port_config, device_hwsku
+        )
+
+    # Check for EthX/Y format (standard format)
+    standard_match = re.match(r"Eth(\d+)/(\d+)", interface_name)
+    if standard_match:
+        return _handle_standard_interface(interface_name, port_config, device_hwsku)
+
+    # For any other format, try to find by alias in port config
+    for sonic_port, config in port_config.items():
+        if config.get("alias") == interface_name:
+            logger.debug(f"Found {interface_name} -> {sonic_port} via alias mapping")
+            return sonic_port
+
+    logger.warning(
+        f"Could not map interface {interface_name} using HWSKU {device_hwsku}"
+    )
+    return interface_name
+
+
+def _handle_breakout_interface(
+    interface_name, all_interface_names, port_config, device_hwsku
+):
+    """Handle EthX/Y/Z format interfaces with breakout detection.
+
+    Args:
+        interface_name: Interface name in EthX/Y/Z format
+        all_interface_names: List of all interface names on the device
+        port_config: Port configuration dictionary
+        device_hwsku: Hardware SKU name for logging
+
+    Returns:
+        str: SONiC interface name
+    """
+    match = re.match(r"Eth(\d+)/(\d+)/(\d+)", interface_name)
     if not match:
-        # If it doesn't match expected pattern, return as-is
         return interface_name
 
     module = int(match.group(1))
     port = int(match.group(2))
+    subport = int(match.group(3))
 
-    # Calculate base port number (assuming module 1 starts at port 1)
-    port_number = port - 1  # Convert to 0-based indexing
+    # Find all interfaces with same module and port (potential breakout group)
+    breakout_group = []
+    for iface_name in all_interface_names:
+        breakout_match = re.match(r"Eth(\d+)/(\d+)/(\d+)", iface_name)
+        if breakout_match:
+            iface_module = int(breakout_match.group(1))
+            iface_port = int(breakout_match.group(2))
+            iface_subport = int(breakout_match.group(3))
 
-    # Determine speed category and multiplier
-    if interface_speed and interface_speed in HIGH_SPEED_PORTS:
-        # High-speed ports use 4x multiplier (lanes)
-        multiplier = 4
-    else:
-        # Default for 1G, 10G, 25G ports - sequential numbering
-        multiplier = 1
+            if iface_module == module and iface_port == port:
+                breakout_group.append((iface_subport, iface_name))
 
-    sonic_port_number = port_number * multiplier
+    # Check if this is a breakout port (more than one interface with same module/port)
+    if len(breakout_group) > 1:
+        # Sort by subport number
+        breakout_group.sort(key=lambda x: x[0])
 
-    return f"Ethernet{sonic_port_number}"
+        # Find the alias for the interface with the smallest subport
+        min_subport_interface = breakout_group[0][1]
+
+        # Map the min subport interface to find base SONiC name
+        base_sonic_name = _find_sonic_name_by_alias_mapping(
+            min_subport_interface, port_config
+        )
+        if base_sonic_name:
+            # Extract base port number (e.g., "Ethernet0" -> 0)
+            base_match = re.match(r"Ethernet(\d+)", base_sonic_name)
+            if base_match:
+                base_port_num = int(base_match.group(1))
+
+                # Calculate offset from minimum subport
+                min_subport = breakout_group[0][0]
+                current_offset = subport - min_subport
+
+                sonic_port_num = base_port_num + current_offset
+                result = f"Ethernet{sonic_port_num}"
+
+                logger.debug(
+                    f"Breakout mapping: {interface_name} -> {result} (base: {base_sonic_name}, offset: {current_offset})"
+                )
+                return result
+
+    # Not a breakout or couldn't find base mapping, try direct alias mapping
+    return _find_sonic_name_by_alias_mapping(interface_name, port_config)
+
+
+def _handle_standard_interface(interface_name, port_config, device_hwsku):
+    """Handle EthX/Y format interfaces.
+
+    Args:
+        interface_name: Interface name in EthX/Y format
+        port_config: Port configuration dictionary
+        device_hwsku: Hardware SKU name for logging
+
+    Returns:
+        str: SONiC interface name
+    """
+    return _find_sonic_name_by_alias_mapping(interface_name, port_config)
+
+
+def _find_sonic_name_by_alias_mapping(interface_name, port_config):
+    """Find SONiC interface name by mapping through alias in port config.
+
+    The mapping works as follows:
+    - tenGigE1 alias maps to Eth1/1/1 or Eth1/1
+    - tenGigE48 alias maps to Eth1/48/1 or Eth1/48
+    - hundredGigE49 alias maps to Eth1/49/1 or Eth1/49
+
+    Args:
+        interface_name: NetBox interface name (e.g., "Eth1/1" or "Eth1/1/1")
+        port_config: Port configuration dictionary
+
+    Returns:
+        str: SONiC interface name or original name if not found
+    """
+    # Create reverse mapping: expected NetBox name -> alias -> SONiC name
+    for sonic_port, config in port_config.items():
+        alias = config.get("alias", "")
+        if not alias:
+            continue
+
+        # Extract number from alias (e.g., tenGigE1 -> 1, hundredGigE49 -> 49)
+        alias_match = re.search(r"(\d+)$", alias)
+        if not alias_match:
+            continue
+
+        alias_num = int(alias_match.group(1))
+
+        # Generate expected NetBox interface names for this alias
+        expected_names = [
+            f"Eth1/{alias_num}",  # Standard format
+            f"Eth1/{alias_num}/1",  # Breakout format (first subport)
+        ]
+
+        if interface_name in expected_names:
+            logger.debug(
+                f"Alias mapping: {interface_name} -> {sonic_port} via alias {alias}"
+            )
+            return sonic_port
+
+    logger.warning(f"No alias mapping found for {interface_name}")
+    return interface_name
 
 
 def convert_sonic_interface_to_alias(
@@ -140,7 +335,7 @@ def convert_sonic_interface_to_alias(
 
 
 def get_port_config(hwsku):
-    """Get port configuration for a given HWSKU.
+    """Get port configuration for a given HWSKU. Uses caching to avoid repeated file reads.
 
     Args:
         hwsku: Hardware SKU name (e.g., 'Accton-AS5835-54T')
@@ -149,11 +344,21 @@ def get_port_config(hwsku):
         dict: Port configuration with port names as keys and their properties as values
               Example: {'Ethernet0': {'lanes': '2', 'alias': 'tenGigE1', 'index': '1', 'speed': '10000', 'valid_speeds': '10000,25000'}}
     """
+    global _port_config_cache  # noqa F824
+
+    # Check if already cached
+    if hwsku in _port_config_cache:
+        logger.debug(f"Using cached port config for HWSKU {hwsku}")
+        # Return a deep copy to ensure isolation between devices
+        return copy.deepcopy(_port_config_cache[hwsku])
+
     port_config = {}
-    config_path = f"/etc/sonic/port_config/{hwsku}.ini"
+    config_path = f"{PORT_CONFIG_PATH}/{hwsku}.ini"
 
     if not os.path.exists(config_path):
         logger.error(f"Port config file not found: {config_path}")
+        # Cache empty config to avoid repeated file system checks
+        _port_config_cache[hwsku] = port_config
         return port_config
 
     try:
@@ -176,10 +381,27 @@ def get_port_config(hwsku):
                     # Check for optional valid_speeds column (6th column)
                     if len(parts) >= 6:
                         port_config[port_name]["valid_speeds"] = parts[5]
+
+        # Cache the loaded configuration
+        _port_config_cache[hwsku] = port_config
+        logger.debug(
+            f"Cached port config for HWSKU {hwsku} with {len(port_config)} ports"
+        )
+
     except Exception as e:
         logger.error(f"Error parsing port config file {config_path}: {e}")
+        # Cache empty config on error to avoid repeated attempts
+        _port_config_cache[hwsku] = port_config
 
-    return port_config
+    # Return a deep copy to ensure isolation between devices
+    return copy.deepcopy(port_config)
+
+
+def clear_port_config_cache():
+    """Clear the port configuration cache. Should be called at the start of sync_sonic."""
+    global _port_config_cache
+    _port_config_cache = {}
+    logger.debug("Cleared port configuration cache")
 
 
 def get_connected_interfaces(device, portchannel_info=None):
@@ -196,8 +418,8 @@ def get_connected_interfaces(device, portchannel_info=None):
     connected_portchannels = set()
 
     try:
-        # Get all interfaces for the device
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        # Get all interfaces for the device (using cache)
+        interfaces = get_cached_device_interfaces(device.id)
 
         for interface in interfaces:
             # Skip management-only interfaces
@@ -216,7 +438,7 @@ def get_connected_interfaces(device, portchannel_info=None):
                 ):
                     interface_speed = get_speed_from_port_type(interface.type.value)
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
+                    interface, device
                 )
                 connected_interfaces.add(sonic_interface_name)
 
@@ -240,7 +462,7 @@ def get_connected_interfaces(device, portchannel_info=None):
                 ):
                     interface_speed = get_speed_from_port_type(interface.type.value)
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
+                    interface, device
                 )
                 connected_interfaces.add(sonic_interface_name)
 
@@ -261,7 +483,7 @@ def get_connected_interfaces(device, portchannel_info=None):
 
 
 def detect_breakout_ports(device):
-    """Detect breakout ports from NetBox device interfaces.
+    """Detect breakout ports from NetBox device interfaces using the centralized breakout logic.
 
     Args:
         device: NetBox device object
@@ -277,125 +499,217 @@ def detect_breakout_ports(device):
     breakout_ports = {}
 
     try:
-        # Get all interfaces for the device
-        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+        # Get all interfaces for the device (using cache)
+        interfaces = get_cached_device_interfaces(device.id)
+        interface_names = [iface.name for iface in interfaces]
 
-        # Group interfaces by potential breakout groups
-        # First, handle SONiC format (Ethernet0, Ethernet1, Ethernet2, Ethernet3)
-        sonic_groups = {}
-        # Second, handle NetBox format (Eth1/1/1, Eth1/1/2, Eth1/1/3, Eth1/1/4)
-        netbox_groups = {}
+        # Get HWSKU for port config
+        device_hwsku = None
+        if (
+            hasattr(device, "custom_fields")
+            and "sonic_parameters" in device.custom_fields
+            and device.custom_fields["sonic_parameters"]
+            and "hwsku" in device.custom_fields["sonic_parameters"]
+        ):
+            device_hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
+
+        if not device_hwsku:
+            logger.warning(f"No HWSKU found for device {device.name}")
+            return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
+
+        # Get port configuration for the HWSKU
+        try:
+            port_config = get_port_config(device_hwsku)
+            if not port_config:
+                logger.warning(f"No port config found for HWSKU {device_hwsku}")
+                return {
+                    "breakout_cfgs": breakout_cfgs,
+                    "breakout_ports": breakout_ports,
+                }
+        except Exception as e:
+            logger.warning(f"Could not load port config for {device_hwsku}: {e}")
+            return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
+
+        # Process interfaces that match breakout patterns
+        processed_groups = set()
 
         for interface in interfaces:
-            interface_speed = getattr(interface, "speed", None)
-            # If speed is not set, try to get it from port type
-            if not interface_speed and hasattr(interface, "type") and interface.type:
-                interface_speed = get_speed_from_port_type(interface.type.value)
+            interface_name = interface.name
 
-            # Skip if not high-speed port (100G, 400G, 800G)
-            if not interface_speed or interface_speed not in HIGH_SPEED_PORTS:
-                continue
+            # Check for EthX/Y/Z format (NetBox breakout notation)
+            breakout_match = re.match(r"Eth(\d+)/(\d+)/(\d+)", interface_name)
+            if breakout_match:
+                module = int(breakout_match.group(1))
+                port = int(breakout_match.group(2))
+                subport = int(breakout_match.group(3))
 
-            # Check for SONiC format breakout (Ethernet0, Ethernet1, Ethernet2, Ethernet3)
-            sonic_match = re.match(r"Ethernet(\d+)", interface.name)
+                # Create group key to avoid processing the same group multiple times
+                group_key = f"{module}/{port}"
+                if group_key in processed_groups:
+                    continue
+                processed_groups.add(group_key)
+
+                # Use the centralized breakout logic
+                sonic_name = _handle_breakout_interface(
+                    interface_name, interface_names, port_config, device_hwsku
+                )
+
+                # If the breakout logic returned a valid SONiC name, we have a breakout group
+                if sonic_name.startswith("Ethernet") and sonic_name != interface_name:
+                    # Find all interfaces in this breakout group
+                    breakout_group = []
+                    for iface in interfaces:
+                        iface_match = re.match(r"Eth(\d+)/(\d+)/(\d+)", iface.name)
+                        if iface_match:
+                            iface_module = int(iface_match.group(1))
+                            iface_port = int(iface_match.group(2))
+                            iface_subport = int(iface_match.group(3))
+
+                            if iface_module == module and iface_port == port:
+                                breakout_group.append((iface_subport, iface))
+
+                    # Check if we have a valid breakout group (more than one interface)
+                    if len(breakout_group) > 1:
+                        # Sort by subport number
+                        breakout_group.sort(key=lambda x: x[0])
+
+                        # Find the master port (interface with smallest subport)
+                        min_subport_interface = breakout_group[0][1]
+                        master_sonic_name = _handle_breakout_interface(
+                            min_subport_interface.name,
+                            interface_names,
+                            port_config,
+                            device_hwsku,
+                        )
+
+                        if master_sonic_name.startswith("Ethernet"):
+                            # Extract base port number
+                            base_match = re.match(r"Ethernet(\d+)", master_sonic_name)
+                            if base_match:
+                                base_port_num = int(base_match.group(1))
+                                master_port = f"Ethernet{base_port_num}"
+
+                                # Determine breakout mode based on number of subports and speed
+                                num_subports = len(breakout_group)
+                                interface_speed = getattr(
+                                    breakout_group[0][1], "speed", None
+                                )
+                                if (
+                                    not interface_speed
+                                    and hasattr(breakout_group[0][1], "type")
+                                    and breakout_group[0][1].type
+                                ):
+                                    interface_speed = get_speed_from_port_type(
+                                        breakout_group[0][1].type.value
+                                    )
+
+                                # Calculate breakout mode
+                                if interface_speed == 25000 and num_subports == 4:
+                                    brkout_mode = "4x25G"
+                                elif interface_speed == 50000 and num_subports == 4:
+                                    brkout_mode = "4x50G"
+                                elif interface_speed == 100000 and num_subports == 4:
+                                    brkout_mode = "4x100G"
+                                elif interface_speed == 200000 and num_subports == 4:
+                                    brkout_mode = "4x200G"
+                                else:
+                                    logger.debug(
+                                        f"Unsupported breakout configuration: {num_subports} ports at {interface_speed} Mbps"
+                                    )
+                                    continue
+
+                                # Add breakout config for master port
+                                breakout_cfgs[master_port] = {
+                                    "brkout_mode": brkout_mode,
+                                }
+
+                                # Add all subports to breakout_ports
+                                min_subport = breakout_group[0][0]
+                                for subport, iface in breakout_group:
+                                    current_offset = subport - min_subport
+                                    sonic_port_num = base_port_num + current_offset
+                                    port_name = f"Ethernet{sonic_port_num}"
+                                    breakout_ports[port_name] = {"master": master_port}
+
+                                logger.debug(
+                                    f"Detected breakout group: {group_key} -> {master_port} ({brkout_mode}) with {len(breakout_group)} ports"
+                                )
+
+            # Also check for SONiC format breakout (Ethernet0, Ethernet1, Ethernet2, Ethernet3)
+            # Only process SONiC breakout if we have explicitly configured breakout ports in NetBox,
+            # not automatically assume consecutive Ethernet ports are breakouts
+            sonic_match = re.match(r"Ethernet(\d+)", interface_name)
             if sonic_match:
                 port_num = int(sonic_match.group(1))
-                # Group by base port (0, 4, 8, 12, ...)
+                # Check if this could be part of a breakout group (consecutive Ethernet ports)
                 base_port = (port_num // 4) * 4
-                if base_port not in sonic_groups:
-                    sonic_groups[base_port] = []
-                sonic_groups[base_port].append((port_num, interface))
+                group_key = f"sonic_{base_port}"
 
-            # Check for NetBox format breakout (Eth1/1/1, Eth1/1/2, Eth1/1/3, Eth1/1/4)
-            netbox_match = re.match(r"Eth(\d+)/(\d+)/(\d+)", interface.name)
-            if netbox_match:
-                module = int(netbox_match.group(1))
-                port = int(netbox_match.group(2))
-                subport = int(netbox_match.group(3))
-                group_key = f"{module}/{port}"
-                if group_key not in netbox_groups:
-                    netbox_groups[group_key] = []
-                netbox_groups[group_key].append((subport, interface))
+                if group_key in processed_groups:
+                    continue
+                processed_groups.add(group_key)
 
-        # Process SONiC format breakout groups
-        for base_port, port_list in sonic_groups.items():
-            # Check if we have exactly 4 consecutive ports
-            if len(port_list) == 4:
-                port_list.sort(key=lambda x: x[0])  # Sort by port number
-                expected_ports = [base_port + i for i in range(4)]
-                actual_ports = [port[0] for port in port_list]
+                # Find potential breakout group (4 consecutive Ethernet ports)
+                sonic_breakout_group = []
+                for i in range(4):
+                    ethernet_name = f"Ethernet{base_port + i}"
+                    for iface in interfaces:
+                        if iface.name == ethernet_name:
+                            # Check if this interface has a speed that suggests breakout
+                            iface_speed = getattr(iface, "speed", None)
+                            if (
+                                not iface_speed
+                                and hasattr(iface, "type")
+                                and iface.type
+                            ):
+                                iface_speed = get_speed_from_port_type(iface.type.value)
 
-                if actual_ports == expected_ports:
-                    # This is a valid breakout group
+                            # Only consider as breakout if speed is 50G or less AND we have 4 consecutive ports
+                            # This prevents regular 100G ports from being treated as breakout ports
+                            if (
+                                iface_speed and iface_speed <= 50000
+                            ):  # 50G or less suggests breakout
+                                sonic_breakout_group.append((base_port + i, iface))
+                            break
+
+                # If we found 4 consecutive interfaces with true breakout speeds (≤50G)
+                if len(sonic_breakout_group) == 4:
                     master_port = f"Ethernet{base_port}"
 
-                    # Calculate breakout mode based on speed
-                    interface_speed = getattr(port_list[0][1], "speed", None)
-                    if interface_speed == 100000:  # 100G -> 4x25G
+                    # Determine breakout mode based on speed
+                    interface_speed = getattr(sonic_breakout_group[0][1], "speed", None)
+                    if (
+                        not interface_speed
+                        and hasattr(sonic_breakout_group[0][1], "type")
+                        and sonic_breakout_group[0][1].type
+                    ):
+                        interface_speed = get_speed_from_port_type(
+                            sonic_breakout_group[0][1].type.value
+                        )
+
+                    if interface_speed == 25000:
                         brkout_mode = "4x25G"
-                    elif interface_speed == 200000:  # 200G -> 4x50G
+                    elif interface_speed == 50000:
                         brkout_mode = "4x50G"
-                    elif interface_speed == 400000:  # 400G -> 4x100G
-                        brkout_mode = "4x100G"
-                    elif interface_speed == 800000:  # 800G -> 4x200G
-                        brkout_mode = "4x200G"
                     else:
                         continue  # Skip unsupported speeds
 
-                    # Add breakout config for master port
+                    # Calculate physical port number
                     physical_port_num = (base_port // 4) + 1
+
+                    # Add breakout config for master port
                     breakout_cfgs[master_port] = {
-                        "breakout_owner": "MANUAL",
                         "brkout_mode": brkout_mode,
-                        "port": f"1/{physical_port_num}",
                     }
 
                     # Add all ports to breakout_ports
-                    for port_num, interface in port_list:
+                    for port_num, iface in sonic_breakout_group:
                         port_name = f"Ethernet{port_num}"
                         breakout_ports[port_name] = {"master": master_port}
 
-        # Process NetBox format breakout groups
-        for group_key, port_list in netbox_groups.items():
-            # Check if we have exactly 4 subports
-            if len(port_list) == 4:
-                port_list.sort(key=lambda x: x[0])  # Sort by subport number
-                expected_subports = [1, 2, 3, 4]
-                actual_subports = [port[0] for port in port_list]
-
-                if actual_subports == expected_subports:
-                    # This is a valid breakout group - convert to SONiC format
-                    module, port = group_key.split("/")
-
-                    # Calculate base SONiC port number (assuming 4x multiplier for high-speed)
-                    base_sonic_port = (int(port) - 1) * 4
-                    master_port = f"Ethernet{base_sonic_port}"
-
-                    # Calculate breakout mode based on speed
-                    interface_speed = getattr(port_list[0][1], "speed", None)
-                    if interface_speed == 100000:  # 100G -> 4x25G
-                        brkout_mode = "4x25G"
-                    elif interface_speed == 200000:  # 200G -> 4x50G
-                        brkout_mode = "4x50G"
-                    elif interface_speed == 400000:  # 400G -> 4x100G
-                        brkout_mode = "4x100G"
-                    elif interface_speed == 800000:  # 800G -> 4x200G
-                        brkout_mode = "4x200G"
-                    else:
-                        continue  # Skip unsupported speeds
-
-                    # Add breakout config for master port
-                    breakout_cfgs[master_port] = {
-                        "breakout_owner": "MANUAL",
-                        "brkout_mode": brkout_mode,
-                        "port": f"{module}/{port}",
-                    }
-
-                    # Add all subports to breakout_ports (converted to SONiC format)
-                    for subport, interface in port_list:
-                        sonic_port_num = base_sonic_port + (subport - 1)
-                        port_name = f"Ethernet{sonic_port_num}"
-                        breakout_ports[port_name] = {"master": master_port}
+                    logger.debug(
+                        f"Detected SONiC breakout group: Ethernet{base_port}-{base_port + 3} -> {master_port} ({brkout_mode})"
+                    )
 
     except Exception as e:
         logger.warning(f"Could not detect breakout ports for device {device.name}: {e}")
@@ -431,8 +745,8 @@ def detect_port_channels(device):
     member_mapping = {}
 
     try:
-        # Get all interfaces for the device and convert to list for multiple iterations
-        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+        # Get all interfaces for the device (using cache)
+        interfaces = get_cached_device_interfaces(device.id)
 
         # First pass: find LAG interfaces
         lag_interfaces = []
@@ -459,7 +773,7 @@ def detect_port_channels(device):
                     interface_speed = get_speed_from_port_type(interface.type.value)
 
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
+                    interface, device
                 )
 
                 # Extract port channel number from LAG name

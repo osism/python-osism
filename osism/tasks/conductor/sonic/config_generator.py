@@ -2,6 +2,7 @@
 
 """Configuration generation logic for SONiC."""
 
+import copy
 import ipaddress
 import json
 import os
@@ -25,7 +26,12 @@ from .interface import (
     get_connected_interfaces,
     detect_breakout_ports,
     detect_port_channels,
+    clear_port_config_cache,
 )
+from .cache import get_cached_device_interfaces
+
+# Global cache for NTP servers to avoid multiple queries
+_ntp_servers_cache = None
 
 
 def natural_sort_key(port_name):
@@ -71,16 +77,14 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     # Get all interfaces from NetBox with their speeds and types
     netbox_interfaces = {}
     try:
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        interfaces = get_cached_device_interfaces(device.id)
         for interface in interfaces:
             # Convert NetBox interface name to SONiC format for lookup
             interface_speed = getattr(interface, "speed", None)
             # If speed is not set, try to get it from port type
             if not interface_speed and hasattr(interface, "type") and interface.type:
                 interface_speed = get_speed_from_port_type(interface.type.value)
-            sonic_name = convert_netbox_interface_to_sonic(
-                interface.name, interface_speed
-            )
+            sonic_name = convert_netbox_interface_to_sonic(interface, device)
             netbox_interfaces[sonic_name] = {
                 "speed": interface_speed,
                 "type": (
@@ -99,23 +103,34 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     mac_address = get_device_mac_address(device)
 
     # Try to load base configuration from /etc/sonic/config_db.json
+    # Always start with a fresh, empty configuration for each device
     base_config_path = "/etc/sonic/config_db.json"
     config = {}
 
     try:
         if os.path.exists(base_config_path):
             with open(base_config_path, "r") as f:
-                config = json.load(f)
-                logger.info(f"Loaded base configuration from {base_config_path}")
+                base_config = json.load(f)
+                # Create a deep copy to ensure no cross-device contamination
+                config = copy.deepcopy(base_config)
+                logger.info(
+                    f"Loaded fresh base configuration from {base_config_path} for device {device.name}"
+                )
+        else:
+            logger.debug(
+                f"Base config file {base_config_path} not found, starting with empty config for device {device.name}"
+            )
     except Exception as e:
         logger.warning(
-            f"Could not load base configuration from {base_config_path}: {e}"
+            f"Could not load base configuration from {base_config_path} for device {device.name}: {e}"
         )
+        # Ensure we start fresh even on error
+        config = {}
 
-    # Ensure all required sections exist in the config
+    # Ensure all required sections exist in the config (create deep copies of defaults)
     for section, default_value in REQUIRED_CONFIG_SECTIONS.items():
         if section not in config:
-            config[section] = default_value
+            config[section] = copy.deepcopy(default_value)
 
     # Update DEVICE_METADATA with NetBox information
     if "localhost" not in config["DEVICE_METADATA"]:
@@ -174,6 +189,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         breakout_info,
         netbox_interfaces,
         vlan_info,
+        device,
     )
 
     # Add interface configurations
@@ -189,11 +205,11 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         device_as_mapping,
     )
 
-    # Add NTP server configuration
-    _add_ntp_configuration(config)
+    # Add NTP server configuration (device-specific)
+    _add_ntp_configuration(config, device)
 
     # Add VLAN configuration
-    _add_vlan_configuration(config, vlan_info, netbox_interfaces)
+    _add_vlan_configuration(config, vlan_info, netbox_interfaces, device)
 
     # Add Loopback configuration
     _add_loopback_configuration(config, loopback_info)
@@ -224,6 +240,7 @@ def _add_port_configurations(
     breakout_info,
     netbox_interfaces,
     vlan_info,
+    device,
 ):
     """Add port configurations to config."""
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
@@ -231,6 +248,14 @@ def _add_port_configurations(
 
     for port_name in sorted_ports:
         port_info = port_config[port_name]
+
+        # Skip master ports that have breakout configurations
+        # These will be replaced by their individual breakout ports
+        if port_name in breakout_info["breakout_cfgs"]:
+            logger.debug(
+                f"Skipping master port {port_name} - has breakout configuration"
+            )
+            continue
 
         # Set admin_status to "up" if port is connected or is a port channel member, otherwise "down"
         admin_status = (
@@ -258,9 +283,16 @@ def _add_port_configurations(
         if port_name in breakout_info["breakout_ports"]:
             # Get the master port to determine original speed and lanes
             master_port = breakout_info["breakout_ports"][port_name]["master"]
-            if master_port in breakout_info["breakout_cfgs"]:
+
+            # Override with individual breakout port speed from NetBox if available
+            if port_name in netbox_interfaces and netbox_interfaces[port_name]["speed"]:
+                port_speed = str(netbox_interfaces[port_name]["speed"])
+                logger.debug(
+                    f"Using NetBox speed {port_speed} for breakout port {port_name}"
+                )
+            elif master_port in breakout_info["breakout_cfgs"]:
+                # Fallback to extracting speed from breakout mode
                 brkout_mode = breakout_info["breakout_cfgs"][master_port]["brkout_mode"]
-                # Extract breakout speed from mode (e.g., "4x25G" -> "25000")
                 if "25G" in brkout_mode:
                     port_speed = "25000"
                 elif "50G" in brkout_mode:
@@ -306,15 +338,47 @@ def _add_port_configurations(
         if "valid_speeds" in port_info:
             port_data["valid_speeds"] = port_info["valid_speeds"]
 
+        # Override valid_speeds for breakout ports based on their individual speed
+        if port_name in breakout_info["breakout_ports"]:
+            # For breakout ports, set valid_speeds based on the port's speed
+            breakout_valid_speeds = _get_breakout_port_valid_speeds(port_speed)
+            if breakout_valid_speeds:
+                port_data["valid_speeds"] = breakout_valid_speeds
+
         config["PORT"][port_name] = port_data
 
-    # Add breakout ports that might not be in the original port_config
+    # Add all breakout ports (since master ports were skipped above)
     _add_missing_breakout_ports(
-        config, breakout_info, port_config, connected_interfaces, portchannel_info
+        config,
+        breakout_info,
+        port_config,
+        connected_interfaces,
+        portchannel_info,
+        netbox_interfaces,
     )
 
     # Add tagged VLANs to PORT configuration
-    _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces)
+    _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device)
+
+
+def _get_breakout_port_valid_speeds(port_speed):
+    """Get valid speeds for a breakout port based on its configured speed."""
+    if not port_speed:
+        return None
+
+    speed_int = int(port_speed)
+
+    if speed_int == 25000:
+        return "25000,10000,1000"
+    elif speed_int == 50000:
+        return "50000,25000,10000,1000"
+    elif speed_int == 100000:
+        return "100000,50000,25000,10000,1000"
+    elif speed_int == 200000:
+        return "200000,100000,50000,25000,10000,1000"
+    else:
+        # For other speeds, include common lower speeds
+        return f"{port_speed},10000,1000"
 
 
 def _calculate_breakout_port_lane(port_name, master_port, port_config):
@@ -351,17 +415,28 @@ def _calculate_breakout_port_lane(port_name, master_port, port_config):
 
 
 def _add_missing_breakout_ports(
-    config, breakout_info, port_config, connected_interfaces, portchannel_info
+    config,
+    breakout_info,
+    port_config,
+    connected_interfaces,
+    portchannel_info,
+    netbox_interfaces,
 ):
-    """Add breakout ports that might not be in the original port_config."""
+    """Add all breakout ports to config (master ports are skipped in main loop)."""
     for port_name in breakout_info["breakout_ports"]:
         if port_name not in config["PORT"]:
             # Get the master port to determine configuration
             master_port = breakout_info["breakout_ports"][port_name]["master"]
-            if master_port in breakout_info["breakout_cfgs"]:
-                brkout_mode = breakout_info["breakout_cfgs"][master_port]["brkout_mode"]
 
-                # Extract breakout speed from mode
+            # Override with individual breakout port speed from NetBox if available
+            if port_name in netbox_interfaces and netbox_interfaces[port_name]["speed"]:
+                port_speed = str(netbox_interfaces[port_name]["speed"])
+                logger.debug(
+                    f"Using NetBox speed {port_speed} for missing breakout port {port_name}"
+                )
+            elif master_port in breakout_info["breakout_cfgs"]:
+                # Fallback to extracting speed from breakout mode
+                brkout_mode = breakout_info["breakout_cfgs"][master_port]["brkout_mode"]
                 if "25G" in brkout_mode:
                     port_speed = "25000"
                 elif "50G" in brkout_mode:
@@ -372,57 +447,64 @@ def _add_missing_breakout_ports(
                     port_speed = "200000"
                 else:
                     port_speed = "25000"  # Default fallback
+            else:
+                port_speed = "25000"  # Default fallback
 
-                # Set admin_status based on connection or port channel membership
-                admin_status = (
-                    "up"
-                    if (
-                        port_name in connected_interfaces
-                        or port_name in portchannel_info["member_mapping"]
-                    )
-                    else "down"
-                )
-
-                # Generate correct alias (breakout port always gets subport notation)
-                interface_speed = int(port_speed)
-                correct_alias = convert_sonic_interface_to_alias(
-                    port_name, interface_speed, is_breakout=True
-                )
-
-                # Use master port index for breakout ports
-                port_index = "1"  # Default fallback
-                if master_port in port_config:
-                    port_index = port_config[master_port]["index"]
-
-                # Calculate individual lane for this breakout port
-                port_lanes = _calculate_breakout_port_lane(
-                    port_name, master_port, port_config
-                )
-
-                port_data = {
-                    "admin_status": admin_status,
-                    "alias": correct_alias,
-                    "index": port_index,
-                    "lanes": port_lanes,
-                    "speed": port_speed,
-                    "mtu": "9100",
-                    "adv_speeds": "all",
-                    "autoneg": "off",
-                    "link_training": "off",
-                    "unreliable_los": "auto",
-                }
-
-                # For breakout ports, check if master port has valid_speeds
+            # Set admin_status based on connection or port channel membership
+            admin_status = (
+                "up"
                 if (
-                    master_port in port_config
-                    and "valid_speeds" in port_config[master_port]
-                ):
-                    port_data["valid_speeds"] = port_config[master_port]["valid_speeds"]
+                    port_name in connected_interfaces
+                    or port_name in portchannel_info["member_mapping"]
+                )
+                else "down"
+            )
 
-                config["PORT"][port_name] = port_data
+            # Generate correct alias (breakout port always gets subport notation)
+            interface_speed = int(port_speed)
+            correct_alias = convert_sonic_interface_to_alias(
+                port_name, interface_speed, is_breakout=True
+            )
+
+            # Use master port index for breakout ports
+            port_index = "1"  # Default fallback
+            if master_port in port_config:
+                port_index = port_config[master_port]["index"]
+
+            # Calculate individual lane for this breakout port
+            port_lanes = _calculate_breakout_port_lane(
+                port_name, master_port, port_config
+            )
+
+            port_data = {
+                "admin_status": admin_status,
+                "alias": correct_alias,
+                "index": port_index,
+                "lanes": port_lanes,
+                "speed": port_speed,
+                "mtu": "9100",
+                "adv_speeds": "all",
+                "autoneg": "off",
+                "link_training": "off",
+                "unreliable_los": "auto",
+            }
+
+            # For breakout ports, check if master port has valid_speeds
+            if (
+                master_port in port_config
+                and "valid_speeds" in port_config[master_port]
+            ):
+                port_data["valid_speeds"] = port_config[master_port]["valid_speeds"]
+
+            # Override valid_speeds for breakout ports based on their individual speed
+            breakout_valid_speeds = _get_breakout_port_valid_speeds(port_speed)
+            if breakout_valid_speeds:
+                port_data["valid_speeds"] = breakout_valid_speeds
+
+            config["PORT"][port_name] = port_data
 
 
-def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces):
+def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device):
     """Add tagged VLANs to PORT configuration."""
     # Build a mapping of ports to their tagged VLANs
     port_tagged_vlans = {}
@@ -436,7 +518,7 @@ def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces):
                     speed = iface_info["speed"]
                     break
             sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name, speed
+                netbox_interface_name, device
             )
 
             # Only add if this is a tagged VLAN (not untagged)
@@ -547,16 +629,14 @@ def _get_connected_device_for_interface(device, interface_name):
         NetBox device object or None if not found
     """
     try:
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        interfaces = get_cached_device_interfaces(device.id)
 
         for interface in interfaces:
             # Convert NetBox interface name to SONiC format
             interface_speed = getattr(interface, "speed", None)
             if not interface_speed and hasattr(interface, "type") and interface.type:
                 interface_speed = get_speed_from_port_type(interface.type.value)
-            sonic_name = convert_netbox_interface_to_sonic(
-                interface.name, interface_speed
-            )
+            sonic_name = convert_netbox_interface_to_sonic(interface, device)
 
             if sonic_name == interface_name:
                 # Check if interface has connected_endpoints
@@ -657,8 +737,8 @@ def _add_loopback_bgp_neighbors(
 ):
     """Add BGP_NEIGHBOR configuration using Loopback0 IP addresses from connected devices."""
     try:
-        # Get all interfaces for the device to find connected devices
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        # Get all interfaces for the device to find connected devices (using cache)
+        interfaces = get_cached_device_interfaces(device.id)
 
         for interface in interfaces:
             # Skip management-only interfaces
@@ -677,7 +757,7 @@ def _add_loopback_bgp_neighbors(
                 ):
                     interface_speed = get_speed_from_port_type(interface.type.value)
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
+                    interface, device
                 )
 
                 # Only process if this interface is in our PORT configuration and not a port channel member
@@ -774,8 +854,15 @@ def _add_loopback_bgp_neighbors(
         logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")
 
 
-def _add_ntp_configuration(config):
-    """Add NTP_SERVER configuration using Loopback0 IP addresses from devices with manager or metalbox roles."""
+def _get_ntp_servers():
+    """Get NTP servers from manager/metalbox devices. Uses caching to avoid repeated queries."""
+    global _ntp_servers_cache
+
+    if _ntp_servers_cache is not None:
+        logger.debug("Using cached NTP servers")
+        return _ntp_servers_cache
+
+    ntp_servers = {}
     try:
         # Get devices with manager or metalbox device roles
         devices_manager = utils.nb.dcim.devices.filter(role="manager")
@@ -783,6 +870,7 @@ def _add_ntp_configuration(config):
 
         # Combine both device lists
         ntp_devices = list(devices_manager) + list(devices_metalbox)
+        logger.debug(f"Found {len(ntp_devices)} potential NTP devices")
 
         for ntp_device in ntp_devices:
             # Get interfaces for this device to find Loopback0
@@ -803,21 +891,62 @@ def _add_ntp_configuration(config):
 
                             # Check if it's an IPv4 address (simple check)
                             if "." in ip_only and ":" not in ip_only:
-                                config["NTP_SERVER"][ip_only] = {
+                                ntp_servers[ip_only] = {
                                     "maxpoll": "10",
                                     "minpoll": "6",
                                     "prefer": "false",
                                 }
                                 logger.info(
-                                    f"Added NTP server {ip_only} from device {ntp_device.name} with role {ntp_device.role.slug}"
+                                    f"Found NTP server {ip_only} from device {ntp_device.name} with role {ntp_device.role.slug}"
                                 )
                     break
 
+        # Cache the results
+        _ntp_servers_cache = ntp_servers
+        logger.debug(f"Cached {len(ntp_servers)} NTP servers")
+
     except Exception as e:
         logger.warning(f"Could not process NTP servers: {e}")
+        _ntp_servers_cache = {}
+
+    return _ntp_servers_cache
 
 
-def _add_vlan_configuration(config, vlan_info, netbox_interfaces):
+def _add_ntp_configuration(config, device):
+    """Add NTP_SERVER configuration to device config."""
+    try:
+        ntp_servers = _get_ntp_servers()
+
+        # Add NTP servers to this device's configuration
+        for ip, ntp_config in ntp_servers.items():
+            config["NTP_SERVER"][ip] = copy.deepcopy(ntp_config)
+
+        if ntp_servers:
+            logger.debug(
+                f"Added {len(ntp_servers)} NTP servers to device {device.name}"
+            )
+        else:
+            logger.debug(f"No NTP servers found for device {device.name}")
+
+    except Exception as e:
+        logger.warning(f"Could not add NTP configuration to device {device.name}: {e}")
+
+
+def clear_ntp_cache():
+    """Clear the NTP servers cache. Should be called at the start of sync_sonic."""
+    global _ntp_servers_cache
+    _ntp_servers_cache = None
+    logger.debug("Cleared NTP servers cache")
+
+
+def clear_all_caches():
+    """Clear all caches in config_generator module."""
+    clear_ntp_cache()
+    clear_port_config_cache()
+    logger.debug("Cleared all config_generator caches")
+
+
+def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
     """Add VLAN configuration from NetBox."""
     # Add VLAN configuration
     for vid, vlan_data in vlan_info["vlans"].items():
@@ -835,7 +964,7 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces):
                         speed = iface_info["speed"]
                         break
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    netbox_interface_name, speed
+                    netbox_interface_name, device
                 )
                 members.append(sonic_interface_name)
 
@@ -858,7 +987,7 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces):
                     speed = iface_info["speed"]
                     break
             sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name, speed
+                netbox_interface_name, device
             )
             # Create VLAN_MEMBER key in format "Vlan<vid>|<port_name>"
             member_key = f"{vlan_name}|{sonic_interface_name}"
