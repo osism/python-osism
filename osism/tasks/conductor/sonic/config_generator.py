@@ -127,6 +127,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
             "frr_mgmt_framework_config": "true",
             "hostname": hostname,
             "hwsku": hwsku,
+            "intf_naming_mode": "standard",
             "platform": platform,
             "mac": mac_address,
             "type": "LeafRouter",
