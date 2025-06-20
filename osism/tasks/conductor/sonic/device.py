@@ -66,7 +66,7 @@ def get_device_mac_address(device):
     mac_address = "00:00:00:00:00:00"  # Default MAC
     try:
         # Get all interfaces for the device
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
         for interface in interfaces:
             # Check if interface is marked as management only
             if interface.mgmt_only:

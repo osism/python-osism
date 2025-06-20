@@ -4,6 +4,7 @@
 
 import os
 import re
+from collections import defaultdict
 from loguru import logger
 
 from osism import utils
@@ -36,47 +37,84 @@ def get_speed_from_port_type(port_type):
     return speed
 
 
-def convert_netbox_interface_to_sonic(interface_name, interface_speed=None):
-    """Convert NetBox interface name to SONiC interface name.
+def convert_netbox_interface_to_sonic(
+    interface_name,
+    interface_speed=None,
+    hwsku=None,
+    device_interfaces=None,
+    device=None,
+):
+    """Convert NetBox interface name to SONiC interface name using port config files.
 
     Args:
-        interface_name: NetBox interface name (e.g., "Eth1/1", "Eth1/2")
-        interface_speed: Interface speed in Mbps (optional, for future high-speed ports)
+        interface_name: NetBox interface name (e.g., "Eth1/1", "Eth1/2", "Eth1/1/1")
+        interface_speed: Interface speed in Mbps (optional, for breakout detection)
+        hwsku: Hardware SKU name (e.g., 'Accton-AS5835-54T')
+        device_interfaces: List of all device interfaces (for breakout detection)
+        device: NetBox device object (used to fetch interfaces if device_interfaces is None)
 
     Returns:
         str: SONiC interface name (e.g., "Ethernet0", "Ethernet4")
 
     Examples:
-        - 100G ports: Eth1/1 -> Ethernet0, Eth1/2 -> Ethernet4, Eth1/3 -> Ethernet8
-        - Other speeds: Eth1/1 -> Ethernet0, Eth1/2 -> Ethernet1, Eth1/3 -> Ethernet2
+        - EthX/Y/Z format: Eth1/1/1 -> finds alias for port 1 -> maps to Ethernet0
+        - EthX/Y format: Eth1/1 -> finds alias for port 1 -> maps to Ethernet0
+        - Ethernet format: Ethernet0 -> Ethernet0 (pass-through)
     """
     # Check if this is already in SONiC format (Ethernet*)
     if interface_name.startswith("Ethernet"):
         return interface_name
 
-    # Extract port number from NetBox format (Eth1/1, Eth1/2, etc.)
-    match = re.match(r"Eth(\d+)/(\d+)", interface_name)
-    if not match:
-        # If it doesn't match expected pattern, return as-is
+    # If no HWSKU provided, return as-is
+    if not hwsku:
+        logger.warning(
+            f"No HWSKU provided for interface {interface_name}, returning as-is"
+        )
         return interface_name
 
-    module = int(match.group(1))
-    port = int(match.group(2))
+    # Load port config for this HWSKU
+    port_config = get_port_config(hwsku)
+    if not port_config:
+        logger.warning(f"No port config found for HWSKU {hwsku}, returning as-is")
+        return interface_name
 
-    # Calculate base port number (assuming module 1 starts at port 1)
-    port_number = port - 1  # Convert to 0-based indexing
+    # Check for EthX/Y/Z format (breakout ports)
+    match_breakout = re.match(r"Eth(\d+)/(\d+)/(\d+)", interface_name)
+    if match_breakout:
+        module = int(match_breakout.group(1))
+        port = int(match_breakout.group(2))
+        subport = int(match_breakout.group(3))
 
-    # Determine speed category and multiplier
-    if interface_speed and interface_speed in HIGH_SPEED_PORTS:
-        # High-speed ports use 4x multiplier (lanes)
-        multiplier = 4
-    else:
-        # Default for 1G, 10G, 25G ports - sequential numbering
-        multiplier = 1
+        # If device_interfaces not provided but device is available, fetch interfaces
+        if device_interfaces is None and device is not None:
+            try:
+                device_interfaces = list(
+                    utils.nb.dcim.interfaces.filter(device_id=device.id)
+                )
+                logger.debug(
+                    f"Fetched {len(device_interfaces)} interfaces for device {device.name}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Could not fetch interfaces for device {device.name}: {e}"
+                )
+                device_interfaces = None
 
-    sonic_port_number = port_number * multiplier
+        return _handle_breakout_mapping(
+            module, port, subport, port_config, device_interfaces
+        )
 
-    return f"Ethernet{sonic_port_number}"
+    # Check for EthX/Y format
+    match_regular = re.match(r"Eth(\d+)/(\d+)", interface_name)
+    if match_regular:
+        module = int(match_regular.group(1))
+        port = int(match_regular.group(2))
+
+        return _handle_regular_mapping(module, port, port_config)
+
+    # If it doesn't match expected pattern, return as-is
+    logger.warning(f"Interface name {interface_name} doesn't match expected patterns")
+    return interface_name
 
 
 def convert_sonic_interface_to_alias(
@@ -150,6 +188,7 @@ def get_port_config(hwsku):
               Example: {'Ethernet0': {'lanes': '2', 'alias': 'tenGigE1', 'index': '1', 'speed': '10000', 'valid_speeds': '10000,25000'}}
     """
     port_config = {}
+    # Use /etc/sonic/port_config path for config files
     config_path = f"/etc/sonic/port_config/{hwsku}.ini"
 
     if not os.path.exists(config_path):
@@ -176,17 +215,129 @@ def get_port_config(hwsku):
                     # Check for optional valid_speeds column (6th column)
                     if len(parts) >= 6:
                         port_config[port_name]["valid_speeds"] = parts[5]
+                    # Check for optional fec column (7th column)
+                    if len(parts) >= 7:
+                        port_config[port_name]["fec"] = parts[6]
     except Exception as e:
         logger.error(f"Error parsing port config file {config_path}: {e}")
 
     return port_config
 
 
-def get_connected_interfaces(device, portchannel_info=None):
+def _handle_regular_mapping(module, port, port_config):
+    """Handle EthX/Y format mapping using port config alias column.
+
+    Args:
+        module: Module number from interface name
+        port: Port number from interface name
+        port_config: Port configuration dictionary
+
+    Returns:
+        str: SONiC interface name
+    """
+    # Create alias lookup mapping (alias -> sonic_port_name)
+    alias_to_sonic = {}
+    for sonic_port, config in port_config.items():
+        alias_to_sonic[config["alias"]] = sonic_port
+
+    # Generate expected alias patterns based on port number
+    # tenGigE1, twentyFiveGigE1, hundredGigE1, fourHundredGigE1, etc.
+    possible_aliases = [
+        f"tenGigE{port}",
+        f"twentyFiveGigE{port}",
+        f"hundredGigE{port}",
+        f"fourHundredGigE{port}",
+        f"eightHundredGigE{port}",
+        f"mgmtTenGigE{port}",
+        f"gigE{port}",
+    ]
+
+    # Find matching alias
+    for alias in possible_aliases:
+        if alias in alias_to_sonic:
+            logger.debug(
+                f"Mapped Eth{module}/{port} via alias {alias} to {alias_to_sonic[alias]}"
+            )
+            return alias_to_sonic[alias]
+
+    # If no alias found, return as-is
+    logger.warning(f"No alias found for Eth{module}/{port}, returning as-is")
+    return f"Eth{module}/{port}"
+
+
+def _handle_breakout_mapping(module, port, subport, port_config, device_interfaces):
+    """Handle EthX/Y/Z format mapping for breakout ports.
+
+    Args:
+        module: Module number from interface name
+        port: Port number from interface name
+        subport: Subport number from interface name
+        port_config: Port configuration dictionary
+        device_interfaces: List of all device interfaces for breakout detection
+
+    Returns:
+        str: SONiC interface name
+    """
+    if not device_interfaces:
+        # If no device interfaces provided, treat as single port without breakout
+        logger.debug(
+            f"No device interfaces provided for Eth{module}/{port}/{subport}, treating as regular Eth{module}/{port}"
+        )
+        return _handle_regular_mapping(module, port, port_config)
+
+    # Group breakout ports by module/port
+    breakout_groups = defaultdict(list)
+    for interface in device_interfaces:
+        if hasattr(interface, "name"):
+            match = re.match(r"Eth(\d+)/(\d+)/(\d+)", interface.name)
+            if match:
+                iface_module = int(match.group(1))
+                iface_port = int(match.group(2))
+                iface_subport = int(match.group(3))
+                if iface_module == module and iface_port == port:
+                    breakout_groups[(module, port)].append((iface_subport, interface))
+
+    # Sort by subport number
+    breakout_ports = sorted(breakout_groups.get((module, port), []))
+
+    # If only one breakout port exists (no true breakout), treat as regular mapping
+    if len(breakout_ports) <= 1:
+        logger.debug(
+            f"Single breakout port Eth{module}/{port}/{subport}, treating as regular Eth{module}/{port}"
+        )
+        return _handle_regular_mapping(module, port, port_config)
+
+    # Find the master port (port with smallest subport number)
+    master_subport = min(bp[0] for bp in breakout_ports)
+
+    # Get the base SONiC port name using the master port
+    base_sonic_port = _handle_regular_mapping(module, port, port_config)
+    if not base_sonic_port.startswith("Ethernet"):
+        return base_sonic_port
+
+    # Extract base port number
+    base_match = re.match(r"Ethernet(\d+)", base_sonic_port)
+    if not base_match:
+        return base_sonic_port
+
+    base_port_num = int(base_match.group(1))
+
+    # Calculate the subport offset
+    subport_offset = subport - master_subport
+    sonic_port_num = base_port_num + subport_offset
+
+    logger.debug(
+        f"Mapped breakout Eth{module}/{port}/{subport} to Ethernet{sonic_port_num} (base: {base_sonic_port}, master_subport: {master_subport}, offset: {subport_offset})"
+    )
+    return f"Ethernet{sonic_port_num}"
+
+
+def get_connected_interfaces(device, hwsku=None, portchannel_info=None):
     """Get list of interface names that are connected to other devices.
 
     Args:
         device: NetBox device object
+        hwsku: Hardware SKU name for interface mapping
         portchannel_info: Optional port channel info dict from detect_port_channels
 
     Returns:
@@ -197,7 +348,7 @@ def get_connected_interfaces(device, portchannel_info=None):
 
     try:
         # Get all interfaces for the device
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
 
         for interface in interfaces:
             # Skip management-only interfaces
@@ -216,7 +367,7 @@ def get_connected_interfaces(device, portchannel_info=None):
                 ):
                     interface_speed = get_speed_from_port_type(interface.type.value)
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
+                    interface.name, interface_speed, hwsku, interfaces, device
                 )
                 connected_interfaces.add(sonic_interface_name)
 
@@ -240,7 +391,7 @@ def get_connected_interfaces(device, portchannel_info=None):
                 ):
                     interface_speed = get_speed_from_port_type(interface.type.value)
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
+                    interface.name, interface_speed, hwsku, interfaces, device
                 )
                 connected_interfaces.add(sonic_interface_name)
 
@@ -260,11 +411,12 @@ def get_connected_interfaces(device, portchannel_info=None):
     return connected_interfaces, connected_portchannels
 
 
-def detect_breakout_ports(device):
+def detect_breakout_ports(device, hwsku=None):
     """Detect breakout ports from NetBox device interfaces.
 
     Args:
         device: NetBox device object
+        hwsku: Hardware SKU name for interface mapping
 
     Returns:
         dict: Dictionary with breakout port information
@@ -403,11 +555,12 @@ def detect_breakout_ports(device):
     return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
 
 
-def detect_port_channels(device):
+def detect_port_channels(device, hwsku=None):
     """Detect port channels (LAGs) from NetBox device interfaces.
 
     Args:
         device: NetBox device object
+        hwsku: Hardware SKU name for interface mapping
 
     Returns:
         dict: Dictionary with port channel information
@@ -459,7 +612,7 @@ def detect_port_channels(device):
                     interface_speed = get_speed_from_port_type(interface.type.value)
 
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
+                    interface.name, interface_speed, hwsku, interfaces, device
                 )
 
                 # Extract port channel number from LAG name

@@ -73,7 +73,7 @@ def find_interconnected_spine_groups(devices, target_roles=["spine", "superspine
 
         try:
             # Get all interfaces for this device
-            interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+            interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
 
             for interface in interfaces:
                 # Check if interface has connected_endpoints

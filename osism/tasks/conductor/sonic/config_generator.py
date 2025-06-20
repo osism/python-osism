@@ -49,11 +49,11 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     port_config = get_port_config(hwsku)
 
     # Get port channel configuration from NetBox first (needed by get_connected_interfaces)
-    portchannel_info = detect_port_channels(device)
+    portchannel_info = detect_port_channels(device, hwsku)
 
     # Get connected interfaces to determine admin_status
     connected_interfaces, connected_portchannels = get_connected_interfaces(
-        device, portchannel_info
+        device, hwsku, portchannel_info
     )
 
     # Get OOB IP for management interface
@@ -66,20 +66,20 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     loopback_info = get_device_loopbacks(device)
 
     # Get breakout port configuration from NetBox
-    breakout_info = detect_breakout_ports(device)
+    breakout_info = detect_breakout_ports(device, hwsku)
 
     # Get all interfaces from NetBox with their speeds and types
     netbox_interfaces = {}
     try:
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
-        for interface in interfaces:
+        all_interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+        for interface in all_interfaces:
             # Convert NetBox interface name to SONiC format for lookup
             interface_speed = getattr(interface, "speed", None)
             # If speed is not set, try to get it from port type
             if not interface_speed and hasattr(interface, "type") and interface.type:
                 interface_speed = get_speed_from_port_type(interface.type.value)
             sonic_name = convert_netbox_interface_to_sonic(
-                interface.name, interface_speed
+                interface.name, interface_speed, hwsku, all_interfaces, device
             )
             netbox_interfaces[sonic_name] = {
                 "speed": interface_speed,
@@ -173,6 +173,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         breakout_info,
         netbox_interfaces,
         vlan_info,
+        hwsku,
     )
 
     # Add interface configurations
@@ -185,6 +186,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         connected_portchannels,
         portchannel_info,
         device,
+        hwsku,
         device_as_mapping,
     )
 
@@ -192,7 +194,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     _add_ntp_configuration(config)
 
     # Add VLAN configuration
-    _add_vlan_configuration(config, vlan_info, netbox_interfaces)
+    _add_vlan_configuration(config, vlan_info, netbox_interfaces, hwsku)
 
     # Add Loopback configuration
     _add_loopback_configuration(config, loopback_info)
@@ -223,6 +225,7 @@ def _add_port_configurations(
     breakout_info,
     netbox_interfaces,
     vlan_info,
+    hwsku,
 ):
     """Add port configurations to config."""
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
@@ -313,7 +316,7 @@ def _add_port_configurations(
     )
 
     # Add tagged VLANs to PORT configuration
-    _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces)
+    _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, hwsku)
 
 
 def _calculate_breakout_port_lane(port_name, master_port, port_config):
@@ -421,7 +424,7 @@ def _add_missing_breakout_ports(
                 config["PORT"][port_name] = port_data
 
 
-def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces):
+def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, hwsku):
     """Add tagged VLANs to PORT configuration."""
     # Build a mapping of ports to their tagged VLANs
     port_tagged_vlans = {}
@@ -435,7 +438,7 @@ def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces):
                     speed = iface_info["speed"]
                     break
             sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name, speed
+                netbox_interface_name, speed, hwsku, None, None
             )
 
             # Only add if this is a tagged VLAN (not untagged)
@@ -470,6 +473,7 @@ def _add_bgp_configurations(
     connected_portchannels,
     portchannel_info,
     device,
+    hwsku,
     device_as_mapping=None,
 ):
     """Add BGP configurations."""
@@ -501,7 +505,9 @@ def _add_bgp_configurations(
 
             # Determine peer_type based on connected device AS
             peer_type = "external"  # Default
-            connected_device = _get_connected_device_for_interface(device, port_name)
+            connected_device = _get_connected_device_for_interface(
+                device, port_name, hwsku
+            )
             if connected_device:
                 peer_type = _determine_peer_type(
                     device, connected_device, device_as_mapping
@@ -518,7 +524,7 @@ def _add_bgp_configurations(
 
         # Determine peer_type based on connected device AS
         peer_type = "external"  # Default
-        connected_device = _get_connected_device_for_interface(device, pc_name)
+        connected_device = _get_connected_device_for_interface(device, pc_name, hwsku)
         if connected_device:
             peer_type = _determine_peer_type(
                 device, connected_device, device_as_mapping
@@ -531,22 +537,43 @@ def _add_bgp_configurations(
 
     # Add additional BGP_NEIGHBOR configuration using Loopback0 IP addresses
     _add_loopback_bgp_neighbors(
-        config, device, portchannel_info, connected_interfaces, device_as_mapping
+        config, device, portchannel_info, connected_interfaces, hwsku, device_as_mapping
     )
 
 
-def _get_connected_device_for_interface(device, interface_name):
+def _get_device_hwsku(device):
+    """Get HWSKU from device's sonic_parameters custom field.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        str: HWSKU string or None if not found
+    """
+    hwsku = None
+    if (
+        hasattr(device, "custom_fields")
+        and "sonic_parameters" in device.custom_fields
+        and device.custom_fields["sonic_parameters"]
+        and "hwsku" in device.custom_fields["sonic_parameters"]
+    ):
+        hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
+    return hwsku
+
+
+def _get_connected_device_for_interface(device, interface_name, hwsku=None):
     """Get the connected device for a given interface name.
 
     Args:
         device: NetBox device object
         interface_name: SONiC interface name (e.g., "Ethernet0")
+        hwsku: Optional HWSKU for interface mapping
 
     Returns:
         NetBox device object or None if not found
     """
     try:
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
 
         for interface in interfaces:
             # Convert NetBox interface name to SONiC format
@@ -554,7 +581,7 @@ def _get_connected_device_for_interface(device, interface_name):
             if not interface_speed and hasattr(interface, "type") and interface.type:
                 interface_speed = get_speed_from_port_type(interface.type.value)
             sonic_name = convert_netbox_interface_to_sonic(
-                interface.name, interface_speed
+                interface.name, interface_speed, hwsku, None, device
             )
 
             if sonic_name == interface_name:
@@ -652,12 +679,17 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
 
 
 def _add_loopback_bgp_neighbors(
-    config, device, portchannel_info, connected_interfaces, device_as_mapping=None
+    config,
+    device,
+    portchannel_info,
+    connected_interfaces,
+    hwsku,
+    device_as_mapping=None,
 ):
     """Add BGP_NEIGHBOR configuration using Loopback0 IP addresses from connected devices."""
     try:
         # Get all interfaces for the device to find connected devices
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
 
         for interface in interfaces:
             # Skip management-only interfaces
@@ -676,7 +708,7 @@ def _add_loopback_bgp_neighbors(
                 ):
                     interface_speed = get_speed_from_port_type(interface.type.value)
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface.name, interface_speed
+                    interface.name, interface_speed, hwsku, None, device
                 )
 
                 # Only process if this interface is in our PORT configuration and not a port channel member
@@ -726,7 +758,7 @@ def _add_loopback_bgp_neighbors(
 
                             if has_osism_tag:
                                 # Get Loopback0 IP addresses from the connected device
-                                connected_device_interfaces = (
+                                connected_device_interfaces = list(
                                     utils.nb.dcim.interfaces.filter(
                                         device_id=connected_device.id
                                     )
@@ -785,7 +817,9 @@ def _add_ntp_configuration(config):
 
         for ntp_device in ntp_devices:
             # Get interfaces for this device to find Loopback0
-            device_interfaces = utils.nb.dcim.interfaces.filter(device_id=ntp_device.id)
+            device_interfaces = list(
+                utils.nb.dcim.interfaces.filter(device_id=ntp_device.id)
+            )
 
             for interface in device_interfaces:
                 # Look for Loopback0 interface
@@ -816,7 +850,7 @@ def _add_ntp_configuration(config):
         logger.warning(f"Could not process NTP servers: {e}")
 
 
-def _add_vlan_configuration(config, vlan_info, netbox_interfaces):
+def _add_vlan_configuration(config, vlan_info, netbox_interfaces, hwsku):
     """Add VLAN configuration from NetBox."""
     # Add VLAN configuration
     for vid, vlan_data in vlan_info["vlans"].items():
@@ -834,7 +868,7 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces):
                         speed = iface_info["speed"]
                         break
                 sonic_interface_name = convert_netbox_interface_to_sonic(
-                    netbox_interface_name, speed
+                    netbox_interface_name, speed, hwsku
                 )
                 members.append(sonic_interface_name)
 
@@ -857,7 +891,7 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces):
                     speed = iface_info["speed"]
                     break
             sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name, speed
+                netbox_interface_name, speed, hwsku, None, None
             )
             # Create VLAN_MEMBER key in format "Vlan<vid>|<port_name>"
             member_key = f"{vlan_name}|{sonic_interface_name}"
