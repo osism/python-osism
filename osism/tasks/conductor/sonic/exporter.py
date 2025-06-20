@@ -99,5 +99,41 @@ def export_config_to_file(device, config):
 
         logger.info(f"Exported SONiC config for device {device.name} to {filepath}")
 
+        # Create hostname symlink if using serial number identifier
+        if (
+            identifier_type == "serial-number"
+            and hasattr(device, "serial")
+            and device.serial
+        ):
+            try:
+                hostname = get_device_hostname(device)
+                hostname_filename = f"{prefix}{hostname}{suffix}"
+                hostname_filepath = os.path.join(export_dir, hostname_filename)
+
+                logger.debug(
+                    f"Attempting to create symlink: {hostname_filepath} -> {filename}"
+                )
+                logger.debug(f"Hostname: {hostname}, Serial: {device.serial}")
+
+                # Create symlink from hostname file to serial number file
+                if os.path.exists(hostname_filepath) or os.path.islink(
+                    hostname_filepath
+                ):
+                    logger.debug(f"Removing existing file/symlink: {hostname_filepath}")
+                    os.remove(hostname_filepath)
+
+                os.symlink(filename, hostname_filepath)
+                logger.info(
+                    f"Created hostname symlink {hostname_filepath} -> {filename}"
+                )
+            except Exception as symlink_error:
+                logger.error(
+                    f"Failed to create hostname symlink for device {device.name}: {symlink_error}"
+                )
+        else:
+            logger.debug(
+                f"Symlink conditions not met - identifier_type: {identifier_type}, has_serial: {hasattr(device, 'serial')}, serial_value: {getattr(device, 'serial', None)}"
+            )
+
     except Exception as e:
         logger.error(f"Failed to export config for device {device.name}: {e}")
