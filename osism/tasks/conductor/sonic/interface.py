@@ -730,7 +730,7 @@ def detect_port_channels(device):
                       'PortChannel1': {
                           'members': ['Ethernet120', 'Ethernet124'],
                           'admin_status': 'up',
-                          'fast_rate': 'false',
+                          'fast_rate': 'true',
                           'min_links': '1',
                           'mtu': '9100'
                       }
@@ -817,7 +817,7 @@ def detect_port_channels(device):
                     portchannels[portchannel_name] = {
                         "members": [],
                         "admin_status": "up",
-                        "fast_rate": "false",
+                        "fast_rate": "true",
                         "min_links": "1",
                         "mtu": "9100",
                     }
