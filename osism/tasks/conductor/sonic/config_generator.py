@@ -180,7 +180,12 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
 
     # Add BGP configurations
     _add_bgp_configurations(
-        config, connected_interfaces, connected_portchannels, portchannel_info, device
+        config,
+        connected_interfaces,
+        connected_portchannels,
+        portchannel_info,
+        device,
+        device_as_mapping,
     )
 
     # Add NTP server configuration
@@ -460,7 +465,12 @@ def _add_interface_configurations(config, connected_interfaces, portchannel_info
 
 
 def _add_bgp_configurations(
-    config, connected_interfaces, connected_portchannels, portchannel_info, device
+    config,
+    connected_interfaces,
+    connected_portchannels,
+    portchannel_info,
+    device,
+    device_as_mapping=None,
 ):
     """Add BGP configurations."""
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
@@ -488,24 +498,162 @@ def _add_bgp_configurations(
             and port_name not in portchannel_info["member_mapping"]
         ):
             neighbor_key = f"default|{port_name}"
+
+            # Determine peer_type based on connected device AS
+            peer_type = "external"  # Default
+            connected_device = _get_connected_device_for_interface(device, port_name)
+            if connected_device:
+                peer_type = _determine_peer_type(
+                    device, connected_device, device_as_mapping
+                )
+
             config["BGP_NEIGHBOR"][neighbor_key] = {
-                "peer_type": "external",
+                "peer_type": peer_type,
                 "v6only": "true",
             }
 
     # Add BGP_NEIGHBOR configuration for connected port channels
     for pc_name in connected_portchannels:
         neighbor_key = f"default|{pc_name}"
+
+        # Determine peer_type based on connected device AS
+        peer_type = "external"  # Default
+        connected_device = _get_connected_device_for_interface(device, pc_name)
+        if connected_device:
+            peer_type = _determine_peer_type(
+                device, connected_device, device_as_mapping
+            )
+
         config["BGP_NEIGHBOR"][neighbor_key] = {
-            "peer_type": "external",
+            "peer_type": peer_type,
             "v6only": "true",
         }
 
     # Add additional BGP_NEIGHBOR configuration using Loopback0 IP addresses
-    _add_loopback_bgp_neighbors(config, device, portchannel_info, connected_interfaces)
+    _add_loopback_bgp_neighbors(
+        config, device, portchannel_info, connected_interfaces, device_as_mapping
+    )
 
 
-def _add_loopback_bgp_neighbors(config, device, portchannel_info, connected_interfaces):
+def _get_connected_device_for_interface(device, interface_name):
+    """Get the connected device for a given interface name.
+
+    Args:
+        device: NetBox device object
+        interface_name: SONiC interface name (e.g., "Ethernet0")
+
+    Returns:
+        NetBox device object or None if not found
+    """
+    try:
+        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+
+        for interface in interfaces:
+            # Convert NetBox interface name to SONiC format
+            interface_speed = getattr(interface, "speed", None)
+            if not interface_speed and hasattr(interface, "type") and interface.type:
+                interface_speed = get_speed_from_port_type(interface.type.value)
+            sonic_name = convert_netbox_interface_to_sonic(
+                interface.name, interface_speed
+            )
+
+            if sonic_name == interface_name:
+                # Check if interface has connected_endpoints
+                if (
+                    hasattr(interface, "connected_endpoints")
+                    and interface.connected_endpoints
+                ):
+                    if not getattr(interface, "connected_endpoints_reachable", False):
+                        continue
+
+                    for endpoint in interface.connected_endpoints:
+                        if (
+                            hasattr(endpoint, "device")
+                            and endpoint.device.id != device.id
+                        ):
+                            return endpoint.device
+
+                # Fallback to cable-based lookup
+                if hasattr(interface, "cable") and interface.cable:
+                    cable = interface.cable
+
+                    # Try modern cable API
+                    if hasattr(cable, "a_terminations") and hasattr(
+                        cable, "b_terminations"
+                    ):
+                        for termination in list(cable.a_terminations) + list(
+                            cable.b_terminations
+                        ):
+                            if (
+                                hasattr(termination, "device")
+                                and termination.device.id != device.id
+                            ):
+                                return termination.device
+
+                    # Try legacy cable API
+                    elif hasattr(cable, "termination_a") and hasattr(
+                        cable, "termination_b"
+                    ):
+                        if cable.termination_a.device.id != device.id:
+                            return cable.termination_a.device
+                        elif cable.termination_b.device.id != device.id:
+                            return cable.termination_b.device
+                break
+
+    except Exception as e:
+        logger.debug(
+            f"Could not find connected device for interface {interface_name}: {e}"
+        )
+
+    return None
+
+
+def _determine_peer_type(local_device, connected_device, device_as_mapping=None):
+    """Determine BGP peer type (internal/external) based on AS number comparison.
+
+    Args:
+        local_device: Local NetBox device object
+        connected_device: Connected NetBox device object
+        device_as_mapping: Dict mapping device IDs to pre-calculated AS numbers
+
+    Returns:
+        str: "internal" if AS numbers match, "external" otherwise
+    """
+    try:
+        # Get local AS number
+        local_as = None
+        if device_as_mapping and local_device.id in device_as_mapping:
+            local_as = device_as_mapping[local_device.id]
+        elif local_device.primary_ip4:
+            local_as = calculate_local_asn_from_ipv4(
+                str(local_device.primary_ip4.address)
+            )
+
+        # Get connected device AS number
+        connected_as = None
+        if device_as_mapping and connected_device.id in device_as_mapping:
+            connected_as = device_as_mapping[connected_device.id]
+        elif connected_device.primary_ip4:
+            connected_as = calculate_local_asn_from_ipv4(
+                str(connected_device.primary_ip4.address)
+            )
+
+        # Compare AS numbers
+        if local_as and connected_as and local_as == connected_as:
+            return "internal"
+        else:
+            return "external"
+
+    except Exception as e:
+        logger.debug(
+            f"Could not determine peer type between {local_device.name} and {connected_device.name}: {e}"
+        )
+        return "external"  # Default to external on error
+
+
+def _add_loopback_bgp_neighbors(
+    config, device, portchannel_info, connected_interfaces, device_as_mapping=None
+):
     """Add BGP_NEIGHBOR configuration using Loopback0 IP addresses from connected devices."""
     try:
         # Get all interfaces for the device to find connected devices
@@ -599,8 +747,16 @@ def _add_loopback_bgp_neighbors(config, device, portchannel_info, connected_inte
                                                 # Extract just the IP address without prefix
                                                 ip_only = ip_addr.address.split("/")[0]
                                                 neighbor_key = f"default|{ip_only}"
+
+                                                # Determine peer_type based on AS comparison
+                                                peer_type = _determine_peer_type(
+                                                    device,
+                                                    connected_device,
+                                                    device_as_mapping,
+                                                )
+
                                                 config["BGP_NEIGHBOR"][neighbor_key] = {
-                                                    "peer_type": "external"
+                                                    "peer_type": peer_type
                                                 }
                                         break
                             else:
