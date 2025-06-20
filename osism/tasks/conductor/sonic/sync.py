@@ -7,9 +7,10 @@ from loguru import logger
 from osism import utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_sonic
 from .bgp import find_interconnected_spine_groups, calculate_minimum_as_for_group
-from .config_generator import generate_sonic_config
+from .config_generator import generate_sonic_config, clear_all_caches
 from .constants import DEFAULT_SONIC_ROLES, SUPPORTED_HWSKUS
 from .exporter import save_config_to_netbox, export_config_to_file
+from .cache import clear_interface_cache, get_interface_cache_stats
 
 
 def sync_sonic():
@@ -19,6 +20,11 @@ def sync_sonic():
         dict: Dictionary with device names as keys and their SONiC configs as values
     """
     logger.info("Preparing SONIC configuration files")
+
+    # Clear all caches at start of sync
+    clear_interface_cache()
+    clear_all_caches()
+    logger.debug("Initialized all caches for sync_sonic task")
 
     # Dictionary to store configurations for all devices
     device_configs = {}
@@ -101,6 +107,17 @@ def sync_sonic():
         )
 
     logger.info(f"Generated SONiC configurations for {len(device_configs)} devices")
+
+    # Log cache statistics and cleanup
+    cache_stats = get_interface_cache_stats()
+    if cache_stats:
+        logger.debug(
+            f"Interface cache stats: {cache_stats['cached_devices']} devices, {cache_stats['total_interfaces']} interfaces"
+        )
+
+    clear_interface_cache()
+    clear_all_caches()
+    logger.debug("Cleared all caches after sync_sonic task completion")
 
     # Return the dictionary with all device configurations
     return device_configs

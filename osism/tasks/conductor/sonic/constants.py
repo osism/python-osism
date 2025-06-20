@@ -66,6 +66,9 @@ PORT_TYPE_TO_SPEED_MAP = {
 # High speed ports that use 4x multiplier (lanes)
 HIGH_SPEED_PORTS = {100000, 200000, 400000, 800000}  # 100G, 200G, 400G, 800G in Mbps
 
+# Path to SONiC port configuration files
+PORT_CONFIG_PATH = "/etc/sonic/port_config"
+
 # List of supported HWSKUs
 SUPPORTED_HWSKUS = [
     "Accton-AS5835-54T",
