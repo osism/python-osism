@@ -1,7 +1,7 @@
 {
     "BGP_GLOBALS": {
         "default": {
-            "always_compare_med": "false",
+            "always_compare_med": "true",
             "ebgp_requires_policy": "false",
             "external_compare_router_id": "false",
             "fast_external_failover": "true",
