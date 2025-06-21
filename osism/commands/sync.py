@@ -41,22 +41,13 @@ class Sonic(Command):
         device_name = parsed_args.device
 
         task = conductor.sync_sonic.delay(device_name)
-        if wait:
-            if device_name:
-                logger.info(
-                    f"Task {task.task_id} (sync sonic for device {device_name}) is running. Wait. No more output."
-                )
-            else:
-                logger.info(
-                    f"Task {task.task_id} (sync sonic) is running. Wait. No more output."
-                )
-            task.wait(timeout=None, interval=0.5)
+
+        if device_name:
+            logger.info(
+                f"Task {task.task_id} (sync sonic for device {device_name}) started"
+            )
         else:
-            if device_name:
-                logger.info(
-                    f"Task {task.task_id} (sync sonic for device {device_name}) is running in background. No more output."
-                )
-            else:
-                logger.info(
-                    f"Task {task.task_id} (sync sonic) is running in background. No more output."
-                )
+            logger.info(f"Task {task.task_id} (sync sonic) started")
+
+        rc = handle_task(task, wait=wait)
+        return rc

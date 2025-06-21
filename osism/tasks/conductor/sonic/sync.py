@@ -14,11 +14,12 @@ from .exporter import save_config_to_netbox, export_config_to_file
 from .cache import clear_interface_cache, get_interface_cache_stats
 
 
-def sync_sonic(device_name=None):
+def sync_sonic(device_name=None, task_id=None):
     """Sync SONiC configurations for eligible devices.
 
     Args:
         device_name (str, optional): Name of specific device to sync. If None, sync all eligible devices.
+        task_id (str, optional): Task ID for output logging.
 
     Returns:
         dict: Dictionary with device names as keys and their SONiC configs as values
@@ -115,6 +116,10 @@ def sync_sonic(device_name=None):
 
         logger.debug(f"Processing device: {device.name} with HWSKU: {hwsku}")
 
+        # Output current device being processed if task_id is available
+        if task_id:
+            utils.push_task_output(task_id, f"Processing device: {device.name}\n")
+
         # Validate that HWSKU is supported
         if hwsku not in SUPPORTED_HWSKUS:
             logger.warning(
@@ -155,6 +160,10 @@ def sync_sonic(device_name=None):
     clear_interface_cache()
     clear_all_caches()
     logger.debug("Cleared all caches after sync_sonic task completion")
+
+    # Finish task output if task_id is available
+    if task_id:
+        utils.finish_task_output(task_id, rc=0)
 
     # Return the dictionary with all device configurations
     return device_configs
