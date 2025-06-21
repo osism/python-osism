@@ -404,6 +404,8 @@ def clear_port_config_cache():
     logger.debug("Cleared port configuration cache")
 
 
+# Deprecated: Use connections.get_connected_interfaces instead
+# This function is kept for backward compatibility but delegates to the new module
 def get_connected_interfaces(device, portchannel_info=None):
     """Get list of interface names that are connected to other devices.
 
@@ -414,72 +416,10 @@ def get_connected_interfaces(device, portchannel_info=None):
     Returns:
         tuple: (set of connected interfaces, set of connected port channels)
     """
-    connected_interfaces = set()
-    connected_portchannels = set()
+    # Import here to avoid circular imports
+    from .connections import get_connected_interfaces as _get_connected_interfaces
 
-    try:
-        # Get all interfaces for the device (using cache)
-        interfaces = get_cached_device_interfaces(device.id)
-
-        for interface in interfaces:
-            # Skip management-only interfaces
-            if hasattr(interface, "mgmt_only") and interface.mgmt_only:
-                continue
-
-            # Check if interface is connected via cable
-            if hasattr(interface, "cable") and interface.cable:
-                # Convert NetBox interface name to SONiC format
-                interface_speed = getattr(interface, "speed", None)
-                # If speed is not set, try to get it from port type
-                if (
-                    not interface_speed
-                    and hasattr(interface, "type")
-                    and interface.type
-                ):
-                    interface_speed = get_speed_from_port_type(interface.type.value)
-                sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface, device
-                )
-                connected_interfaces.add(sonic_interface_name)
-
-                # If this interface is part of a port channel, mark the port channel as connected
-                if (
-                    portchannel_info
-                    and sonic_interface_name in portchannel_info["member_mapping"]
-                ):
-                    pc_name = portchannel_info["member_mapping"][sonic_interface_name]
-                    connected_portchannels.add(pc_name)
-
-            # Alternative check using is_connected property if available
-            elif hasattr(interface, "is_connected") and interface.is_connected:
-                # Convert NetBox interface name to SONiC format
-                interface_speed = getattr(interface, "speed", None)
-                # If speed is not set, try to get it from port type
-                if (
-                    not interface_speed
-                    and hasattr(interface, "type")
-                    and interface.type
-                ):
-                    interface_speed = get_speed_from_port_type(interface.type.value)
-                sonic_interface_name = convert_netbox_interface_to_sonic(
-                    interface, device
-                )
-                connected_interfaces.add(sonic_interface_name)
-
-                # If this interface is part of a port channel, mark the port channel as connected
-                if (
-                    portchannel_info
-                    and sonic_interface_name in portchannel_info["member_mapping"]
-                ):
-                    pc_name = portchannel_info["member_mapping"][sonic_interface_name]
-                    connected_portchannels.add(pc_name)
-
-    except Exception as e:
-        logger.warning(
-            f"Could not get interface connections for device {device.name}: {e}"
-        )
-
-    return connected_interfaces, connected_portchannels
+    return _get_connected_interfaces(device, portchannel_info)
 
 
 def detect_breakout_ports(device):
