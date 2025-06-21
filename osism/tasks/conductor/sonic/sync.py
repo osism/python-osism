@@ -97,11 +97,16 @@ def sync_sonic():
         # Store configuration in the dictionary
         device_configs[device.name] = sonic_config
 
-        # Save the generated configuration to NetBox config context
-        save_config_to_netbox(device, sonic_config)
+        # Save the generated configuration to NetBox config context (only if changed)
+        netbox_changed = save_config_to_netbox(device, sonic_config)
 
-        # Export the generated configuration to local file
-        export_config_to_file(device, sonic_config)
+        # Export the generated configuration to local file (only if changed)
+        file_changed = export_config_to_file(device, sonic_config)
+
+        if netbox_changed or file_changed:
+            logger.info(f"Configuration updated for device {device.name}")
+        else:
+            logger.info(f"No configuration changes for device {device.name}")
 
         logger.info(
             f"Generated SONiC config for device {device.name} with {len(sonic_config['PORT'])} ports"
