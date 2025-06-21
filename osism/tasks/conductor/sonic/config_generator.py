@@ -127,19 +127,12 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         config = {}
 
     # Update DEVICE_METADATA with NetBox information
-    if "localhost" not in config["DEVICE_METADATA"]:
-        config["DEVICE_METADATA"]["localhost"] = {}
-
     config["DEVICE_METADATA"]["localhost"].update(
         {
-            "default_config_profile": "l3",
-            "frr_mgmt_framework_config": "true",
             "hostname": hostname,
             "hwsku": hwsku,
-            "intf_naming_mode": "standard",
             "platform": platform,
             "mac": mac_address,
-            "type": "LeafRouter",
         }
     )
 

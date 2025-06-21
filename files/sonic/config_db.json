@@ -26,6 +26,14 @@
             "max_ibgp_paths": "2"
         }
     },
+    "DEVICE_METADATA": {
+        "localhost": {
+            "default_config_profile": "l3",
+            "frr_mgmt_framework_config": "true",
+            "intf_naming_mode": "standard",
+            "type": "LeafRouter"
+        }
+    },
     "ECMP_LOADSHARE_TABLE_IPV4": {
         "ipv4": {
             "ipv4_dst_ip": "true",
