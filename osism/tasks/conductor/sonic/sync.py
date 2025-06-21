@@ -6,7 +6,8 @@ from loguru import logger
 
 from osism import utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_sonic
-from .bgp import find_interconnected_spine_groups, calculate_minimum_as_for_group
+from .bgp import calculate_minimum_as_for_group
+from .connections import find_interconnected_devices
 from .config_generator import generate_sonic_config, clear_all_caches
 from .constants import DEFAULT_SONIC_ROLES, SUPPORTED_HWSKUS
 from .exporter import save_config_to_netbox, export_config_to_file
@@ -48,7 +49,7 @@ def sync_sonic():
     logger.info(f"Found {len(devices)} devices matching criteria")
 
     # Find interconnected spine/superspine groups for special AS calculation
-    spine_groups = find_interconnected_spine_groups(devices)
+    spine_groups = find_interconnected_devices(devices, ["spine", "superspine"])
     logger.info(f"Found {len(spine_groups)} interconnected spine/superspine groups")
 
     # Create mapping from device ID to its assigned AS number
