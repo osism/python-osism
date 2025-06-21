@@ -14,13 +14,19 @@ from .exporter import save_config_to_netbox, export_config_to_file
 from .cache import clear_interface_cache, get_interface_cache_stats
 
 
-def sync_sonic():
+def sync_sonic(device_name=None):
     """Sync SONiC configurations for eligible devices.
+
+    Args:
+        device_name (str, optional): Name of specific device to sync. If None, sync all eligible devices.
 
     Returns:
         dict: Dictionary with device names as keys and their SONiC configs as values
     """
-    logger.info("Preparing SONIC configuration files")
+    if device_name:
+        logger.info(f"Preparing SONIC configuration for device: {device_name}")
+    else:
+        logger.info("Preparing SONIC configuration files")
 
     # Clear all caches at start of sync
     clear_interface_cache()
@@ -32,19 +38,44 @@ def sync_sonic():
 
     logger.debug(f"Supported HWSKUs: {', '.join(SUPPORTED_HWSKUS)}")
 
-    # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
-    nb_device_query_list = get_nb_device_query_list_sonic()
-
     devices = []
-    for nb_device_query in nb_device_query_list:
-        # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
-        for device in utils.nb.dcim.devices.filter(**nb_device_query):
-            # Check if device role matches allowed roles
-            if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
-                devices.append(device)
-                logger.debug(
-                    f"Found device: {device.name} with role: {device.role.slug}"
-                )
+
+    if device_name:
+        # When specific device is requested, fetch it directly
+        try:
+            device = utils.nb.dcim.devices.get(name=device_name)
+            if device:
+                # Check if device role matches allowed roles
+                if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
+                    devices.append(device)
+                    logger.debug(
+                        f"Found device: {device.name} with role: {device.role.slug}"
+                    )
+                else:
+                    logger.warning(
+                        f"Device {device_name} has role '{device.role.slug if device.role else 'None'}' "
+                        f"which is not in allowed SONiC roles: {', '.join(DEFAULT_SONIC_ROLES)}"
+                    )
+                    return device_configs
+            else:
+                logger.error(f"Device {device_name} not found in NetBox")
+                return device_configs
+        except Exception as e:
+            logger.error(f"Error fetching device {device_name}: {e}")
+            return device_configs
+    else:
+        # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
+        nb_device_query_list = get_nb_device_query_list_sonic()
+
+        for nb_device_query in nb_device_query_list:
+            # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
+            for device in utils.nb.dcim.devices.filter(**nb_device_query):
+                # Check if device role matches allowed roles
+                if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
+                    devices.append(device)
+                    logger.debug(
+                        f"Found device: {device.name} with role: {device.role.slug}"
+                    )
 
     logger.info(f"Found {len(devices)} devices matching criteria")
 
