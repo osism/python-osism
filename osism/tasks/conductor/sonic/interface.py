@@ -13,6 +13,23 @@ from .cache import get_cached_device_interfaces
 # Global cache for port configurations to avoid repeated file reads
 _port_config_cache: dict[str, dict[str, dict[str, str]]] = {}
 
+# Global cache for interface conversion results to avoid repeated computations
+_interface_conversion_cache: dict[str, str] = {}
+
+
+def _generate_conversion_cache_key(interface_name, device_id, device_hwsku):
+    """Generate cache key for interface conversion results.
+
+    Args:
+        interface_name: The interface name to convert
+        device_id: NetBox device ID
+        device_hwsku: Hardware SKU name
+
+    Returns:
+        str: Cache key combining interface name, device ID, and HWSKU
+    """
+    return f"{device_id}:{device_hwsku}:{interface_name}"
+
 
 def get_speed_from_port_type(port_type):
     """Get speed from port type when speed is not provided.
@@ -50,6 +67,8 @@ def convert_netbox_interface_to_sonic(device_interface, device=None):
     Returns:
         str: SONiC interface name (e.g., "Ethernet0", "Ethernet4")
     """
+    global _interface_conversion_cache
+
     # Extract interface name and determine device context
     if isinstance(device_interface, str):
         # Legacy mode: interface name as string
@@ -86,6 +105,14 @@ def convert_netbox_interface_to_sonic(device_interface, device=None):
         logger.warning(f"No HWSKU found for device {device.name}")
         return interface_name
 
+    # Check cache for this conversion
+    cache_key = _generate_conversion_cache_key(interface_name, device.id, device_hwsku)
+    if cache_key in _interface_conversion_cache:
+        logger.debug(
+            f"Using cached conversion: {interface_name} -> {_interface_conversion_cache[cache_key]}"
+        )
+        return _interface_conversion_cache[cache_key]
+
     # Get all device interfaces for breakout detection (using cache)
     try:
         all_interfaces = get_cached_device_interfaces(device.id)
@@ -105,9 +132,15 @@ def convert_netbox_interface_to_sonic(device_interface, device=None):
         return interface_name
 
     # Handle different interface naming patterns
-    return _map_interface_name_to_sonic(
+    result = _map_interface_name_to_sonic(
         interface_name, interface_names, port_config, device_hwsku
     )
+
+    # Cache the result
+    _interface_conversion_cache[cache_key] = result
+    logger.debug(f"Cached conversion result: {interface_name} -> {result}")
+
+    return result
 
 
 def _map_interface_name_to_sonic(
@@ -402,6 +435,30 @@ def clear_port_config_cache():
     global _port_config_cache
     _port_config_cache = {}
     logger.debug("Cleared port configuration cache")
+
+
+def clear_interface_conversion_cache():
+    """Clear the interface conversion cache. Should be called at the start of sync_sonic."""
+    global _interface_conversion_cache
+    _interface_conversion_cache = {}
+    logger.debug("Cleared interface conversion cache")
+
+
+def get_interface_conversion_cache_stats():
+    """Get statistics about the interface conversion cache.
+
+    Returns:
+        dict: Statistics including number of cached conversions
+    """
+    global _interface_conversion_cache
+    return {
+        "cached_conversions": len(_interface_conversion_cache),
+        "cache_keys": (
+            list(_interface_conversion_cache.keys())
+            if _interface_conversion_cache
+            else []
+        ),
+    }
 
 
 # Deprecated: Use connections.get_connected_interfaces instead

@@ -25,6 +25,7 @@ from .interface import (
     detect_breakout_ports,
     detect_port_channels,
     clear_port_config_cache,
+    clear_interface_conversion_cache,
 )
 from .connections import (
     get_connected_interfaces,
@@ -785,6 +786,7 @@ def clear_all_caches():
     """Clear all caches in config_generator module."""
     clear_ntp_cache()
     clear_port_config_cache()
+    clear_interface_conversion_cache()
     logger.debug("Cleared all config_generator caches")
 
 
