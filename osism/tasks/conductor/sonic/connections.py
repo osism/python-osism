@@ -48,6 +48,16 @@ def get_connected_device_via_interface(
         for endpoint in interface.connected_endpoints:
             # Get the connected device from the endpoint
             if hasattr(endpoint, "device") and endpoint.device.id != source_device_id:
+                # Fetch the full device object to ensure all fields are populated
+                try:
+                    full_device = utils.nb.dcim.devices.get(id=endpoint.device.id)
+                    if full_device:
+                        return full_device
+                except Exception as fetch_error:
+                    logger.debug(
+                        f"Could not fetch full device for endpoint {endpoint}: {fetch_error}"
+                    )
+                # Fallback to partial device object if fetch fails
                 return endpoint.device
     except Exception as e:
         logger.debug(
