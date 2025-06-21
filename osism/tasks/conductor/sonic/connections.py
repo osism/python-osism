@@ -115,14 +115,21 @@ def get_connected_device_for_sonic_interface(
 ) -> Optional[Any]:
     """Get the connected device for a given SONiC interface name.
 
+    For Port Channels, uses the member ports to detect connected devices.
+
     Args:
         device: NetBox device object
-        sonic_interface_name: SONiC interface name (e.g., "Ethernet0")
+        sonic_interface_name: SONiC interface name (e.g., "Ethernet0" or "PortChannel1")
 
     Returns:
         NetBox device object or None if not found
     """
     try:
+        # Check if this is a Port Channel
+        if sonic_interface_name.startswith("PortChannel"):
+            return get_connected_device_for_port_channel(device, sonic_interface_name)
+
+        # Handle regular interfaces
         interfaces = get_cached_device_interfaces(device.id)
 
         for interface in interfaces:
@@ -138,6 +145,69 @@ def get_connected_device_for_sonic_interface(
         )
 
     return None
+
+
+def get_connected_device_for_port_channel(
+    device: Any, portchannel_name: str
+) -> Optional[Any]:
+    """Get the connected device for a Port Channel by checking its member ports.
+
+    Args:
+        device: NetBox device object
+        portchannel_name: Port Channel name (e.g., "PortChannel1")
+
+    Returns:
+        NetBox device object or None if not found
+    """
+    try:
+        # Import here to avoid circular imports
+        from .interface import detect_port_channels
+
+        # Get port channel information to find member ports
+        portchannel_info = detect_port_channels(device)
+
+        if portchannel_name not in portchannel_info["portchannels"]:
+            logger.debug(
+                f"Port Channel {portchannel_name} not found on device {device.name}"
+            )
+            return None
+
+        member_ports = portchannel_info["portchannels"][portchannel_name]["members"]
+
+        if not member_ports:
+            logger.debug(f"No member ports found for Port Channel {portchannel_name}")
+            return None
+
+        # Check each member port to find a connected device
+        # All member ports in a Port Channel should connect to the same remote device
+        interfaces = get_cached_device_interfaces(device.id)
+
+        for member_port in member_ports:
+            # Find the NetBox interface corresponding to this member port
+            for interface in interfaces:
+                sonic_name = convert_netbox_interface_to_sonic(interface, device)
+                if sonic_name == member_port:
+                    connected_device = get_connected_device_via_interface(
+                        interface, device.id
+                    )
+                    if connected_device:
+                        logger.debug(
+                            f"Found connected device {connected_device.name} for Port Channel {portchannel_name} "
+                            f"via member port {member_port}"
+                        )
+                        return connected_device
+                    break
+
+        logger.debug(
+            f"No connected device found for any member ports of {portchannel_name}"
+        )
+        return None
+
+    except Exception as e:
+        logger.debug(
+            f"Could not find connected device for Port Channel {portchannel_name}: {e}"
+        )
+        return None
 
 
 def find_interconnected_devices(
