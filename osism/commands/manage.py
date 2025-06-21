@@ -10,7 +10,7 @@ from loguru import logger
 import requests
 
 from osism.data import TEMPLATE_IMAGE_CLUSTERAPI, TEMPLATE_IMAGE_OCTAVIA
-from osism.tasks import openstack, handle_task
+from osism.tasks import openstack, ansible, handle_task
 
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.31", "1.32", "1.33"]
 
@@ -360,3 +360,27 @@ class Flavors(Command):
             )
 
         return handle_task(task, wait, format="script", timeout=3600)
+
+
+class Dnsmasq(Command):
+    def get_parser(self, prog_name):
+        parser = super(Dnsmasq, self).get_parser(prog_name)
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until dnsmasq has been applied",
+            action="store_true",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        wait = not parsed_args.no_wait
+
+        task_signature = ansible.run.si("infrastructure", "dnsmasq", [])
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (dnsmasq) has been started and output is visible here."
+            )
+
+        return handle_task(task, wait, format="log", timeout=300)
