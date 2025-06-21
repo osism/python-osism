@@ -149,6 +149,11 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
                 utils.push_task_output(task_id, f"{'='*60}\n")
                 utils.push_task_output(task_id, f"{diff_output}\n")
                 utils.push_task_output(task_id, f"{'='*60}\n\n")
+            elif task_id and netbox_changed and not diff_output:
+                # First-time configuration (no diff available)
+                utils.push_task_output(
+                    task_id, f"First-time configuration created for {device.name}\n"
+                )
         else:
             netbox_changed = save_config_to_netbox(device, sonic_config)
 

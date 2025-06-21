@@ -110,7 +110,9 @@ def save_config_to_netbox(device, config, return_diff=False):
             # Assign the config context to the device
             new_context.devices = [device.id]
             new_context.save()
-            logger.info(f"Created new SONiC config context for device {device.name}")
+            logger.info(
+                f"Created new SONiC config context for device {device.name} (first-time configuration)"
+            )
             return (True, None) if return_diff else True
 
     except Exception as e:
