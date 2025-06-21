@@ -34,13 +34,26 @@ class Sonic(Command):
             help="Do not wait until the sync has been completed",
             action="store_true",
         )
+        parser.add_argument(
+            "--diff",
+            default=True,
+            help="Show configuration diff when changes are detected (default: True)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--no-diff",
+            dest="diff",
+            help="Do not show configuration diff",
+            action="store_false",
+        )
         return parser
 
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
         device_name = parsed_args.device
+        show_diff = parsed_args.diff
 
-        task = conductor.sync_sonic.delay(device_name)
+        task = conductor.sync_sonic.delay(device_name, show_diff)
 
         if device_name:
             logger.info(

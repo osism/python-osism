@@ -12,7 +12,7 @@ from osism import utils, settings
 from .device import get_device_hostname
 
 
-def save_config_to_netbox(device, config):
+def save_config_to_netbox(device, config, return_diff=False):
     """Save SONiC configuration to NetBox device config context with diff checking.
 
     Checks for existing Config Context and only saves if configuration has changed.
@@ -21,9 +21,11 @@ def save_config_to_netbox(device, config):
     Args:
         device: NetBox device object
         config: SONiC configuration dictionary
+        return_diff (bool, optional): Whether to return diff output. Defaults to False.
 
     Returns:
-        bool: True if config was saved (changed), False if no changes
+        bool or tuple: If return_diff is False, returns True if config was saved (changed), False if no changes.
+                      If return_diff is True, returns (changed, diff_output) tuple.
     """
     try:
         # Get existing config contexts for the device
@@ -38,6 +40,7 @@ def save_config_to_netbox(device, config):
 
         # Prepare new config context data
         new_config_data = {"sonic_config": config}
+        diff_output = None
 
         if sonic_context:
             # Compare existing config with new config
@@ -50,7 +53,7 @@ def save_config_to_netbox(device, config):
                 logger.info(
                     f"No changes detected for SONiC config context of device {device.name}"
                 )
-                return False
+                return (False, None) if return_diff else False
 
             # Log the unified diff
             logger.info(f"Configuration changes detected for device {device.name}:")
@@ -93,7 +96,7 @@ def save_config_to_netbox(device, config):
             sonic_context.data = new_config_data
             sonic_context.save()
             logger.info(f"Updated SONiC config context for device {device.name}")
-            return True
+            return (True, diff_output) if return_diff else True
         else:
             # Create new config context (no existing config to compare)
             context_data = {
@@ -108,11 +111,11 @@ def save_config_to_netbox(device, config):
             new_context.devices = [device.id]
             new_context.save()
             logger.info(f"Created new SONiC config context for device {device.name}")
-            return True
+            return (True, None) if return_diff else True
 
     except Exception as e:
         logger.error(f"Failed to save config context for device {device.name}: {e}")
-        return False
+        return (False, None) if return_diff else False
 
 
 def export_config_to_file(device, config):
