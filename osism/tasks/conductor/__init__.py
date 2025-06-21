@@ -48,8 +48,8 @@ def sync_ironic(self, force_update=False):
 
 
 @app.task(bind=True, name="osism.tasks.conductor.sync_sonic")
-def sync_sonic(self):
-    return _sync_sonic()
+def sync_sonic(self, device_name=None):
+    return _sync_sonic(device_name)
 
 
 __all__ = [

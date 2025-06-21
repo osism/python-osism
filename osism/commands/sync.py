@@ -24,6 +24,11 @@ class Sonic(Command):
     def get_parser(self, prog_name):
         parser = super(Sonic, self).get_parser(prog_name)
         parser.add_argument(
+            "device",
+            nargs="?",
+            help="Optional device name to sync configuration for a specific device",
+        )
+        parser.add_argument(
             "--no-wait",
             default=False,
             help="Do not wait until the sync has been completed",
@@ -33,14 +38,25 @@ class Sonic(Command):
 
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
+        device_name = parsed_args.device
 
-        task = conductor.sync_sonic.delay()
+        task = conductor.sync_sonic.delay(device_name)
         if wait:
-            logger.info(
-                f"Task {task.task_id} (sync sonic) is running. Wait. No more output."
-            )
+            if device_name:
+                logger.info(
+                    f"Task {task.task_id} (sync sonic for device {device_name}) is running. Wait. No more output."
+                )
+            else:
+                logger.info(
+                    f"Task {task.task_id} (sync sonic) is running. Wait. No more output."
+                )
             task.wait(timeout=None, interval=0.5)
         else:
-            logger.info(
-                f"Task {task.task_id} (sync sonic) is running in background. No more output."
-            )
+            if device_name:
+                logger.info(
+                    f"Task {task.task_id} (sync sonic for device {device_name}) is running in background. No more output."
+                )
+            else:
+                logger.info(
+                    f"Task {task.task_id} (sync sonic) is running in background. No more output."
+                )
