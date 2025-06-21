@@ -13,9 +13,9 @@ from .device import get_device_hostname
 
 
 def save_config_to_netbox(device, config, return_diff=False):
-    """Save SONiC configuration to NetBox device config context with diff checking.
+    """Save SONiC configuration to NetBox device local context with diff checking.
 
-    Checks for existing Config Context and only saves if configuration has changed.
+    Checks for existing local context and only saves if configuration has changed.
     Logs diff when changes are detected.
 
     Args:
@@ -28,37 +28,29 @@ def save_config_to_netbox(device, config, return_diff=False):
                       If return_diff is True, returns (changed, diff_output) tuple.
     """
     try:
-        # Get existing config contexts for the device
-        config_contexts = utils.nb.extras.config_contexts.filter(device_id=device.id)
+        # Get existing local context data
+        existing_local_context = device.local_context_data or {}
 
-        # Look for existing SONiC config context
-        sonic_context = None
-        for context in config_contexts:
-            if context.name == f"SONiC Config - {device.name}":
-                sonic_context = context
-                break
-
-        # Prepare new config context data
+        # Prepare new local context data
         new_config_data = {"sonic_config": config}
         diff_output = None
 
-        if sonic_context:
-            # Compare existing config with new config
-            existing_config = sonic_context.data or {}
+        if existing_local_context:
+            # Compare existing local context with new config
 
             # Generate diff
-            diff = DeepDiff(existing_config, new_config_data, ignore_order=True)
+            diff = DeepDiff(existing_local_context, new_config_data, ignore_order=True)
 
             if not diff:
                 logger.info(
-                    f"No changes detected for SONiC config context of device {device.name}"
+                    f"No changes detected for SONiC local context of device {device.name}"
                 )
                 return (False, None) if return_diff else False
 
             # Log the unified diff
             logger.info(f"Configuration changes detected for device {device.name}:")
             existing_json = json.dumps(
-                existing_config, indent=2, sort_keys=True
+                existing_local_context, indent=2, sort_keys=True
             ).splitlines()
             new_json = json.dumps(
                 new_config_data, indent=2, sort_keys=True
@@ -92,29 +84,22 @@ def save_config_to_netbox(device, config, return_diff=False):
             else:
                 logger.info(f"Diff: {diff}")
 
-            # Update existing config context
-            sonic_context.data = new_config_data
-            sonic_context.save()
-            logger.info(f"Updated SONiC config context for device {device.name}")
+            # Update existing local context
+            device.local_context_data = new_config_data
+            device.save()
+            logger.info(f"Updated SONiC local context for device {device.name}")
             return (True, diff_output) if return_diff else True
         else:
-            # Create new config context (no existing config to compare)
-            context_data = {
-                "name": f"SONiC Config - {device.name}",
-                "weight": 1000,
-                "data": new_config_data,
-                "is_active": True,
-            }
-
-            new_context = utils.nb.extras.config_contexts.create(**context_data)
-            # Assign the config context to the device
-            new_context.devices = [device.id]
-            new_context.save()
-            logger.info(f"Created new SONiC config context for device {device.name}")
+            # Create new local context (no existing context to compare)
+            device.local_context_data = new_config_data
+            device.save()
+            logger.info(
+                f"Created new SONiC local context for device {device.name} (first-time configuration)"
+            )
             return (True, None) if return_diff else True
 
     except Exception as e:
-        logger.error(f"Failed to save config context for device {device.name}: {e}")
+        logger.error(f"Failed to save local context for device {device.name}: {e}")
         return (False, None) if return_diff else False
 
 
