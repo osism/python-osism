@@ -14,12 +14,13 @@ from .exporter import save_config_to_netbox, export_config_to_file
 from .cache import clear_interface_cache, get_interface_cache_stats
 
 
-def sync_sonic(device_name=None, task_id=None):
+def sync_sonic(device_name=None, task_id=None, show_diff=True):
     """Sync SONiC configurations for eligible devices.
 
     Args:
         device_name (str, optional): Name of specific device to sync. If None, sync all eligible devices.
         task_id (str, optional): Task ID for output logging.
+        show_diff (bool, optional): Whether to show diffs when changes are detected. Defaults to True.
 
     Returns:
         dict: Dictionary with device names as keys and their SONiC configs as values
@@ -134,7 +135,22 @@ def sync_sonic(device_name=None, task_id=None):
         device_configs[device.name] = sonic_config
 
         # Save the generated configuration to NetBox config context (only if changed)
-        netbox_changed = save_config_to_netbox(device, sonic_config)
+        if show_diff:
+            netbox_changed, diff_output = save_config_to_netbox(
+                device, sonic_config, return_diff=True
+            )
+
+            # Output diff to task if available and there are changes
+            if task_id and netbox_changed and diff_output:
+                utils.push_task_output(task_id, f"\n{'='*60}\n")
+                utils.push_task_output(
+                    task_id, f"Configuration diff for {device.name}:\n"
+                )
+                utils.push_task_output(task_id, f"{'='*60}\n")
+                utils.push_task_output(task_id, f"{diff_output}\n")
+                utils.push_task_output(task_id, f"{'='*60}\n\n")
+        else:
+            netbox_changed = save_config_to_netbox(device, sonic_config)
 
         # Export the generated configuration to local file (only if changed)
         file_changed = export_config_to_file(device, sonic_config)
