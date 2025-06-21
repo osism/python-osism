@@ -132,14 +132,10 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
 
     config["DEVICE_METADATA"]["localhost"].update(
         {
-            "default_config_profile": "l3",
-            "frr_mgmt_framework_config": "true",
             "hostname": hostname,
             "hwsku": hwsku,
-            "intf_naming_mode": "standard",
             "platform": platform,
             "mac": mac_address,
-            "type": "LeafRouter",
         }
     )
 

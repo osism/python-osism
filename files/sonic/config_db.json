@@ -26,6 +26,57 @@
             "max_ibgp_paths": "2"
         }
     },
+    "BGP_GLOBALS_AF_NETWORK": {},
+    "BGP_NEIGHBOR": {},
+    "BGP_NEIGHBOR_AF": {},
+    "BREAKOUT_CFG": {},
+    "BREAKOUT_PORTS": {},
+    "CLASSIFIER_TABLE": {
+        "class-oob-arp": {
+            "DESCRIPTION": "",
+            "ETHER_TYPE": "0x806",
+            "MATCH_TYPE": "FIELDS"
+        },
+        "class-oob-dhcp-client": {
+            "DESCRIPTION": "",
+            "ETHER_TYPE": "0x800",
+            "IP_PROTOCOL": "17",
+            "L4_DST_PORT": "68",
+            "MATCH_TYPE": "FIELDS"
+        },
+        "class-oob-dhcp-server": {
+            "DESCRIPTION": "",
+            "ETHER_TYPE": "0x800",
+            "IP_PROTOCOL": "17",
+            "L4_DST_PORT": "67",
+            "MATCH_TYPE": "FIELDS"
+        },
+        "class-oob-ip-multicast": {
+            "DESCRIPTION": "",
+            "DST_IP": "224.0.0.0/4",
+            "ETHER_TYPE": "0x800",
+            "MATCH_TYPE": "FIELDS"
+        },
+        "class-oob-ipv6-multicast": {
+            "DESCRIPTION": "",
+            "DST_IPV6": "ff00::/8",
+            "ETHER_TYPE": "0x86DD",
+            "MATCH_TYPE": "FIELDS"
+        }
+    },
+    "COREDUMP": {
+        "config": {
+            "enabled": "true"
+        }
+    },
+    "DEVICE_METADATA": {
+        "localhost": {
+            "default_config_profile": "l3",
+            "frr_mgmt_framework_config": "true",
+            "intf_naming_mode": "standard",
+            "type": "LeafRouter"
+        }
+    },
     "ECMP_LOADSHARE_TABLE_IPV4": {
         "ipv4": {
             "ipv4_dst_ip": "true",
@@ -42,130 +93,6 @@
             "ipv6_l4_src_port": "true",
             "ipv6_next_hdr": "true",
             "ipv6_src_ip": "true"
-        }
-    },
-    "COREDUMP": {
-        "config": {
-            "enabled": "true"
-        }
-    },
-    "KDUMP": {
-        "config": {
-            "enabled": "true",
-            "memory": "0M-2G:256M,2G-4G:256M,4G-8G:384M,8G-:448M",
-            "num_dumps": "3"
-        }
-    },
-    "POLICY_BINDING_TABLE": {
-        "CtrlPlane": {
-            "INGRESS_QOS_POLICY": "oob-qos-policy"
-        }
-    },
-    "POLICY_SECTIONS_TABLE": {
-        "oob-qos-policy|class-oob-arp": {
-            "DESCRIPTION": "",
-            "PRIORITY": "1010",
-            "SET_POLICER_CIR": "256000"
-        },
-        "oob-qos-policy|class-oob-dhcp-client": {
-            "DESCRIPTION": "",
-            "PRIORITY": "1020",
-            "SET_POLICER_CIR": "512000"
-        },
-        "oob-qos-policy|class-oob-dhcp-server": {
-            "DESCRIPTION": "",
-            "PRIORITY": "1015",
-            "SET_POLICER_CIR": "512000"
-        },
-        "oob-qos-policy|class-oob-ip-multicast": {
-            "DESCRIPTION": "",
-            "PRIORITY": "1000",
-            "SET_POLICER_CIR": "256000"
-        },
-        "oob-qos-policy|class-oob-ipv6-multicast": {
-            "DESCRIPTION": "",
-            "PRIORITY": "1005",
-            "SET_POLICER_CIR": "256000"
-        }
-    },
-    "POLICY_TABLE": {
-        "oob-qos-policy": {
-            "DESCRIPTION": "QoS Ratelimiting policy for OOB port",
-            "TYPE": "QOS"
-        }
-    },
-    "MGMT_PORT": {
-        "eth0": {
-            "admin_status": "up",
-            "autoneg": "true",
-            "description": "Management0",
-            "mtu": "1500",
-            "speed": "1000"
-        }
-    },
-    "MGMT_VRF_CONFIG": {
-        "vrf_global": {
-            "mgmtVrfEnabled": "true"
-        }
-    },
-    "NAT_GLOBAL": {
-        "Values": {
-            "admin_mode": "disabled",
-            "nat_tcp_timeout": "86400",
-            "nat_timeout": "600",
-            "nat_udp_timeout": "300"
-        }
-    },
-    "NEIGH_GLOBAL": {
-        "Values": {
-            "ipv4_arp_timeout": "1800",
-            "ipv6_nd_cache_expiry": "1800"
-        }
-    },
-    "FLEX_COUNTER_TABLE": {
-        "PFCWD": {
-            "FLEX_COUNTER_STATUS": "enable"
-        },
-        "PHY": {
-            "FLEX_COUNTER_STATUS": "enable"
-        },
-        "PORT": {
-            "FLEX_COUNTER_STATUS": "enable"
-        },
-        "QUEUE": {
-            "FLEX_COUNTER_STATUS": "enable"
-        },
-        "RIF": {
-            "FLEX_COUNTER_STATUS": "enable"
-        },
-        "TUNNEL": {
-            "FLEX_COUNTER_STATUS": "enable"
-        }
-    },
-    "HARDWARE": {
-        "ACCESS_LIST": {
-            "COUNTER_MODE": "per-rule",
-            "LOOKUP_MODE": "optimized"
-        }
-    },
-    "HOST_FEATURE": {
-        "caclmgrd": {
-            "check_up_status": "False"
-        },
-        "cron": {
-            "check_up_status": "False"
-        },
-        "docker": {
-            "check_up_status": "False"
-        },
-        "hostcfgd": {
-            "check_up_status": "False"
-        },
-        "warmboot-finalizer": {
-            "check_up_status": "True"
-        },
-        "xphyd": {
-            "check_up_status": "True"
         }
     },
     "FEATURE": {
@@ -338,6 +265,138 @@
             "state": "enabled"
         }
     },
+    "FLEX_COUNTER_TABLE": {
+        "PFCWD": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "PHY": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "PORT": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "QUEUE": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "RIF": {
+            "FLEX_COUNTER_STATUS": "enable"
+        },
+        "TUNNEL": {
+            "FLEX_COUNTER_STATUS": "enable"
+        }
+    },
+    "HARDWARE": {
+        "ACCESS_LIST": {
+            "COUNTER_MODE": "per-rule",
+            "LOOKUP_MODE": "optimized"
+        }
+    },
+    "HOST_FEATURE": {
+        "caclmgrd": {
+            "check_up_status": "False"
+        },
+        "cron": {
+            "check_up_status": "False"
+        },
+        "docker": {
+            "check_up_status": "False"
+        },
+        "hostcfgd": {
+            "check_up_status": "False"
+        },
+        "warmboot-finalizer": {
+            "check_up_status": "True"
+        },
+        "xphyd": {
+            "check_up_status": "True"
+        }
+    },
+    "INTERFACE": {},
+    "KDUMP": {
+        "config": {
+            "enabled": "true",
+            "memory": "0M-2G:256M,2G-4G:256M,4G-8G:384M,8G-:448M",
+            "num_dumps": "3"
+        }
+    },
+    "LOOPBACK": {},
+    "LOOPBACK_INTERFACE": {},
+    "MGMT_INTERFACE": {},
+    "MGMT_PORT": {
+        "eth0": {
+            "admin_status": "up",
+            "autoneg": "true",
+            "description": "Management0",
+            "mtu": "1500",
+            "speed": "1000"
+        }
+    },
+    "MGMT_VRF_CONFIG": {
+        "vrf_global": {
+            "mgmtVrfEnabled": "true"
+        }
+    },
+    "NAT_GLOBAL": {
+        "Values": {
+            "admin_mode": "disabled",
+            "nat_tcp_timeout": "86400",
+            "nat_timeout": "600",
+            "nat_udp_timeout": "300"
+        }
+    },
+    "NEIGH_GLOBAL": {
+        "Values": {
+            "ipv4_arp_timeout": "1800",
+            "ipv6_nd_cache_expiry": "1800"
+        }
+    },
+    "NTP_SERVER": {},
+    "POLICY_BINDING_TABLE": {
+        "CtrlPlane": {
+            "INGRESS_QOS_POLICY": "oob-qos-policy"
+        }
+    },
+    "POLICY_SECTIONS_TABLE": {
+        "oob-qos-policy|class-oob-arp": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1010",
+            "SET_POLICER_CIR": "256000"
+        },
+        "oob-qos-policy|class-oob-dhcp-client": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1020",
+            "SET_POLICER_CIR": "512000"
+        },
+        "oob-qos-policy|class-oob-dhcp-server": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1015",
+            "SET_POLICER_CIR": "512000"
+        },
+        "oob-qos-policy|class-oob-ip-multicast": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1000",
+            "SET_POLICER_CIR": "256000"
+        },
+        "oob-qos-policy|class-oob-ipv6-multicast": {
+            "DESCRIPTION": "",
+            "PRIORITY": "1005",
+            "SET_POLICER_CIR": "256000"
+        }
+    },
+    "POLICY_TABLE": {
+        "oob-qos-policy": {
+            "DESCRIPTION": "QoS Ratelimiting policy for OOB port",
+            "TYPE": "QOS"
+        }
+    },
+    "PORT": {},
+    "PORTCHANNEL": {},
+    "PORTCHANNEL_INTERFACE": {},
+    "PORTCHANNEL_MEMBER": {},
+    "ROUTE_REDISTRIBUTE": {
+        "default|connected|bgp|ipv4": {},
+        "default|connected|bgp|ipv6": {}
+    },
     "SNMP": {
         "LOCATION": {
             "Location": "public"
@@ -364,6 +423,12 @@
             "fdb_aging_time": "600"
         }
     },
+    "TELEMETRY": {
+        "gnmi": {}
+    },
+    "VLAN": {},
+    "VLAN_INTERFACE": {},
+    "VLAN_MEMBER": {},
     "VRF": {
         "default": {
             "enabled": "true"
@@ -380,45 +445,5 @@
             "out-of-band": "true",
             "profile": "active"
         }
-    },
-    "TELEMETRY": {
-        "gnmi": {}
-    },
-    "CLASSIFIER_TABLE": {
-        "class-oob-arp": {
-            "DESCRIPTION": "",
-            "ETHER_TYPE": "0x806",
-            "MATCH_TYPE": "FIELDS"
-        },
-        "class-oob-dhcp-client": {
-            "DESCRIPTION": "",
-            "ETHER_TYPE": "0x800",
-            "IP_PROTOCOL": "17",
-            "L4_DST_PORT": "68",
-            "MATCH_TYPE": "FIELDS"
-        },
-        "class-oob-dhcp-server": {
-            "DESCRIPTION": "",
-            "ETHER_TYPE": "0x800",
-            "IP_PROTOCOL": "17",
-            "L4_DST_PORT": "67",
-            "MATCH_TYPE": "FIELDS"
-        },
-        "class-oob-ip-multicast": {
-            "DESCRIPTION": "",
-            "DST_IP": "224.0.0.0/4",
-            "ETHER_TYPE": "0x800",
-            "MATCH_TYPE": "FIELDS"
-        },
-        "class-oob-ipv6-multicast": {
-            "DESCRIPTION": "",
-            "DST_IPV6": "ff00::/8",
-            "ETHER_TYPE": "0x86DD",
-            "MATCH_TYPE": "FIELDS"
-        }
-    },
-    "ROUTE_REDISTRIBUTE": {
-        "default|connected|bgp|ipv4": {},
-        "default|connected|bgp|ipv6": {}
     }
 }
