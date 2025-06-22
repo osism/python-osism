@@ -652,10 +652,40 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
         connected_as = None
         if device_as_mapping and connected_device.id in device_as_mapping:
             connected_as = device_as_mapping[connected_device.id]
-        elif connected_device.primary_ip4:
-            connected_as = calculate_local_asn_from_ipv4(
-                str(connected_device.primary_ip4.address)
-            )
+        else:
+            # If connected device is not in device_as_mapping, check if it's a spine/superspine
+            # and calculate AS for its group
+            if connected_device.role and connected_device.role.slug in [
+                "spine",
+                "superspine",
+            ]:
+                # Import here to avoid circular imports
+                from .bgp import calculate_minimum_as_for_group
+                from .connections import find_interconnected_devices
+
+                # Get all devices to find the group
+                all_devices = list(
+                    utils.nb.dcim.devices.filter(role=["spine", "superspine"])
+                )
+                spine_groups = find_interconnected_devices(
+                    all_devices, ["spine", "superspine"]
+                )
+
+                # Find which group the connected device belongs to
+                for group in spine_groups:
+                    if any(dev.id == connected_device.id for dev in group):
+                        connected_as = calculate_minimum_as_for_group(group)
+                        if connected_as:
+                            logger.debug(
+                                f"Calculated AS {connected_as} for connected spine/superspine device {connected_device.name}"
+                            )
+                        break
+
+            # Fallback to calculating from IPv4 if still no AS
+            if not connected_as and connected_device.primary_ip4:
+                connected_as = calculate_local_asn_from_ipv4(
+                    str(connected_device.primary_ip4.address)
+                )
 
         # Compare AS numbers
         if local_as and connected_as and local_as == connected_as:
