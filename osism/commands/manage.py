@@ -424,15 +424,15 @@ class Sonic(Command):
                     )
                     return 1
 
-            # Get device configuration from local_config_context
+            # Get device configuration from local_context_data
             if (
-                not hasattr(device, "local_config_context")
-                or not device.local_config_context
+                not hasattr(device, "local_context_data")
+                or not device.local_context_data
             ):
-                logger.error(f"Device {hostname} has no local_config_context in NetBox")
+                logger.error(f"Device {hostname} has no local_context_data in NetBox")
                 return 1
 
-            config_context = device.local_config_context
+            config_context = device.local_context_data
 
             # Save config context to local /tmp directory
             config_context_file = f"/tmp/config_db_{hostname}_{today}.json"
