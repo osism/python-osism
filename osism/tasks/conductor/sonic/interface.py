@@ -558,9 +558,14 @@ def detect_breakout_ports(device):
                                     )
                                     continue
 
+                                # Calculate physical port number (1/1 -> port 1, 1/2 -> port 2, etc.)
+                                physical_port_num = f"{module}/{port}"
+
                                 # Add breakout config for master port
                                 breakout_cfgs[master_port] = {
+                                    "breakout_owner": "MANUAL",
                                     "brkout_mode": brkout_mode,
+                                    "port": physical_port_num,
                                 }
 
                                 # Add all subports to breakout_ports
@@ -634,12 +639,15 @@ def detect_breakout_ports(device):
                     else:
                         continue  # Skip unsupported speeds
 
-                    # Calculate physical port number
-                    physical_port_num = (base_port // 4) + 1
+                    # Calculate physical port number (Ethernet0-3 -> port 1/1, Ethernet4-7 -> port 1/2, etc.)
+                    physical_port_index = (base_port // 4) + 1
+                    physical_port_num = f"1/{physical_port_index}"
 
                     # Add breakout config for master port
                     breakout_cfgs[master_port] = {
+                        "breakout_owner": "MANUAL",
                         "brkout_mode": brkout_mode,
+                        "port": physical_port_num,
                     }
 
                     # Add all ports to breakout_ports
