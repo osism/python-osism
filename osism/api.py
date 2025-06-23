@@ -79,27 +79,32 @@ baremetal_events = BaremetalEvents()
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"result": "ok"}
 
 
-@app.post("/meters/sink")
+@app.get("/v1")
+async def v1():
+    return {"result": "ok"}
+
+
+@app.post("/v1/meters/sink")
 async def write_sink_meters(request: Request):
     data = await request.json()
 
 
-@app.post("/events/sink")
+@app.post("/v1/events/sink")
 async def write_sink_events(request: Request):
     data = await request.json()
 
 
-@app.post("/notifications/baremetal", status_code=204)
+@app.post("/v1/notifications/baremetal", status_code=204)
 async def notifications_baremetal(notification: NotificationBaremetal) -> None:
 
     handler = baremetal_events.get_handler(notification.event_type)
     handler(notification.payload)
 
 
-@app.post("/webhook/netbox", response_model=WebhookNetboxResponse, status_code=200)
+@app.post("/v1/webhook/netbox", response_model=WebhookNetboxResponse, status_code=200)
 async def webhook(
     webhook_input: WebhookNetboxData,
     request: Request,
