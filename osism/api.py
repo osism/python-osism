@@ -5,7 +5,7 @@ from logging.config import dictConfig
 import logging
 from uuid import UUID
 
-from fastapi import FastAPI, Header, Request, Response
+from fastapi import FastAPI, Header, Request, Response, Query
 from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
@@ -154,3 +154,8 @@ async def webhook(
 
     else:
         return {"result": "webhook netbox not enabled"}
+
+
+@app.get("/sonic/ztp")
+async def sonic_ztp(hwsku: str = Query(...)):
+    return {"result": "ok"}
