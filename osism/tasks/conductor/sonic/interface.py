@@ -237,14 +237,27 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
     - tenGigE1 alias maps to Eth1/1/1 or Eth1/1
     - tenGigE48 alias maps to Eth1/48/1 or Eth1/48
     - hundredGigE49 alias maps to Eth1/49/1 or Eth1/49
+    - Eth1(Port1) -> Ethernet0, Eth2(Port2) -> Ethernet1, Eth3(Port) -> Ethernet2
 
     Args:
-        interface_name: NetBox interface name (e.g., "Eth1/1" or "Eth1/1/1")
+        interface_name: NetBox interface name (e.g., "Eth1/1", "Eth1/1/1", or "Eth1(Port1)")
         port_config: Port configuration dictionary
 
     Returns:
         str: SONiC interface name or original name if not found
     """
+    # Handle new Eth1(Port1) format first
+    paren_match = re.match(r"Eth(\d+)\(Port(\d*)\)", interface_name)
+    if paren_match:
+        eth_num = int(paren_match.group(1))
+        # Map EthX(PortY) to EthernetX-1 (1-based to 0-based conversion)
+        ethernet_num = eth_num - 1
+        sonic_name = f"Ethernet{ethernet_num}"
+        logger.debug(
+            f"Alias mapping: {interface_name} -> {sonic_name} via Eth(Port) format"
+        )
+        return sonic_name
+
     # Create reverse mapping: expected NetBox name -> alias -> SONiC name
     for sonic_port, config in port_config.items():
         alias = config.get("alias", "")
