@@ -104,6 +104,52 @@ async def notifications_baremetal(notification: NotificationBaremetal) -> None:
     handler(notification.payload)
 
 
+@app.post("/v1/switches/{identifier}/ztp/complete")
+async def switches_ztp_complete(identifier: str):
+    if not utils.nb:
+        return {"result": "netbox not enabled"}
+
+    device = None
+
+    # Search by device name
+    devices = utils.nb.dcim.devices.filter(name=identifier)
+    if devices:
+        device = devices[0]
+
+    # Search by inventory_hostname custom field
+    if not device:
+        devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=identifier)
+        if devices:
+            device = devices[0]
+
+    # Search by hwsku in sonic_parameters custom field
+    if not device:
+        all_devices = utils.nb.dcim.devices.all()
+        for d in all_devices:
+            if d.custom_fields and d.custom_fields.get("sonic_parameters"):
+                sonic_params = d.custom_fields["sonic_parameters"]
+                if (
+                    isinstance(sonic_params, dict)
+                    and sonic_params.get("hwsku") == identifier
+                ):
+                    device = d
+                    break
+
+    if device:
+        logger.info(
+            f"Found device {device.name} for ZTP complete with identifier {identifier}"
+        )
+
+        # Set provision_state custom field to active
+        device.custom_fields["provision_state"] = "active"
+        device.save()
+
+        return {"result": "ok", "device": device.name}
+    else:
+        logger.warning(f"No device found for ZTP complete with identifier {identifier}")
+        return {"result": "device not found"}
+
+
 @app.post("/v1/webhook/netbox", response_model=WebhookNetboxResponse, status_code=200)
 async def webhook(
     webhook_input: WebhookNetboxData,
