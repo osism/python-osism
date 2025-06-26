@@ -350,6 +350,12 @@
             "ipv6_nd_cache_expiry": "1800"
         }
     },
+    "NTP": {
+	"global": {
+	    "auth_enabled": "false",
+	    "vrf": "mgmt"
+	}
+    },
     "NTP_SERVER": {},
     "POLICY_BINDING_TABLE": {
         "CtrlPlane": {
