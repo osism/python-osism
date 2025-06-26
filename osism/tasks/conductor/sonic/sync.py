@@ -82,7 +82,32 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
     logger.info(f"Found {len(devices)} devices matching criteria")
 
     # Find interconnected spine/superspine groups for special AS calculation
-    spine_groups = find_interconnected_devices(devices, ["spine", "superspine"])
+    # When processing a single device, we need to consider all spine/superspine devices
+    # to properly detect interconnected groups, not just the requested device
+    if device_name and devices:
+        # Check if the single device is a spine/superspine
+        target_device = devices[0]
+        if target_device.role and target_device.role.slug in ["spine", "superspine"]:
+            # Fetch ALL spine/superspine devices to properly detect groups
+            logger.debug(
+                "Single spine/superspine device detected, fetching all spine/superspine devices for group detection"
+            )
+            all_spine_devices = []
+            nb_device_query_list = get_nb_device_query_list_sonic()
+            for nb_device_query in nb_device_query_list:
+                for device in utils.nb.dcim.devices.filter(**nb_device_query):
+                    if device.role and device.role.slug in ["spine", "superspine"]:
+                        all_spine_devices.append(device)
+            spine_groups = find_interconnected_devices(
+                all_spine_devices, ["spine", "superspine"]
+            )
+        else:
+            # For non-spine devices, use the original logic
+            spine_groups = find_interconnected_devices(devices, ["spine", "superspine"])
+    else:
+        # For multi-device processing, use the original logic
+        spine_groups = find_interconnected_devices(devices, ["spine", "superspine"])
+
     logger.info(f"Found {len(spine_groups)} interconnected spine/superspine groups")
 
     # Create mapping from device ID to its assigned AS number
