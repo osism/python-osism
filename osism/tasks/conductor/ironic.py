@@ -235,23 +235,21 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
                     details=False, attributes=dict(node_uuid=node["uuid"])
                 )
                 # NOTE: Baremetal ports are only required for (i)pxe boot
-                if node["boot_interface"] in ["pxe", "ipxe"]:
-                    for port_attributes in ports_attributes:
-                        port_attributes.update({"node_id": node["uuid"]})
-                        port = [
-                            port
-                            for port in node_ports
-                            if port_attributes["address"].upper()
-                            == port["address"].upper()
-                        ]
-                        if not port:
-                            osism_utils.push_task_output(
-                                request_id,
-                                f"Creating baremetal port with MAC address {port_attributes['address']} for {device.name}\n",
-                            )
-                            openstack.baremetal_port_create(port_attributes)
-                        else:
-                            node_ports.remove(port[0])
+                for port_attributes in ports_attributes:
+                    port_attributes.update({"node_id": node["uuid"]})
+                    port = [
+                        port
+                        for port in node_ports
+                        if port_attributes["address"].upper() == port["address"].upper()
+                    ]
+                    if not port:
+                        osism_utils.push_task_output(
+                            request_id,
+                            f"Creating baremetal port with MAC address {port_attributes['address']} for {device.name}\n",
+                        )
+                        openstack.baremetal_port_create(port_attributes)
+                    else:
+                        node_ports.remove(port[0])
                 for node_port in node_ports:
                     # NOTE: Delete remaining ports not found in NetBox
                     osism_utils.push_task_output(
