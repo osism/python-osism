@@ -246,6 +246,9 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
     Returns:
         str: SONiC interface name or original name if not found
     """
+    logger.debug(f"Finding SONiC name for interface: '{interface_name}'")
+    logger.debug(f"Port config contains {len(port_config)} entries")
+
     # Handle new Eth1(Port1) format first
     paren_match = re.match(r"Eth(\d+)\(Port(\d*)\)", interface_name)
     if paren_match:
@@ -254,7 +257,7 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
         ethernet_num = eth_num - 1
         sonic_name = f"Ethernet{ethernet_num}"
         logger.debug(
-            f"Alias mapping: {interface_name} -> {sonic_name} via Eth(Port) format"
+            f"Alias mapping: {interface_name} -> {sonic_name} via Eth(Port) format (eth_num={eth_num}, ethernet_num={ethernet_num})"
         )
         return sonic_name
 
@@ -262,11 +265,15 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
     for sonic_port, config in port_config.items():
         alias = config.get("alias", "")
         if not alias:
+            logger.debug(f"Skipping {sonic_port}: no alias")
             continue
 
         # Extract number from alias (e.g., tenGigE1 -> 1, hundredGigE49 -> 49)
         alias_match = re.search(r"(\d+)$", alias)
         if not alias_match:
+            logger.debug(
+                f"Skipping {sonic_port}: alias '{alias}' has no trailing number"
+            )
             continue
 
         alias_num = int(alias_match.group(1))
@@ -277,13 +284,20 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
             f"Eth1/{alias_num}/1",  # Breakout format (first subport)
         ]
 
+        logger.debug(
+            f"Checking {sonic_port} (alias='{alias}', alias_num={alias_num}) against expected_names: {expected_names}"
+        )
+
         if interface_name in expected_names:
             logger.debug(
                 f"Alias mapping: {interface_name} -> {sonic_port} via alias {alias}"
             )
             return sonic_port
 
-    logger.warning(f"No alias mapping found for {interface_name}")
+    logger.warning(f"No alias mapping found for '{interface_name}'")
+    logger.debug(
+        f"Available aliases in port_config: {[(sonic_port, config.get('alias', '')) for sonic_port, config in port_config.items()]}"
+    )
     return interface_name
 
 
@@ -305,13 +319,21 @@ def convert_sonic_interface_to_alias(
         - Regular other speeds: Ethernet0 -> Eth1/1, Ethernet1 -> Eth1/2, Ethernet2 -> Eth1/3
         - Breakout ports: Ethernet0 -> Eth1/1/1, Ethernet1 -> Eth1/1/2, Ethernet2 -> Eth1/1/3, Ethernet3 -> Eth1/1/4
     """
+    logger.debug(
+        f"Converting SONiC interface to alias: {sonic_interface_name}, speed={interface_speed}, is_breakout={is_breakout}"
+    )
+
     # Extract port number from SONiC format (Ethernet0, Ethernet4, etc.)
     match = re.match(r"Ethernet(\d+)", sonic_interface_name)
     if not match:
         # If it doesn't match expected pattern, return as-is
+        logger.debug(
+            f"Interface {sonic_interface_name} doesn't match Ethernet pattern, returning as-is"
+        )
         return sonic_interface_name
 
     sonic_port_number = int(match.group(1))
+    logger.debug(f"Extracted sonic_port_number: {sonic_port_number}")
 
     if is_breakout:
         # For breakout ports: Ethernet0 -> Eth1/1/1, Ethernet1 -> Eth1/1/2, etc.
@@ -325,7 +347,11 @@ def convert_sonic_interface_to_alias(
         # Assume module 1 for now - could be extended for multi-module systems
         module = 1
 
-        return f"Eth{module}/{physical_port}/{subport}"
+        result = f"Eth{module}/{physical_port}/{subport}"
+        logger.debug(
+            f"Breakout conversion: base_port={base_port}, subport={subport}, physical_port={physical_port}, result={result}"
+        )
+        return result
     else:
         # For regular ports: use speed-based calculation
         # Determine speed category and multiplier
@@ -336,6 +362,10 @@ def convert_sonic_interface_to_alias(
             # Default for 1G, 10G, 25G ports - sequential numbering
             multiplier = 1
 
+        logger.debug(
+            f"Regular port calculation: interface_speed={interface_speed}, in_high_speed={interface_speed in HIGH_SPEED_PORTS if interface_speed else False}, multiplier={multiplier}"
+        )
+
         # Calculate physical port number
         physical_port = (
             sonic_port_number // multiplier
@@ -344,7 +374,11 @@ def convert_sonic_interface_to_alias(
         # Assume module 1 for now - could be extended for multi-module systems
         module = 1
 
-        return f"Eth{module}/{physical_port}"
+        result = f"Eth{module}/{physical_port}"
+        logger.debug(
+            f"Regular conversion: sonic_port_number={sonic_port_number}, physical_port={physical_port}, result={result}"
+        )
+        return result
 
 
 def get_port_config(hwsku):
