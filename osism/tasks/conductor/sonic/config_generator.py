@@ -726,6 +726,93 @@ def _add_loopback_bgp_neighbors(
         logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")
 
 
+def _get_ntp_server_for_device(device):
+    """Get single NTP server IP for a SONiC device based on OOB connection to metalbox.
+
+    Returns the IP address of the metalbox device interface that is connected to the
+    OOB switch. If VLANs are used, returns the IP of the VLAN interface where the
+    SONiC switch management interface (eth0) has access.
+
+    Args:
+        device: SONiC device object
+
+    Returns:
+        str: IP address of the NTP server or None if not found
+    """
+    try:
+        # Get the OOB IP configuration for this SONiC device
+        oob_ip_result = get_device_oob_ip(device)
+        if not oob_ip_result:
+            logger.debug(f"No OOB IP found for device {device.name}")
+            return None
+
+        oob_ip, prefix_len = oob_ip_result
+        logger.debug(f"Device {device.name} has OOB IP {oob_ip}/{prefix_len}")
+
+        # Find the network/subnet that contains this OOB IP
+        from ipaddress import IPv4Network, IPv4Address
+
+        device_network = IPv4Network(f"{oob_ip}/{prefix_len}", strict=False)
+
+        # Get all metalbox devices
+        metalbox_devices = utils.nb.dcim.devices.filter(role="metalbox")
+
+        for metalbox in metalbox_devices:
+            logger.debug(f"Checking metalbox device {metalbox.name} for NTP server")
+
+            # Get all interfaces on this metalbox
+            interfaces = utils.nb.dcim.interfaces.filter(device_id=metalbox.id)
+
+            for interface in interfaces:
+                # Skip management-only interfaces
+                if hasattr(interface, "mgmt_only") and interface.mgmt_only:
+                    continue
+
+                # Check both physical interfaces and VLAN interfaces (SVIs)
+                # VLAN interfaces are typically named "Vlan123" for VLAN ID 123
+                is_vlan_interface = (
+                    hasattr(interface, "type")
+                    and interface.type
+                    and interface.type.value == "virtual"
+                    and interface.name.startswith("Vlan")
+                )
+
+                # Get IP addresses for this interface
+                ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                    assigned_object_id=interface.id,
+                )
+
+                for ip_addr in ip_addresses:
+                    if ip_addr.address:
+                        # Extract IP address without prefix
+                        ip_only = ip_addr.address.split("/")[0]
+
+                        # Check if it's IPv4 and in the same network as the SONiC device
+                        try:
+                            metalbox_ip = IPv4Address(ip_only)
+                            if metalbox_ip in device_network:
+                                interface_type = (
+                                    "VLAN interface"
+                                    if is_vlan_interface
+                                    else "interface"
+                                )
+                                logger.info(
+                                    f"Found NTP server {ip_only} on metalbox {metalbox.name} "
+                                    f"{interface_type} {interface.name} for SONiC device {device.name}"
+                                )
+                                return ip_only
+                        except ValueError:
+                            # Skip non-IPv4 addresses
+                            continue
+
+        logger.warning(f"No suitable NTP server found for SONiC device {device.name}")
+        return None
+
+    except Exception as e:
+        logger.warning(f"Could not determine NTP server for device {device.name}: {e}")
+        return None
+
+
 def _get_ntp_servers():
     """Get NTP servers from manager/metalbox devices. Uses caching to avoid repeated queries."""
     global _ntp_servers_cache
@@ -785,20 +872,27 @@ def _get_ntp_servers():
 
 
 def _add_ntp_configuration(config, device):
-    """Add NTP_SERVER configuration to device config."""
+    """Add NTP_SERVER configuration to device config.
+
+    Each SONiC switch gets exactly one NTP server - the IP address of the
+    metalbox device interface connected to the OOB switch.
+    """
     try:
-        ntp_servers = _get_ntp_servers()
+        # Get the specific NTP server for this device
+        ntp_server_ip = _get_ntp_server_for_device(device)
 
-        # Add NTP servers to this device's configuration
-        for ip, ntp_config in ntp_servers.items():
-            config["NTP_SERVER"][ip] = copy.deepcopy(ntp_config)
-
-        if ntp_servers:
-            logger.debug(
-                f"Added {len(ntp_servers)} NTP servers to device {device.name}"
+        if ntp_server_ip:
+            # Add single NTP server configuration
+            config["NTP_SERVER"][ntp_server_ip] = {
+                "maxpoll": "10",
+                "minpoll": "6",
+                "prefer": "false",
+            }
+            logger.info(
+                f"Added NTP server {ntp_server_ip} to SONiC device {device.name}"
             )
         else:
-            logger.debug(f"No NTP servers found for device {device.name}")
+            logger.warning(f"No NTP server found for SONiC device {device.name}")
 
     except Exception as e:
         logger.warning(f"Could not add NTP configuration to device {device.name}: {e}")
