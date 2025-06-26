@@ -302,7 +302,7 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
 
 
 def convert_sonic_interface_to_alias(
-    sonic_interface_name, interface_speed=None, is_breakout=False
+    sonic_interface_name, interface_speed=None, is_breakout=False, port_config=None
 ):
     """Convert SONiC interface name to NetBox-style alias.
 
@@ -310,14 +310,14 @@ def convert_sonic_interface_to_alias(
         sonic_interface_name: SONiC interface name (e.g., "Ethernet0", "Ethernet4")
         interface_speed: Interface speed in Mbps (optional, for speed-based calculation)
         is_breakout: Whether this is a breakout port (adds subport notation)
+        port_config: Port configuration dictionary (optional, for alias-based calculation)
 
     Returns:
         str: NetBox-style alias (e.g., "Eth1/1", "Eth1/2" or "Eth1/1/1", "Eth1/1/2" for breakout)
 
     Examples:
-        - Regular 100G ports: Ethernet0 -> Eth1/1, Ethernet4 -> Eth1/2, Ethernet8 -> Eth1/3
-        - Regular other speeds: Ethernet0 -> Eth1/1, Ethernet1 -> Eth1/2, Ethernet2 -> Eth1/3
-        - Breakout ports: Ethernet0 -> Eth1/1/1, Ethernet1 -> Eth1/1/2, Ethernet2 -> Eth1/1/3, Ethernet3 -> Eth1/1/4
+        - Regular ports: Ethernet0 with alias "twentyFiveGigE1" -> Eth1/1
+        - Breakout ports: Ethernet2 with base port alias "twentyFiveGigE1" -> Eth1/1/3
     """
     logger.debug(
         f"Converting SONiC interface to alias: {sonic_interface_name}, speed={interface_speed}, is_breakout={is_breakout}"
@@ -332,14 +332,112 @@ def convert_sonic_interface_to_alias(
         )
         return sonic_interface_name
 
-    sonic_port_number = int(match.group(1))
-    logger.debug(f"Extracted sonic_port_number: {sonic_port_number}")
+    ethernet_num = int(match.group(1))
+    logger.debug(f"Extracted ethernet_num: {ethernet_num}")
+
+    # If port_config is provided, use alias-based calculation
+    if port_config:
+        return _convert_using_port_config(
+            sonic_interface_name, ethernet_num, is_breakout, port_config
+        )
+
+    # Fallback to legacy speed-based calculation
+    return _convert_using_speed_calculation(ethernet_num, interface_speed, is_breakout)
+
+
+def _convert_using_port_config(
+    sonic_interface_name, ethernet_num, is_breakout, port_config
+):
+    """Convert using port config alias information."""
+    if is_breakout:
+        # For breakout ports, find the base port in port_config
+        base_port_name = _find_base_port_for_breakout(ethernet_num, port_config)
+        if base_port_name and base_port_name in port_config:
+            base_alias = port_config[base_port_name].get("alias", "")
+            # Extract port number from base alias
+            sonic_port_number = _extract_port_number_from_alias(base_alias)
+            if sonic_port_number is not None:
+                # Calculate subport number: how many ports after the base port
+                base_ethernet_num = int(base_port_name.replace("Ethernet", ""))
+                subport = (ethernet_num - base_ethernet_num) + 1
+
+                module = 1
+                result = f"Eth{module}/{sonic_port_number}/{subport}"
+                logger.debug(
+                    f"Breakout conversion using port config: {sonic_interface_name} -> {result} "
+                    f"(base_port={base_port_name}, base_alias={base_alias}, sonic_port_number={sonic_port_number}, subport={subport})"
+                )
+                return result
+
+        # Fallback if base port not found
+        logger.warning(
+            f"Could not find base port for breakout interface {sonic_interface_name}"
+        )
+        return _convert_using_speed_calculation(ethernet_num, None, is_breakout)
+    else:
+        # For regular ports, get alias directly
+        if sonic_interface_name in port_config:
+            alias = port_config[sonic_interface_name].get("alias", "")
+            sonic_port_number = _extract_port_number_from_alias(alias)
+            if sonic_port_number is not None:
+                module = 1
+                result = f"Eth{module}/{sonic_port_number}"
+                logger.debug(
+                    f"Regular conversion using port config: {sonic_interface_name} -> {result} "
+                    f"(alias={alias}, sonic_port_number={sonic_port_number})"
+                )
+                return result
+
+        # Fallback if not in port config
+        logger.warning(f"Interface {sonic_interface_name} not found in port config")
+        return _convert_using_speed_calculation(ethernet_num, None, is_breakout)
+
+
+def _find_base_port_for_breakout(ethernet_num, port_config):
+    """Find the base port for a breakout interface.
+
+    The base port is the next smaller or equal port that exists in port_config.
+    E.g., for Ethernet2 -> check Ethernet2, Ethernet1, Ethernet0 until found.
+    """
+    for base_num in range(ethernet_num, -1, -1):
+        base_port_name = f"Ethernet{base_num}"
+        if base_port_name in port_config:
+            logger.debug(
+                f"Found base port {base_port_name} for breakout interface Ethernet{ethernet_num}"
+            )
+            return base_port_name
+
+    logger.warning(f"No base port found for breakout interface Ethernet{ethernet_num}")
+    return None
+
+
+def _extract_port_number_from_alias(alias):
+    """Extract the port number from the end of an alias.
+
+    E.g., "twentyFiveGigE1" -> 1, "hundredGigE49" -> 49
+    """
+    if not alias:
+        return None
+
+    match = re.search(r"(\d+)$", alias)
+    if match:
+        port_number = int(match.group(1))
+        logger.debug(f"Extracted port number {port_number} from alias '{alias}'")
+        return port_number
+
+    logger.warning(f"Could not extract port number from alias '{alias}'")
+    return None
+
+
+def _convert_using_speed_calculation(ethernet_num, interface_speed, is_breakout):
+    """Legacy speed-based conversion (fallback)."""
+    logger.debug(f"Using legacy speed-based calculation for Ethernet{ethernet_num}")
 
     if is_breakout:
         # For breakout ports: Ethernet0 -> Eth1/1/1, Ethernet1 -> Eth1/1/2, etc.
         # Calculate base port (master port) and subport number
-        base_port = (sonic_port_number // 4) * 4  # Get base port (0, 4, 8, 12, ...)
-        subport = (sonic_port_number % 4) + 1  # Get subport number (1, 2, 3, 4)
+        base_port = (ethernet_num // 4) * 4  # Get base port (0, 4, 8, 12, ...)
+        subport = (ethernet_num % 4) + 1  # Get subport number (1, 2, 3, 4)
 
         # Calculate physical port number for the base port
         physical_port = (base_port // 4) + 1  # Convert to 1-based indexing
@@ -367,16 +465,14 @@ def convert_sonic_interface_to_alias(
         )
 
         # Calculate physical port number
-        physical_port = (
-            sonic_port_number // multiplier
-        ) + 1  # Convert to 1-based indexing
+        physical_port = (ethernet_num // multiplier) + 1  # Convert to 1-based indexing
 
         # Assume module 1 for now - could be extended for multi-module systems
         module = 1
 
         result = f"Eth{module}/{physical_port}"
         logger.debug(
-            f"Regular conversion: sonic_port_number={sonic_port_number}, physical_port={physical_port}, result={result}"
+            f"Regular conversion: ethernet_num={ethernet_num}, physical_port={physical_port}, result={result}"
         )
         return result
 
