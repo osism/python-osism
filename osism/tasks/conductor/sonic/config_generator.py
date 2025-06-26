@@ -305,7 +305,7 @@ def _add_port_configurations(
         interface_speed = int(port_speed) if port_speed else None
         is_breakout_port = port_name in breakout_info["breakout_ports"]
         correct_alias = convert_sonic_interface_to_alias(
-            port_name, interface_speed, is_breakout_port
+            port_name, interface_speed, is_breakout_port, port_config
         )
 
         # Use master port index for breakout ports
@@ -457,7 +457,7 @@ def _add_missing_breakout_ports(
             # Generate correct alias (breakout port always gets subport notation)
             interface_speed = int(port_speed)
             correct_alias = convert_sonic_interface_to_alias(
-                port_name, interface_speed, is_breakout=True
+                port_name, interface_speed, is_breakout=True, port_config=port_config
             )
 
             # Use master port index for breakout ports
