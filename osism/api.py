@@ -122,18 +122,11 @@ async def switches_ztp_complete(identifier: str):
         if devices:
             device = devices[0]
 
-    # Search by hwsku in sonic_parameters custom field
+    # Search by serial number
     if not device:
-        all_devices = utils.nb.dcim.devices.all()
-        for d in all_devices:
-            if d.custom_fields and d.custom_fields.get("sonic_parameters"):
-                sonic_params = d.custom_fields["sonic_parameters"]
-                if (
-                    isinstance(sonic_params, dict)
-                    and sonic_params.get("hwsku") == identifier
-                ):
-                    device = d
-                    break
+        devices = utils.nb.dcim.devices.filter(serial=identifier)
+        if devices:
+            device = devices[0]
 
     if device:
         logger.info(
