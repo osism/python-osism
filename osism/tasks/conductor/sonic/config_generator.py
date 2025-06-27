@@ -29,7 +29,6 @@ from .interface import (
 from .connections import (
     get_connected_interfaces,
     get_connected_device_for_sonic_interface,
-    get_device_bgp_neighbors_via_loopback,
 )
 from .cache import get_cached_device_interfaces
 
@@ -608,11 +607,6 @@ def _add_bgp_configurations(
             "v6only": "true",
         }
 
-    # Add additional BGP_NEIGHBOR configuration using Loopback0 IP addresses
-    _add_loopback_bgp_neighbors(
-        config, device, portchannel_info, connected_interfaces, device_as_mapping
-    )
-
 
 def _get_connected_device_for_interface(device, interface_name):
     """Get the connected device for a given interface name.
@@ -698,32 +692,6 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
             f"Could not determine peer type between {local_device.name} and {connected_device.name}: {e}"
         )
         return "external"  # Default to external on error
-
-
-def _add_loopback_bgp_neighbors(
-    config, device, portchannel_info, connected_interfaces, device_as_mapping=None
-):
-    """Add BGP_NEIGHBOR configuration using Loopback0 IP addresses from connected devices."""
-    try:
-        # Get BGP neighbors via loopback using the new connections module
-        bgp_neighbors = get_device_bgp_neighbors_via_loopback(
-            device, portchannel_info, connected_interfaces, config["PORT"]
-        )
-
-        for neighbor_info in bgp_neighbors:
-            neighbor_key = f"default|{neighbor_info['ip']}"
-
-            # Determine peer_type based on AS comparison
-            peer_type = _determine_peer_type(
-                device,
-                neighbor_info["device"],
-                device_as_mapping,
-            )
-
-            config["BGP_NEIGHBOR"][neighbor_key] = {"peer_type": peer_type}
-
-    except Exception as e:
-        logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")
 
 
 def _get_ntp_server_for_device(device):
