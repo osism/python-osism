@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import io
+import os
 import subprocess
 
 from celery import Celery
@@ -27,7 +28,7 @@ def setup_periodic_tasks(sender, **kwargs):
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
-def run(self, publish=True):
+def run(self, publish=True, flush_cache=False):
     lock = Redlock(
         key="lock_osism_tasks_reconciler_run",
         masters={utils.redis},
@@ -36,8 +37,17 @@ def run(self, publish=True):
 
     if lock.acquire(timeout=20):
         logger.info("RUN /run.sh")
+
+        env = os.environ.copy()
+        if flush_cache:
+            env["FLUSH_CACHE"] = "true"
+
         p = subprocess.Popen(
-            "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            "/run.sh",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
         )
 
         if publish:
