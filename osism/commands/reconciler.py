@@ -38,13 +38,20 @@ class Sync(Command):
             type=int,
             help="Timeout for a scheduled task that has not been executed yet",
         )
+        parser.add_argument(
+            "--flush-cache",
+            default=False,
+            help="Flush cache before running sync",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
         task_timeout = parsed_args.task_timeout
+        flush_cache = parsed_args.flush_cache
 
-        t = reconciler.run.delay(publish=wait)
+        t = reconciler.run.delay(publish=wait, flush_cache=flush_cache)
         if wait:
             logger.info(
                 f"Task {t.task_id} (sync inventory) is running in background. Output coming soon."
