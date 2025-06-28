@@ -9,8 +9,8 @@ from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
 
-from osism.core import enums
-from osism.core.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
+from osism.data import enums
+from osism.data.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
 from osism.tasks import ansible, ceph, kolla, kubernetes, handle_task
 
 

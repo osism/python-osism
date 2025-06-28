@@ -5,7 +5,7 @@ import argparse
 from cliff.command import Command
 from loguru import logger
 
-from osism.core.enums import VALIDATE_PLAYBOOKS
+from osism.data.enums import VALIDATE_PLAYBOOKS
 from osism.tasks import ansible, ceph, kolla
 from osism import utils
 
