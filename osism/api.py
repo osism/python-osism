@@ -114,19 +114,19 @@ async def switches_ztp_complete(identifier: str):
     # Search by device name
     devices = utils.nb.dcim.devices.filter(name=identifier)
     if devices:
-        device = devices[0]
+        device = list(devices)[0]
 
     # Search by inventory_hostname custom field
     if not device:
         devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=identifier)
         if devices:
-            device = devices[0]
+            device = list(devices)[0]
 
     # Search by serial number
     if not device:
         devices = utils.nb.dcim.devices.filter(serial=identifier)
         if devices:
-            device = devices[0]
+            device = list(devices)[0]
 
     if device:
         logger.info(
