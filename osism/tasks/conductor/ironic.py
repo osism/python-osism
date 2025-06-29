@@ -34,6 +34,100 @@ driver_params = {
 }
 
 
+def _prepare_node_attributes(device, get_ironic_parameters):
+    node_attributes = get_ironic_parameters()
+    if (
+        "ironic_parameters" in device.custom_fields
+        and device.custom_fields["ironic_parameters"]
+    ):
+        deep_merge(node_attributes, device.custom_fields["ironic_parameters"])
+
+    vault = get_vault()
+    deep_decrypt(node_attributes, vault)
+
+    node_secrets = device.custom_fields.get("secrets", {})
+    if node_secrets is None:
+        node_secrets = {}
+    deep_decrypt(node_secrets, vault)
+
+    if (
+        "driver" in node_attributes
+        and node_attributes["driver"] in driver_params.keys()
+    ):
+        if "driver_info" in node_attributes:
+            unused_drivers = [
+                driver
+                for driver in driver_params.keys()
+                if driver != node_attributes["driver"]
+            ]
+            for key in list(node_attributes["driver_info"].keys()):
+                for driver in unused_drivers:
+                    if key.startswith(driver + "_"):
+                        node_attributes["driver_info"].pop(key, None)
+
+            username_key = driver_params[node_attributes["driver"]]["username"]
+            if username_key in node_attributes["driver_info"]:
+                node_attributes["driver_info"][username_key] = (
+                    jinja2.Environment(loader=jinja2.BaseLoader())
+                    .from_string(node_attributes["driver_info"][username_key])
+                    .render(
+                        remote_board_username=str(
+                            node_secrets.get("remote_board_username", "admin")
+                        )
+                    )
+                )
+
+            password_key = driver_params[node_attributes["driver"]]["password"]
+            if password_key in node_attributes["driver_info"]:
+                node_attributes["driver_info"][password_key] = (
+                    jinja2.Environment(loader=jinja2.BaseLoader())
+                    .from_string(node_attributes["driver_info"][password_key])
+                    .render(
+                        remote_board_password=str(
+                            node_secrets.get("remote_board_password", "password")
+                        )
+                    )
+                )
+
+            address_key = driver_params[node_attributes["driver"]]["address"]
+            if address_key in node_attributes["driver_info"]:
+                oob_ip_result = get_device_oob_ip(device)
+                if oob_ip_result:
+                    oob_ip, _ = oob_ip_result
+                    node_attributes["driver_info"][address_key] = (
+                        jinja2.Environment(loader=jinja2.BaseLoader())
+                        .from_string(node_attributes["driver_info"][address_key])
+                        .render(remote_board_address=oob_ip)
+                    )
+    node_attributes.update({"resource_class": device.name})
+    if "extra" not in node_attributes:
+        node_attributes["extra"] = {}
+    if "instance_info" in node_attributes and node_attributes["instance_info"]:
+        node_attributes["extra"].update(
+            {"instance_info": json.dumps(node_attributes["instance_info"])}
+        )
+    if (
+        "netplan_parameters" in device.custom_fields
+        and device.custom_fields["netplan_parameters"]
+    ):
+        node_attributes["extra"].update(
+            {
+                "netplan_parameters": json.dumps(
+                    device.custom_fields["netplan_parameters"]
+                )
+            }
+        )
+    if (
+        "frr_parameters" in device.custom_fields
+        and device.custom_fields["frr_parameters"]
+    ):
+        node_attributes["extra"].update(
+            {"frr_parameters": json.dumps(device.custom_fields["frr_parameters"])}
+        )
+
+    return node_attributes
+
+
 def sync_ironic(request_id, get_ironic_parameters, force_update=False):
     osism_utils.push_task_output(
         request_id,
@@ -79,105 +173,7 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
 
         node_interfaces = list(netbox.get_interfaces_by_device(device.name))
 
-        node_attributes = get_ironic_parameters()
-        if (
-            "ironic_parameters" in device.custom_fields
-            and device.custom_fields["ironic_parameters"]
-        ):
-            # NOTE: Update node attributes with overrides from NetBox device
-            deep_merge(node_attributes, device.custom_fields["ironic_parameters"])
-
-        # NOTE: Decrypt ansible vaulted secrets
-        vault = get_vault()
-        deep_decrypt(node_attributes, vault)
-
-        node_secrets = device.custom_fields.get("secrets", {})
-        if node_secrets is None:
-            node_secrets = {}
-        deep_decrypt(node_secrets, vault)
-
-        if (
-            "driver" in node_attributes
-            and node_attributes["driver"] in driver_params.keys()
-        ):
-            if "driver_info" in node_attributes:
-                # NOTE: Remove all fields belonging to a different driver
-                unused_drivers = [
-                    driver
-                    for driver in driver_params.keys()
-                    if driver != node_attributes["driver"]
-                ]
-                for key in list(node_attributes["driver_info"].keys()):
-                    for driver in unused_drivers:
-                        if key.startswith(driver + "_"):
-                            node_attributes["driver_info"].pop(key, None)
-
-                # NOTE: Render driver username field
-                username_key = driver_params[node_attributes["driver"]]["username"]
-                if username_key in node_attributes["driver_info"]:
-                    node_attributes["driver_info"][username_key] = (
-                        jinja2.Environment(loader=jinja2.BaseLoader())
-                        .from_string(node_attributes["driver_info"][username_key])
-                        .render(
-                            remote_board_username=str(
-                                node_secrets.get("remote_board_username", "admin")
-                            )
-                        )
-                    )
-
-                # NOTE: Render driver password field
-                password_key = driver_params[node_attributes["driver"]]["password"]
-                if password_key in node_attributes["driver_info"]:
-                    node_attributes["driver_info"][password_key] = (
-                        jinja2.Environment(loader=jinja2.BaseLoader())
-                        .from_string(node_attributes["driver_info"][password_key])
-                        .render(
-                            remote_board_password=str(
-                                node_secrets.get("remote_board_password", "password")
-                            )
-                        )
-                    )
-
-                # NOTE: Render driver address field
-                address_key = driver_params[node_attributes["driver"]]["address"]
-                if address_key in node_attributes["driver_info"]:
-                    oob_ip_result = get_device_oob_ip(device)
-                    if oob_ip_result:
-                        oob_ip, _ = (
-                            oob_ip_result  # Extract IP address, ignore prefix length
-                        )
-                        node_attributes["driver_info"][address_key] = (
-                            jinja2.Environment(loader=jinja2.BaseLoader())
-                            .from_string(node_attributes["driver_info"][address_key])
-                            .render(remote_board_address=oob_ip)
-                        )
-        node_attributes.update({"resource_class": device.name})
-        if "extra" not in node_attributes:
-            node_attributes["extra"] = {}
-        # NOTE: Copy instance_info into extra field. because ironic removes it on undeployment. This way it may be readded on undeploy without querying the netbox again
-        if "instance_info" in node_attributes and node_attributes["instance_info"]:
-            node_attributes["extra"].update(
-                {"instance_info": json.dumps(node_attributes["instance_info"])}
-            )
-        # NOTE: Write metadata used for provisioning into 'extra' field, so that it is available during node deploy without querying the netbox again
-        if (
-            "netplan_parameters" in device.custom_fields
-            and device.custom_fields["netplan_parameters"]
-        ):
-            node_attributes["extra"].update(
-                {
-                    "netplan_parameters": json.dumps(
-                        device.custom_fields["netplan_parameters"]
-                    )
-                }
-            )
-        if (
-            "frr_parameters" in device.custom_fields
-            and device.custom_fields["frr_parameters"]
-        ):
-            node_attributes["extra"].update(
-                {"frr_parameters": json.dumps(device.custom_fields["frr_parameters"])}
-            )
+        node_attributes = _prepare_node_attributes(device, get_ironic_parameters)
         ports_attributes = [
             dict(address=interface.mac_address)
             for interface in node_interfaces
