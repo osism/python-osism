@@ -54,3 +54,6 @@ SONIC_EXPORT_IDENTIFIER = os.getenv("SONIC_EXPORT_IDENTIFIER", "serial-number")
 NETBOX_SECONDARIES = (
     os.getenv("NETBOX_SECONDARIES", read_secret("NETBOX_SECONDARIES")) or "[]"
 )
+
+# Redfish connection timeout in seconds
+REDFISH_TIMEOUT = int(os.getenv("REDFISH_TIMEOUT", "20"))

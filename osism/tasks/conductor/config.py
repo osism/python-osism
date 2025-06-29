@@ -41,9 +41,12 @@ def get_configuration():
                 ]
                 if not is_uuid(image_source):
                     result = openstack.image_get(image_source)
-                    configuration["ironic_parameters"]["instance_info"][
-                        "image_source"
-                    ] = result.id
+                    if result:
+                        configuration["ironic_parameters"]["instance_info"][
+                            "image_source"
+                        ] = result.id
+                    else:
+                        logger.warning(f"Could not resolve image ID for {image_source}")
 
         if "driver_info" in configuration["ironic_parameters"]:
             if "deploy_kernel" in configuration["ironic_parameters"]["driver_info"]:
@@ -52,9 +55,14 @@ def get_configuration():
                 ]
                 if not is_uuid(deploy_kernel):
                     result = openstack.image_get(deploy_kernel)
-                    configuration["ironic_parameters"]["driver_info"][
-                        "deploy_kernel"
-                    ] = result.id
+                    if result:
+                        configuration["ironic_parameters"]["driver_info"][
+                            "deploy_kernel"
+                        ] = result.id
+                    else:
+                        logger.warning(
+                            f"Could not resolve image ID for {deploy_kernel}"
+                        )
 
             if "deploy_ramdisk" in configuration["ironic_parameters"]["driver_info"]:
                 deploy_ramdisk = configuration["ironic_parameters"]["driver_info"][
@@ -62,31 +70,44 @@ def get_configuration():
                 ]
                 if not is_uuid(deploy_ramdisk):
                     result = openstack.image_get(deploy_ramdisk)
-                    configuration["ironic_parameters"]["driver_info"][
-                        "deploy_ramdisk"
-                    ] = result.id
+                    if result:
+                        configuration["ironic_parameters"]["driver_info"][
+                            "deploy_ramdisk"
+                        ] = result.id
+                    else:
+                        logger.warning(
+                            f"Could not resolve image ID for {deploy_ramdisk}"
+                        )
 
             if "cleaning_network" in configuration["ironic_parameters"]["driver_info"]:
-                result = openstack.network_get(
+                cleaning_network = configuration["ironic_parameters"]["driver_info"][
+                    "cleaning_network"
+                ]
+                result = openstack.network_get(cleaning_network)
+                if result:
                     configuration["ironic_parameters"]["driver_info"][
                         "cleaning_network"
-                    ]
-                )
-                configuration["ironic_parameters"]["driver_info"][
-                    "cleaning_network"
-                ] = result.id
+                    ] = result.id
+                else:
+                    logger.warning(
+                        f"Could not resolve network ID for {cleaning_network}"
+                    )
 
             if (
                 "provisioning_network"
                 in configuration["ironic_parameters"]["driver_info"]
             ):
-                result = openstack.network_get(
+                provisioning_network = configuration["ironic_parameters"][
+                    "driver_info"
+                ]["provisioning_network"]
+                result = openstack.network_get(provisioning_network)
+                if result:
                     configuration["ironic_parameters"]["driver_info"][
                         "provisioning_network"
-                    ]
-                )
-                configuration["ironic_parameters"]["driver_info"][
-                    "provisioning_network"
-                ] = result.id
+                    ] = result.id
+                else:
+                    logger.warning(
+                        f"Could not resolve network ID for {provisioning_network}"
+                    )
 
         return configuration
