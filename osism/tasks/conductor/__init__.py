@@ -8,6 +8,7 @@ from loguru import logger
 from osism.tasks import Config
 from osism.tasks.conductor.config import get_configuration
 from osism.tasks.conductor.ironic import sync_ironic as _sync_ironic
+from osism.tasks.conductor.redfish import get_resources as _get_redfish_resources
 from osism.tasks.conductor.sonic import sync_sonic as _sync_sonic
 
 
@@ -52,9 +53,15 @@ def sync_sonic(self, device_name=None, show_diff=True):
     return _sync_sonic(device_name, self.request.id, show_diff)
 
 
+@app.task(bind=True, name="osism.tasks.conductor.get_redfish_resources")
+def get_redfish_resources(self, hostname, resource_type):
+    return _get_redfish_resources(hostname, resource_type)
+
+
 __all__ = [
     "app",
     "get_ironic_parameters",
+    "get_redfish_resources",
     "sync_netbox",
     "sync_ironic",
     "sync_sonic",
