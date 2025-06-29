@@ -55,6 +55,7 @@ def _get_ethernet_interfaces(hostname):
             if hasattr(system, "ethernet_interfaces") and system.ethernet_interfaces:
                 for interface in system.ethernet_interfaces.get_members():
                     try:
+                        status = getattr(interface, "status", None)
                         # Extract relevant information from each EthernetInterface
                         interface_data = {
                             "id": interface.identity,
@@ -67,7 +68,7 @@ def _get_ethernet_interfaces(hostname):
                             "speed_mbps": getattr(interface, "speed_mbps", None),
                             "full_duplex": getattr(interface, "full_duplex", None),
                             "mtu_size": getattr(interface, "mtu_size", None),
-                            "status": getattr(interface, "status", None),
+                            "state": status.state.value,
                             "link_status": getattr(interface, "link_status", None),
                             "interface_enabled": getattr(
                                 interface, "interface_enabled", None
@@ -76,6 +77,21 @@ def _get_ethernet_interfaces(hostname):
                             "vlan": getattr(interface, "vlan", None),
                             "vlans": getattr(interface, "vlans", None),
                         }
+
+                        # Convert all values to strings
+                        for key, value in interface_data.items():
+                            if value is not None:
+                                if isinstance(value, (dict, list)):
+                                    # Convert complex objects to JSON strings
+                                    import json
+
+                                    interface_data[key] = json.dumps(value)
+                                elif isinstance(value, bool):
+                                    # Convert booleans to lowercase strings
+                                    interface_data[key] = str(value).lower()
+                                elif not isinstance(value, str):
+                                    # Convert numbers and other types to strings
+                                    interface_data[key] = str(value)
 
                         # Clean up None values
                         interface_data = {
