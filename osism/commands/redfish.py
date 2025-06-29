@@ -51,9 +51,10 @@ class List(Command):
         headers = [
             "ID",
             "Name",
+            "MAC",
             "Permanent MAC",
             "Speed (Mbps)",
-            "Status",
+            "State",
             "Link Status",
         ]
 
@@ -62,9 +63,10 @@ class List(Command):
             row = [
                 interface.get("id", "N/A"),
                 interface.get("name", "N/A"),
+                interface.get("mac_address", "N/A"),
                 interface.get("permanent_mac_address", "N/A"),
                 interface.get("speed_mbps", "N/A"),
-                self._format_status(interface.get("status")),
+                interface.get("state", "N/A"),
                 interface.get("link_status", "N/A"),
             ]
             table_data.append(row)
@@ -72,16 +74,3 @@ class List(Command):
         # Display the table
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
         print(f"\nTotal EthernetInterfaces: {len(interfaces)}")
-
-    def _format_status(self, status):
-        """Format status object for display."""
-        if not status:
-            return "N/A"
-
-        if isinstance(status, dict):
-            # Extract relevant status information
-            state = status.get("state", "Unknown")
-            health = status.get("health", "Unknown")
-            return f"{state}/{health}"
-
-        return str(status)
