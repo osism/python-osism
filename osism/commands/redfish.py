@@ -18,7 +18,7 @@ class List(Command):
         parser.add_argument(
             "resourcetype",
             type=str,
-            help="Resource type to process (e.g., EthernetInterfaces, NetworkAdapters)",
+            help="Resource type to process (e.g., EthernetInterfaces, NetworkAdapters, NetworkDeviceFunctions)",
         )
         return parser
 
@@ -37,6 +37,8 @@ class List(Command):
             self._display_ethernet_interfaces(result)
         elif resourcetype == "NetworkAdapters" and result:
             self._display_network_adapters(result)
+        elif resourcetype == "NetworkDeviceFunctions" and result:
+            self._display_network_device_functions(result)
         elif result:
             logger.info(f"Retrieved resources: {result}")
         else:
@@ -125,3 +127,54 @@ class List(Command):
         # Display the table
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
         print(f"\nTotal NetworkAdapters: {len(adapters)}")
+
+    def _display_network_device_functions(self, device_functions):
+        """Display NetworkDeviceFunctions in a formatted table."""
+        if not device_functions:
+            print("No NetworkDeviceFunctions found")
+            return
+
+        # Prepare table data with specified columns
+        table_data = []
+        headers = [
+            "ID",
+            "Name",
+            "MAC Address",
+            "Permanent MAC",
+            "Adapter Name",
+            "Device Enabled",
+            "Ethernet Enabled",
+            "Status",
+        ]
+
+        for device_func in device_functions:
+            # Extract values with fallbacks for missing data
+            status_str = "N/A"
+            if device_func.get("status"):
+                status_data = device_func.get("status")
+                if isinstance(status_data, str):
+                    try:
+                        import json
+
+                        status_dict = json.loads(status_data)
+                        status_str = status_dict.get("Health", "N/A")
+                    except (json.JSONDecodeError, AttributeError):
+                        status_str = status_data
+                elif isinstance(status_data, dict):
+                    status_str = status_data.get("Health", "N/A")
+
+            row = [
+                device_func.get("id", "N/A"),
+                device_func.get("name", "N/A"),
+                device_func.get("mac_address", "N/A"),
+                device_func.get("permanent_mac_address", "N/A"),
+                device_func.get("adapter_name", "N/A"),
+                device_func.get("device_enabled", "N/A"),
+                device_func.get("ethernet_enabled", "N/A"),
+                status_str,
+            ]
+            table_data.append(row)
+
+        # Display the table
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+        print(f"\nTotal NetworkDeviceFunctions: {len(device_functions)}")
