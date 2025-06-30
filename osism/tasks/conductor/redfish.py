@@ -54,6 +54,8 @@ def get_resources(hostname, resource_type):
         return _get_ethernet_interfaces(hostname)
     elif resource_type == "NetworkAdapters":
         return _get_network_adapters(hostname)
+    elif resource_type == "NetworkDeviceFunctions":
+        return _get_network_device_functions(hostname)
 
     logger.warning(f"Resource type {resource_type} not supported yet")
     return []
@@ -172,6 +174,7 @@ def _get_network_adapters(hostname):
                                 adapter, "firmware_version", None
                             ),
                             "status": getattr(adapter, "status", None),
+                            "controllers": getattr(adapter, "controllers", None),
                         }
 
                         # Normalize data values to strings and clean up None values
@@ -195,4 +198,124 @@ def _get_network_adapters(hostname):
 
     except Exception as exc:
         logger.error(f"Error retrieving NetworkAdapters from {hostname}: {exc}")
+        return []
+
+
+def _get_network_device_functions(hostname):
+    """
+    Get all NetworkDeviceFunctions from a Redfish-enabled system.
+
+    Args:
+        hostname (str): The hostname of the target system
+
+    Returns:
+        list: List of NetworkDeviceFunction dictionaries
+    """
+    try:
+        # Get Redfish connection using the utility function
+        redfish_conn = get_redfish_connection(hostname, ignore_ssl_errors=True)
+
+        if not redfish_conn:
+            logger.error(f"Could not establish Redfish connection to {hostname}")
+            return []
+
+        network_device_functions = []
+
+        # Navigate through the Redfish service to find NetworkDeviceFunctions
+        # Structure: /redfish/v1/Chassis/{chassis_id}/NetworkAdapters/{adapter_id}/NetworkDeviceFunctions
+        for chassis in redfish_conn.get_chassis_collection().get_members():
+            logger.debug(f"Processing chassis: {chassis.identity}")
+
+            # Check if the chassis has NetworkAdapters
+            if hasattr(chassis, "network_adapters") and chassis.network_adapters:
+                for adapter in chassis.network_adapters.get_members():
+                    logger.debug(f"Processing adapter: {adapter.identity}")
+
+                    # Check if the adapter has NetworkDeviceFunctions
+                    if (
+                        hasattr(adapter, "network_device_functions")
+                        and adapter.network_device_functions
+                    ):
+                        for (
+                            device_function
+                        ) in adapter.network_device_functions.get_members():
+                            try:
+                                # Extract MAC address from ethernet configuration if available
+                                mac_address = None
+                                ethernet_config = getattr(
+                                    device_function, "ethernet", None
+                                )
+                                if ethernet_config:
+                                    if isinstance(ethernet_config, dict):
+                                        mac_address = ethernet_config.get("mac_address")
+                                    elif hasattr(ethernet_config, "mac_address"):
+                                        mac_address = getattr(
+                                            ethernet_config, "mac_address", None
+                                        )
+
+                                # Extract relevant information from each NetworkDeviceFunction
+                                device_function_data = {
+                                    "id": device_function.identity,
+                                    "name": getattr(device_function, "name", None),
+                                    "description": getattr(
+                                        device_function, "description", None
+                                    ),
+                                    "device_enabled": getattr(
+                                        device_function, "device_enabled", None
+                                    ),
+                                    "ethernet": getattr(
+                                        device_function, "ethernet", None
+                                    ),
+                                    "mac_address": mac_address,
+                                    "fibre_channel": getattr(
+                                        device_function, "fibre_channel", None
+                                    ),
+                                    "iscsi_boot": getattr(
+                                        device_function, "iscsi_boot", None
+                                    ),
+                                    "net_dev_func_type": getattr(
+                                        device_function, "net_dev_func_type", None
+                                    ),
+                                    "net_dev_func_capabilities": getattr(
+                                        device_function,
+                                        "net_dev_func_capabilities",
+                                        None,
+                                    ),
+                                    "status": getattr(device_function, "status", None),
+                                    "assignable_physical_ports": getattr(
+                                        device_function,
+                                        "assignable_physical_ports",
+                                        None,
+                                    ),
+                                    "physical_port_assignment": getattr(
+                                        device_function,
+                                        "physical_port_assignment",
+                                        None,
+                                    ),
+                                    "adapter_id": adapter.identity,
+                                }
+
+                                # Normalize data values to strings and clean up None values
+                                device_function_data = _normalize_redfish_data(
+                                    device_function_data
+                                )
+
+                                network_device_functions.append(device_function_data)
+                                logger.debug(
+                                    f"Found NetworkDeviceFunction: {device_function_data.get('name', device_function_data.get('id'))}"
+                                )
+
+                            except Exception as exc:
+                                logger.warning(
+                                    f"Error processing NetworkDeviceFunction {device_function.identity}: {exc}"
+                                )
+                                continue
+
+        logger.info(
+            f"Retrieved {len(network_device_functions)} NetworkDeviceFunctions from {hostname}"
+        )
+        return network_device_functions
+
+    except Exception as exc:
+        logger.error(f"Error retrieving NetworkDeviceFunctions from {hostname}: {exc}")
         return []

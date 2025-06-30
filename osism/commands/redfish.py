@@ -18,7 +18,7 @@ class List(Command):
         parser.add_argument(
             "resourcetype",
             type=str,
-            help="Resource type to process (e.g., EthernetInterfaces, NetworkAdapters)",
+            help="Resource type to process (e.g., EthernetInterfaces, NetworkAdapters, NetworkDeviceFunctions)",
         )
         return parser
 
@@ -37,6 +37,8 @@ class List(Command):
             self._display_ethernet_interfaces(result)
         elif resourcetype == "NetworkAdapters" and result:
             self._display_network_adapters(result)
+        elif resourcetype == "NetworkDeviceFunctions" and result:
+            self._display_network_device_functions(result)
         elif result:
             logger.info(f"Retrieved resources: {result}")
         else:
@@ -92,6 +94,7 @@ class List(Command):
             "Serial Number",
             "Firmware Version",
             "Status",
+            "Controllers",
         ]
 
         for adapter in adapters:
@@ -110,6 +113,28 @@ class List(Command):
                 elif isinstance(status_data, dict):
                     status_str = status_data.get("Health", "N/A")
 
+            # Extract controller info for MAC addresses if available
+            controllers_info = "N/A"
+            controllers_data = adapter.get("controllers")
+            if controllers_data:
+                if isinstance(controllers_data, str):
+                    try:
+                        import json
+
+                        controllers_dict = json.loads(controllers_data)
+                        if isinstance(controllers_dict, list) and controllers_dict:
+                            # Extract MAC addresses from first controller
+                            first_controller = controllers_dict[0]
+                            if (
+                                "links" in first_controller
+                                and "network_ports" in first_controller["links"]
+                            ):
+                                controllers_info = f"Ports: {len(first_controller['links']['network_ports'])}"
+                    except (json.JSONDecodeError, KeyError, TypeError):
+                        controllers_info = "Available"
+                elif isinstance(controllers_data, (list, dict)):
+                    controllers_info = "Available"
+
             row = [
                 adapter.get("id", "N/A"),
                 adapter.get("name", "N/A"),
@@ -119,9 +144,61 @@ class List(Command):
                 adapter.get("serial_number", "N/A"),
                 adapter.get("firmware_version", "N/A"),
                 status_str,
+                controllers_info,
             ]
             table_data.append(row)
 
         # Display the table
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
         print(f"\nTotal NetworkAdapters: {len(adapters)}")
+
+    def _display_network_device_functions(self, device_functions):
+        """Display NetworkDeviceFunctions in a formatted table."""
+        if not device_functions:
+            print("No NetworkDeviceFunctions found")
+            return
+
+        # Prepare table data with specified columns
+        table_data = []
+        headers = [
+            "ID",
+            "Name",
+            "Type",
+            "Device Enabled",
+            "MAC Address",
+            "Adapter ID",
+            "Physical Port",
+            "Status",
+        ]
+
+        for device_function in device_functions:
+            # Extract values with fallbacks for missing data
+            status_str = "N/A"
+            if device_function.get("status"):
+                status_data = device_function.get("status")
+                if isinstance(status_data, str):
+                    try:
+                        import json
+
+                        status_dict = json.loads(status_data)
+                        status_str = status_dict.get("Health", "N/A")
+                    except (json.JSONDecodeError, AttributeError):
+                        status_str = status_data
+                elif isinstance(status_data, dict):
+                    status_str = status_data.get("Health", "N/A")
+
+            row = [
+                device_function.get("id", "N/A"),
+                device_function.get("name", "N/A"),
+                device_function.get("net_dev_func_type", "N/A"),
+                device_function.get("device_enabled", "N/A"),
+                device_function.get("mac_address", "N/A"),
+                device_function.get("adapter_id", "N/A"),
+                device_function.get("physical_port_assignment", "N/A"),
+                status_str,
+            ]
+            table_data.append(row)
+
+        # Display the table
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+        print(f"\nTotal NetworkDeviceFunctions: {len(device_functions)}")
