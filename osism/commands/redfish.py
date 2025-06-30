@@ -18,7 +18,7 @@ class List(Command):
         parser.add_argument(
             "resourcetype",
             type=str,
-            help="Resource type to process (e.g., EthernetInterfaces)",
+            help="Resource type to process (e.g., EthernetInterfaces, NetworkAdapters)",
         )
         return parser
 
@@ -35,6 +35,8 @@ class List(Command):
 
         if resourcetype == "EthernetInterfaces" and result:
             self._display_ethernet_interfaces(result)
+        elif resourcetype == "NetworkAdapters" and result:
+            self._display_network_adapters(result)
         elif result:
             logger.info(f"Retrieved resources: {result}")
         else:
@@ -72,3 +74,54 @@ class List(Command):
         # Display the table
         print(tabulate(table_data, headers=headers, tablefmt="grid"))
         print(f"\nTotal EthernetInterfaces: {len(interfaces)}")
+
+    def _display_network_adapters(self, adapters):
+        """Display NetworkAdapters in a formatted table."""
+        if not adapters:
+            print("No NetworkAdapters found")
+            return
+
+        # Prepare table data with specified columns
+        table_data = []
+        headers = [
+            "ID",
+            "Name",
+            "Manufacturer",
+            "Model",
+            "Part Number",
+            "Serial Number",
+            "Firmware Version",
+            "Status",
+        ]
+
+        for adapter in adapters:
+            # Extract values with fallbacks for missing data
+            status_str = "N/A"
+            if adapter.get("status"):
+                status_data = adapter.get("status")
+                if isinstance(status_data, str):
+                    try:
+                        import json
+
+                        status_dict = json.loads(status_data)
+                        status_str = status_dict.get("Health", "N/A")
+                    except (json.JSONDecodeError, AttributeError):
+                        status_str = status_data
+                elif isinstance(status_data, dict):
+                    status_str = status_data.get("Health", "N/A")
+
+            row = [
+                adapter.get("id", "N/A"),
+                adapter.get("name", "N/A"),
+                adapter.get("manufacturer", "N/A"),
+                adapter.get("model", "N/A"),
+                adapter.get("part_number", "N/A"),
+                adapter.get("serial_number", "N/A"),
+                adapter.get("firmware_version", "N/A"),
+                status_str,
+            ]
+            table_data.append(row)
+
+        # Display the table
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+        print(f"\nTotal NetworkAdapters: {len(adapters)}")
