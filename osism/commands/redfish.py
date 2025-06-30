@@ -54,7 +54,6 @@ class List(Command):
             "MAC",
             "Permanent MAC",
             "Speed (Mbps)",
-            "State",
             "Link Status",
         ]
 
@@ -66,7 +65,6 @@ class List(Command):
                 interface.get("mac_address", "N/A"),
                 interface.get("permanent_mac_address", "N/A"),
                 interface.get("speed_mbps", "N/A"),
-                interface.get("state", "N/A"),
                 interface.get("link_status", "N/A"),
             ]
             table_data.append(row)
