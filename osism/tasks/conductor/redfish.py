@@ -228,11 +228,7 @@ def _get_network_device_functions(hostname):
                 for adapter in chassis.network_adapters.get_members():
                     logger.debug(f"Processing NetworkAdapter: {adapter.identity}")
 
-                    # Check if the adapter has NetworkDeviceFunctions
-                    if (
-                        hasattr(adapter, "network_device_functions")
-                        and adapter.network_device_functions
-                    ):
+                    try:
                         for (
                             device_func
                         ) in adapter.network_device_functions.get_members():
@@ -288,6 +284,11 @@ def _get_network_device_functions(hostname):
                                     f"Error processing NetworkDeviceFunction {device_func.identity}: {exc}"
                                 )
                                 continue
+                    except Exception as exc:
+                        logger.warning(
+                            f"Error processing NetworkAdapter {adapter.identity}: {exc}"
+                        )
+                        continue
 
         logger.info(
             f"Retrieved {len(network_device_functions)} NetworkDeviceFunctions from {hostname}"
