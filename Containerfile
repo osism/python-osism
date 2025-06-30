@@ -23,6 +23,8 @@ COPY files/sonic/config_db.json /etc/sonic/config_db.json
 
 COPY files/netbox-manager/settings.toml /usr/local/config/settings.toml
 
+COPY files/redfishMockupCreate.py /
+
 RUN apk add --no-cache bash
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -52,6 +54,9 @@ uv pip install --no-cache --system -r /src/requirements.ansible.txt
 uv pip install --no-cache --system -r /src/requirements.openstack-image-manager.txt
 uv pip install --no-cache --system -r /src/requirements.openstack-flavor-manager.txt
 uv pip install --no-cache --system -r /src/requirements.netbox-manager.txt
+
+# required by redfishMockupCreate.py
+uv pip install --no-cache --system "redfish==3.3.1"
 
 # install python-osism
 uv pip install --no-cache --system /src
