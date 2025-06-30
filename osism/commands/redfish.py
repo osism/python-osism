@@ -93,25 +93,9 @@ class List(Command):
             "Part Number",
             "Serial Number",
             "Firmware Version",
-            "Status",
         ]
 
         for adapter in adapters:
-            # Extract values with fallbacks for missing data
-            status_str = "N/A"
-            if adapter.get("status"):
-                status_data = adapter.get("status")
-                if isinstance(status_data, str):
-                    try:
-                        import json
-
-                        status_dict = json.loads(status_data)
-                        status_str = status_dict.get("Health", "N/A")
-                    except (json.JSONDecodeError, AttributeError):
-                        status_str = status_data
-                elif isinstance(status_data, dict):
-                    status_str = status_data.get("Health", "N/A")
-
             row = [
                 adapter.get("id", "N/A"),
                 adapter.get("name", "N/A"),
@@ -120,7 +104,6 @@ class List(Command):
                 adapter.get("part_number", "N/A"),
                 adapter.get("serial_number", "N/A"),
                 adapter.get("firmware_version", "N/A"),
-                status_str,
             ]
             table_data.append(row)
 
@@ -144,25 +127,9 @@ class List(Command):
             "Adapter Name",
             "Device Enabled",
             "Ethernet Enabled",
-            "Status",
         ]
 
         for device_func in device_functions:
-            # Extract values with fallbacks for missing data
-            status_str = "N/A"
-            if device_func.get("status"):
-                status_data = device_func.get("status")
-                if isinstance(status_data, str):
-                    try:
-                        import json
-
-                        status_dict = json.loads(status_data)
-                        status_str = status_dict.get("Health", "N/A")
-                    except (json.JSONDecodeError, AttributeError):
-                        status_str = status_data
-                elif isinstance(status_data, dict):
-                    status_str = status_data.get("Health", "N/A")
-
             row = [
                 device_func.get("id", "N/A"),
                 device_func.get("name", "N/A"),
@@ -171,7 +138,6 @@ class List(Command):
                 device_func.get("adapter_name", "N/A"),
                 device_func.get("device_enabled", "N/A"),
                 device_func.get("ethernet_enabled", "N/A"),
-                status_str,
             ]
             table_data.append(row)
 

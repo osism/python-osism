@@ -90,7 +90,6 @@ def _get_ethernet_interfaces(hostname):
             if hasattr(system, "ethernet_interfaces") and system.ethernet_interfaces:
                 for interface in system.ethernet_interfaces.get_members():
                     try:
-                        status = getattr(interface, "status", None)
                         # Extract relevant information from each EthernetInterface
                         interface_data = {
                             "id": interface.identity,
@@ -173,7 +172,6 @@ def _get_network_adapters(hostname):
                             "firmware_version": getattr(
                                 adapter, "firmware_version", None
                             ),
-                            "status": getattr(adapter, "status", None),
                         }
 
                         # Normalize data values to strings and clean up None values
@@ -273,7 +271,6 @@ def _get_network_device_functions(hostname):
                                     "permanent_mac_address": permanent_mac_address,
                                     "adapter_id": adapter.identity,
                                     "adapter_name": getattr(adapter, "name", None),
-                                    "status": getattr(device_func, "status", None),
                                 }
 
                                 # Normalize data values to strings and clean up None values
