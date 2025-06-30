@@ -66,16 +66,11 @@ def _get_ethernet_interfaces(hostname):
                                 interface, "permanent_mac_address", None
                             ),
                             "speed_mbps": getattr(interface, "speed_mbps", None),
-                            "full_duplex": getattr(interface, "full_duplex", None),
                             "mtu_size": getattr(interface, "mtu_size", None),
-                            "state": status.state.value,
                             "link_status": getattr(interface, "link_status", None),
                             "interface_enabled": getattr(
                                 interface, "interface_enabled", None
                             ),
-                            "auto_neg": getattr(interface, "auto_neg", None),
-                            "vlan": getattr(interface, "vlan", None),
-                            "vlans": getattr(interface, "vlans", None),
                         }
 
                         # Convert all values to strings
