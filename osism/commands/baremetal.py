@@ -328,11 +328,6 @@ class BaremetalUndeploy(Command):
                         f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
                     )
                     continue
-                # NOTE: Ironic removes "instance_info" on undeploy. It was saved to "extra" during sync and needs to be refreshed here.
-                if "instance_info" in node["extra"]:
-                    node = conn.baremetal.update_node(
-                        node, instance_info=json.loads(node.extra["instance_info"])
-                    )
             else:
                 logger.warning(
                     f"Node {node.name} ({node.id}) not in supported provision state"
