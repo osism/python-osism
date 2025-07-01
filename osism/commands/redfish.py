@@ -15,36 +15,94 @@ class List(Command):
             return column_name
         return column_name.lower().replace(" ", "_")
 
+    def _get_column_mappings(self, resourcetype):
+        """Get column mappings for a specific resource type."""
+        if resourcetype == "EthernetInterfaces":
+            return {
+                "ID": "id",
+                "Name": "name",
+                "Description": "description",
+                "MAC Address": "mac_address",
+                "Permanent MAC Address": "permanent_mac_address",
+                "Speed (Mbps)": "speed_mbps",
+                "MTU Size": "mtu_size",
+                "Link Status": "link_status",
+                "Interface Enabled": "interface_enabled",
+            }
+        elif resourcetype == "NetworkAdapters":
+            return {
+                "ID": "id",
+                "Name": "name",
+                "Description": "description",
+                "Manufacturer": "manufacturer",
+                "Model": "model",
+                "Part Number": "part_number",
+                "Serial Number": "serial_number",
+                "Firmware Version": "firmware_version",
+            }
+        elif resourcetype == "NetworkDeviceFunctions":
+            return {
+                "ID": "id",
+                "Name": "name",
+                "Description": "description",
+                "Device Enabled": "device_enabled",
+                "Ethernet Enabled": "ethernet_enabled",
+                "MAC Address": "mac_address",
+                "Permanent MAC Address": "permanent_mac_address",
+                "Adapter ID": "adapter_id",
+                "Adapter Name": "adapter_name",
+            }
+        return None
+
+    def _get_filtered_columns(self, column_mappings, selected_columns=None):
+        """Get filtered column mappings based on selected columns."""
+        # If no columns specified, use all available columns
+        if not selected_columns:
+            return list(column_mappings.keys()), list(column_mappings.values())
+
+        # Normalize selected columns and filter
+        normalized_selected = [
+            self._normalize_column_name(col) for col in selected_columns
+        ]
+        headers = []
+        data_keys = []
+
+        for display_name, data_key in column_mappings.items():
+            normalized_display = self._normalize_column_name(display_name)
+            if normalized_display in normalized_selected:
+                headers.append(display_name)
+                data_keys.append(data_key)
+
+        # Check if any requested columns were not found
+        found_columns = [self._normalize_column_name(h) for h in headers]
+        for requested_col in normalized_selected:
+            if requested_col not in found_columns:
+                logger.warning(
+                    f"Column '{requested_col}' not found. Available columns: {list(column_mappings.keys())}"
+                )
+
+        return headers, data_keys
+
+    def _filter_json_data(self, data, data_keys):
+        """Filter JSON data to include only selected columns."""
+        if not data or not data_keys:
+            return data
+
+        filtered_data = []
+        for item in data:
+            filtered_item = {key: item.get(key) for key in data_keys}
+            filtered_data.append(filtered_item)
+
+        return filtered_data
+
     def _filter_and_display_table(self, data, column_mappings, selected_columns=None):
         """Generic method to filter columns and display table data."""
         if not data:
             return
 
-        # If no columns specified, use all available columns
-        if not selected_columns:
-            headers = list(column_mappings.keys())
-            data_keys = list(column_mappings.values())
-        else:
-            # Normalize selected columns and filter
-            normalized_selected = [
-                self._normalize_column_name(col) for col in selected_columns
-            ]
-            headers = []
-            data_keys = []
-
-            for display_name, data_key in column_mappings.items():
-                normalized_display = self._normalize_column_name(display_name)
-                if normalized_display in normalized_selected:
-                    headers.append(display_name)
-                    data_keys.append(data_key)
-
-            # Check if any requested columns were not found
-            found_columns = [self._normalize_column_name(h) for h in headers]
-            for requested_col in normalized_selected:
-                if requested_col not in found_columns:
-                    logger.warning(
-                        f"Column '{requested_col}' not found. Available columns: {list(column_mappings.keys())}"
-                    )
+        headers, data_keys = self._get_filtered_columns(
+            column_mappings, selected_columns
+        )
 
         if not headers:
             print("No valid columns specified")
@@ -101,7 +159,20 @@ class List(Command):
 
         if output_format == "json":
             if result:
-                print(json.dumps(result, indent=2))
+                # Apply column filtering for JSON output if columns are specified
+                if columns:
+                    # Get column mappings for the resource type
+                    column_mappings = self._get_column_mappings(resourcetype)
+                    if column_mappings:
+                        _, data_keys = self._get_filtered_columns(
+                            column_mappings, columns
+                        )
+                        filtered_result = self._filter_json_data(result, data_keys)
+                        print(json.dumps(filtered_result, indent=2))
+                    else:
+                        print(json.dumps(result, indent=2))
+                else:
+                    print(json.dumps(result, indent=2))
             else:
                 print("[]")
         else:
@@ -122,19 +193,7 @@ class List(Command):
             print("No EthernetInterfaces found")
             return
 
-        # Column mappings: display name -> data key
-        column_mappings = {
-            "ID": "id",
-            "Name": "name",
-            "Description": "description",
-            "MAC": "mac_address",
-            "Permanent MAC": "permanent_mac_address",
-            "Speed (Mbps)": "speed_mbps",
-            "MTU Size": "mtu_size",
-            "Link Status": "link_status",
-            "Interface Enabled": "interface_enabled",
-        }
-
+        column_mappings = self._get_column_mappings("EthernetInterfaces")
         self._filter_and_display_table(interfaces, column_mappings, selected_columns)
 
     def _display_network_adapters(self, adapters, selected_columns=None):
@@ -143,18 +202,7 @@ class List(Command):
             print("No NetworkAdapters found")
             return
 
-        # Column mappings: display name -> data key
-        column_mappings = {
-            "ID": "id",
-            "Name": "name",
-            "Description": "description",
-            "Manufacturer": "manufacturer",
-            "Model": "model",
-            "Part Number": "part_number",
-            "Serial Number": "serial_number",
-            "Firmware Version": "firmware_version",
-        }
-
+        column_mappings = self._get_column_mappings("NetworkAdapters")
         self._filter_and_display_table(adapters, column_mappings, selected_columns)
 
     def _display_network_device_functions(
@@ -165,19 +213,7 @@ class List(Command):
             print("No NetworkDeviceFunctions found")
             return
 
-        # Column mappings: display name -> data key
-        column_mappings = {
-            "ID": "id",
-            "Name": "name",
-            "Description": "description",
-            "Device Enabled": "device_enabled",
-            "Ethernet Enabled": "ethernet_enabled",
-            "MAC Address": "mac_address",
-            "Permanent MAC": "permanent_mac_address",
-            "Adapter ID": "adapter_id",
-            "Adapter Name": "adapter_name",
-        }
-
+        column_mappings = self._get_column_mappings("NetworkDeviceFunctions")
         self._filter_and_display_table(
             device_functions, column_mappings, selected_columns
         )
