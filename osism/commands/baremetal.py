@@ -214,6 +214,7 @@ class BaremetalDeploy(Command):
                     "roles": [
                         "osism.commons.hostname",
                         "osism.commons.hosts",
+                        "osism.commons.operator",
                     ],
                 }
                 play["vars"].update(
