@@ -9,6 +9,57 @@ from osism.tasks.conductor import get_redfish_resources
 
 
 class List(Command):
+    def _normalize_column_name(self, column_name):
+        """Normalize column name to lowercase with underscores instead of spaces."""
+        if not column_name:
+            return column_name
+        return column_name.lower().replace(" ", "_")
+
+    def _filter_and_display_table(self, data, column_mappings, selected_columns=None):
+        """Generic method to filter columns and display table data."""
+        if not data:
+            return
+
+        # If no columns specified, use all available columns
+        if not selected_columns:
+            headers = list(column_mappings.keys())
+            data_keys = list(column_mappings.values())
+        else:
+            # Normalize selected columns and filter
+            normalized_selected = [
+                self._normalize_column_name(col) for col in selected_columns
+            ]
+            headers = []
+            data_keys = []
+
+            for display_name, data_key in column_mappings.items():
+                normalized_display = self._normalize_column_name(display_name)
+                if normalized_display in normalized_selected:
+                    headers.append(display_name)
+                    data_keys.append(data_key)
+
+            # Check if any requested columns were not found
+            found_columns = [self._normalize_column_name(h) for h in headers]
+            for requested_col in normalized_selected:
+                if requested_col not in found_columns:
+                    logger.warning(
+                        f"Column '{requested_col}' not found. Available columns: {list(column_mappings.keys())}"
+                    )
+
+        if not headers:
+            print("No valid columns specified")
+            return
+
+        # Prepare table data
+        table_data = []
+        for item in data:
+            row = [item.get(key, "N/A") for key in data_keys]
+            table_data.append(row)
+
+        # Display the table
+        print(tabulate(table_data, headers=headers, tablefmt="grid"))
+        print(f"\nTotal items: {len(data)}")
+
     def get_parser(self, prog_name):
         parser = super(List, self).get_parser(prog_name)
         parser.add_argument(
@@ -28,12 +79,18 @@ class List(Command):
             default="table",
             help="Output format (default: table)",
         )
+        parser.add_argument(
+            "--column",
+            action="append",
+            help="Column to include in output (can be used multiple times)",
+        )
         return parser
 
     def take_action(self, parsed_args):
         hostname = parsed_args.hostname
         resourcetype = parsed_args.resourcetype
         output_format = parsed_args.format
+        columns = parsed_args.column
         logger.info(
             f"Redfish list command called with hostname: {hostname}, resourcetype: {resourcetype}, format: {output_format}"
         )
@@ -49,113 +106,78 @@ class List(Command):
                 print("[]")
         else:
             if resourcetype == "EthernetInterfaces" and result:
-                self._display_ethernet_interfaces(result)
+                self._display_ethernet_interfaces(result, columns)
             elif resourcetype == "NetworkAdapters" and result:
-                self._display_network_adapters(result)
+                self._display_network_adapters(result, columns)
             elif resourcetype == "NetworkDeviceFunctions" and result:
-                self._display_network_device_functions(result)
+                self._display_network_device_functions(result, columns)
             elif result:
                 logger.info(f"Retrieved resources: {result}")
             else:
                 print(f"No {resourcetype} resources found for {hostname}")
 
-    def _display_ethernet_interfaces(self, interfaces):
+    def _display_ethernet_interfaces(self, interfaces, selected_columns=None):
         """Display EthernetInterfaces in a formatted table."""
         if not interfaces:
             print("No EthernetInterfaces found")
             return
 
-        # Prepare table data with specified columns
-        table_data = []
-        headers = [
-            "ID",
-            "Name",
-            "MAC",
-            "Permanent MAC",
-            "Speed (Mbps)",
-            "Link Status",
-        ]
+        # Column mappings: display name -> data key
+        column_mappings = {
+            "ID": "id",
+            "Name": "name",
+            "Description": "description",
+            "MAC": "mac_address",
+            "Permanent MAC": "permanent_mac_address",
+            "Speed (Mbps)": "speed_mbps",
+            "MTU Size": "mtu_size",
+            "Link Status": "link_status",
+            "Interface Enabled": "interface_enabled",
+        }
 
-        for interface in interfaces:
-            # Extract values with fallbacks for missing data
-            row = [
-                interface.get("id", "N/A"),
-                interface.get("name", "N/A"),
-                interface.get("mac_address", "N/A"),
-                interface.get("permanent_mac_address", "N/A"),
-                interface.get("speed_mbps", "N/A"),
-                interface.get("link_status", "N/A"),
-            ]
-            table_data.append(row)
+        self._filter_and_display_table(interfaces, column_mappings, selected_columns)
 
-        # Display the table
-        print(tabulate(table_data, headers=headers, tablefmt="grid"))
-        print(f"\nTotal EthernetInterfaces: {len(interfaces)}")
-
-    def _display_network_adapters(self, adapters):
+    def _display_network_adapters(self, adapters, selected_columns=None):
         """Display NetworkAdapters in a formatted table."""
         if not adapters:
             print("No NetworkAdapters found")
             return
 
-        # Prepare table data with specified columns
-        table_data = []
-        headers = [
-            "ID",
-            "Name",
-            "Manufacturer",
-            "Model",
-            "Part Number",
-            "Serial Number",
-            "Firmware Version",
-        ]
+        # Column mappings: display name -> data key
+        column_mappings = {
+            "ID": "id",
+            "Name": "name",
+            "Description": "description",
+            "Manufacturer": "manufacturer",
+            "Model": "model",
+            "Part Number": "part_number",
+            "Serial Number": "serial_number",
+            "Firmware Version": "firmware_version",
+        }
 
-        for adapter in adapters:
-            row = [
-                adapter.get("id", "N/A"),
-                adapter.get("name", "N/A"),
-                adapter.get("manufacturer", "N/A"),
-                adapter.get("model", "N/A"),
-                adapter.get("part_number", "N/A"),
-                adapter.get("serial_number", "N/A"),
-                adapter.get("firmware_version", "N/A"),
-            ]
-            table_data.append(row)
+        self._filter_and_display_table(adapters, column_mappings, selected_columns)
 
-        # Display the table
-        print(tabulate(table_data, headers=headers, tablefmt="grid"))
-        print(f"\nTotal NetworkAdapters: {len(adapters)}")
-
-    def _display_network_device_functions(self, device_functions):
+    def _display_network_device_functions(
+        self, device_functions, selected_columns=None
+    ):
         """Display NetworkDeviceFunctions in a formatted table."""
         if not device_functions:
             print("No NetworkDeviceFunctions found")
             return
 
-        # Prepare table data with specified columns
-        table_data = []
-        headers = [
-            "ID",
-            "Name",
-            "MAC Address",
-            "Permanent MAC",
-            "Adapter Name",
-            "Device Enabled",
-            "Ethernet Enabled",
-        ]
+        # Column mappings: display name -> data key
+        column_mappings = {
+            "ID": "id",
+            "Name": "name",
+            "Description": "description",
+            "Device Enabled": "device_enabled",
+            "Ethernet Enabled": "ethernet_enabled",
+            "MAC Address": "mac_address",
+            "Permanent MAC": "permanent_mac_address",
+            "Adapter ID": "adapter_id",
+            "Adapter Name": "adapter_name",
+        }
 
-        for device_func in device_functions:
-            row = [
-                device_func.get("id", "N/A"),
-                device_func.get("name", "N/A"),
-                device_func.get("mac_address", "N/A"),
-                device_func.get("permanent_mac_address", "N/A"),
-                device_func.get("adapter_name", "N/A"),
-                device_func.get("device_enabled", "N/A"),
-                device_func.get("ethernet_enabled", "N/A"),
-            ]
-            table_data.append(row)
-
-        # Display the table
-        print(tabulate(table_data, headers=headers, tablefmt="grid"))
-        print(f"\nTotal NetworkDeviceFunctions: {len(device_functions)}")
+        self._filter_and_display_table(
+            device_functions, column_mappings, selected_columns
+        )
