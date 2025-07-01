@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "e43533c2a1b4d5822ad125c9911000317264ecc9c79919413c6da4adcc3b4e48"
+            "sha256": "072d329d514cdaa8d46395aeee9fc0a440813e50314abfabce1c8c382f05ecf7"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -337,10 +337,10 @@
         },
         "click-plugins": {
             "hashes": [
-                "sha256:46ab999744a9d831159c3411bb0c79346d94a444df9a3a3742e9ed63645f264b",
-                "sha256:5d262006d3222f5057fd81e1623d4443e41dcda5dc815c06b442aa3c02889fc8"
+                "sha256:008d65743833ffc1f5417bf0e78e8d2c23aab04d9745ba817bd3e71b0feb6aa6",
+                "sha256:d7af3984a99d243c131aa1a828331e7630f4a88a9741fd05c927b204bcf92261"
             ],
-            "version": "==1.1.1"
+            "version": "==1.1.1.2"
         },
         "click-repl": {
             "hashes": [
@@ -368,11 +368,11 @@
         },
         "cmd2": {
             "hashes": [
-                "sha256:650a5892bf29b233d3d6775b5e3cc813648cff0d79134f707981f66baaed9f42",
-                "sha256:c4c8e3a515a7e69061b7ebbaadeb9d7fae283b7fee1a44ff169e33e2ccb2eec3"
+                "sha256:81d8135b46210e1d03a5a810baf859069a62214788ceeec3588f44eed86fbeeb",
+                "sha256:c85faf603e8cfeb4302206f49c0530a83d63386b0d90ff6a957f2c816eb767d7"
             ],
             "markers": "python_version >= '3.9'",
-            "version": "==2.6.1"
+            "version": "==2.7.0"
         },
         "cryptography": {
             "hashes": [
@@ -780,6 +780,14 @@
             "markers": "python_version >= '3.5' and python_version < '4.0'",
             "version": "==0.7.3"
         },
+        "markdown-it-py": {
+            "hashes": [
+                "sha256:355216845c60bd96232cd8d8c40e8f9765cc86f46880e43a8fd22dc1a1a8cab1",
+                "sha256:e3f60a94fa066dc52ec76661e37c851cb232d92f9886b15cb560aaada2df8feb"
+            ],
+            "markers": "python_version >= '3.8'",
+            "version": "==3.0.0"
+        },
         "markupsafe": {
             "hashes": [
                 "sha256:0bff5e0ae4ef2e1ae4fdf2dfd5b76c75e5c2fa4132d05fc1b0dabcd20c7e28c4",
@@ -846,6 +854,14 @@
             ],
             "markers": "python_version >= '3.9'",
             "version": "==3.0.2"
+        },
+        "mdurl": {
+            "hashes": [
+                "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8",
+                "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"
+            ],
+            "markers": "python_version >= '3.7'",
+            "version": "==0.1.2"
         },
         "mmh3": {
             "hashes": [
@@ -1393,6 +1409,22 @@
             ],
             "version": "==1.4.0"
         },
+        "rich": {
+            "hashes": [
+                "sha256:1c9491e1951aac09caffd42f448ee3d04e58923ffe14993f6e83068dc395d7e0",
+                "sha256:82f1bc23a6a21ebca4ae0c45af9bdbc492ed20231dcb63f297d6d1021a9d5725"
+            ],
+            "markers": "python_full_version >= '3.8.0'",
+            "version": "==14.0.0"
+        },
+        "rich-argparse": {
+            "hashes": [
+                "sha256:a8650b42e4a4ff72127837632fba6b7da40784842f08d7395eb67a9cbd7b4bf9",
+                "sha256:d7a493cde94043e41ea68fb43a74405fa178de981bf7b800f7a3bd02ac5c27be"
+            ],
+            "markers": "python_version >= '3.8'",
+            "version": "==1.7.1"
+        },
         "rsa": {
             "hashes": [
                 "sha256:68635866661c6836b8d39430f97a996acbd61bfa49406748ea243539fe239762",
@@ -1632,6 +1664,15 @@
             ],
             "markers": "python_version >= '3.9'",
             "version": "==2.5.0"
+        },
+        "validators": {
+            "hashes": [
+                "sha256:992d6c48a4e77c81f1b4daba10d16c3a9bb0dbb79b3a19ea847ff0928e70497a",
+                "sha256:e8c947097eae7892cb3d26868d637f79f47b4a0554bc6b80065dfe5aac3705dd"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.9'",
+            "version": "==0.35.0"
         },
         "vine": {
             "hashes": [
