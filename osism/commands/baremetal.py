@@ -12,6 +12,7 @@ import yaml
 from openstack.baremetal import configdrive as configdrive_builder
 
 from osism.commands import get_cloud_connection
+from osism import utils
 
 
 class BaremetalList(Command):
@@ -169,13 +170,47 @@ class BaremetalDeploy(Command):
                 continue
             # NOTE: Prepare osism config drive
             try:
+                # Get default vars from NetBox local_context_data if available
+                default_vars = {}
+                if utils.nb:
+                    try:
+                        # Try to find device by name first
+                        device = utils.nb.dcim.devices.get(name=node.name)
+
+                        # If not found by name, try by inventory_hostname custom field
+                        if not device:
+                            devices = utils.nb.dcim.devices.filter(
+                                cf_inventory_hostname=node.name
+                            )
+                            if devices:
+                                device = devices[0]
+
+                        # Extract local_context_data if device found and has the field
+                        if (
+                            device
+                            and hasattr(device, "local_context_data")
+                            and device.local_context_data
+                        ):
+                            default_vars = device.local_context_data
+                            logger.info(
+                                f"Using NetBox local_context_data for node {node.name}"
+                            )
+                        else:
+                            logger.debug(
+                                f"No local_context_data found for node {node.name} in NetBox"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to fetch NetBox data for node {node.name}: {e}"
+                        )
+
                 playbook = []
                 play = {
                     "name": "Run bootstrap - part 2",
                     "hosts": "localhost",
                     "connection": "local",
                     "gather_facts": True,
-                    "vars": {},
+                    "vars": default_vars.copy(),
                     "roles": [
                         "osism.commons.hostname",
                         "osism.commons.hosts",
