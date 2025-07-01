@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
@@ -20,29 +21,43 @@ class List(Command):
             type=str,
             help="Resource type to process (e.g., EthernetInterfaces, NetworkAdapters, NetworkDeviceFunctions)",
         )
+        parser.add_argument(
+            "--format",
+            type=str,
+            choices=["table", "json"],
+            default="table",
+            help="Output format (default: table)",
+        )
         return parser
 
     def take_action(self, parsed_args):
         hostname = parsed_args.hostname
         resourcetype = parsed_args.resourcetype
+        output_format = parsed_args.format
         logger.info(
-            f"Redfish list command called with hostname: {hostname}, resourcetype: {resourcetype}"
+            f"Redfish list command called with hostname: {hostname}, resourcetype: {resourcetype}, format: {output_format}"
         )
 
         # Use Celery task to get Redfish resources
         task_result = get_redfish_resources.delay(hostname, resourcetype)
         result = task_result.get()
 
-        if resourcetype == "EthernetInterfaces" and result:
-            self._display_ethernet_interfaces(result)
-        elif resourcetype == "NetworkAdapters" and result:
-            self._display_network_adapters(result)
-        elif resourcetype == "NetworkDeviceFunctions" and result:
-            self._display_network_device_functions(result)
-        elif result:
-            logger.info(f"Retrieved resources: {result}")
+        if output_format == "json":
+            if result:
+                print(json.dumps(result, indent=2))
+            else:
+                print("[]")
         else:
-            print(f"No {resourcetype} resources found for {hostname}")
+            if resourcetype == "EthernetInterfaces" and result:
+                self._display_ethernet_interfaces(result)
+            elif resourcetype == "NetworkAdapters" and result:
+                self._display_network_adapters(result)
+            elif resourcetype == "NetworkDeviceFunctions" and result:
+                self._display_network_device_functions(result)
+            elif result:
+                logger.info(f"Retrieved resources: {result}")
+            else:
+                print(f"No {resourcetype} resources found for {hostname}")
 
     def _display_ethernet_interfaces(self, interfaces):
         """Display EthernetInterfaces in a formatted table."""
