@@ -1,20 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import uuid
-
 from loguru import logger
+import validators
 import yaml
 
 from osism.tasks import Config, openstack
-
-
-def is_uuid(value):
-    """Check if a string is a valid UUID."""
-    try:
-        uuid.UUID(value)
-        return True
-    except (ValueError, AttributeError):
-        return False
 
 
 def get_configuration():
@@ -39,7 +29,9 @@ def get_configuration():
                 image_source = configuration["ironic_parameters"]["instance_info"][
                     "image_source"
                 ]
-                if not is_uuid(image_source):
+                if not validators.uuid(image_source) and not validators.url(
+                    image_source
+                ):
                     result = openstack.image_get(image_source)
                     if result:
                         configuration["ironic_parameters"]["instance_info"][
@@ -53,7 +45,9 @@ def get_configuration():
                 deploy_kernel = configuration["ironic_parameters"]["driver_info"][
                     "deploy_kernel"
                 ]
-                if not is_uuid(deploy_kernel):
+                if not validators.uuid(deploy_kernel) and not validators.url(
+                    deploy_kernel
+                ):
                     result = openstack.image_get(deploy_kernel)
                     if result:
                         configuration["ironic_parameters"]["driver_info"][
@@ -68,7 +62,9 @@ def get_configuration():
                 deploy_ramdisk = configuration["ironic_parameters"]["driver_info"][
                     "deploy_ramdisk"
                 ]
-                if not is_uuid(deploy_ramdisk):
+                if not validators.uuid(deploy_ramdisk) and not validators.url(
+                    deploy_ramdisk
+                ):
                     result = openstack.image_get(deploy_ramdisk)
                     if result:
                         configuration["ironic_parameters"]["driver_info"][
