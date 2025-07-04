@@ -196,6 +196,12 @@ def create_redlock(key, auto_release_time=3600):
     Returns:
         Redlock: The configured Redlock instance
     """
+    import logging
+
+    # Permanently suppress pottery logger output
+    pottery_logger = logging.getLogger("pottery")
+    pottery_logger.setLevel(logging.CRITICAL)
+
     with open(os.devnull, "w") as devnull:
         with redirect_stdout(devnull), redirect_stderr(devnull):
             return Redlock(
