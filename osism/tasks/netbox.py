@@ -2,7 +2,6 @@
 
 from celery import Celery
 from loguru import logger
-from pottery import Redlock
 
 from osism import settings, utils
 from osism.tasks import Config, run_command
@@ -30,9 +29,8 @@ def run(self, action, arguments):
 def set_maintenance(self, device_name, state=True):
     """Set the maintenance state for a device in the NetBox."""
 
-    lock = Redlock(
+    lock = utils.create_redlock(
         key=f"lock_osism_tasks_netbox_set_maintenance_{device_name}",
-        masters={utils.redis},
         auto_release_time=60,
     )
     if lock.acquire(timeout=20):
@@ -59,9 +57,8 @@ def set_maintenance(self, device_name, state=True):
 def set_provision_state(self, device_name, state):
     """Set the provision state for a device in the NetBox."""
 
-    lock = Redlock(
+    lock = utils.create_redlock(
         key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
-        masters={utils.redis},
         auto_release_time=60,
     )
     if lock.acquire(timeout=20):
@@ -89,9 +86,8 @@ def set_provision_state(self, device_name, state):
 def set_power_state(self, device_name, state):
     """Set the provision state for a device in the NetBox."""
 
-    lock = Redlock(
+    lock = utils.create_redlock(
         key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
-        masters={utils.redis},
         auto_release_time=60,
     )
     if lock.acquire(timeout=20):

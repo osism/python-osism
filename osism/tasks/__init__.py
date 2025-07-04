@@ -1,12 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
 import os
 import re
 import subprocess
 
 from loguru import logger
-from pottery import Redlock
 
 from osism import utils
 
@@ -77,10 +75,8 @@ def run_ansible_in_environment(
 
     # NOTE: Consider arguments in the future
     if locking:
-        logging.getLogger("redlock").setLevel(logging.WARNING)
-        lock = Redlock(
+        lock = utils.create_redlock(
             key=f"lock-ansible-{environment}-{role}",
-            masters={utils.redis},
             auto_release_time=auto_release_time,
         )
 
@@ -195,9 +191,8 @@ def run_command(
         command_env.update(env)
 
     if locking:
-        lock = Redlock(
+        lock = utils.create_redlock(
             key=f"lock-{command}",
-            masters={utils.redis},
             auto_release_time=auto_release_time,
         )
 

@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from celery import Celery
-from pottery import Redlock
 
 from osism import settings, utils
 from osism.tasks import Config, run_ansible_in_environment
@@ -12,9 +11,8 @@ app.config_from_object(Config)
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
-    lock = Redlock(
+    lock = utils.create_redlock(
         key="lock_osism_tasks_ansible_setup_periodic_tasks",
-        masters={utils.redis},
     )
     if settings.GATHER_FACTS_SCHEDULE > 0 and lock.acquire(timeout=10):
         sender.add_periodic_task(

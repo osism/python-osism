@@ -2,11 +2,13 @@
 
 import time
 import os
+from contextlib import redirect_stdout, redirect_stderr
 from cryptography.fernet import Fernet
 import keystoneauth1
 from loguru import logger
 import openstack
 import pynetbox
+from pottery import Redlock
 from redis import Redis
 import urllib3
 import yaml
@@ -181,3 +183,23 @@ def finish_task_output(task_id, rc=None):
     if rc:
         redis.xadd(task_id, {"type": "rc", "content": rc})
     redis.xadd(task_id, {"type": "action", "content": "quit"})
+
+
+def create_redlock(key, auto_release_time=3600):
+    """
+    Create a Redlock instance with output suppression during initialization.
+
+    Args:
+        key (str): The lock key
+        auto_release_time (int): Auto release time in seconds (default: 3600)
+
+    Returns:
+        Redlock: The configured Redlock instance
+    """
+    with open(os.devnull, "w") as devnull:
+        with redirect_stdout(devnull), redirect_stderr(devnull):
+            return Redlock(
+                key=key,
+                masters={redis},
+                auto_release_time=auto_release_time,
+            )

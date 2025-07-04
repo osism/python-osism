@@ -3,7 +3,6 @@
 import json
 
 import jinja2
-from pottery import Redlock
 
 from osism import utils as osism_utils
 from osism.tasks import netbox, openstack
@@ -180,9 +179,8 @@ def sync_ironic(request_id, get_ironic_parameters, force_update=False):
             if interface.enabled and not interface.mgmt_only and interface.mac_address
         ]
 
-        lock = Redlock(
+        lock = osism_utils.create_redlock(
             key=f"lock_osism_tasks_conductor_sync_ironic-{device.name}",
-            masters={osism_utils.redis},
             auto_release_time=600,
         )
         if lock.acquire(timeout=120):
