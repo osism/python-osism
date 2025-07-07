@@ -630,3 +630,73 @@ class Reload(SonicCommandBase):
         except Exception as e:
             logger.error(f"Error reloading SONiC device {hostname}: {e}")
             return 1
+
+
+class Reboot(SonicCommandBase):
+    """Reboot SONiC switch"""
+
+    def get_parser(self, prog_name):
+        parser = super(Reboot, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname", type=str, help="Hostname of the SONiC switch to reboot"
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        hostname = parsed_args.hostname
+
+        try:
+            # Get device from NetBox
+            device = self._get_device_from_netbox(hostname)
+            if not device:
+                return 1
+
+            # Get device configuration context for SSH connection details
+            config_context = self._get_config_context(device, hostname)
+            if not config_context:
+                return 1
+
+            # Get SSH connection details
+            ssh_host, ssh_username = self._get_ssh_connection_details(
+                config_context, device, hostname
+            )
+            if not ssh_host:
+                return 1
+
+            logger.info(f"Connecting to {hostname} ({ssh_host}) to reboot SONiC switch")
+
+            # Create SSH connection
+            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            if not ssh:
+                return 1
+
+            try:
+                # Reboot the switch
+                logger.info("Rebooting SONiC switch")
+                reboot_cmd = "sudo reboot"
+                stdin, stdout, stderr = ssh.exec_command(reboot_cmd)
+
+                # Note: We don't check exit status here because the connection will be terminated
+                # by the reboot command before we can receive the status
+
+                logger.info("SONiC switch reboot command executed successfully")
+                logger.info("- Switch is rebooting now")
+                logger.info("- Connection will be terminated by the reboot")
+
+                return 0
+
+            except paramiko.AuthenticationException:
+                logger.error(f"Authentication failed for {ssh_host}")
+                return 1
+            except paramiko.SSHException as e:
+                logger.error(f"SSH connection failed: {e}")
+                return 1
+            except Exception as e:
+                logger.error(f"Unexpected error during SSH operations: {e}")
+                return 1
+            finally:
+                ssh.close()
+
+        except Exception as e:
+            logger.error(f"Error rebooting SONiC device {hostname}: {e}")
+            return 1
