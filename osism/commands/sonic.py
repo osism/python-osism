@@ -305,6 +305,77 @@ class Load(SonicCommandBase):
             return 1
 
 
+class Backup(SonicCommandBase):
+    """Backup SONiC switch configuration"""
+
+    def get_parser(self, prog_name):
+        parser = super(Backup, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname", type=str, help="Hostname of the SONiC switch to backup"
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        hostname = parsed_args.hostname
+        today = datetime.now().strftime("%Y%m%d")
+
+        try:
+            # Get device from NetBox
+            device = self._get_device_from_netbox(hostname)
+            if not device:
+                return 1
+
+            # Get device configuration context for SSH connection details
+            config_context = self._get_config_context(device, hostname)
+            if not config_context:
+                return 1
+
+            # Get SSH connection details
+            ssh_host, ssh_username = self._get_ssh_connection_details(
+                config_context, device, hostname
+            )
+            if not ssh_host:
+                return 1
+
+            logger.info(
+                f"Connecting to {hostname} ({ssh_host}) to backup SONiC configuration"
+            )
+
+            # Create SSH connection
+            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            if not ssh:
+                return 1
+
+            try:
+                # Generate backup filename
+                backup_filename = self._generate_backup_filename(ssh, hostname, today)
+
+                # Backup current configuration
+                if not self._backup_current_config(ssh, backup_filename):
+                    return 1
+
+                logger.info("SONiC configuration backup completed successfully")
+                logger.info(f"- Backup created on switch: {backup_filename}")
+
+                return 0
+
+            except paramiko.AuthenticationException:
+                logger.error(f"Authentication failed for {ssh_host}")
+                return 1
+            except paramiko.SSHException as e:
+                logger.error(f"SSH connection failed: {e}")
+                return 1
+            except Exception as e:
+                logger.error(f"Unexpected error during SSH operations: {e}")
+                return 1
+            finally:
+                ssh.close()
+
+        except Exception as e:
+            logger.error(f"Error backing up SONiC device {hostname}: {e}")
+            return 1
+
+
 class Reload(SonicCommandBase):
     """Reload SONiC switch configuration"""
 
