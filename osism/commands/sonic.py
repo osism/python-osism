@@ -204,6 +204,51 @@ class SonicCommandBase(Command):
         else:
             logger.info("Temporary file deleted successfully")
 
+    def _get_ztp_status(self, ssh):
+        """Get ZTP (Zero Touch Provisioning) status"""
+        logger.info("Checking ZTP status")
+        status_cmd = "sudo config ztp status"
+        stdin, stdout, stderr = ssh.exec_command(status_cmd)
+        exit_status = stdout.channel.recv_exit_status()
+
+        if exit_status != 0:
+            error_msg = stderr.read().decode()
+            logger.error(f"Failed to get ZTP status: {error_msg}")
+            return None
+
+        output = stdout.read().decode().strip()
+        return output
+
+    def _enable_ztp(self, ssh):
+        """Enable ZTP (Zero Touch Provisioning)"""
+        logger.info("Enabling ZTP")
+        enable_cmd = "sudo config ztp enable"
+        stdin, stdout, stderr = ssh.exec_command(enable_cmd)
+        exit_status = stdout.channel.recv_exit_status()
+
+        if exit_status != 0:
+            error_msg = stderr.read().decode()
+            logger.error(f"Failed to enable ZTP: {error_msg}")
+            return False
+
+        logger.info("ZTP enabled successfully")
+        return True
+
+    def _disable_ztp(self, ssh):
+        """Disable ZTP (Zero Touch Provisioning)"""
+        logger.info("Disabling ZTP")
+        disable_cmd = "sudo config ztp disable"
+        stdin, stdout, stderr = ssh.exec_command(disable_cmd)
+        exit_status = stdout.channel.recv_exit_status()
+
+        if exit_status != 0:
+            error_msg = stderr.read().decode()
+            logger.error(f"Failed to disable ZTP: {error_msg}")
+            return False
+
+        logger.info("ZTP disabled successfully")
+        return True
+
 
 class Load(SonicCommandBase):
     """Load SONiC switch configuration"""
@@ -373,6 +418,108 @@ class Backup(SonicCommandBase):
 
         except Exception as e:
             logger.error(f"Error backing up SONiC device {hostname}: {e}")
+            return 1
+
+
+class Ztp(SonicCommandBase):
+    """Manage SONiC switch ZTP (Zero Touch Provisioning)"""
+
+    def get_parser(self, prog_name):
+        parser = super(Ztp, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname", type=str, help="Hostname of the SONiC switch to manage ZTP"
+        )
+
+        # Create mutually exclusive group for enable/disable
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument(
+            "--enable",
+            action="store_true",
+            help="Enable ZTP (Zero Touch Provisioning)",
+        )
+        group.add_argument(
+            "--disable",
+            action="store_true",
+            help="Disable ZTP (Zero Touch Provisioning)",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        hostname = parsed_args.hostname
+        enable_ztp = parsed_args.enable
+        disable_ztp = parsed_args.disable
+
+        try:
+            # Get device from NetBox
+            device = self._get_device_from_netbox(hostname)
+            if not device:
+                return 1
+
+            # Get device configuration context for SSH connection details
+            config_context = self._get_config_context(device, hostname)
+            if not config_context:
+                return 1
+
+            # Get SSH connection details
+            ssh_host, ssh_username = self._get_ssh_connection_details(
+                config_context, device, hostname
+            )
+            if not ssh_host:
+                return 1
+
+            if enable_ztp:
+                logger.info(f"Connecting to {hostname} ({ssh_host}) to enable ZTP")
+            elif disable_ztp:
+                logger.info(f"Connecting to {hostname} ({ssh_host}) to disable ZTP")
+            else:
+                logger.info(
+                    f"Connecting to {hostname} ({ssh_host}) to check ZTP status"
+                )
+
+            # Create SSH connection
+            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            if not ssh:
+                return 1
+
+            try:
+                if enable_ztp:
+                    # Enable ZTP
+                    if not self._enable_ztp(ssh):
+                        return 1
+                    logger.info("ZTP management completed successfully")
+                    logger.info("- ZTP has been enabled")
+
+                elif disable_ztp:
+                    # Disable ZTP
+                    if not self._disable_ztp(ssh):
+                        return 1
+                    logger.info("ZTP management completed successfully")
+                    logger.info("- ZTP has been disabled")
+
+                else:
+                    # Get status only
+                    status = self._get_ztp_status(ssh)
+                    if status is None:
+                        return 1
+                    logger.info("ZTP status check completed successfully")
+                    logger.info(f"- ZTP Status: {status}")
+
+                return 0
+
+            except paramiko.AuthenticationException:
+                logger.error(f"Authentication failed for {ssh_host}")
+                return 1
+            except paramiko.SSHException as e:
+                logger.error(f"SSH connection failed: {e}")
+                return 1
+            except Exception as e:
+                logger.error(f"Unexpected error during SSH operations: {e}")
+                return 1
+            finally:
+                ssh.close()
+
+        except Exception as e:
+            logger.error(f"Error managing ZTP on SONiC device {hostname}: {e}")
             return 1
 
 
