@@ -7,6 +7,7 @@ from datetime import datetime
 from cliff.command import Command
 from loguru import logger
 import paramiko
+from prompt_toolkit import prompt
 
 from osism import utils
 
@@ -699,4 +700,121 @@ class Reboot(SonicCommandBase):
 
         except Exception as e:
             logger.error(f"Error rebooting SONiC device {hostname}: {e}")
+            return 1
+
+
+class Reset(SonicCommandBase):
+    """Factory reset SONiC switch using ONIE"""
+
+    def get_parser(self, prog_name):
+        parser = super(Reset, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname", type=str, help="Hostname of the SONiC switch to factory reset"
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Force factory reset without confirmation prompt",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        hostname = parsed_args.hostname
+        force = parsed_args.force
+
+        if not force:
+            logger.warning(
+                "Factory reset will completely wipe the switch and require reinstallation!"
+            )
+            response = prompt("Are you sure you want to proceed? [yes/no]: ")
+            if response.lower() not in ["yes", "y"]:
+                logger.info("Factory reset cancelled by user")
+                return 0
+
+        try:
+            # Get device from NetBox
+            device = self._get_device_from_netbox(hostname)
+            if not device:
+                return 1
+
+            # Get device configuration context for SSH connection details
+            config_context = self._get_config_context(device, hostname)
+            if not config_context:
+                return 1
+
+            # Get SSH connection details
+            ssh_host, ssh_username = self._get_ssh_connection_details(
+                config_context, device, hostname
+            )
+            if not ssh_host:
+                return 1
+
+            logger.info(
+                f"Connecting to {hostname} ({ssh_host}) to perform factory reset"
+            )
+
+            # Create SSH connection
+            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            if not ssh:
+                return 1
+
+            try:
+                # Factory reset using ONIE uninstall
+                logger.info("Initiating factory reset via ONIE uninstall")
+                logger.warning("This will completely wipe the switch!")
+
+                # Set ONIE mode to uninstall and boot into ONIE
+                logger.info("Setting ONIE mode to uninstall")
+                grub_cmd1 = (
+                    "sudo grub-editenv /host/grub/grubenv set onie_mode=uninstall"
+                )
+                stdin, stdout, stderr = ssh.exec_command(grub_cmd1)
+                exit_status = stdout.channel.recv_exit_status()
+
+                if exit_status != 0:
+                    error_msg = stderr.read().decode()
+                    logger.error(f"Failed to set ONIE mode: {error_msg}")
+                    return 1
+
+                logger.info("Setting next boot entry to ONIE")
+                grub_cmd2 = "sudo grub-editenv /host/grub/grubenv set next_entry=ONIE"
+                stdin, stdout, stderr = ssh.exec_command(grub_cmd2)
+                exit_status = stdout.channel.recv_exit_status()
+
+                if exit_status != 0:
+                    error_msg = stderr.read().decode()
+                    logger.error(f"Failed to set next boot entry: {error_msg}")
+                    return 1
+
+                logger.info("Rebooting into ONIE uninstall mode")
+                reset_cmd = "sudo reboot"
+                stdin, stdout, stderr = ssh.exec_command(reset_cmd)
+
+                # Note: We don't check exit status here because the connection will be terminated
+                # by the reboot command before we can receive the status
+
+                logger.info("Factory reset command executed successfully")
+                logger.info("- Switch is entering ONIE uninstall mode")
+                logger.info("- All configuration and data will be wiped")
+                logger.info("- Switch will need to be reinstalled after reset")
+                logger.info("- Connection will be terminated by the reboot")
+
+                return 0
+
+            except paramiko.AuthenticationException:
+                logger.error(f"Authentication failed for {ssh_host}")
+                return 1
+            except paramiko.SSHException as e:
+                logger.error(f"SSH connection failed: {e}")
+                return 1
+            except Exception as e:
+                logger.error(f"Unexpected error during SSH operations: {e}")
+                return 1
+            finally:
+                ssh.close()
+
+        except Exception as e:
+            logger.error(
+                f"Error performing factory reset on SONiC device {hostname}: {e}"
+            )
             return 1
