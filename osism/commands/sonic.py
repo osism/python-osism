@@ -10,6 +10,7 @@ import paramiko
 from prompt_toolkit import prompt
 
 from osism import utils
+from osism.tasks import netbox
 
 
 class SonicCommandBase(Command):
@@ -798,6 +799,10 @@ class Reset(SonicCommandBase):
                 logger.info("- All configuration and data will be wiped")
                 logger.info("- Switch will need to be reinstalled after reset")
                 logger.info("- Connection will be terminated by the reboot")
+
+                # Set provision_state to 'ztp' in NetBox
+                logger.info("Setting provision_state to 'ztp' in NetBox")
+                netbox.set_provision_state.delay(hostname, "ztp")
 
                 return 0
 
