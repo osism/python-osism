@@ -207,7 +207,7 @@ class SonicCommandBase(Command):
     def _get_ztp_status(self, ssh):
         """Get ZTP (Zero Touch Provisioning) status"""
         logger.info("Checking ZTP status")
-        status_cmd = "sudo config ztp status"
+        status_cmd = "show ztp status"
         stdin, stdout, stderr = ssh.exec_command(status_cmd)
         exit_status = stdout.channel.recv_exit_status()
 
