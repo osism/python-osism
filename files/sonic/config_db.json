@@ -77,6 +77,7 @@
             "type": "LeafRouter"
         }
     },
+    "DNS_NAMESERVER": {},
     "ECMP_LOADSHARE_TABLE_IPV4": {
         "ipv4": {
             "ipv4_dst_ip": "true",
