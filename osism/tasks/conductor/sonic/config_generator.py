@@ -201,6 +201,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     # Add NTP server configuration (device-specific)
     _add_ntp_configuration(config, device)
 
+    # Add DNS server configuration (device-specific)
+    _add_dns_configuration(config, device)
+
     # Add VLAN configuration
     _add_vlan_configuration(config, vlan_info, netbox_interfaces, device)
 
@@ -694,18 +697,20 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
         return "external"  # Default to external on error
 
 
-def _get_ntp_server_for_device(device):
-    """Get single NTP server IP for a SONiC device based on OOB connection to metalbox.
+def _get_metalbox_ip_for_device(device):
+    """Get Metalbox IP for a SONiC device based on OOB connection.
 
     Returns the IP address of the metalbox device interface that is connected to the
     OOB switch. If VLANs are used, returns the IP of the VLAN interface where the
     SONiC switch management interface (eth0) has access.
 
+    This IP is used for both NTP and DNS services.
+
     Args:
         device: SONiC device object
 
     Returns:
-        str: IP address of the NTP server or None if not found
+        str: IP address of the Metalbox or None if not found
     """
     try:
         # Get the OOB IP configuration for this SONiC device
@@ -726,7 +731,7 @@ def _get_ntp_server_for_device(device):
         metalbox_devices = utils.nb.dcim.devices.filter(role="metalbox")
 
         for metalbox in metalbox_devices:
-            logger.debug(f"Checking metalbox device {metalbox.name} for NTP server")
+            logger.debug(f"Checking metalbox device {metalbox.name} for services")
 
             # Get all interfaces on this metalbox
             interfaces = utils.nb.dcim.interfaces.filter(device_id=metalbox.id)
@@ -765,7 +770,7 @@ def _get_ntp_server_for_device(device):
                                     else "interface"
                                 )
                                 logger.info(
-                                    f"Found NTP server {ip_only} on metalbox {metalbox.name} "
+                                    f"Found Metalbox {ip_only} on {metalbox.name} "
                                     f"{interface_type} {interface.name} for SONiC device {device.name}"
                                 )
                                 return ip_only
@@ -773,11 +778,11 @@ def _get_ntp_server_for_device(device):
                             # Skip non-IPv4 addresses
                             continue
 
-        logger.warning(f"No suitable NTP server found for SONiC device {device.name}")
+        logger.warning(f"No suitable Metalbox found for SONiC device {device.name}")
         return None
 
     except Exception as e:
-        logger.warning(f"Could not determine NTP server for device {device.name}: {e}")
+        logger.warning(f"Could not determine Metalbox IP for device {device.name}: {e}")
         return None
 
 
@@ -846,19 +851,17 @@ def _add_ntp_configuration(config, device):
     metalbox device interface connected to the OOB switch.
     """
     try:
-        # Get the specific NTP server for this device
-        ntp_server_ip = _get_ntp_server_for_device(device)
+        # Get the Metalbox IP for this device
+        metalbox_ip = _get_metalbox_ip_for_device(device)
 
-        if ntp_server_ip:
+        if metalbox_ip:
             # Add single NTP server configuration
-            config["NTP_SERVER"][ntp_server_ip] = {
+            config["NTP_SERVER"][metalbox_ip] = {
                 "maxpoll": "10",
                 "minpoll": "6",
                 "prefer": "false",
             }
-            logger.info(
-                f"Added NTP server {ntp_server_ip} to SONiC device {device.name}"
-            )
+            logger.info(f"Added NTP server {metalbox_ip} to SONiC device {device.name}")
         else:
             logger.warning(f"No NTP server found for SONiC device {device.name}")
 
@@ -871,6 +874,27 @@ def clear_ntp_cache():
     global _ntp_servers_cache
     _ntp_servers_cache = None
     logger.debug("Cleared NTP servers cache")
+
+
+def _add_dns_configuration(config, device):
+    """Add DNS_NAMESERVER configuration to device config.
+
+    Each SONiC switch gets exactly one DNS server - the IP address of the
+    metalbox device interface connected to the OOB switch.
+    """
+    try:
+        # Get the Metalbox IP for this device
+        metalbox_ip = _get_metalbox_ip_for_device(device)
+
+        if metalbox_ip:
+            # Add single DNS server configuration
+            config["DNS_NAMESERVER"][metalbox_ip] = {}
+            logger.info(f"Added DNS server {metalbox_ip} to SONiC device {device.name}")
+        else:
+            logger.warning(f"No DNS server found for SONiC device {device.name}")
+
+    except Exception as e:
+        logger.warning(f"Could not add DNS configuration to device {device.name}: {e}")
 
 
 def clear_all_caches():
