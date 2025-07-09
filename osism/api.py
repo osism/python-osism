@@ -208,11 +208,11 @@ async def notifications_baremetal(notification: NotificationBaremetal) -> None:
 
 
 @app.post(
-    "/v1/switches/{identifier}/ztp/complete",
+    "/v1/sonic/{identifier}/ztp/complete",
     response_model=DeviceSearchResult,
-    tags=["switches"],
+    tags=["sonic"],
 )
-async def switches_ztp_complete(identifier: str) -> DeviceSearchResult:
+async def sonic_ztp_complete(identifier: str) -> DeviceSearchResult:
     """Mark a switch as ZTP complete by setting provision_state to active."""
     if not utils.nb:
         raise HTTPException(
