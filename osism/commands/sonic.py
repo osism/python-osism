@@ -429,27 +429,18 @@ class Ztp(SonicCommandBase):
     def get_parser(self, prog_name):
         parser = super(Ztp, self).get_parser(prog_name)
         parser.add_argument(
+            "action",
+            choices=["status", "enable", "disable"],
+            help="Action to perform: status (show ZTP status), enable (enable ZTP), or disable (disable ZTP)",
+        )
+        parser.add_argument(
             "hostname", type=str, help="Hostname of the SONiC switch to manage ZTP"
-        )
-
-        # Create mutually exclusive group for enable/disable
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument(
-            "--enable",
-            action="store_true",
-            help="Enable ZTP (Zero Touch Provisioning)",
-        )
-        group.add_argument(
-            "--disable",
-            action="store_true",
-            help="Disable ZTP (Zero Touch Provisioning)",
         )
         return parser
 
     def take_action(self, parsed_args):
         hostname = parsed_args.hostname
-        enable_ztp = parsed_args.enable
-        disable_ztp = parsed_args.disable
+        action = parsed_args.action
 
         try:
             # Get device from NetBox
@@ -469,9 +460,9 @@ class Ztp(SonicCommandBase):
             if not ssh_host:
                 return 1
 
-            if enable_ztp:
+            if action == "enable":
                 logger.info(f"Connecting to {hostname} ({ssh_host}) to enable ZTP")
-            elif disable_ztp:
+            elif action == "disable":
                 logger.info(f"Connecting to {hostname} ({ssh_host}) to disable ZTP")
             else:
                 logger.info(
@@ -484,14 +475,14 @@ class Ztp(SonicCommandBase):
                 return 1
 
             try:
-                if enable_ztp:
+                if action == "enable":
                     # Enable ZTP
                     if not self._enable_ztp(ssh):
                         return 1
                     logger.info("ZTP management completed successfully")
                     logger.info("- ZTP has been enabled")
 
-                elif disable_ztp:
+                elif action == "disable":
                     # Disable ZTP
                     if not self._disable_ztp(ssh):
                         return 1
