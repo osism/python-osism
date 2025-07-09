@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import logging
 import os
 from datetime import datetime
 
@@ -11,6 +12,10 @@ from prompt_toolkit import prompt
 
 from osism import utils
 from osism.tasks import netbox
+
+# Suppress paramiko logging messages globally
+logging.getLogger("paramiko").setLevel(logging.ERROR)
+logging.getLogger("paramiko.transport").setLevel(logging.ERROR)
 
 
 class SonicCommandBase(Command):
