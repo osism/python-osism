@@ -5,7 +5,7 @@ import time
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-from pygnmi import gNMIclient
+from pygnmi.client import gNMIclient
 
 
 logger = logging.getLogger(__name__)
