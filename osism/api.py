@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import datetime
+import os
 from logging.config import dictConfig
 import logging
 from typing import Optional, Dict, Any
@@ -293,7 +294,11 @@ async def sonic_prometheus_metrics(identifier: str) -> Response:
             )
 
         # Collect metrics via gNMI
-        metrics = collector.collect_metrics(device.name, device_ip)
+        # Use standard SONiC credentials or get from environment/config
+        username = os.getenv("SONIC_GNMI_USERNAME", "admin")
+        password = os.getenv("SONIC_GNMI_PASSWORD", "YourPaSsWoRd")
+
+        metrics = collector.collect_metrics(device.name, device_ip, username, password)
 
         # Format metrics in Prometheus exposition format
         prometheus_metrics = format_prometheus_metrics(metrics)

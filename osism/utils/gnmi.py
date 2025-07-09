@@ -2,8 +2,11 @@
 
 import logging
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
+
+from pygnmi import gNMIclient
+
 
 logger = logging.getLogger(__name__)
 
@@ -11,8 +14,11 @@ logger = logging.getLogger(__name__)
 class GnmiTelemetryCollector:
     """Collect telemetry data from SONiC switches via gNMI."""
 
-    def __init__(self):
+    def __init__(self, port: int = 9339, timeout: int = 30):
         self.logger = logger
+        self.port = port
+        self.timeout = timeout
+        self.client: Optional[gNMIclient] = None
 
     def collect_metrics(
         self,
@@ -34,25 +40,23 @@ class GnmiTelemetryCollector:
             Dictionary containing collected metrics
         """
         try:
-            # TODO: Implement actual gNMI client connection
-            # For now, return placeholder metrics
-            self.logger.warning(
-                f"gNMI collection not yet implemented for device {device_name}"
-            )
+            # Connect to gNMI server
+            self._connect(device_ip, username, password)
 
-            # Placeholder metrics structure
+            # Collect actual metrics
             metrics = {
                 "device_info": {
                     "name": device_name,
                     "ip": device_ip,
                     "collection_time": datetime.now().isoformat(),
-                    "status": "placeholder",
+                    "status": "success",
                 },
-                "interfaces": self._get_placeholder_interface_metrics(device_name),
-                "system": self._get_placeholder_system_metrics(device_name),
-                "bgp": self._get_placeholder_bgp_metrics(device_name),
+                "interfaces": self._collect_interface_metrics(),
+                "system": self._collect_system_metrics(),
+                "bgp": self._collect_bgp_metrics(),
             }
 
+            self.logger.info(f"Successfully collected gNMI metrics from {device_name}")
             return metrics
 
         except Exception as e:
@@ -60,59 +64,203 @@ class GnmiTelemetryCollector:
                 f"Error collecting gNMI metrics from {device_name}: {str(e)}"
             )
             raise
+        finally:
+            self._disconnect()
 
-    def _get_placeholder_interface_metrics(self, device_name: str) -> Dict[str, Any]:
-        """Generate placeholder interface metrics."""
-        return {
-            "Ethernet0": {
-                "admin_status": "UP",
-                "oper_status": "UP",
-                "in_octets": 1000000,
-                "out_octets": 800000,
-                "in_pkts": 5000,
-                "out_pkts": 4000,
-                "in_errors": 0,
-                "out_errors": 0,
-            },
-            "Ethernet1": {
-                "admin_status": "UP",
-                "oper_status": "DOWN",
-                "in_octets": 0,
-                "out_octets": 0,
-                "in_pkts": 0,
-                "out_pkts": 0,
-                "in_errors": 0,
-                "out_errors": 0,
-            },
-        }
+    def _connect(self, device_ip: str, username: str, password: str) -> None:
+        """Establish gNMI connection to the device."""
+        try:
+            self.client = gNMIclient(
+                target=(device_ip, self.port),
+                username=username,
+                password=password,
+                timeout=self.timeout,
+                insecure=True,  # For SONiC switches without TLS
+            )
+            if self.client is None:
+                raise RuntimeError("Failed to create gNMI client")
+            self.client.connect()
+            self.logger.debug(f"Connected to gNMI server at {device_ip}:{self.port}")
+        except Exception as e:
+            self.logger.error(f"Failed to connect to gNMI server: {str(e)}")
+            raise
 
-    def _get_placeholder_system_metrics(self, device_name: str) -> Dict[str, Any]:
-        """Generate placeholder system metrics."""
-        return {
-            "uptime": 86400,  # 1 day in seconds
-            "cpu_usage": 25.5,
-            "memory_usage": 60.2,
-            "temperature": 45.0,
-        }
+    def _disconnect(self) -> None:
+        """Close gNMI connection."""
+        if self.client:
+            try:
+                self.client.close()
+                self.logger.debug("Disconnected from gNMI server")
+            except Exception as e:
+                self.logger.warning(f"Error disconnecting from gNMI server: {str(e)}")
+            finally:
+                self.client = None
 
-    def _get_placeholder_bgp_metrics(self, device_name: str) -> Dict[str, Any]:
-        """Generate placeholder BGP metrics."""
-        return {
-            "neighbors": {
-                "10.1.1.1": {
-                    "state": "Established",
-                    "uptime": 3600,
-                    "received_prefixes": 100,
-                    "sent_prefixes": 50,
-                },
-                "10.1.1.2": {
-                    "state": "Idle",
-                    "uptime": 0,
-                    "received_prefixes": 0,
-                    "sent_prefixes": 0,
-                },
+    def _collect_interface_metrics(self) -> Dict[str, Any]:
+        """Collect interface metrics via gNMI."""
+        interfaces = {}
+
+        try:
+            # Get interface list using pygnmi
+            interface_paths = [
+                "/openconfig-interfaces:interfaces/interface[name=*]/name",
+                "/openconfig-interfaces:interfaces/interface[name=*]/state/admin-status",
+                "/openconfig-interfaces:interfaces/interface[name=*]/state/oper-status",
+                "/openconfig-interfaces:interfaces/interface[name=*]/state/counters/in-octets",
+                "/openconfig-interfaces:interfaces/interface[name=*]/state/counters/out-octets",
+                "/openconfig-interfaces:interfaces/interface[name=*]/state/counters/in-pkts",
+                "/openconfig-interfaces:interfaces/interface[name=*]/state/counters/out-pkts",
+                "/openconfig-interfaces:interfaces/interface[name=*]/state/counters/in-errors",
+                "/openconfig-interfaces:interfaces/interface[name=*]/state/counters/out-errors",
+            ]
+
+            assert self.client is not None, "gNMI client is not connected"
+            result = self.client.get(path=interface_paths)
+
+            if result:
+                for path, value in result.items():
+                    if "/interface[name=" in path:
+                        # Extract interface name from path
+                        interface_name = path.split("/interface[name=")[1].split("]")[0]
+
+                        if interface_name not in interfaces:
+                            interfaces[interface_name] = {
+                                "admin_status": "DOWN",
+                                "oper_status": "DOWN",
+                                "in_octets": 0,
+                                "out_octets": 0,
+                                "in_pkts": 0,
+                                "out_pkts": 0,
+                                "in_errors": 0,
+                                "out_errors": 0,
+                            }
+
+                        # Map values to interface metrics
+                        if "/state/admin-status" in path:
+                            interfaces[interface_name]["admin_status"] = (
+                                "UP" if value == "UP" else "DOWN"
+                            )
+                        elif "/state/oper-status" in path:
+                            interfaces[interface_name]["oper_status"] = (
+                                "UP" if value == "UP" else "DOWN"
+                            )
+                        elif "/state/counters/in-octets" in path:
+                            interfaces[interface_name]["in_octets"] = (
+                                int(value) if value else 0
+                            )
+                        elif "/state/counters/out-octets" in path:
+                            interfaces[interface_name]["out_octets"] = (
+                                int(value) if value else 0
+                            )
+                        elif "/state/counters/in-pkts" in path:
+                            interfaces[interface_name]["in_pkts"] = (
+                                int(value) if value else 0
+                            )
+                        elif "/state/counters/out-pkts" in path:
+                            interfaces[interface_name]["out_pkts"] = (
+                                int(value) if value else 0
+                            )
+                        elif "/state/counters/in-errors" in path:
+                            interfaces[interface_name]["in_errors"] = (
+                                int(value) if value else 0
+                            )
+                        elif "/state/counters/out-errors" in path:
+                            interfaces[interface_name]["out_errors"] = (
+                                int(value) if value else 0
+                            )
+
+            return interfaces
+
+        except Exception as e:
+            self.logger.error(f"Error collecting interface metrics: {str(e)}")
+            raise
+
+    def _collect_system_metrics(self) -> Dict[str, Any]:
+        """Collect system metrics via gNMI."""
+        try:
+            # System metrics paths using pygnmi
+            system_paths = [
+                "/openconfig-system:system/state/boot-time",
+                "/openconfig-system:system/cpus/cpu[index=*]/state/total/utilization",
+                "/openconfig-system:system/memory/state/utilization",
+            ]
+
+            assert self.client is not None, "gNMI client is not connected"
+            result = self.client.get(path=system_paths)
+
+            metrics = {
+                "uptime": 0,
+                "cpu_usage": 0.0,
+                "memory_usage": 0.0,
+                "temperature": 0.0,  # Placeholder - may need different path
             }
-        }
+
+            current_time = time.time()
+
+            if result:
+                for path, value in result.items():
+                    if "/state/boot-time" in path and value:
+                        boot_time = (
+                            int(value) / 1000000000
+                        )  # Convert nanoseconds to seconds
+                        metrics["uptime"] = int(current_time - boot_time)
+                    elif "/state/total/utilization" in path and value:
+                        metrics["cpu_usage"] = float(value)
+                    elif "/memory/state/utilization" in path and value:
+                        metrics["memory_usage"] = float(value)
+
+            return metrics
+
+        except Exception as e:
+            self.logger.error(f"Error collecting system metrics: {str(e)}")
+            raise
+
+    def _collect_bgp_metrics(self) -> Dict[str, Any]:
+        """Collect BGP metrics via gNMI."""
+        try:
+            # BGP neighbors paths using pygnmi
+            bgp_paths = [
+                "/openconfig-bgp:bgp/neighbors/neighbor[neighbor-address=*]/state/session-state",
+                "/openconfig-bgp:bgp/neighbors/neighbor[neighbor-address=*]/state/uptime",
+                "/openconfig-bgp:bgp/neighbors/neighbor[neighbor-address=*]/state/received-prefixes",
+                "/openconfig-bgp:bgp/neighbors/neighbor[neighbor-address=*]/state/sent-prefixes",
+            ]
+
+            assert self.client is not None, "gNMI client is not connected"
+            result = self.client.get(path=bgp_paths)
+            neighbors = {}
+
+            if result:
+                for path, value in result.items():
+                    if "/neighbor[neighbor-address=" in path:
+                        # Extract neighbor address from path
+                        neighbor_ip = path.split("/neighbor[neighbor-address=")[
+                            1
+                        ].split("]")[0]
+
+                        if neighbor_ip not in neighbors:
+                            neighbors[neighbor_ip] = {
+                                "state": "Idle",
+                                "uptime": 0,
+                                "received_prefixes": 0,
+                                "sent_prefixes": 0,
+                            }
+
+                        # Map values to BGP metrics
+                        if "/state/session-state" in path and value:
+                            neighbors[neighbor_ip]["state"] = value
+                        elif "/state/uptime" in path and value:
+                            neighbors[neighbor_ip]["uptime"] = int(value)
+                        elif "/state/received-prefixes" in path and value:
+                            neighbors[neighbor_ip]["received_prefixes"] = int(value)
+                        elif "/state/sent-prefixes" in path and value:
+                            neighbors[neighbor_ip]["sent_prefixes"] = int(value)
+
+            return {"neighbors": neighbors}
+
+        except Exception as e:
+            self.logger.error(f"Error collecting BGP metrics: {str(e)}")
+            raise
 
 
 def format_prometheus_metrics(metrics: Dict[str, Any]) -> str:
