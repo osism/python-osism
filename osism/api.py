@@ -13,6 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 from osism.tasks import reconciler
 from osism import utils
 from osism.services.listener import BaremetalEvents
+from osism.utils.gnmi import GnmiTelemetryCollector, format_prometheus_metrics
 
 
 class NotificationBaremetal(BaseModel):
@@ -248,6 +249,69 @@ async def sonic_ztp_complete(identifier: str) -> DeviceSearchResult:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to complete ZTP process",
+        )
+
+
+@app.get(
+    "/v1/sonic/{identifier}/prometheus",
+    response_class=Response,
+    tags=["sonic"],
+)
+async def sonic_prometheus_metrics(identifier: str) -> Response:
+    """Collect telemetry data from SONiC switch via gNMI and return in Prometheus format."""
+    if not utils.nb:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="NetBox is not enabled",
+        )
+
+    try:
+        device = find_device_by_identifier(identifier)
+
+        if not device:
+            logger.warning(
+                f"No device found for Prometheus metrics with identifier {identifier}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Device not found with identifier: {identifier}",
+            )
+
+        logger.info(
+            f"Collecting Prometheus metrics for device {device.name} with identifier {identifier}"
+        )
+
+        # Initialize gNMI telemetry collector
+        collector = GnmiTelemetryCollector()
+
+        # Get device out-of-band IP from NetBox
+        device_ip = str(device.oob_ip).split("/")[0] if device.oob_ip else None
+        if not device_ip:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Device {device.name} has no out-of-band IP address configured",
+            )
+
+        # Collect metrics via gNMI
+        metrics = collector.collect_metrics(device.name, device_ip)
+
+        # Format metrics in Prometheus exposition format
+        prometheus_metrics = format_prometheus_metrics(metrics)
+
+        return Response(
+            content=prometheus_metrics,
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error collecting Prometheus metrics for device {identifier}: {str(e)}"
+        )
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to collect telemetry data",
         )
 
 
