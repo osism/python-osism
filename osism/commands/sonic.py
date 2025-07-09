@@ -814,3 +814,91 @@ class Reset(SonicCommandBase):
                 f"Error performing factory reset on SONiC device {hostname}: {e}"
             )
             return 1
+
+
+class Show(SonicCommandBase):
+    """Execute show commands on SONiC switch"""
+
+    def get_parser(self, prog_name):
+        parser = super(Show, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname", type=str, help="Hostname of the SONiC switch to query"
+        )
+        parser.add_argument(
+            "command",
+            nargs="+",
+            help="Show command and parameters to execute (e.g., 'interfaces', 'version', 'ip route')",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        hostname = parsed_args.hostname
+        command_parts = parsed_args.command
+
+        try:
+            # Get device from NetBox
+            device = self._get_device_from_netbox(hostname)
+            if not device:
+                return 1
+
+            # Get device configuration context for SSH connection details
+            config_context = self._get_config_context(device, hostname)
+            if not config_context:
+                return 1
+
+            # Get SSH connection details
+            ssh_host, ssh_username = self._get_ssh_connection_details(
+                config_context, device, hostname
+            )
+            if not ssh_host:
+                return 1
+
+            # Build the show command
+            show_command = "show " + " ".join(command_parts)
+            logger.info(f"Executing command on {hostname} ({ssh_host}): {show_command}")
+
+            # Create SSH connection
+            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            if not ssh:
+                return 1
+
+            try:
+                # Execute the show command
+                stdin, stdout, stderr = ssh.exec_command(show_command)
+                exit_status = stdout.channel.recv_exit_status()
+
+                # Read output
+                output = stdout.read().decode().strip()
+                error_output = stderr.read().decode().strip()
+
+                if exit_status != 0:
+                    logger.error(f"Command failed with exit code {exit_status}")
+                    if error_output:
+                        logger.error(f"Error output: {error_output}")
+                    return 1
+
+                # Print the command output
+                if output:
+                    print(output)
+                else:
+                    logger.info("Command executed successfully (no output)")
+
+                return 0
+
+            except paramiko.AuthenticationException:
+                logger.error(f"Authentication failed for {ssh_host}")
+                return 1
+            except paramiko.SSHException as e:
+                logger.error(f"SSH connection failed: {e}")
+                return 1
+            except Exception as e:
+                logger.error(f"Unexpected error during SSH operations: {e}")
+                return 1
+            finally:
+                ssh.close()
+
+        except Exception as e:
+            logger.error(
+                f"Error executing show command on SONiC device {hostname}: {e}"
+            )
+            return 1
