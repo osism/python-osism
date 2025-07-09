@@ -910,3 +910,64 @@ class Show(SonicCommandBase):
                 f"Error executing show command on SONiC device {hostname}: {e}"
             )
             return 1
+
+
+class Console(SonicCommandBase):
+    """Open interactive SSH console to SONiC switch"""
+
+    def get_parser(self, prog_name):
+        parser = super(Console, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname", type=str, help="Hostname of the SONiC switch to connect to"
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        hostname = parsed_args.hostname
+
+        try:
+            # Get device from NetBox
+            device = self._get_device_from_netbox(hostname)
+            if not device:
+                return 1
+
+            # Get device configuration context for SSH connection details
+            config_context = self._get_config_context(device, hostname)
+            if not config_context:
+                return 1
+
+            # Get SSH connection details
+            ssh_host, ssh_username = self._get_ssh_connection_details(
+                config_context, device, hostname
+            )
+            if not ssh_host:
+                return 1
+
+            # SSH key path
+            ssh_key_path = "/ansible/secrets/id_rsa.operator"
+
+            if not os.path.exists(ssh_key_path):
+                logger.error(f"SSH private key not found at {ssh_key_path}")
+                return 1
+
+            logger.info(f"Connecting to {hostname} ({ssh_host}) via SSH console")
+
+            # Execute SSH command using os.system to provide interactive terminal
+            ssh_command = f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no {ssh_username}@{ssh_host}"
+
+            logger.info("Starting SSH session...")
+            logger.info("To exit the console, type 'exit' or press Ctrl+D")
+
+            # Execute the SSH command
+            exit_code = os.system(ssh_command)
+
+            if exit_code == 0:
+                logger.info("SSH session ended successfully")
+                return 0
+            else:
+                logger.error(f"SSH session failed with exit code {exit_code}")
+                return 1
+
+        except Exception as e:
+            logger.error(f"Error connecting to SONiC device {hostname}: {e}")
+            return 1
