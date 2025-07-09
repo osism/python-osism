@@ -831,14 +831,14 @@ class Show(SonicCommandBase):
         )
         parser.add_argument(
             "command",
-            nargs="+",
-            help="Show command and parameters to execute (e.g., 'interfaces', 'version', 'ip route')",
+            nargs="*",
+            help="Show command and parameters to execute (e.g., 'interfaces', 'version', 'ip route'). If not specified, executes 'show' to display available commands",
         )
         return parser
 
     def take_action(self, parsed_args):
         hostname = parsed_args.hostname
-        command_parts = parsed_args.command
+        command_parts = parsed_args.command if parsed_args.command else []
 
         try:
             # Get device from NetBox
@@ -859,7 +859,10 @@ class Show(SonicCommandBase):
                 return 1
 
             # Build the show command
-            show_command = "show " + " ".join(command_parts)
+            if command_parts:
+                show_command = "show " + " ".join(command_parts)
+            else:
+                show_command = "show"
             logger.info(f"Executing command on {hostname} ({ssh_host}): {show_command}")
 
             # Create SSH connection
