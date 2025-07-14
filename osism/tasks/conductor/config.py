@@ -30,7 +30,7 @@ def get_configuration():
                     "image_source"
                 ]
                 if not validators.uuid(image_source) and not validators.url(
-                    image_source
+                    image_source, simple_host=True
                 ):
                     result = openstack.image_get(image_source)
                     if result:
@@ -46,7 +46,7 @@ def get_configuration():
                     "deploy_kernel"
                 ]
                 if not validators.uuid(deploy_kernel) and not validators.url(
-                    deploy_kernel
+                    deploy_kernel, simple_host=True
                 ):
                     result = openstack.image_get(deploy_kernel)
                     if result:
@@ -63,7 +63,7 @@ def get_configuration():
                     "deploy_ramdisk"
                 ]
                 if not validators.uuid(deploy_ramdisk) and not validators.url(
-                    deploy_ramdisk
+                    deploy_ramdisk, simple_host=True
                 ):
                     result = openstack.image_get(deploy_ramdisk)
                     if result:
