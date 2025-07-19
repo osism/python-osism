@@ -321,7 +321,12 @@ class BaremetalUndeploy(Command):
             if not node:
                 continue
 
-            if node.provision_state in ["active", "deploy failed", "error"]:
+            if node.provision_state in [
+                "active",
+                "wait call-back",
+                "deploy failed",
+                "error",
+            ]:
                 try:
                     node = conn.baremetal.set_node_provision_state(node.id, "undeploy")
                 except Exception as exc:
