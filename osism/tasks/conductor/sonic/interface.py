@@ -419,6 +419,16 @@ def _extract_port_number_from_alias(alias):
     if not alias:
         return None
 
+    # Try to extract number from Eth54(Port54) format first
+    paren_match = re.search(r"Eth(\d+)\(Port(\d+)\)", alias)
+    if paren_match:
+        port_number = int(paren_match.group(1))
+        logger.debug(
+            f"Extracted port number {port_number} from Eth(Port) alias '{alias}'"
+        )
+        return port_number
+
+    # Fallback to number at end of alias
     match = re.search(r"(\d+)$", alias)
     if match:
         port_number = int(match.group(1))
