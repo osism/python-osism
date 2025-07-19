@@ -312,22 +312,53 @@ def get_device_bgp_neighbors_via_loopback(
     """
     bgp_neighbors = []
 
+    logger.debug(
+        f"Starting BGP neighbor detection for device {device.name} (ID: {device.id})"
+    )
+    logger.debug(f"Connected interfaces: {connected_interfaces}")
+    logger.debug(f"Port config keys: {list(port_config.keys())}")
+    logger.debug(
+        f"Port channel member mapping: {portchannel_info.get('member_mapping', {})}"
+    )
+
     try:
         # Get all interfaces for the device
         interfaces = get_cached_device_interfaces(device.id)
+        logger.debug(
+            f"Found {len(interfaces)} total interfaces on device {device.name}"
+        )
+
+        processed_interfaces = 0
+        skipped_mgmt_interfaces = 0
+        interfaces_without_connection = 0
+        interfaces_not_in_port_config = 0
+        interfaces_in_portchannel = 0
+        devices_without_osism_tag = 0
+        devices_without_loopback0 = 0
 
         for interface in interfaces:
+            processed_interfaces += 1
+
             # Skip management-only interfaces
             if hasattr(interface, "mgmt_only") and interface.mgmt_only:
+                skipped_mgmt_interfaces += 1
+                logger.debug(f"Skipping management interface: {interface.name}")
                 continue
 
             # Get connected device
             connected_device = get_connected_device_via_interface(interface, device.id)
             if not connected_device:
+                interfaces_without_connection += 1
+                logger.debug(
+                    f"No connected device found for interface {interface.name}"
+                )
                 continue
 
             # Convert to SONiC interface name to check if it's in our PORT config
             sonic_interface_name = convert_netbox_interface_to_sonic(interface, device)
+            logger.debug(
+                f"Processing interface {interface.name} -> {sonic_interface_name}, connected to {connected_device.name}"
+            )
 
             # Only process if this interface is in PORT configuration and connected
             if (
@@ -337,10 +368,16 @@ def get_device_bgp_neighbors_via_loopback(
             ):
                 # Check if connected device has the required tag
                 has_osism_tag = False
+                device_tags = []
                 if connected_device.tags:
+                    device_tags = [tag.slug for tag in connected_device.tags]
                     has_osism_tag = any(
                         tag.slug == "managed-by-osism" for tag in connected_device.tags
                     )
+
+                logger.debug(
+                    f"Connected device {connected_device.name} tags: {device_tags}, has OSISM tag: {has_osism_tag}"
+                )
 
                 if has_osism_tag:
                     # Get Loopback0 IP addresses from the connected device
@@ -355,35 +392,92 @@ def get_device_bgp_neighbors_via_loopback(
                             if iface.name == "Loopback0"
                         ]
 
+                        logger.debug(
+                            f"Found {len(loopback_interfaces)} Loopback0 interfaces on {connected_device.name}"
+                        )
+
+                        if not loopback_interfaces:
+                            devices_without_loopback0 += 1
+                            logger.debug(
+                                f"No Loopback0 interface found on device {connected_device.name}"
+                            )
+
                         for loopback_iface in loopback_interfaces:
                             # Get IP addresses assigned to Loopback0
                             ip_addresses = utils.nb.ipam.ip_addresses.filter(
                                 assigned_object_id=loopback_iface.id,
                             )
 
+                            ip_count = len(list(ip_addresses))
+                            logger.debug(
+                                f"Found {ip_count} IP addresses on Loopback0 of {connected_device.name}"
+                            )
+
                             for ip_addr in ip_addresses:
                                 if ip_addr.address:
                                     # Extract just the IP address without prefix
                                     ip_only = ip_addr.address.split("/")[0]
-                                    bgp_neighbors.append(
-                                        {
-                                            "ip": ip_only,
-                                            "device": connected_device,
-                                            "interface": sonic_interface_name,
-                                        }
+                                    bgp_neighbor_entry = {
+                                        "ip": ip_only,
+                                        "device": connected_device,
+                                        "interface": sonic_interface_name,
+                                    }
+                                    bgp_neighbors.append(bgp_neighbor_entry)
+                                    logger.info(
+                                        f"Added BGP neighbor: {ip_only} (device: {connected_device.name}, interface: {sonic_interface_name})"
                                     )
 
                     except Exception as e:
-                        logger.debug(
+                        logger.warning(
                             f"Could not get Loopback0 for device {connected_device.name}: {e}"
                         )
                 else:
+                    devices_without_osism_tag += 1
                     logger.debug(
                         f"Skipping BGP neighbor for device {connected_device.name}: "
-                        f"missing 'managed-by-osism' tag"
+                        f"missing 'managed-by-osism' tag (available tags: {device_tags})"
                     )
+            else:
+                # Log why this interface was skipped
+                reasons = []
+                if sonic_interface_name not in port_config:
+                    interfaces_not_in_port_config += 1
+                    reasons.append("not in PORT config")
+                if sonic_interface_name not in connected_interfaces:
+                    reasons.append("not in connected_interfaces")
+                if sonic_interface_name in portchannel_info["member_mapping"]:
+                    interfaces_in_portchannel += 1
+                    reasons.append("is port channel member")
+
+                logger.debug(
+                    f"Skipping interface {sonic_interface_name} connected to {connected_device.name}: {', '.join(reasons)}"
+                )
+
+        # Summary log
+        logger.info(f"BGP neighbor detection summary for {device.name}:")
+        logger.info(f"  - Total interfaces processed: {processed_interfaces}")
+        logger.info(f"  - Management interfaces skipped: {skipped_mgmt_interfaces}")
+        logger.info(
+            f"  - Interfaces without connections: {interfaces_without_connection}"
+        )
+        logger.info(
+            f"  - Interfaces not in PORT config: {interfaces_not_in_port_config}"
+        )
+        logger.info(
+            f"  - Interfaces that are port channel members: {interfaces_in_portchannel}"
+        )
+        logger.info(
+            f"  - Connected devices without OSISM tag: {devices_without_osism_tag}"
+        )
+        logger.info(
+            f"  - Connected devices without Loopback0: {devices_without_loopback0}"
+        )
+        logger.info(f"  - Total BGP neighbors found: {len(bgp_neighbors)}")
 
     except Exception as e:
-        logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")
+        logger.error(f"Error processing BGP neighbors for device {device.name}: {e}")
 
+    logger.debug(
+        f"Completed BGP neighbor detection for device {device.name}, found {len(bgp_neighbors)} neighbors"
+    )
     return bgp_neighbors
