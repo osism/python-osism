@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from cliff.command import Command
+from argparse import BooleanOptionalAction
 
 import tempfile
 import os
@@ -533,3 +534,107 @@ class BaremetalPing(Command):
         except Exception as e:
             logger.error(f"Error during ping operation: {e}")
             return
+
+
+class BaremetalBurnIn(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalBurnIn, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Run burn-in on given baremetal node when in provision state available",
+        )
+        parser.add_argument(
+            "--all",
+            default=False,
+            help="Run burn-in on all baremetal nodes in provision state available",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--cpu",
+            default=True,
+            help="Enable CPU burn-in",
+            action=BooleanOptionalAction,
+        )
+        parser.add_argument(
+            "--memory",
+            default=True,
+            help="Enable memory burn-in",
+            action=BooleanOptionalAction,
+        )
+        parser.add_argument(
+            "--disk",
+            default=True,
+            help="Enable disk burn-in",
+            action=BooleanOptionalAction,
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        all_nodes = parsed_args.all
+        name = parsed_args.name
+
+        stressor = {}
+        stressor["cpu"] = parsed_args.cpu
+        stressor["memory"] = parsed_args.memory
+        stressor["disk"] = parsed_args.disk
+
+        if not all_nodes and not name:
+            logger.error("Please specify a node name or use --all")
+            return
+
+        clean_steps = []
+        for step, activated in stressor.items():
+            if activated:
+                clean_steps.append({"step": "burnin_" + step, "interface": "deploy"})
+        if not clean_steps:
+            logger.error(
+                f"Please specify at least one of {', '.join(stressor.keys())} for burn-in"
+            )
+            return
+
+        conn = get_cloud_connection()
+
+        if all_nodes:
+            burn_in_nodes = list(conn.baremetal.nodes(details=True))
+        else:
+            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+            if not node:
+                logger.warning(f"Could not find node {name}")
+                return
+            burn_in_nodes = [node]
+
+        for node in burn_in_nodes:
+            if not node:
+                continue
+
+            if node.provision_state in ["available"]:
+                # NOTE: Burn-In is available in the "manageable" provision state, so we move the node into this state
+                try:
+                    node = conn.baremetal.set_node_provision_state(node.id, "manage")
+                    node = conn.baremetal.wait_for_nodes_provision_state(
+                        [node.id], "manageable"
+                    )[0]
+                except Exception as exc:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
+                    )
+                    continue
+
+            if node.provision_state in ["manageable"]:
+                try:
+                    conn.baremetal.set_node_provision_state(
+                        node.id, "clean", clean_steps=clean_steps
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Burn-In of node {node.name} ({node.id}) failed: {exc}"
+                    )
+                    continue
+            else:
+                logger.warning(
+                    f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
+                )
+                continue
