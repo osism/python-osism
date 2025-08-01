@@ -57,6 +57,8 @@ class BaremetalList(Command):
             for b in baremetal
         ]
 
+        result.sort(key=lambda x: x[0])
+
         print(
             tabulate(
                 result,
