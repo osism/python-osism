@@ -4,6 +4,8 @@ from cliff.command import Command
 
 import tempfile
 import os
+import subprocess
+import threading
 from loguru import logger
 import openstack
 from tabulate import tabulate
@@ -13,6 +15,8 @@ from openstack.baremetal import configdrive as configdrive_builder
 
 from osism.commands import get_cloud_connection
 from osism import utils
+from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
+from osism.tasks import netbox
 
 
 class BaremetalList(Command):
@@ -340,3 +344,166 @@ class BaremetalUndeploy(Command):
                 logger.warning(
                     f"Node {node.name} ({node.id}) not in supported provision state"
                 )
+
+
+class BaremetalPing(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalPing, self).get_parser(prog_name)
+        parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Ping specific baremetal node by name",
+        )
+        return parser
+
+    def _ping_host(self, host, results, host_name):
+        """Ping a host 3 times and store results."""
+        try:
+            result = subprocess.run(
+                ["ping", "-c", "3", "-W", "5", host],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+
+            if result.returncode == 0:
+                output_lines = result.stdout.strip().split("\n")
+                stats_line = [line for line in output_lines if "packet loss" in line]
+                if stats_line:
+                    loss_info = stats_line[0]
+                    if "0% packet loss" in loss_info:
+                        status = "SUCCESS"
+                    else:
+                        status = f"PARTIAL ({loss_info.split(',')[2].strip()})"
+                else:
+                    status = "SUCCESS"
+
+                time_lines = [
+                    line
+                    for line in output_lines
+                    if "round-trip" in line or "rtt" in line
+                ]
+                if time_lines:
+                    time_info = (
+                        time_lines[0].split("=")[-1].strip()
+                        if "=" in time_lines[0]
+                        else "N/A"
+                    )
+                else:
+                    time_info = "N/A"
+            else:
+                status = "FAILED"
+                time_info = "N/A"
+
+        except (
+            subprocess.TimeoutExpired,
+            subprocess.CalledProcessError,
+            Exception,
+        ) as e:
+            status = "ERROR"
+            time_info = str(e)[:50]
+
+        results[host_name] = {"host": host, "status": status, "time_info": time_info}
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name
+
+        if not utils.nb:
+            logger.error("NetBox connection not available")
+            return
+
+        conn = get_cloud_connection()
+
+        try:
+            if name:
+                devices = [utils.nb.dcim.devices.get(name=name)]
+                if not devices[0]:
+                    logger.error(f"Device {name} not found in NetBox")
+                    return
+            else:
+                # Use the NETBOX_FILTER_CONDUCTOR_IRONIC setting to get devices
+                devices = set()
+                nb_device_query_list = get_nb_device_query_list_ironic()
+                for nb_device_query in nb_device_query_list:
+                    devices |= set(netbox.get_devices(**nb_device_query))
+                devices = list(devices)
+
+                # Additionally filter by power state and provision state
+                filtered_devices = []
+                for device in devices:
+                    if (
+                        hasattr(device, "custom_fields")
+                        and device.custom_fields
+                        and device.custom_fields.get("power_state") == "power on"
+                        and device.custom_fields.get("provision_state") == "active"
+                    ):
+                        filtered_devices.append(device)
+                devices = filtered_devices
+
+            if not devices:
+                logger.info(
+                    "No devices found matching criteria (managed-by-ironic, power on, active)"
+                )
+                return
+
+            ping_candidates = []
+            for device in devices:
+                if device.primary_ip4:
+                    ip_address = str(device.primary_ip4.address).split("/")[0]
+                    ping_candidates.append({"name": device.name, "ip": ip_address})
+                else:
+                    logger.warning(f"Device {device.name} has no primary IPv4 address")
+
+            if not ping_candidates:
+                logger.info("No devices found with primary IPv4 addresses")
+                return
+
+            logger.info(f"Pinging {len(ping_candidates)} nodes (3 pings each)...")
+
+            results = {}
+            threads = []
+
+            for candidate in ping_candidates:
+                thread = threading.Thread(
+                    target=self._ping_host,
+                    args=(candidate["ip"], results, candidate["name"]),
+                )
+                threads.append(thread)
+                thread.start()
+
+            for thread in threads:
+                thread.join()
+
+            table_data = []
+            success_count = 0
+            failed_count = 0
+
+            for device_name in sorted(results.keys()):
+                result = results[device_name]
+                table_data.append(
+                    [device_name, result["host"], result["status"], result["time_info"]]
+                )
+
+                if result["status"] == "SUCCESS":
+                    success_count += 1
+                elif result["status"].startswith("PARTIAL"):
+                    failed_count += 1
+                else:
+                    failed_count += 1
+
+            print(
+                tabulate(
+                    table_data,
+                    headers=["Name", "IP Address", "Status", "Time Info"],
+                    tablefmt="psql",
+                )
+            )
+
+            print(
+                f"\nSummary: {success_count} successful, {failed_count} failed/partial out of {len(ping_candidates)} total"
+            )
+
+        except Exception as e:
+            logger.error(f"Error during ping operation: {e}")
+            return
