@@ -212,7 +212,7 @@ class BaremetalDeploy(Command):
 
                 playbook = []
                 play = {
-                    "name": "Run bootstrap - part 2",
+                    "name": "Run bootstrap",
                     "hosts": "localhost",
                     "connection": "local",
                     "gather_facts": True,
@@ -221,6 +221,15 @@ class BaremetalDeploy(Command):
                         "osism.commons.hostname",
                         "osism.commons.hosts",
                         "osism.commons.operator",
+                    ],
+                    "tasks": [
+                        {
+                            "name": "Restart rsyslog service after hostname change",
+                            "ansible.builtin.systemd": {
+                                "name": "rsyslog",
+                                "state": "restarted",
+                            },
+                        }
                     ],
                 }
                 play["vars"].update(
