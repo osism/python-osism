@@ -15,6 +15,11 @@ class Ironic(Command):
     def get_parser(self, prog_name):
         parser = super(Ironic, self).get_parser(prog_name)
         parser.add_argument(
+            "node",
+            nargs="?",
+            help="Optional node name to sync only a specific node",
+        )
+        parser.add_argument(
             "--no-wait",
             help="Do not wait until the sync has been completed",
             action="store_true",
@@ -35,22 +40,40 @@ class Ironic(Command):
     def take_action(self, parsed_args):
         wait = not parsed_args.no_wait
         task_timeout = parsed_args.task_timeout
+        node_name = parsed_args.node
 
-        task = conductor.sync_ironic.delay(force_update=parsed_args.force_update)
+        task = conductor.sync_ironic.delay(
+            node_name=node_name, force_update=parsed_args.force_update
+        )
         if wait:
-            logger.info(
-                f"Task {task.task_id} (sync ironic) is running in background. Output comming soon."
-            )
+            if node_name:
+                logger.info(
+                    f"Task {task.task_id} (sync ironic for node {node_name}) is running in background. Output comming soon."
+                )
+            else:
+                logger.info(
+                    f"Task {task.task_id} (sync ironic) is running in background. Output comming soon."
+                )
             try:
                 return utils.fetch_task_output(task.id, timeout=task_timeout)
             except TimeoutError:
-                logger.error(
-                    f"Timeout while waiting for further output of task {task.task_id} (sync ironic)"
-                )
+                if node_name:
+                    logger.error(
+                        f"Timeout while waiting for further output of task {task.task_id} (sync ironic for node {node_name})"
+                    )
+                else:
+                    logger.error(
+                        f"Timeout while waiting for further output of task {task.task_id} (sync ironic)"
+                    )
         else:
-            logger.info(
-                f"Task {task.task_id} (sync ironic) is running in background. No more output."
-            )
+            if node_name:
+                logger.info(
+                    f"Task {task.task_id} (sync ironic for node {node_name}) is running in background. No more output."
+                )
+            else:
+                logger.info(
+                    f"Task {task.task_id} (sync ironic) is running in background. No more output."
+                )
 
 
 class Sync(Command):
