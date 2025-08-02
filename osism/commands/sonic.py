@@ -9,9 +9,15 @@ from cliff.command import Command
 from loguru import logger
 import paramiko
 from prompt_toolkit import prompt
+from tabulate import tabulate
 
 from osism import utils
 from osism.tasks import netbox
+from osism.tasks.conductor.netbox import (
+    get_nb_device_query_list_sonic,
+    get_device_oob_ip,
+)
+from osism.tasks.conductor.sonic.constants import DEFAULT_SONIC_ROLES, SUPPORTED_HWSKUS
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
 
 # Suppress paramiko logging messages globally
@@ -979,4 +985,169 @@ class Console(SonicCommandBase):
 
         except Exception as e:
             logger.error(f"Error connecting to SONiC device {hostname}: {e}")
+            return 1
+
+
+class List(Command):
+    """List SONiC switches with their details"""
+
+    def get_parser(self, prog_name):
+        parser = super(List, self).get_parser(prog_name)
+        parser.add_argument(
+            "device",
+            nargs="?",
+            type=str,
+            help="Optional device name to filter by (same as sonic sync parameter)",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        device_name = parsed_args.device
+
+        try:
+            devices = []
+
+            if device_name:
+                # When specific device is requested, fetch it directly
+                try:
+                    device = utils.nb.dcim.devices.get(name=device_name)
+                    if device:
+                        # Check if device role matches allowed roles
+                        if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
+                            devices.append(device)
+                            logger.debug(
+                                f"Found device: {device.name} with role: {device.role.slug}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Device {device_name} has role '{device.role.slug if device.role else 'None'}' "
+                                f"which is not in allowed SONiC roles: {', '.join(DEFAULT_SONIC_ROLES)}"
+                            )
+                            return 1
+                    else:
+                        logger.error(f"Device {device_name} not found in NetBox")
+                        return 1
+                except Exception as e:
+                    logger.error(f"Error fetching device {device_name}: {e}")
+                    return 1
+            else:
+                # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
+                nb_device_query_list = get_nb_device_query_list_sonic()
+
+                for nb_device_query in nb_device_query_list:
+                    # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
+                    for device in utils.nb.dcim.devices.filter(**nb_device_query):
+                        # Check if device role matches allowed roles
+                        if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
+                            devices.append(device)
+                            logger.debug(
+                                f"Found device: {device.name} with role: {device.role.slug}"
+                            )
+
+            logger.info(f"Found {len(devices)} devices matching criteria")
+
+            # Prepare table data
+            table_data = []
+            headers = [
+                "Name",
+                "OOB IP",
+                "Primary IP",
+                "HWSKU",
+                "Version",
+                "Provision State",
+            ]
+
+            for device in devices:
+                # Get device name
+                device_name = device.name
+
+                # Get OOB IP address
+                oob_ip = "N/A"
+                try:
+                    oob_result = get_device_oob_ip(device)
+                    if oob_result:
+                        oob_ip = oob_result[0]  # Get just the IP address
+                except Exception as e:
+                    logger.debug(f"Could not get OOB IP for {device_name}: {e}")
+
+                # Get primary IP address
+                primary_ip = "N/A"
+                try:
+                    if device.primary_ip4:
+                        # Extract IP address from CIDR notation
+                        primary_ip = str(device.primary_ip4).split("/")[0]
+                    elif device.primary_ip6:
+                        # Extract IP address from CIDR notation
+                        primary_ip = str(device.primary_ip6).split("/")[0]
+                except Exception as e:
+                    logger.debug(f"Could not get primary IP for {device_name}: {e}")
+
+                # Get HWSKU and Version from sonic_parameters custom field
+                hwsku = "N/A"
+                version = "N/A"
+                try:
+                    if (
+                        hasattr(device, "custom_fields")
+                        and "sonic_parameters" in device.custom_fields
+                        and device.custom_fields["sonic_parameters"]
+                        and isinstance(device.custom_fields["sonic_parameters"], dict)
+                    ):
+                        sonic_params = device.custom_fields["sonic_parameters"]
+                        if "hwsku" in sonic_params and sonic_params["hwsku"]:
+                            hwsku = sonic_params["hwsku"]
+                        if "version" in sonic_params and sonic_params["version"]:
+                            version = sonic_params["version"]
+                except Exception as e:
+                    logger.debug(
+                        f"Could not extract sonic_parameters for {device_name}: {e}"
+                    )
+
+                # Determine provision state
+                provision_state = "Unknown"
+                try:
+                    if hwsku == "N/A":
+                        provision_state = "No HWSKU"
+                    elif hwsku not in SUPPORTED_HWSKUS:
+                        provision_state = "Unsupported HWSKU"
+                    else:
+                        # Use device status to determine provision state
+                        if device.status:
+                            status_value = (
+                                device.status.value
+                                if hasattr(device.status, "value")
+                                else str(device.status)
+                            )
+                            if status_value == "active":
+                                provision_state = "Provisioned"
+                            elif status_value == "staged":
+                                provision_state = "Staged"
+                            elif status_value == "planned":
+                                provision_state = "Planned"
+                            else:
+                                provision_state = status_value.title()
+                        else:
+                            provision_state = "No Status"
+                except Exception as e:
+                    logger.debug(
+                        f"Could not determine provision state for {device_name}: {e}"
+                    )
+
+                table_data.append(
+                    [device_name, oob_ip, primary_ip, hwsku, version, provision_state]
+                )
+
+            # Sort by device name
+            table_data.sort(key=lambda x: x[0])
+
+            # Print the table
+            if table_data:
+                print(tabulate(table_data, headers=headers, tablefmt="grid"))
+                print(f"\nTotal: {len(table_data)} devices")
+            else:
+                print("No SONiC devices found matching the criteria")
+
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error listing SONiC devices: {e}")
             return 1
