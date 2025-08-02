@@ -127,19 +127,41 @@ def _prepare_node_attributes(device, get_ironic_parameters):
     return node_attributes
 
 
-def sync_ironic(request_id, get_ironic_parameters, force_update=False):
-    osism_utils.push_task_output(
-        request_id,
-        "Starting NetBox device synchronisation with ironic\n",
-    )
+def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=False):
+    if node_name:
+        osism_utils.push_task_output(
+            request_id,
+            f"Starting NetBox device synchronisation with ironic for node {node_name}\n",
+        )
+    else:
+        osism_utils.push_task_output(
+            request_id,
+            "Starting NetBox device synchronisation with ironic\n",
+        )
     devices = set()
     nb_device_query_list = get_nb_device_query_list_ironic()
     for nb_device_query in nb_device_query_list:
         devices |= set(netbox.get_devices(**nb_device_query))
 
+    # Filter devices by node_name if specified
+    if node_name:
+        devices = {dev for dev in devices if dev.name == node_name}
+        if not devices:
+            osism_utils.push_task_output(
+                request_id,
+                f"Node {node_name} not found in NetBox\n",
+            )
+            osism_utils.finish_task_output(request_id, rc=1)
+            return
+
     # NOTE: Find nodes in Ironic which are no longer present in NetBox and remove them
     device_names = {dev.name for dev in devices}
     nodes = openstack.baremetal_node_list()
+
+    # Filter nodes by node_name if specified
+    if node_name:
+        nodes = [node for node in nodes if node["Name"] == node_name]
+
     for node in nodes:
         osism_utils.push_task_output(
             request_id, f"Looking for {node['Name']} in NetBox\n"
