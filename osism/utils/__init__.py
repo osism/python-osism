@@ -109,8 +109,18 @@ def get_ansible_vault_password():
         f = Fernet(key)
 
         encrypted_ansible_vault_password = redis.get("ansible_vault_password")
+        if encrypted_ansible_vault_password is None:
+            raise ValueError("Ansible vault password is not set in Redis")
+
         ansible_vault_password = f.decrypt(encrypted_ansible_vault_password)
-        return ansible_vault_password.decode("utf-8")
+        password = ansible_vault_password.decode("utf-8")
+
+        if not password or password.strip() == "":
+            raise ValueError(
+                "Ansible vault password is empty or contains only whitespace"
+            )
+
+        return password
     except Exception as exc:
         logger.error("Unable to get ansible vault password")
         raise exc

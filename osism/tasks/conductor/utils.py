@@ -75,8 +75,15 @@ def get_vault():
                 )
             ]
         )
-    except Exception:
-        logger.error("Unable to get vault secret. Dropping encrypted entries")
+    except ValueError as exc:
+        # Handle specific vault password configuration errors
+        logger.error(f"Vault password configuration error: {exc}")
+        logger.error("Please check your vault password setup in Redis")
+        vault = VaultLib()
+    except Exception as exc:
+        # Handle other errors (file access, decryption, etc.)
+        logger.error(f"Unable to get vault secret: {exc}")
+        logger.error("Dropping encrypted entries")
         vault = VaultLib()
     return vault
 
