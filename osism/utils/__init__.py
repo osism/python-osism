@@ -195,6 +195,29 @@ def finish_task_output(task_id, rc=None):
     redis.xadd(task_id, {"type": "action", "content": "quit"})
 
 
+def revoke_task(task_id):
+    """
+    Revoke a running Celery task.
+
+    Args:
+        task_id (str): The ID of the task to revoke
+
+    Returns:
+        bool: True if revocation was successful, False otherwise
+    """
+    try:
+        from celery import Celery
+        from osism.tasks import Config
+
+        app = Celery("task")
+        app.config_from_object(Config)
+        app.control.revoke(task_id, terminate=True)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to revoke task {task_id}: {e}")
+        return False
+
+
 def create_redlock(key, auto_release_time=3600):
     """
     Create a Redlock instance with output suppression during initialization.

@@ -238,6 +238,49 @@ def handle_task(t, wait=True, format="log", timeout=3600):
                 f"osism wait --output --live --delay 2 {t.task_id}"
             )
             return 1
+        except KeyboardInterrupt:
+            logger.info(f"\nTask {t.task_id} interrupted by user (CTRL+C)")
+
+            # Prompt user for task revocation in interactive mode using prompt-toolkit
+            try:
+                from prompt_toolkit import prompt
+
+                # Use prompt-toolkit for better UX with yes/no options and default
+                response = (
+                    prompt(
+                        "Do you want to revoke the running task? [y/N]: ", default="n"
+                    )
+                    .strip()
+                    .lower()
+                )
+
+                if response in ["y", "yes"]:
+                    logger.info(f"Revoking task {t.task_id}...")
+                    if utils.revoke_task(t.task_id):
+                        logger.info(f"Task {t.task_id} has been revoked")
+                    else:
+                        logger.error(f"Failed to revoke task {t.task_id}")
+                else:
+                    logger.info(f"Task {t.task_id} continues running in background")
+                    logger.info(
+                        "Use this command to continue waiting for this task: "
+                        f"osism wait --output --live --delay 2 {t.task_id}"
+                    )
+            except KeyboardInterrupt:
+                # Handle second CTRL+C during prompt
+                logger.info(f"\nTask {t.task_id} continues running in background")
+                logger.info(
+                    "Use this command to continue waiting for this task: "
+                    f"osism wait --output --live --delay 2 {t.task_id}"
+                )
+            except EOFError:
+                # Handle EOF (e.g., when input is not available)
+                logger.info(f"Task {t.task_id} continues running in background")
+                logger.info(
+                    "Use this command to continue waiting for this task: "
+                    f"osism wait --output --live --delay 2 {t.task_id}"
+                )
+            return 1
 
     else:
         if format == "log":
