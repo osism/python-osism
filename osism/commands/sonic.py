@@ -12,6 +12,7 @@ from prompt_toolkit import prompt
 
 from osism import utils
 from osism.tasks import netbox
+from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
 
 # Suppress paramiko logging messages globally
 logging.getLogger("paramiko").setLevel(logging.ERROR)
@@ -795,6 +796,14 @@ class Reset(SonicCommandBase):
                 logger.info("- All configuration and data will be wiped")
                 logger.info("- Switch will need to be reinstalled after reset")
                 logger.info("- Connection will be terminated by the reboot")
+
+                # Clean up SSH known_hosts entries for the reset node
+                logger.info(f"Cleaning up SSH known_hosts entries for {hostname}")
+                result = cleanup_ssh_known_hosts_for_node(hostname)
+                if result:
+                    logger.info("- SSH known_hosts cleanup completed successfully")
+                else:
+                    logger.warning("- SSH known_hosts cleanup completed with warnings")
 
                 # Set provision_state to 'ztp' in NetBox
                 logger.info("Setting provision_state to 'ztp' in NetBox")

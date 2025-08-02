@@ -17,6 +17,7 @@ from osism.commands import get_cloud_connection
 from osism import utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
 from osism.tasks import netbox
+from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
 
 
 class BaremetalList(Command):
@@ -344,6 +345,22 @@ class BaremetalUndeploy(Command):
             ]:
                 try:
                     node = conn.baremetal.set_node_provision_state(node.id, "undeploy")
+                    logger.info(
+                        f"Successfully initiated undeploy for node {node.name} ({node.id})"
+                    )
+
+                    # Clean up SSH known_hosts entries for the undeployed node
+                    logger.info(f"Cleaning up SSH known_hosts entries for {node.name}")
+                    result = cleanup_ssh_known_hosts_for_node(node.name)
+                    if result:
+                        logger.info(
+                            f"SSH known_hosts cleanup completed successfully for {node.name}"
+                        )
+                    else:
+                        logger.warning(
+                            f"SSH known_hosts cleanup completed with warnings for {node.name}"
+                        )
+
                 except Exception as exc:
                     logger.warning(
                         f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
