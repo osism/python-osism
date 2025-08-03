@@ -52,7 +52,7 @@ def get_host_identifiers(hostname: str) -> List[str]:
 
 
 def remove_known_hosts_entries(
-    hostname: str, known_hosts_path: str = "/root/.ssh/known_hosts"
+    hostname: str, known_hosts_path: str = "/share/known_hosts"
 ) -> bool:
     """
     Remove SSH known_hosts entries for a given hostname and its IP addresses.
@@ -62,7 +62,7 @@ def remove_known_hosts_entries(
 
     Args:
         hostname: The hostname to remove entries for
-        known_hosts_path: Path to the SSH known_hosts file (default: /root/.ssh/known_hosts)
+        known_hosts_path: Path to the SSH known_hosts file (default: /share/known_hosts)
 
     Returns:
         True if cleanup was successful, False otherwise
@@ -156,7 +156,7 @@ def remove_known_hosts_entries(
 
 
 def backup_known_hosts(
-    known_hosts_path: str = "/root/.ssh/known_hosts",
+    known_hosts_path: str = "/share/known_hosts",
 ) -> Optional[str]:
     """
     Create a backup of the SSH known_hosts file before making changes.
@@ -238,7 +238,7 @@ def cleanup_ssh_known_hosts_for_node(hostname: str, create_backup: bool = True) 
     Returns:
         True if cleanup was successful, False otherwise
     """
-    known_hosts_path = "/root/.ssh/known_hosts"
+    known_hosts_path = "/share/known_hosts"
 
     try:
         # Create backup if requested

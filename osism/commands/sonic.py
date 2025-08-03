@@ -109,6 +109,13 @@ class SonicCommandBase(Command):
             return None
 
         ssh = paramiko.SSHClient()
+        # Load system host keys from centralized known_hosts file
+        try:
+            ssh.load_host_keys("/share/known_hosts")
+        except FileNotFoundError:
+            logger.debug(
+                "Centralized known_hosts file not found, creating empty host key store"
+            )
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
         try:
@@ -976,7 +983,7 @@ class Console(SonicCommandBase):
             logger.info(f"Connecting to {hostname} ({ssh_host}) via SSH console")
 
             # Execute SSH command using os.system to provide interactive terminal
-            ssh_command = f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no {ssh_username}@{ssh_host}"
+            ssh_command = f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/share/known_hosts {ssh_username}@{ssh_host}"
 
             logger.info("Starting SSH session...")
             logger.info("To exit the console, type 'exit' or press Ctrl+D")

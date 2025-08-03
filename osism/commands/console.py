@@ -129,7 +129,7 @@ class Run(Command):
             type_console = "clush"
             host = host[1:]
 
-        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR"
+        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
 
         if type_console == "ansible":
             subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
@@ -166,9 +166,7 @@ class Run(Command):
             target_command = "bash"
 
             ssh_command = f"docker exec -it {target_containername} {target_command}"
-            ssh_options = (
-                "-o RequestTTY=force -o StrictHostKeyChecking=no -o LogLevel=ERROR"
-            )
+            ssh_options = "-o RequestTTY=force -o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
 
             # Resolve hostname with Netbox fallback
             resolved_target_host = resolve_host_with_fallback(target_host)
