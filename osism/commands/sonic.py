@@ -48,7 +48,15 @@ class SonicCommandBase(Command):
         if not hasattr(device, "local_context_data") or not device.local_context_data:
             logger.error(f"Device {hostname} has no local_context_data in NetBox")
             return None
-        return device.local_context_data
+
+        # Filter out keys that start with underscore
+        filtered_context = {
+            key: value
+            for key, value in device.local_context_data.items()
+            if not key.startswith("_")
+        }
+
+        return filtered_context
 
     def _save_config_context(self, config_context, hostname, today):
         """Save config context to local file"""
