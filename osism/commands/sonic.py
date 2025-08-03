@@ -1156,7 +1156,7 @@ class List(Command):
 
             # Print the table
             if table_data:
-                print(tabulate(table_data, headers=headers, tablefmt="grid"))
+                print(tabulate(table_data, headers=headers, tablefmt="psql"))
                 print(f"\nTotal: {len(table_data)} devices")
             else:
                 print("No SONiC devices found matching the criteria")
