@@ -26,7 +26,7 @@ class Run(Command):
         ssh_command = (
             f"docker compose --project-directory=/opt/{environment} {arguments}"
         )
-        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR"
+        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
         subprocess.call(

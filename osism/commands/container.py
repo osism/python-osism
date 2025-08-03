@@ -23,7 +23,7 @@ class Run(Command):
         host = parsed_args.host[0]
         command = " ".join(parsed_args.command)
 
-        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR"
+        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
 
         if not command:
             while True:
