@@ -243,15 +243,6 @@ def cleanup_ssh_known_hosts_for_node(hostname: str, create_backup: bool = True) 
         # Perform the cleanup
         success = remove_known_hosts_entries(hostname, known_hosts_path)
 
-        if success:
-            logger.info(
-                f"SSH known_hosts cleanup completed successfully for {hostname}"
-            )
-        else:
-            logger.warning(
-                f"SSH known_hosts cleanup completed with warnings for {hostname}"
-            )
-
         return success
 
     except Exception as e:
