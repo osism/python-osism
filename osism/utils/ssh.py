@@ -75,14 +75,7 @@ def remove_known_hosts_entries(
         logger.debug(f"SSH known_hosts file does not exist: {known_hosts_path}")
         return True
 
-    # Check if ssh-keygen is available
-    try:
-        subprocess.run(["ssh-keygen", "-h"], capture_output=True, timeout=5)
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        logger.error(
-            "ssh-keygen command not found or not working - cannot clean known_hosts"
-        )
-        return False
+    # Assume ssh-keygen is available (it's a standard SSH tool)
 
     # Get all possible host identifiers
     try:
