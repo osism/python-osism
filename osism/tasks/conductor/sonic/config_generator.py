@@ -11,6 +11,7 @@ from loguru import logger
 
 from osism import utils
 from osism.tasks.conductor.netbox import (
+    get_device_interface_ips,
     get_device_loopbacks,
     get_device_oob_ip,
     get_device_vlans,
@@ -72,6 +73,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
 
     # Get Loopback configuration from NetBox
     loopback_info = get_device_loopbacks(device)
+
+    # Get interface IP addresses from NetBox
+    interface_ips = get_device_interface_ips(device)
 
     # Get breakout port configuration from NetBox
     breakout_info = detect_breakout_ports(device)
@@ -186,7 +190,14 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     )
 
     # Add interface configurations
-    _add_interface_configurations(config, connected_interfaces, portchannel_info)
+    _add_interface_configurations(
+        config,
+        connected_interfaces,
+        portchannel_info,
+        interface_ips,
+        netbox_interfaces,
+        device,
+    )
 
     # Add BGP configurations
     _add_bgp_configurations(
@@ -196,6 +207,8 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         portchannel_info,
         device,
         device_as_mapping,
+        interface_ips,
+        netbox_interfaces,
     )
 
     # Add NTP server configuration (device-specific)
@@ -531,7 +544,14 @@ def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device):
             config["PORT"][port_name]["tagged_vlans"] = tagged_vlans
 
 
-def _add_interface_configurations(config, connected_interfaces, portchannel_info):
+def _add_interface_configurations(
+    config,
+    connected_interfaces,
+    portchannel_info,
+    interface_ips,
+    netbox_interfaces,
+    device,
+):
     """Add INTERFACE configuration for connected interfaces."""
     for port_name in config["PORT"]:
         # Check if this port is in the connected interfaces set and not a port channel member
@@ -539,8 +559,32 @@ def _add_interface_configurations(config, connected_interfaces, portchannel_info
             port_name in connected_interfaces
             and port_name not in portchannel_info["member_mapping"]
         ):
-            # Add interface to INTERFACE section with ipv6_use_link_local_only enabled
-            config["INTERFACE"][port_name] = {"ipv6_use_link_local_only": "enable"}
+            # Find the NetBox interface name for this SONiC port
+            netbox_interface_name = None
+            if port_name in netbox_interfaces:
+                netbox_interface_name = netbox_interfaces[port_name]["netbox_name"]
+
+            # Check if this interface has an IPv4 address assigned
+            ipv4_address = None
+            if netbox_interface_name and netbox_interface_name in interface_ips:
+                ipv4_address = interface_ips[netbox_interface_name]
+                logger.info(
+                    f"Interface {port_name} ({netbox_interface_name}) has IPv4 address: {ipv4_address}"
+                )
+
+            if ipv4_address:
+                # If IPv4 address is available, configure the interface with it
+                config["INTERFACE"][port_name] = {"admin_status": "up"}
+                config["INTERFACE"][f"{port_name}|{ipv4_address}"] = {}
+                logger.info(
+                    f"Configured interface {port_name} with IPv4 address {ipv4_address}"
+                )
+            else:
+                # Add interface to INTERFACE section with ipv6_use_link_local_only enabled
+                config["INTERFACE"][port_name] = {"ipv6_use_link_local_only": "enable"}
+                logger.debug(
+                    f"Configured interface {port_name} with IPv6 link-local only"
+                )
 
 
 def _add_bgp_configurations(
@@ -550,6 +594,8 @@ def _add_bgp_configurations(
     portchannel_info,
     device,
     device_as_mapping=None,
+    interface_ips=None,
+    netbox_interfaces=None,
 ):
     """Add BGP configurations."""
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
@@ -588,10 +634,32 @@ def _add_bgp_configurations(
                     device, connected_device, device_as_mapping
                 )
 
-            config["BGP_NEIGHBOR"][neighbor_key] = {
+            # Check if interface has IPv4 address to determine v6only setting
+            has_ipv4 = False
+            if interface_ips and netbox_interfaces and port_name in netbox_interfaces:
+                netbox_interface_name = netbox_interfaces[port_name]["netbox_name"]
+                if netbox_interface_name in interface_ips:
+                    has_ipv4 = True
+                    logger.debug(
+                        f"Interface {port_name} has IPv4 address, setting v6only=false"
+                    )
+
+            bgp_neighbor_config = {
                 "peer_type": peer_type,
-                "v6only": "true",
             }
+
+            # Only set v6only to true if there's no IPv4 address
+            if not has_ipv4:
+                bgp_neighbor_config["v6only"] = "true"
+                logger.debug(
+                    f"Interface {port_name} has no IPv4 address, setting v6only=true"
+                )
+            else:
+                logger.debug(
+                    f"Interface {port_name} has IPv4 address, not setting v6only"
+                )
+
+            config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
 
     # Add BGP_NEIGHBOR configuration for connected port channels
     for pc_name in connected_portchannels:

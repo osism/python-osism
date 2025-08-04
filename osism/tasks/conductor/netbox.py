@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from loguru import logger
+import ipaddress
 import yaml
+from loguru import logger
 
 from osism import settings, utils
 from osism.tasks import netbox
@@ -309,3 +310,59 @@ def get_device_loopbacks(device):
         )
 
     return {"loopbacks": loopbacks}
+
+
+def get_device_interface_ips(device):
+    """Get IPv4 addresses assigned to device interfaces.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        dict: Dictionary mapping interface names to their IPv4 addresses
+              {
+                  'interface_name': 'ip_address/prefix_length',
+                  ...
+              }
+    """
+    interface_ips = {}
+
+    try:
+        # Get all interfaces for the device
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+
+        for interface in interfaces:
+            # Skip management interfaces and virtual interfaces for now
+            if interface.mgmt_only or (
+                hasattr(interface, "type")
+                and interface.type
+                and interface.type.value == "virtual"
+            ):
+                continue
+
+            # Get IP addresses assigned to this interface
+            ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                assigned_object_id=interface.id,
+            )
+
+            for ip_addr in ip_addresses:
+                if ip_addr.address:
+                    # Check if it's an IPv4 address
+                    try:
+                        ip_obj = ipaddress.ip_interface(ip_addr.address)
+                        if ip_obj.version == 4:
+                            interface_ips[interface.name] = ip_addr.address
+                            logger.debug(
+                                f"Found IPv4 address {ip_addr.address} on interface {interface.name} of device {device.name}"
+                            )
+                            break  # Only use the first IPv4 address found
+                    except (ValueError, ipaddress.AddressValueError):
+                        # Skip invalid IP addresses
+                        continue
+
+    except Exception as e:
+        logger.warning(
+            f"Could not get interface IP addresses for device {device.name}: {e}"
+        )
+
+    return interface_ips
