@@ -638,3 +638,66 @@ class BaremetalBurnIn(Command):
                     f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
                 )
                 continue
+
+
+class BaremetalMaintenanceSet(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalMaintenanceSet, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Set maintenance on given baremetal node",
+        )
+        parser.add_argument(
+            "--reason",
+            default=None,
+            type=str,
+            help="Reason for maintenance",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name
+        reason = parsed_args.reason
+
+        conn = get_cloud_connection()
+        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+        if not node:
+            logger.warning(f"Could not find node {name}")
+            return
+        try:
+            conn.baremetal.set_node_maintenance(node, reason=reason)
+        except Exception as exc:
+            logger.error(
+                f"Setting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
+            )
+
+
+class BaremetalMaintenanceUnset(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalMaintenanceUnset, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Unset maintenance on given baremetal node",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name
+
+        conn = get_cloud_connection()
+        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+        if not node:
+            logger.warning(f"Could not find node {name}")
+            return
+        try:
+            conn.baremetal.unset_node_maintenance(node)
+        except Exception as exc:
+            logger.error(
+                f"Unsetting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
+            )
