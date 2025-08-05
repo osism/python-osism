@@ -169,13 +169,22 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=
         if node["name"] not in device_names:
             if (
                 not node["instance_uuid"]
-                and node["provision_state"] in ["enroll", "manageable", "available"]
+                and node["provision_state"]
+                in ["enroll", "manageable", "available", "clean failed"]
                 and node["power_state"] in ["power off", None]
             ):
                 osism_utils.push_task_output(
                     request_id,
                     f"Cleaning up baremetal node not found in NetBox: {node['name']}\n",
                 )
+                if node["provision_state"] == "clean failed":
+                    # NOTE: Move node to manageable to allow deletion
+                    node = openstack.baremetal_node_set_provision_state(
+                        node["uuid"], "manage"
+                    )
+                    node = openstack.baremetal_node_wait_for_nodes_provision_state(
+                        node["uuid"], "manageable"
+                    )
                 for port in openstack.baremetal_port_list(
                     details=False, attributes=dict(node_uuid=node["uuid"])
                 ):
@@ -280,7 +289,7 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=
                         request_id,
                         f"Validation of management interface successful for baremetal node for {device.name}\n",
                     )
-                    if node["provision_state"] == "enroll":
+                    if node["provision_state"] in ["enroll", "clean failed"]:
                         osism_utils.push_task_output(
                             request_id,
                             f"Transitioning baremetal node to manageable state for {device.name}\n",
