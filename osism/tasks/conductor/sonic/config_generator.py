@@ -574,8 +574,10 @@ def _add_interface_configurations(
 
             if ipv4_address:
                 # If IPv4 address is available, configure the interface with it
-                config["INTERFACE"][port_name] = {"admin_status": "up"}
-                config["INTERFACE"][f"{port_name}|{ipv4_address}"] = {}
+                config["INTERFACE"][f"{port_name}|{ipv4_address}"] = {
+                    "scope": "global",
+                    "family": "IPv4",
+                }
                 logger.info(
                     f"Configured interface {port_name} with IPv4 address {ipv4_address}"
                 )
