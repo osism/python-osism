@@ -160,27 +160,27 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=
 
     # Filter nodes by node_name if specified
     if node_name:
-        nodes = [node for node in nodes if node["Name"] == node_name]
+        nodes = [node for node in nodes if node["name"] == node_name]
 
     for node in nodes:
         osism_utils.push_task_output(
-            request_id, f"Looking for {node['Name']} in NetBox\n"
+            request_id, f"Looking for {node['name']} in NetBox\n"
         )
-        if node["Name"] not in device_names:
+        if node["name"] not in device_names:
             if (
-                not node["Instance UUID"]
-                and node["Provisioning State"] in ["enroll", "manageable", "available"]
-                and node["Power State"] in ["power off", None]
+                not node["instance_uuid"]
+                and node["provision_state"] in ["enroll", "manageable", "available"]
+                and node["power_state"] in ["power off", None]
             ):
                 osism_utils.push_task_output(
                     request_id,
-                    f"Cleaning up baremetal node not found in NetBox: {node['Name']}\n",
+                    f"Cleaning up baremetal node not found in NetBox: {node['name']}\n",
                 )
                 for port in openstack.baremetal_port_list(
-                    details=False, attributes=dict(node_uuid=node["UUID"])
+                    details=False, attributes=dict(node_uuid=node["uuid"])
                 ):
                     openstack.baremetal_port_delete(port.id)
-                openstack.baremetal_node_delete(node["UUID"])
+                openstack.baremetal_node_delete(node["uuid"])
             else:
                 osism_utils.push_task_output(
                     f"Cannot remove baremetal node because it is still provisioned or running: {node}"
