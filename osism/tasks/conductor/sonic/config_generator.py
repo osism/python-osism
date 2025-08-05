@@ -574,6 +574,9 @@ def _add_interface_configurations(
 
             if ipv4_address:
                 # If IPv4 address is available, configure the interface with it
+                # Add base interface entry (similar to VLAN_INTERFACE and LOOPBACK_INTERFACE patterns)
+                config["INTERFACE"][port_name] = {}
+                # Add IP address suffixed entry with scope and family parameters
                 config["INTERFACE"][f"{port_name}|{ipv4_address}"] = {
                     "scope": "global",
                     "family": "IPv4",
