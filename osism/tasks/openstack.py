@@ -65,23 +65,8 @@ def baremetal_node_show(self, node_id_or_name, ignore_missing=False):
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_list")
 def baremetal_node_list(self):
     conn = utils.get_openstack_connection()
-    nodes = conn.baremetal.nodes()
-    result = []
-
-    # Simulate the output of the OpenStack CLI with -f json and without --long
-    for node in nodes:
-        result.append(
-            {
-                "UUID": node.id,
-                "Name": node.name,
-                "Instance UUID": node.instance_id,
-                "Power State": node.power_state,
-                "Provisioning State": node.provision_state,
-                "Maintenance": node.is_maintenance,
-            }
-        )
-
-    return result
+    result = conn.baremetal.nodes()
+    return list(result)
 
 
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_validate")
