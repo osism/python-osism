@@ -433,6 +433,11 @@
     "TELEMETRY": {
         "gnmi": {}
     },
+    "VERSION": {
+        "DATABASE": {
+            "VERSION": "version_4_0_1"
+        }
+    },
     "VLAN": {},
     "VLAN_INTERFACE": {},
     "VLAN_MEMBER": {},
