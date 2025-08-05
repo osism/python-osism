@@ -592,6 +592,27 @@ def _add_interface_configurations(
                 )
 
 
+def _has_direct_ipv4_address(port_name, interface_ips, netbox_interfaces):
+    """Check if an interface has a direct IPv4 address assigned.
+
+    Args:
+        port_name: SONiC interface name (e.g., "Ethernet0")
+        interface_ips: Dict mapping NetBox interface names to IPv4 addresses
+        netbox_interfaces: Dict mapping SONiC names to NetBox interface info
+
+    Returns:
+        bool: True if interface has a direct IPv4 address, False otherwise
+    """
+    if not interface_ips or not netbox_interfaces:
+        return False
+
+    if port_name in netbox_interfaces:
+        netbox_interface_name = netbox_interfaces[port_name]["netbox_name"]
+        return netbox_interface_name in interface_ips
+
+    return False
+
+
 def _add_bgp_configurations(
     config,
     connected_interfaces,
@@ -608,11 +629,21 @@ def _add_bgp_configurations(
         if (
             port_name in connected_interfaces
             and port_name not in portchannel_info["member_mapping"]
+            and not _has_direct_ipv4_address(
+                port_name, interface_ips, netbox_interfaces
+            )
         ):
             ipv4_key = f"default|{port_name}|ipv4_unicast"
             ipv6_key = f"default|{port_name}|ipv6_unicast"
             config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
             config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+            logger.debug(
+                f"Added BGP_NEIGHBOR_AF for interface {port_name} (no direct IPv4)"
+            )
+        elif _has_direct_ipv4_address(port_name, interface_ips, netbox_interfaces):
+            logger.info(
+                f"Excluding interface {port_name} from BGP detection (has direct IPv4 address)"
+            )
 
     # Add BGP_NEIGHBOR_AF configuration for connected port channels
     for pc_name in connected_portchannels:
@@ -626,6 +657,9 @@ def _add_bgp_configurations(
         if (
             port_name in connected_interfaces
             and port_name not in portchannel_info["member_mapping"]
+            and not _has_direct_ipv4_address(
+                port_name, interface_ips, netbox_interfaces
+            )
         ):
             neighbor_key = f"default|{port_name}"
 
@@ -639,32 +673,17 @@ def _add_bgp_configurations(
                     device, connected_device, device_as_mapping
                 )
 
-            # Check if interface has IPv4 address to determine v6only setting
-            has_ipv4 = False
-            if interface_ips and netbox_interfaces and port_name in netbox_interfaces:
-                netbox_interface_name = netbox_interfaces[port_name]["netbox_name"]
-                if netbox_interface_name in interface_ips:
-                    has_ipv4 = True
-                    logger.debug(
-                        f"Interface {port_name} has IPv4 address, setting v6only=false"
-                    )
-
+            # Since we're only processing interfaces without direct IPv4 addresses,
+            # we always set v6only to true
             bgp_neighbor_config = {
                 "peer_type": peer_type,
+                "v6only": "true",
             }
 
-            # Only set v6only to true if there's no IPv4 address
-            if not has_ipv4:
-                bgp_neighbor_config["v6only"] = "true"
-                logger.debug(
-                    f"Interface {port_name} has no IPv4 address, setting v6only=true"
-                )
-            else:
-                logger.debug(
-                    f"Interface {port_name} has IPv4 address, not setting v6only"
-                )
-
             config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
+            logger.debug(
+                f"Added BGP_NEIGHBOR for interface {port_name} (no direct IPv4, v6only=true)"
+            )
 
     # Add BGP_NEIGHBOR configuration for connected port channels
     for pc_name in connected_portchannels:
