@@ -24,7 +24,7 @@ REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
 
 
 NETBOX_URL = os.getenv("NETBOX_API", os.getenv("NETBOX_URL"))
-NETBOX_TOKEN = os.getenv("NETBOX_TOKEN", read_secret("NETBOX_TOKEN"))
+NETBOX_TOKEN = str(os.getenv("NETBOX_TOKEN") or read_secret("NETBOX_TOKEN") or "")
 IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", "True") == "True"
 
 # 43200 seconds = 12 hours

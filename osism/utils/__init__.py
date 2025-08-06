@@ -73,7 +73,7 @@ try:
             )
         if (
             "NETBOX_TOKEN" not in secondary_nb_settings
-            or not secondary_nb_settings["NETBOX_TOKEN"]
+            or not str(secondary_nb_settings["NETBOX_TOKEN"]).strip()
         ):
             raise ValueError(
                 "All NETBOX_TOKEN values in the elements of setting NETBOX_SECONDARIES need to be valid NetBox tokens"
@@ -82,7 +82,7 @@ try:
         secondary_nb_list.append(
             get_netbox_connection(
                 secondary_nb_settings["NETBOX_URL"],
-                secondary_nb_settings["NETBOX_TOKEN"],
+                str(secondary_nb_settings["NETBOX_TOKEN"]),
                 secondary_nb_settings.get("IGNORE_SSL_ERRORS", True),
             )
         )
