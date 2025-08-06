@@ -228,9 +228,9 @@ class Console(Command):
         if not os.path.exists(nbcli_file):
             try:
                 with open("/run/secrets/NETBOX_TOKEN", "r") as fp:
-                    token = fp.read().strip()
+                    token = str(fp.read().strip())
             except FileNotFoundError:
-                token = None
+                token = ""
 
             url = os.environ.get("NETBOX_API", None)
 
