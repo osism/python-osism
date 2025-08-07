@@ -12,6 +12,7 @@ from .connections import (
     find_interconnected_devices,
     get_device_bgp_neighbors_via_loopback,
 )
+from .bfd import add_bfd_configurations, should_interface_have_bfd
 
 __all__ = [
     "generate_sonic_config",
@@ -23,4 +24,6 @@ __all__ = [
     "get_connected_device_via_interface",
     "find_interconnected_devices",
     "get_device_bgp_neighbors_via_loopback",
+    "add_bfd_configurations",
+    "should_interface_have_bfd",
 ]

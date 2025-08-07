@@ -31,6 +31,7 @@ from .connections import (
     get_connected_interfaces,
     get_connected_device_for_sonic_interface,
 )
+from .bfd import add_bfd_configurations
 from .cache import get_cached_device_interfaces
 
 # Global cache for NTP servers to avoid multiple queries
@@ -203,7 +204,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     )
 
     # Add BGP configurations
-    _add_bgp_configurations(
+    bgp_neighbor_interfaces = _add_bgp_configurations(
         config,
         connected_interfaces,
         connected_portchannels,
@@ -213,6 +214,19 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         interface_ips,
         netbox_interfaces,
         transfer_ips,
+    )
+
+    # Add BFD configurations
+    add_bfd_configurations(
+        config,
+        connected_interfaces,
+        connected_portchannels,
+        portchannel_info,
+        device,
+        interface_ips,
+        netbox_interfaces,
+        transfer_ips,
+        bgp_neighbor_interfaces,
     )
 
     # Add NTP server configuration (device-specific)
@@ -730,7 +744,13 @@ def _add_bgp_configurations(
         interface_ips: Dict of direct IPv4 addresses on interfaces
         netbox_interfaces: Dict mapping SONiC names to NetBox interface info
         transfer_ips: Dict of IPv4 addresses from transfer role prefixes
+
+    Returns:
+        set: Set of interface names that have BGP neighbor configuration
     """
+    # Track interfaces with BGP neighbors for BFD configuration
+    bgp_neighbor_interfaces = set()
+
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
     for port_name in config["PORT"]:
         has_direct_ipv4 = _has_direct_ipv4_address(
@@ -748,6 +768,7 @@ def _add_bgp_configurations(
             if has_transfer_ipv4 or not has_direct_ipv4:
                 ipv4_key = f"default|{port_name}|ipv4_unicast"
                 config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
+                bgp_neighbor_interfaces.add(port_name)
 
                 # Only add ipv6_unicast if v6only would be true (no transfer role IPv4)
                 if not has_transfer_ipv4:
@@ -771,6 +792,7 @@ def _add_bgp_configurations(
         ipv6_key = f"default|{pc_name}|ipv6_unicast"
         config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
         config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+        bgp_neighbor_interfaces.add(pc_name)
 
     # Add BGP_NEIGHBOR configuration for connected interfaces
     for port_name in config["PORT"]:
@@ -834,6 +856,8 @@ def _add_bgp_configurations(
             "peer_type": peer_type,
             "v6only": "true",
         }
+
+    return bgp_neighbor_interfaces
 
 
 def _get_connected_device_for_interface(device, interface_name):
