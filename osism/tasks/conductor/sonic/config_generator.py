@@ -747,17 +747,18 @@ def _add_bgp_configurations(
             # Include interfaces with transfer role IPv4 or no direct IPv4
             if has_transfer_ipv4 or not has_direct_ipv4:
                 ipv4_key = f"default|{port_name}|ipv4_unicast"
-                ipv6_key = f"default|{port_name}|ipv6_unicast"
                 config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
-                config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
 
-                if has_transfer_ipv4:
+                # Only add ipv6_unicast if v6only would be true (no transfer role IPv4)
+                if not has_transfer_ipv4:
+                    ipv6_key = f"default|{port_name}|ipv6_unicast"
+                    config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
                     logger.debug(
-                        f"Added BGP_NEIGHBOR_AF for interface {port_name} (transfer role IPv4)"
+                        f"Added BGP_NEIGHBOR_AF with ipv4_unicast and ipv6_unicast for interface {port_name} (no direct IPv4)"
                     )
                 else:
                     logger.debug(
-                        f"Added BGP_NEIGHBOR_AF for interface {port_name} (no direct IPv4)"
+                        f"Added BGP_NEIGHBOR_AF with ipv4_unicast only for interface {port_name} (transfer role IPv4, v6only=false)"
                     )
             elif has_direct_ipv4 and not has_transfer_ipv4:
                 logger.info(
