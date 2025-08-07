@@ -80,6 +80,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     # Get IPv4 addresses from transfer role prefixes
     transfer_ips = _get_transfer_role_ipv4_addresses(device)
 
+    # Get IPv4 addresses from storage role prefixes
+    storage_ips = _get_storage_role_ipv4_addresses(device)
+
     # Get breakout port configuration from NetBox
     breakout_info = detect_breakout_ports(device)
 
@@ -213,6 +216,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         interface_ips,
         netbox_interfaces,
         transfer_ips,
+        storage_ips,
     )
 
     # Add NTP server configuration (device-specific)
@@ -665,6 +669,75 @@ def _get_transfer_role_ipv4_addresses(device):
     return transfer_ips
 
 
+def _get_storage_role_ipv4_addresses(device):
+    """Get IPv4 addresses from IP prefixes with 'storage' role.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        dict: Dictionary mapping interface names to their storage role IPv4 addresses
+              {
+                  'interface_name': 'ip_address/prefix_length',
+                  ...
+              }
+    """
+    storage_ips = {}
+
+    try:
+        # Get all interfaces for the device
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+
+        for interface in interfaces:
+            # Skip management interfaces and virtual interfaces
+            if interface.mgmt_only or (
+                hasattr(interface, "type")
+                and interface.type
+                and interface.type.value == "virtual"
+            ):
+                continue
+
+            # Get IP addresses assigned to this interface
+            ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                assigned_object_id=interface.id,
+            )
+
+            for ip_addr in ip_addresses:
+                if ip_addr.address:
+                    try:
+                        ip_obj = ipaddress.ip_interface(ip_addr.address)
+                        if ip_obj.version == 4:
+                            # Check if this IP belongs to a prefix with 'storage' role
+                            # Query for the prefix this IP belongs to
+                            prefixes = utils.nb.ipam.prefixes.filter(
+                                contains=str(ip_obj.ip)
+                            )
+
+                            for prefix in prefixes:
+                                # Check if prefix has role and it's 'storage'
+                                if hasattr(prefix, "role") and prefix.role:
+                                    if prefix.role.slug == "storage":
+                                        storage_ips[interface.name] = ip_addr.address
+                                        logger.debug(
+                                            f"Found storage role IPv4 {ip_addr.address} on interface {interface.name} of device {device.name}"
+                                        )
+                                        break
+
+                            # Break after first IPv4 found (storage or not)
+                            if interface.name in storage_ips:
+                                break
+                    except (ValueError, ipaddress.AddressValueError):
+                        # Skip invalid IP addresses
+                        continue
+
+    except Exception as e:
+        logger.warning(
+            f"Failed to get storage role IPv4 addresses for device {device.name}: {e}"
+        )
+
+    return storage_ips
+
+
 def _has_direct_ipv4_address(port_name, interface_ips, netbox_interfaces):
     """Check if an interface has a direct IPv4 address assigned.
 
@@ -717,6 +790,7 @@ def _add_bgp_configurations(
     interface_ips=None,
     netbox_interfaces=None,
     transfer_ips=None,
+    storage_ips=None,
 ):
     """Add BGP configurations.
 
@@ -730,7 +804,47 @@ def _add_bgp_configurations(
         interface_ips: Dict of direct IPv4 addresses on interfaces
         netbox_interfaces: Dict mapping SONiC names to NetBox interface info
         transfer_ips: Dict of IPv4 addresses from transfer role prefixes
+        storage_ips: Dict of IPv4 addresses from storage role prefixes
     """
+    # Add transfer network prefixes to BGP_GLOBALS_AF_NETWORK for BGP announcement
+    if transfer_ips:
+        for interface_name, ip_address in transfer_ips.items():
+            try:
+                # Parse the IP address to ensure it's valid
+                ip_obj = ipaddress.ip_interface(ip_address)
+                if ip_obj.version == 4:
+                    # Add the transfer network to BGP announcements
+                    # Use the network address with prefix length
+                    network_str = str(ip_obj.network)
+                    af_key = f"default|ipv4_unicast|{network_str}"
+                    config["BGP_GLOBALS_AF_NETWORK"][af_key] = {}
+                    logger.info(
+                        f"Added transfer network {network_str} from interface {interface_name} to BGP announcements"
+                    )
+            except (ValueError, ipaddress.AddressValueError) as e:
+                logger.warning(
+                    f"Could not add transfer network {ip_address} to BGP: {e}"
+                )
+
+    # Add storage network prefixes to BGP_GLOBALS_AF_NETWORK for BGP announcement
+    if storage_ips:
+        for interface_name, ip_address in storage_ips.items():
+            try:
+                # Parse the IP address to ensure it's valid
+                ip_obj = ipaddress.ip_interface(ip_address)
+                if ip_obj.version == 4:
+                    # Add the storage network to BGP announcements
+                    # Use the network address with prefix length
+                    network_str = str(ip_obj.network)
+                    af_key = f"default|ipv4_unicast|{network_str}"
+                    config["BGP_GLOBALS_AF_NETWORK"][af_key] = {}
+                    logger.info(
+                        f"Added storage network {network_str} from interface {interface_name} to BGP announcements"
+                    )
+            except (ValueError, ipaddress.AddressValueError) as e:
+                logger.warning(
+                    f"Could not add storage network {ip_address} to BGP: {e}"
+                )
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
     for port_name in config["PORT"]:
         has_direct_ipv4 = _has_direct_ipv4_address(
