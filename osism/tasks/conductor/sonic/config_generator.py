@@ -644,18 +644,20 @@ def _get_transfer_role_ipv4_addresses(device):
                                 contains=str(ip_obj.ip)
                             )
 
+                            transfer_found = False
                             for prefix in prefixes:
                                 # Check if prefix has role and it's 'transfer'
                                 if hasattr(prefix, "role") and prefix.role:
                                     if prefix.role.slug == "transfer":
                                         transfer_ips[interface.name] = ip_addr.address
                                         logger.debug(
-                                            f"Found transfer role IPv4 {ip_addr.address} on interface {interface.name} of device {device.name}"
+                                            f"Found transfer role IPv4 {ip_addr.address} on interface {interface.name} of device {device.name} in prefix {prefix.prefix} with transfer role"
                                         )
+                                        transfer_found = True
                                         break
 
-                            # Break after first IPv4 found (transfer or not)
-                            if interface.name in transfer_ips:
+                            # Only break if we found a transfer role prefix
+                            if transfer_found:
                                 break
                     except (ValueError, ipaddress.AddressValueError):
                         # Skip invalid IP addresses
@@ -713,18 +715,20 @@ def _get_storage_role_ipv4_addresses(device):
                                 contains=str(ip_obj.ip)
                             )
 
+                            storage_found = False
                             for prefix in prefixes:
                                 # Check if prefix has role and it's 'storage'
                                 if hasattr(prefix, "role") and prefix.role:
                                     if prefix.role.slug == "storage":
                                         storage_ips[interface.name] = ip_addr.address
                                         logger.debug(
-                                            f"Found storage role IPv4 {ip_addr.address} on interface {interface.name} of device {device.name}"
+                                            f"Found storage role IPv4 {ip_addr.address} on interface {interface.name} of device {device.name} in prefix {prefix.prefix} with storage role"
                                         )
+                                        storage_found = True
                                         break
 
-                            # Break after first IPv4 found (storage or not)
-                            if interface.name in storage_ips:
+                            # Only break if we found a storage role prefix
+                            if storage_found:
                                 break
                     except (ValueError, ipaddress.AddressValueError):
                         # Skip invalid IP addresses
@@ -813,14 +817,35 @@ def _add_bgp_configurations(
                 # Parse the IP address to ensure it's valid
                 ip_obj = ipaddress.ip_interface(ip_address)
                 if ip_obj.version == 4:
-                    # Add the storage network to BGP announcements
-                    # Use the network address with prefix length
-                    network_str = str(ip_obj.network)
-                    af_key = f"default|ipv4_unicast|{network_str}"
-                    config["BGP_GLOBALS_AF_NETWORK"][af_key] = {}
-                    logger.info(
-                        f"Added storage network {network_str} from interface {interface_name} to BGP announcements"
-                    )
+                    # Double-check that this IP really belongs to a storage role prefix
+                    prefixes = utils.nb.ipam.prefixes.filter(contains=str(ip_obj.ip))
+                    storage_prefix_found = False
+
+                    for prefix in prefixes:
+                        if (
+                            hasattr(prefix, "role")
+                            and prefix.role
+                            and prefix.role.slug == "storage"
+                        ):
+                            storage_prefix_found = True
+                            logger.debug(
+                                f"Verified storage role for prefix {prefix.prefix}"
+                            )
+                            break
+
+                    if storage_prefix_found:
+                        # Add the storage network to BGP announcements
+                        # Use the network address with prefix length
+                        network_str = str(ip_obj.network)
+                        af_key = f"default|ipv4_unicast|{network_str}"
+                        config["BGP_GLOBALS_AF_NETWORK"][af_key] = {}
+                        logger.info(
+                            f"Added storage network {network_str} from interface {interface_name} to BGP announcements"
+                        )
+                    else:
+                        logger.warning(
+                            f"Skipping IP {ip_address} on interface {interface_name} - no storage role prefix found"
+                        )
             except (ValueError, ipaddress.AddressValueError) as e:
                 logger.warning(
                     f"Could not add storage network {ip_address} to BGP: {e}"
