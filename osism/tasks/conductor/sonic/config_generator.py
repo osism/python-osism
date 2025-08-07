@@ -18,6 +18,7 @@ from osism.tasks.conductor.netbox import (
 )
 from .bgp import calculate_local_asn_from_ipv4
 from .device import get_device_platform, get_device_hostname, get_device_mac_address
+from .constants import NETBOX_NODE_ROLES, NETBOX_SWITCH_ROLES
 from .interface import (
     get_port_config,
     get_speed_from_port_type,
@@ -241,6 +242,18 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
 
     # Add port channel configuration
     _add_portchannel_configuration(config, portchannel_info)
+
+    # Add BFD configuration for BGP interfaces
+    _add_bfd_configurations(
+        config,
+        connected_interfaces,
+        connected_portchannels,
+        portchannel_info,
+        device,
+        interface_ips,
+        netbox_interfaces,
+        transfer_ips,
+    )
 
     return config
 
@@ -836,6 +849,101 @@ def _add_bgp_configurations(
         }
 
 
+def _add_bfd_configurations(
+    config,
+    connected_interfaces,
+    connected_portchannels,
+    portchannel_info,
+    device,
+    interface_ips=None,
+    netbox_interfaces=None,
+    transfer_ips=None,
+):
+    """Add BFD configuration for interfaces using transfer networks or IPv6-only.
+
+    BFD is enabled for connected interfaces and port channels to devices with roles
+    defined in NETBOX_NODE_ROLES and NETBOX_SWITCH_ROLES, but only for interfaces that:
+    - Use transfer role IPv4 addresses, OR
+    - Are IPv6-only (no direct IPv4 or have direct IPv4 but not transfer role)
+
+    Args:
+        config: Configuration dictionary to update
+        connected_interfaces: Set of connected interface names
+        connected_portchannels: Set of connected port channel names
+        portchannel_info: Port channel membership information
+        device: NetBox device object
+        interface_ips: Dict of direct IPv4 addresses on interfaces
+        netbox_interfaces: Dict mapping SONiC names to NetBox interface info
+        transfer_ips: Dict of IPv4 addresses from transfer role prefixes
+    """
+    # Ensure BFD section exists
+    if "BFD" not in config:
+        config["BFD"] = {}
+    # Add BFD configuration for connected interfaces
+    for port_name in config["PORT"]:
+        has_direct_ipv4 = _has_direct_ipv4_address(
+            port_name, interface_ips, netbox_interfaces
+        )
+        has_transfer_ipv4 = _has_transfer_role_ipv4(
+            port_name, transfer_ips, netbox_interfaces
+        )
+
+        if (
+            port_name in connected_interfaces
+            and port_name not in portchannel_info["member_mapping"]
+        ):
+            # Get connected device to check its role
+            connected_device = get_connected_device_for_sonic_interface(
+                device, port_name
+            )
+
+            if connected_device and _should_enable_bfd_for_device(connected_device):
+                # Include interfaces that use transfer networks OR are IPv6-only
+                # IPv6-only means: no direct IPv4 OR has direct IPv4 but not transfer role
+                is_transfer_network = has_transfer_ipv4
+                is_ipv6_only = not has_direct_ipv4 or (
+                    has_direct_ipv4 and not has_transfer_ipv4
+                )
+
+                if is_transfer_network or is_ipv6_only:
+                    bfd_key = f"default|{port_name}"
+                    config["BFD"][bfd_key] = {
+                        "local_addr": "auto",
+                        "multihop": "false",
+                        "rx_interval": "300",
+                        "tx_interval": "300",
+                        "multiplier": "3",
+                        "echo_mode": "false",
+                    }
+
+                    network_type = (
+                        "transfer network" if is_transfer_network else "IPv6-only"
+                    )
+                    logger.info(
+                        f"Added BFD configuration for {network_type} interface {port_name} connected to device {connected_device.name} with role {connected_device.role.slug}"
+                    )
+
+    # Add BFD configuration for connected port channels
+    for pc_name in connected_portchannels:
+        # Get connected device to check its role
+        connected_device = get_connected_device_for_sonic_interface(device, pc_name)
+
+        if connected_device and _should_enable_bfd_for_device(connected_device):
+            # Add BFD configuration for this port channel
+            bfd_key = f"default|{pc_name}"
+            config["BFD"][bfd_key] = {
+                "local_addr": "auto",
+                "multihop": "false",
+                "rx_interval": "300",
+                "tx_interval": "300",
+                "multiplier": "3",
+                "echo_mode": "false",
+            }
+            logger.info(
+                f"Added BFD configuration for port channel {pc_name} connected to device {connected_device.name} with role {connected_device.role.slug}"
+            )
+
+
 def _get_connected_device_for_interface(device, interface_name):
     """Get the connected device for a given interface name.
 
@@ -847,6 +955,22 @@ def _get_connected_device_for_interface(device, interface_name):
         NetBox device object or None if not found
     """
     return get_connected_device_for_sonic_interface(device, interface_name)
+
+
+def _should_enable_bfd_for_device(device):
+    """Check if BFD should be enabled for BGP based on device role.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        bool: True if BFD should be enabled, False otherwise
+    """
+    if not device or not hasattr(device, "role") or not device.role:
+        return False
+
+    role_slug = device.role.slug
+    return role_slug in NETBOX_NODE_ROLES or role_slug in NETBOX_SWITCH_ROLES
 
 
 def _determine_peer_type(local_device, connected_device, device_as_mapping=None):

@@ -23,6 +23,35 @@ DEFAULT_SONIC_ROLES = [
 # Default SONiC version
 DEFAULT_SONIC_VERSION = "4.5.0"
 
+# NetBox device roles that should have BFD enabled for BGP
+NETBOX_NODE_ROLES = [
+    "compute",
+    "storage",
+    "resource",
+    "control",
+    "manager",
+    "network",
+    "metalbox",
+    "dpu",
+    "loadbalancer",
+    "router",
+    "firewall",
+]
+
+NETBOX_SWITCH_ROLES = [
+    "accessleaf",
+    "borderleaf",
+    "computeleaf",
+    "dataleaf",
+    "leaf",
+    "serviceleaf",
+    "spine",
+    "storageleaf",
+    "superspine",
+    "switch",
+    "transferleaf",
+]
+
 # Port type to speed mapping (in Mbps)
 PORT_TYPE_TO_SPEED_MAP = {
     # RJ45/BASE-T Types
