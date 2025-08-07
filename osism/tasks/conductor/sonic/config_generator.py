@@ -36,11 +36,56 @@ from .cache import get_cached_device_interfaces
 # Global cache for NTP servers to avoid multiple queries
 _ntp_servers_cache = None
 
+# Device roles that should have BFD enabled for BGP
+NETBOX_NODE_ROLES = [
+    "compute",
+    "storage",
+    "resource",
+    "control",
+    "manager",
+    "network",
+    "metalbox",
+    "dpu",
+    "loadbalancer",
+    "router",
+    "firewall",
+]
+
+NETBOX_SWITCH_ROLES = [
+    "accessleaf",
+    "borderleaf",
+    "computeleaf",
+    "dataleaf",
+    "leaf",
+    "serviceleaf",
+    "spine",
+    "storageleaf",
+    "superspine",
+    "switch",
+    "transferleaf",
+]
+
 
 def natural_sort_key(port_name):
     """Extract numeric part from port name for natural sorting."""
     match = re.search(r"(\d+)", port_name)
     return int(match.group(1)) if match else 0
+
+
+def _should_enable_bfd(device):
+    """Check if BFD should be enabled for BGP interfaces on this device.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        bool: True if BFD should be enabled, False otherwise
+    """
+    if not device.role or not device.role.slug:
+        return False
+
+    device_role = device.role.slug
+    return device_role in NETBOX_NODE_ROLES or device_role in NETBOX_SWITCH_ROLES
 
 
 def generate_sonic_config(device, hwsku, device_as_mapping=None):
@@ -901,15 +946,22 @@ def _add_bgp_configurations(
                     "v6only": "false" if has_transfer_ipv4 else "true",
                 }
 
+                # Enable BFD if device role requires it
+                if _should_enable_bfd(device):
+                    bgp_neighbor_config["bfd"] = "true"
+
                 config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
 
+                bfd_status = (
+                    "BFD enabled" if _should_enable_bfd(device) else "BFD disabled"
+                )
                 if has_transfer_ipv4:
                     logger.debug(
-                        f"Added BGP_NEIGHBOR for interface {port_name} (transfer role IPv4, v6only=false)"
+                        f"Added BGP_NEIGHBOR for interface {port_name} (transfer role IPv4, v6only=false, {bfd_status})"
                     )
                 else:
                     logger.debug(
-                        f"Added BGP_NEIGHBOR for interface {port_name} (no direct IPv4, v6only=true)"
+                        f"Added BGP_NEIGHBOR for interface {port_name} (no direct IPv4, v6only=true, {bfd_status})"
                     )
 
     # Add BGP_NEIGHBOR configuration for connected port channels
@@ -924,10 +976,21 @@ def _add_bgp_configurations(
                 device, connected_device, device_as_mapping
             )
 
-        config["BGP_NEIGHBOR"][neighbor_key] = {
+        bgp_neighbor_config = {
             "peer_type": peer_type,
             "v6only": "true",
         }
+
+        # Enable BFD if device role requires it
+        if _should_enable_bfd(device):
+            bgp_neighbor_config["bfd"] = "true"
+
+        config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
+
+        bfd_status = "BFD enabled" if _should_enable_bfd(device) else "BFD disabled"
+        logger.debug(
+            f"Added BGP_NEIGHBOR for port channel {pc_name} (v6only=true, {bfd_status})"
+        )
 
 
 def _get_connected_device_for_interface(device, interface_name):
