@@ -806,26 +806,6 @@ def _add_bgp_configurations(
         transfer_ips: Dict of IPv4 addresses from transfer role prefixes
         storage_ips: Dict of IPv4 addresses from storage role prefixes
     """
-    # Add transfer network prefixes to BGP_GLOBALS_AF_NETWORK for BGP announcement
-    if transfer_ips:
-        for interface_name, ip_address in transfer_ips.items():
-            try:
-                # Parse the IP address to ensure it's valid
-                ip_obj = ipaddress.ip_interface(ip_address)
-                if ip_obj.version == 4:
-                    # Add the transfer network to BGP announcements
-                    # Use the network address with prefix length
-                    network_str = str(ip_obj.network)
-                    af_key = f"default|ipv4_unicast|{network_str}"
-                    config["BGP_GLOBALS_AF_NETWORK"][af_key] = {}
-                    logger.info(
-                        f"Added transfer network {network_str} from interface {interface_name} to BGP announcements"
-                    )
-            except (ValueError, ipaddress.AddressValueError) as e:
-                logger.warning(
-                    f"Could not add transfer network {ip_address} to BGP: {e}"
-                )
-
     # Add storage network prefixes to BGP_GLOBALS_AF_NETWORK for BGP announcement
     if storage_ips:
         for interface_name, ip_address in storage_ips.items():
