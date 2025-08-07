@@ -167,13 +167,13 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
 
             # Output diff to task if available and there are changes
             if task_id and netbox_changed and diff_output:
-                utils.push_task_output(task_id, f"\n{'='*60}\n")
+                utils.push_task_output(task_id, f"\n{'='*60}\n")  # noqa E226
                 utils.push_task_output(
                     task_id, f"Configuration diff for {device.name}:\n"
                 )
-                utils.push_task_output(task_id, f"{'='*60}\n")
+                utils.push_task_output(task_id, f"{'='*60}\n")  # noqa E226
                 utils.push_task_output(task_id, f"{diff_output}\n")
-                utils.push_task_output(task_id, f"{'='*60}\n\n")
+                utils.push_task_output(task_id, f"{'='*60}\n\n")  # noqa E226
             elif task_id and netbox_changed and not diff_output:
                 # First-time configuration (no diff available)
                 utils.push_task_output(

@@ -29,6 +29,8 @@
     "BGP_GLOBALS_AF_NETWORK": {},
     "BGP_NEIGHBOR": {},
     "BGP_NEIGHBOR_AF": {},
+    "BFD_PEER": {},
+    "BFD_PROFILE": {},
     "BREAKOUT_CFG": {},
     "BREAKOUT_PORTS": {},
     "CLASSIFIER_TABLE": {
