@@ -77,6 +77,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     # Get interface IP addresses from NetBox
     interface_ips = get_device_interface_ips(device)
 
+    # Get IPv4 addresses from transfer role prefixes
+    transfer_ips = _get_transfer_role_ipv4_addresses(device)
+
     # Get breakout port configuration from NetBox
     breakout_info = detect_breakout_ports(device)
 
@@ -209,6 +212,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         device_as_mapping,
         interface_ips,
         netbox_interfaces,
+        transfer_ips,
     )
 
     # Add NTP server configuration (device-specific)
@@ -592,6 +596,75 @@ def _add_interface_configurations(
                 )
 
 
+def _get_transfer_role_ipv4_addresses(device):
+    """Get IPv4 addresses from IP prefixes with 'transfer' role.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        dict: Dictionary mapping interface names to their transfer role IPv4 addresses
+              {
+                  'interface_name': 'ip_address/prefix_length',
+                  ...
+              }
+    """
+    transfer_ips = {}
+
+    try:
+        # Get all interfaces for the device
+        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+
+        for interface in interfaces:
+            # Skip management interfaces and virtual interfaces
+            if interface.mgmt_only or (
+                hasattr(interface, "type")
+                and interface.type
+                and interface.type.value == "virtual"
+            ):
+                continue
+
+            # Get IP addresses assigned to this interface
+            ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                assigned_object_id=interface.id,
+            )
+
+            for ip_addr in ip_addresses:
+                if ip_addr.address:
+                    try:
+                        ip_obj = ipaddress.ip_interface(ip_addr.address)
+                        if ip_obj.version == 4:
+                            # Check if this IP belongs to a prefix with 'transfer' role
+                            # Query for the prefix this IP belongs to
+                            prefixes = utils.nb.ipam.prefixes.filter(
+                                contains=str(ip_obj.ip)
+                            )
+
+                            for prefix in prefixes:
+                                # Check if prefix has role and it's 'transfer'
+                                if hasattr(prefix, "role") and prefix.role:
+                                    if prefix.role.slug == "transfer":
+                                        transfer_ips[interface.name] = ip_addr.address
+                                        logger.debug(
+                                            f"Found transfer role IPv4 {ip_addr.address} on interface {interface.name} of device {device.name}"
+                                        )
+                                        break
+
+                            # Break after first IPv4 found (transfer or not)
+                            if interface.name in transfer_ips:
+                                break
+                    except (ValueError, ipaddress.AddressValueError):
+                        # Skip invalid IP addresses
+                        continue
+
+    except Exception as e:
+        logger.warning(
+            f"Failed to get transfer role IPv4 addresses for device {device.name}: {e}"
+        )
+
+    return transfer_ips
+
+
 def _has_direct_ipv4_address(port_name, interface_ips, netbox_interfaces):
     """Check if an interface has a direct IPv4 address assigned.
 
@@ -613,6 +686,27 @@ def _has_direct_ipv4_address(port_name, interface_ips, netbox_interfaces):
     return False
 
 
+def _has_transfer_role_ipv4(port_name, transfer_ips, netbox_interfaces):
+    """Check if an interface has an IPv4 from a transfer role prefix.
+
+    Args:
+        port_name: SONiC interface name (e.g., "Ethernet0")
+        transfer_ips: Dict mapping NetBox interface names to transfer role IPv4 addresses
+        netbox_interfaces: Dict mapping SONiC names to NetBox interface info
+
+    Returns:
+        bool: True if interface has a transfer role IPv4 address, False otherwise
+    """
+    if not transfer_ips or not netbox_interfaces:
+        return False
+
+    if port_name in netbox_interfaces:
+        netbox_interface_name = netbox_interfaces[port_name]["netbox_name"]
+        return netbox_interface_name in transfer_ips
+
+    return False
+
+
 def _add_bgp_configurations(
     config,
     connected_interfaces,
@@ -622,28 +716,53 @@ def _add_bgp_configurations(
     device_as_mapping=None,
     interface_ips=None,
     netbox_interfaces=None,
+    transfer_ips=None,
 ):
-    """Add BGP configurations."""
+    """Add BGP configurations.
+
+    Args:
+        config: Configuration dictionary to update
+        connected_interfaces: Set of connected interface names
+        connected_portchannels: Set of connected port channel names
+        portchannel_info: Port channel membership information
+        device: NetBox device object
+        device_as_mapping: Mapping of device names to AS numbers
+        interface_ips: Dict of direct IPv4 addresses on interfaces
+        netbox_interfaces: Dict mapping SONiC names to NetBox interface info
+        transfer_ips: Dict of IPv4 addresses from transfer role prefixes
+    """
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
     for port_name in config["PORT"]:
+        has_direct_ipv4 = _has_direct_ipv4_address(
+            port_name, interface_ips, netbox_interfaces
+        )
+        has_transfer_ipv4 = _has_transfer_role_ipv4(
+            port_name, transfer_ips, netbox_interfaces
+        )
+
         if (
             port_name in connected_interfaces
             and port_name not in portchannel_info["member_mapping"]
-            and not _has_direct_ipv4_address(
-                port_name, interface_ips, netbox_interfaces
-            )
         ):
-            ipv4_key = f"default|{port_name}|ipv4_unicast"
-            ipv6_key = f"default|{port_name}|ipv6_unicast"
-            config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
-            config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
-            logger.debug(
-                f"Added BGP_NEIGHBOR_AF for interface {port_name} (no direct IPv4)"
-            )
-        elif _has_direct_ipv4_address(port_name, interface_ips, netbox_interfaces):
-            logger.info(
-                f"Excluding interface {port_name} from BGP detection (has direct IPv4 address)"
-            )
+            # Include interfaces with transfer role IPv4 or no direct IPv4
+            if has_transfer_ipv4 or not has_direct_ipv4:
+                ipv4_key = f"default|{port_name}|ipv4_unicast"
+                ipv6_key = f"default|{port_name}|ipv6_unicast"
+                config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
+                config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+
+                if has_transfer_ipv4:
+                    logger.debug(
+                        f"Added BGP_NEIGHBOR_AF for interface {port_name} (transfer role IPv4)"
+                    )
+                else:
+                    logger.debug(
+                        f"Added BGP_NEIGHBOR_AF for interface {port_name} (no direct IPv4)"
+                    )
+            elif has_direct_ipv4 and not has_transfer_ipv4:
+                logger.info(
+                    f"Excluding interface {port_name} from BGP detection (has direct IPv4 address, not transfer role)"
+                )
 
     # Add BGP_NEIGHBOR_AF configuration for connected port channels
     for pc_name in connected_portchannels:
@@ -654,36 +773,49 @@ def _add_bgp_configurations(
 
     # Add BGP_NEIGHBOR configuration for connected interfaces
     for port_name in config["PORT"]:
+        has_direct_ipv4 = _has_direct_ipv4_address(
+            port_name, interface_ips, netbox_interfaces
+        )
+        has_transfer_ipv4 = _has_transfer_role_ipv4(
+            port_name, transfer_ips, netbox_interfaces
+        )
+
         if (
             port_name in connected_interfaces
             and port_name not in portchannel_info["member_mapping"]
-            and not _has_direct_ipv4_address(
-                port_name, interface_ips, netbox_interfaces
-            )
         ):
-            neighbor_key = f"default|{port_name}"
+            # Include interfaces with transfer role IPv4 or no direct IPv4
+            if has_transfer_ipv4 or not has_direct_ipv4:
+                neighbor_key = f"default|{port_name}"
 
-            # Determine peer_type based on connected device AS
-            peer_type = "external"  # Default
-            connected_device = get_connected_device_for_sonic_interface(
-                device, port_name
-            )
-            if connected_device:
-                peer_type = _determine_peer_type(
-                    device, connected_device, device_as_mapping
+                # Determine peer_type based on connected device AS
+                peer_type = "external"  # Default
+                connected_device = get_connected_device_for_sonic_interface(
+                    device, port_name
                 )
+                if connected_device:
+                    peer_type = _determine_peer_type(
+                        device, connected_device, device_as_mapping
+                    )
 
-            # Since we're only processing interfaces without direct IPv4 addresses,
-            # we always set v6only to true
-            bgp_neighbor_config = {
-                "peer_type": peer_type,
-                "v6only": "true",
-            }
+                # Set v6only based on whether interface has transfer role IPv4
+                # - Transfer role IPv4: v6only=false (dual-stack BGP)
+                # - No direct IPv4: v6only=true (IPv6-only BGP)
+                bgp_neighbor_config = {
+                    "peer_type": peer_type,
+                    "v6only": "false" if has_transfer_ipv4 else "true",
+                }
 
-            config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
-            logger.debug(
-                f"Added BGP_NEIGHBOR for interface {port_name} (no direct IPv4, v6only=true)"
-            )
+                config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
+
+                if has_transfer_ipv4:
+                    logger.debug(
+                        f"Added BGP_NEIGHBOR for interface {port_name} (transfer role IPv4, v6only=false)"
+                    )
+                else:
+                    logger.debug(
+                        f"Added BGP_NEIGHBOR for interface {port_name} (no direct IPv4, v6only=true)"
+                    )
 
     # Add BGP_NEIGHBOR configuration for connected port channels
     for pc_name in connected_portchannels:
