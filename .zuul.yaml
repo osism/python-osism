@@ -81,6 +81,16 @@
       docker_registry: osism.harbor.regio.digital
 
 - job:
+    name: container-image-python-osism-frontend-build
+    pre-run: playbooks/pre.yml
+    run: playbooks/build.yml
+    vars:
+      docker_image: frontend
+      docker_namespace: osism
+      docker_registry: osism.harbor.regio.digital
+      repository: osism/osism
+
+- job:
     name: container-image-python-osism-push
     semaphores:
       - name: semaphore-container-image-python-osism-push
@@ -110,12 +120,8 @@
         - mypy
         - python-black
         - container-image-python-osism-build
+        - container-image-python-osism-frontend-build
         - python-osism-test-setup
-    gate:
-      jobs:
-        - flake8
-        - hadolint
-        - python-black
     periodic-daily:
       jobs:
         - flake8

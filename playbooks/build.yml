@@ -8,6 +8,7 @@
   environment:
     registry: "{{ docker_registry }}"
     repository: "{{ docker_namespace }}/osism"
+    image: "{{ docker_image }}"
     version: "{{ zuul['tag'] | default('latest') }}"
     COSIGN_PASSWORD: "{{ secret.COSIGN_PASSWORD | default('') }}"
     COSIGN_PRIVATE_KEY: "{{ secret.COSIGN_PRIVATE_KEY | default('') }}"
@@ -25,7 +26,7 @@
     - name: Run build script
       ansible.builtin.shell:
         executable: /bin/bash
-        chdir: "{{ zuul.project.src_dir }}"
+        chdir: "{{ zuul.project.src_dir }}/{{ image }}"
         cmd: |
           set -e
           set -o pipefail
@@ -81,7 +82,7 @@
     - name: Run push script
       ansible.builtin.shell:
         executable: /bin/bash
-        chdir: "{{ zuul.project.src_dir }}"
+        chdir: "{{ zuul.project.src_dir }}/{{ image }}"
         cmd: |
           set -e
           set -o pipefail
@@ -108,7 +109,7 @@
     - name: Run cosign script
       ansible.builtin.shell:
         executable: /bin/bash
-        chdir: "{{ zuul.project.src_dir }}"
+        chdir: "{{ zuul.project.src_dir }}/{{ image }}"
         cmd: |
           set -e
           set -o pipefail
@@ -134,7 +135,7 @@
     - name: Run sbom script
       ansible.builtin.shell:
         executable: /bin/bash
-        chdir: "{{ zuul.project.src_dir | default('.') }}"
+        chdir: "{{ zuul.project.src_dir | default('.') }}/{{ image }}"
         cmd: |
           set -e
           set -o pipefail
