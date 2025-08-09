@@ -10,7 +10,7 @@ from fastapi import FastAPI, Header, Request, Response, HTTPException, status
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
 
-from osism.tasks import reconciler
+from osism.tasks import reconciler, openstack
 from osism import utils
 from osism.services.listener import BaremetalEvents
 
@@ -109,6 +109,35 @@ class DeviceSearchResult(BaseModel):
     device: Optional[str] = Field(None, description="Device name if found")
 
 
+class BaremetalNode(BaseModel):
+    uuid: str = Field(..., description="Unique identifier of the node")
+    name: Optional[str] = Field(None, description="Name of the node")
+    power_state: Optional[str] = Field(None, description="Current power state")
+    provision_state: Optional[str] = Field(None, description="Current provision state")
+    maintenance: bool = Field(..., description="Whether node is in maintenance mode")
+    instance_uuid: Optional[str] = Field(
+        None, description="UUID of associated instance"
+    )
+    driver: Optional[str] = Field(None, description="Driver used for the node")
+    resource_class: Optional[str] = Field(
+        None, description="Resource class of the node"
+    )
+    properties: Dict[str, Any] = Field(
+        default_factory=dict, description="Node properties"
+    )
+    extra: Dict[str, Any] = Field(
+        default_factory=dict, description="Extra node information"
+    )
+    last_error: Optional[str] = Field(None, description="Last error message")
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+
+
+class BaremetalNodesResponse(BaseModel):
+    nodes: list[BaremetalNode] = Field(..., description="List of baremetal nodes")
+    count: int = Field(..., description="Total number of nodes")
+
+
 def find_device_by_identifier(identifier: str):
     """Find a device in NetBox by various identifiers."""
     if not utils.nb:
@@ -185,6 +214,31 @@ async def write_sink_events(request: Request) -> SinkResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process events data",
+        )
+
+
+@app.get(
+    "/v1/baremetal/nodes", response_model=BaremetalNodesResponse, tags=["baremetal"]
+)
+async def get_baremetal_nodes_list() -> BaremetalNodesResponse:
+    """Get list of all baremetal nodes managed by Ironic.
+
+    Returns information similar to the 'baremetal list' command,
+    including node details, power state, provision state, and more.
+    """
+    try:
+        # Use the generalized function to get baremetal nodes
+        nodes_data = openstack.get_baremetal_nodes()
+
+        # Convert to response model
+        nodes = [BaremetalNode(**node) for node in nodes_data]
+
+        return BaremetalNodesResponse(nodes=nodes, count=len(nodes))
+    except Exception as e:
+        logger.error(f"Error retrieving baremetal nodes: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve baremetal nodes: {str(e)}",
         )
 
 

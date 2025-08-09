@@ -69,6 +69,41 @@ def baremetal_node_list(self):
     return list(result)
 
 
+def get_baremetal_nodes():
+    """Get all baremetal nodes with their details.
+
+    This is a generalized function that can be used by both
+    CLI commands and API endpoints to retrieve baremetal node information.
+
+    Returns:
+        list: List of dictionaries containing node information
+    """
+    conn = utils.get_openstack_connection()
+    nodes = conn.baremetal.nodes(details=True)
+
+    # Convert generator to list and extract relevant fields
+    node_list = []
+    for node in nodes:
+        node_info = {
+            "uuid": node.get("uuid"),
+            "name": node.get("name"),
+            "power_state": node.get("power_state"),
+            "provision_state": node.get("provision_state"),
+            "maintenance": node.get("maintenance"),
+            "instance_uuid": node.get("instance_uuid"),
+            "driver": node.get("driver"),
+            "resource_class": node.get("resource_class"),
+            "properties": node.get("properties", {}),
+            "extra": node.get("extra", {}),
+            "last_error": node.get("last_error"),
+            "created_at": node.get("created_at"),
+            "updated_at": node.get("updated_at"),
+        }
+        node_list.append(node_info)
+
+    return node_list
+
+
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_validate")
 def baremetal_node_validate(self, node_id_or_name):
     conn = utils.get_openstack_connection()
