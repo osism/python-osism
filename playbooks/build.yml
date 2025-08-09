@@ -5,6 +5,9 @@
   vars:
     python_venv_dir: /tmp/venv
 
+  vars:
+    image: "{{ docker_image | default('') }}"
+
   environment:
     registry: "{{ docker_registry }}"
     repository: "{{ docker_namespace }}/osism"
@@ -25,7 +28,7 @@
     - name: Run build script
       ansible.builtin.shell:
         executable: /bin/bash
-        chdir: "{{ zuul.project.src_dir }}"
+        chdir: "{{ zuul.project.src_dir }}/{{ image }}"
         cmd: |
           set -e
           set -o pipefail
@@ -81,7 +84,7 @@
     - name: Run push script
       ansible.builtin.shell:
         executable: /bin/bash
-        chdir: "{{ zuul.project.src_dir }}"
+        chdir: "{{ zuul.project.src_dir }}/{{ image }}"
         cmd: |
           set -e
           set -o pipefail
@@ -108,7 +111,7 @@
     - name: Run cosign script
       ansible.builtin.shell:
         executable: /bin/bash
-        chdir: "{{ zuul.project.src_dir }}"
+        chdir: "{{ zuul.project.src_dir }}/{{ image }}"
         cmd: |
           set -e
           set -o pipefail
@@ -134,7 +137,7 @@
     - name: Run sbom script
       ansible.builtin.shell:
         executable: /bin/bash
-        chdir: "{{ zuul.project.src_dir | default('.') }}"
+        chdir: "{{ zuul.project.src_dir | default('.') }}/{{ image }}"
         cmd: |
           set -e
           set -o pipefail

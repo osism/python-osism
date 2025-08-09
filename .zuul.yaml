@@ -72,6 +72,10 @@
     name: semaphore-container-image-python-osism-push
     max: 1
 
+- semaphore:
+    name: semaphore-container-image-python-osism-frontend-push
+    max: 1
+
 - job:
     name: container-image-python-osism-build
     pre-run: playbooks/pre.yml
@@ -81,12 +85,38 @@
       docker_registry: osism.harbor.regio.digital
 
 - job:
+    name: container-image-python-osism-frontend-build
+    pre-run: playbooks/pre.yml
+    run: playbooks/build.yml
+    vars:
+      docker_image: frontend
+      docker_namespace: osism
+      docker_registry: osism.harbor.regio.digital
+      repository: osism/osism
+
+- job:
     name: container-image-python-osism-push
     semaphores:
       - name: semaphore-container-image-python-osism-push
     pre-run: playbooks/pre.yml
     run: playbooks/build.yml
     vars:
+      docker_namespace: osism
+      docker_registry: osism.harbor.regio.digital
+      push_image: true
+      push_sbom: true
+    secrets:
+      - name: secret
+        secret: SECRET_CONTAINER_IMAGE_PYTHON_OSISM
+
+- job:
+    name: container-image-python-osism-frontend-push
+    semaphores:
+      - name: semaphore-container-image-python-osism-frontend-push
+    pre-run: playbooks/pre.yml
+    run: playbooks/build.yml
+    vars:
+      docker_image: frontend
       docker_namespace: osism
       docker_registry: osism.harbor.regio.digital
       push_image: true
@@ -110,12 +140,8 @@
         - mypy
         - python-black
         - container-image-python-osism-build
+        - container-image-python-osism-frontend-build
         - python-osism-test-setup
-    gate:
-      jobs:
-        - flake8
-        - hadolint
-        - python-black
     periodic-daily:
       jobs:
         - flake8
@@ -126,10 +152,14 @@
     periodic-midnight:
       jobs:
         - container-image-python-osism-push
+        - container-image-python-osism-frontend-push
     post:
       jobs:
         - container-image-python-osism-push:
             branches: main
+        - container-image-python-osism-frontend-push:
+            branches: main
     tag:
       jobs:
         - container-image-python-osism-push
+        - container-image-python-osism-frontend-push
