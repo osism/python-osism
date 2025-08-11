@@ -699,7 +699,7 @@ def detect_breakout_ports(device):
                                 # Calculate breakout mode
                                 if interface_speed == 10000 and num_subports == 4:
                                     brkout_mode = "4x10G"
-                                elif interface_speed == 50000 and num_subports == 4:
+                                elif interface_speed == 25000 and num_subports == 4:
                                     brkout_mode = "4x25G"
                                 elif interface_speed == 50000 and num_subports == 4:
                                     brkout_mode = "4x50G"
