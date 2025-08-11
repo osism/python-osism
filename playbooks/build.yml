@@ -10,8 +10,9 @@
 
   environment:
     registry: "{{ docker_registry }}"
-    repository: "{{ docker_namespace }}/osism"
+    repository: "{{ docker_namespace }}/osism{{ '-' + image if image else '' }}"
     version: "{{ zuul['tag'] | default('latest') }}"
+    image: "{{ image }}"
     COSIGN_PASSWORD: "{{ secret.COSIGN_PASSWORD | default('') }}"
     COSIGN_PRIVATE_KEY: "{{ secret.COSIGN_PRIVATE_KEY | default('') }}"
     DTRACK_SERVER: "https://dtrack.osism.tech"
@@ -70,7 +71,7 @@
               --label "org.opencontainers.image.licenses=ASL 2.0" \
               --label "org.opencontainers.image.revision=$revision" \
               --label "org.opencontainers.image.source=https://github.com/osism/python-osism" \
-              --label "org.opencontainers.image.title=osism" \
+              --label "org.opencontainers.image.title=osism${image:+-$image}" \
               --label "org.opencontainers.image.url=https://quay.io/organization/osism" \
               --label "org.opencontainers.image.vendor=OSISM GmbH" \
               --label "org.opencontainers.image.version=$version" \
@@ -156,7 +157,7 @@
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
           /usr/local/bin/syft scan "$repository:$version" -o cyclonedx-json > sbom.json
           {{ python_venv_dir }}/bin/dtrackauditor \
-            -p osism \
+            -p "osism${image:+-$image}" \
             -v "$version" \
             -f sbom.json \
             -a
