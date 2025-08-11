@@ -3,10 +3,8 @@
   hosts: all
 
   vars:
-    python_venv_dir: /tmp/venv
-
-  vars:
     image: "{{ docker_image | default('') }}"
+    python_venv_dir: /tmp/venv
 
   environment:
     registry: "{{ docker_registry }}"
