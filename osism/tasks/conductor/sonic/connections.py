@@ -387,3 +387,94 @@ def get_device_bgp_neighbors_via_loopback(
         logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")
 
     return bgp_neighbors
+
+
+def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
+    """
+    Get the IPv4 address of the connected endpoint interface for a given SONiC port.
+    Checks for direct IP addresses first, then for FHRP VIP addresses.
+
+    Args:
+        device: The SONiC device
+        sonic_port_name: The SONiC port name
+        netbox: The NetBox API client
+
+    Returns:
+        The IPv4 address string of the connected interface, or None if not found
+    """
+    try:
+        interface = netbox.dcim.interfaces.get(
+            device_id=device.id, name=sonic_port_name
+        )
+        if not interface or not interface.connected_endpoint:
+            return None
+
+        connected_interface = interface.connected_endpoint
+
+        # First, try to get direct IPv4 addresses assigned to the connected interface
+        ip_addresses = netbox.ipam.ip_addresses.filter(
+            assigned_object_type="dcim.interface",
+            assigned_object_id=connected_interface.id,
+        )
+
+        for ip_address in ip_addresses:
+            # Check if it's an IPv4 address
+            if "/" in str(ip_address.address):
+                address = str(ip_address.address).split("/")[0]
+                if "." in address:  # IPv4 address
+                    logger.debug(
+                        f"Found direct IPv4 address {address} on connected interface "
+                        f"{connected_interface.name} for port {sonic_port_name}"
+                    )
+                    return address
+
+        # If no direct IP found, check for FHRP group membership and VIP addresses
+        logger.debug(
+            f"No direct IPv4 found on {connected_interface.name}, checking for FHRP VIP addresses"
+        )
+
+        # Get FHRP group assignments for the connected interface
+        fhrp_assignments = netbox.ipam.fhrp_group_assignments.filter(
+            interface_type="dcim.interface", interface_id=connected_interface.id
+        )
+
+        for assignment in fhrp_assignments:
+            if not assignment.group:
+                continue
+
+            # Get VIP addresses assigned to this FHRP group
+            # Note: We need to fetch all VIP addresses and filter client-side
+            # because NetBox API doesn't support direct FHRP group filtering
+            vip_addresses = netbox.ipam.ip_addresses.filter(role="vip")
+
+            for vip in vip_addresses:
+                # Check if this VIP is assigned to the current FHRP group
+                if (
+                    hasattr(vip, "assigned_object_type")
+                    and vip.assigned_object_type == "ipam.fhrpgroup"
+                    and hasattr(vip, "assigned_object_id")
+                    and vip.assigned_object_id == assignment.group.id
+                ):
+
+                    # Check if it's an IPv4 address
+                    if "/" in str(vip.address):
+                        address = str(vip.address).split("/")[0]
+                        if "." in address:  # IPv4 address
+                            logger.debug(
+                                f"Found FHRP VIP address {address} for connected interface "
+                                f"{connected_interface.name} (FHRP group: {assignment.group.name or assignment.group.id}) "
+                                f"for port {sonic_port_name}"
+                            )
+                            return address
+
+        logger.debug(
+            f"No IPv4 address (direct or FHRP VIP) found on connected interface "
+            f"{connected_interface.name} for port {sonic_port_name}"
+        )
+        return None
+
+    except Exception as e:
+        logger.warning(
+            f"Could not get connected interface IPv4 for port {sonic_port_name}: {e}"
+        )
+        return None

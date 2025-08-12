@@ -30,6 +30,7 @@ from .interface import (
 from .connections import (
     get_connected_interfaces,
     get_connected_device_for_sonic_interface,
+    get_connected_interface_ipv4_address,
 )
 from .cache import get_cached_device_interfaces
 
@@ -213,6 +214,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         interface_ips,
         netbox_interfaces,
         transfer_ips,
+        utils.nb,
     )
 
     # Add NTP server configuration (device-specific)
@@ -717,6 +719,7 @@ def _add_bgp_configurations(
     interface_ips=None,
     netbox_interfaces=None,
     transfer_ips=None,
+    netbox=None,
 ):
     """Add BGP configurations.
 
@@ -730,6 +733,7 @@ def _add_bgp_configurations(
         interface_ips: Dict of direct IPv4 addresses on interfaces
         netbox_interfaces: Dict mapping SONiC names to NetBox interface info
         transfer_ips: Dict of IPv4 addresses from transfer role prefixes
+        netbox: NetBox API client for querying connected interface IPs
     """
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
     for port_name in config["PORT"]:
@@ -746,12 +750,22 @@ def _add_bgp_configurations(
         ):
             # Include interfaces with transfer role IPv4 or no direct IPv4
             if has_transfer_ipv4 or not has_direct_ipv4:
-                ipv4_key = f"default|{port_name}|ipv4_unicast"
+                # Try to get the IPv4 address of the connected endpoint interface
+                connected_ipv4 = None
+                if netbox:
+                    connected_ipv4 = get_connected_interface_ipv4_address(
+                        device, port_name, netbox
+                    )
+
+                # Use the connected interface's IPv4 address if available, otherwise use interface name
+                neighbor_id = connected_ipv4 if connected_ipv4 else port_name
+
+                ipv4_key = f"default|{neighbor_id}|ipv4_unicast"
                 config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
 
                 # Only add ipv6_unicast if v6only would be true (no transfer role IPv4)
                 if not has_transfer_ipv4:
-                    ipv6_key = f"default|{port_name}|ipv6_unicast"
+                    ipv6_key = f"default|{neighbor_id}|ipv6_unicast"
                     config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
                     logger.debug(
                         f"Added BGP_NEIGHBOR_AF with ipv4_unicast and ipv6_unicast for interface {port_name} (no direct IPv4)"
@@ -767,8 +781,18 @@ def _add_bgp_configurations(
 
     # Add BGP_NEIGHBOR_AF configuration for connected port channels
     for pc_name in connected_portchannels:
-        ipv4_key = f"default|{pc_name}|ipv4_unicast"
-        ipv6_key = f"default|{pc_name}|ipv6_unicast"
+        # Try to get the IPv4 address of the connected endpoint interface for port channel
+        connected_ipv4 = None
+        if netbox:
+            connected_ipv4 = get_connected_interface_ipv4_address(
+                device, pc_name, netbox
+            )
+
+        # Use the connected interface's IPv4 address if available, otherwise use port channel name
+        neighbor_id = connected_ipv4 if connected_ipv4 else pc_name
+
+        ipv4_key = f"default|{neighbor_id}|ipv4_unicast"
+        ipv6_key = f"default|{neighbor_id}|ipv6_unicast"
         config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
         config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
 
@@ -787,7 +811,24 @@ def _add_bgp_configurations(
         ):
             # Include interfaces with transfer role IPv4 or no direct IPv4
             if has_transfer_ipv4 or not has_direct_ipv4:
-                neighbor_key = f"default|{port_name}"
+                # Try to get the IPv4 address of the connected endpoint interface
+                connected_ipv4 = None
+                if netbox:
+                    connected_ipv4 = get_connected_interface_ipv4_address(
+                        device, port_name, netbox
+                    )
+
+                # Use the connected interface's IPv4 address if available, otherwise use interface name
+                if connected_ipv4:
+                    neighbor_key = f"default|{connected_ipv4}"
+                    logger.debug(
+                        f"Using connected interface IPv4 address {connected_ipv4} for BGP neighbor on {port_name}"
+                    )
+                else:
+                    neighbor_key = f"default|{port_name}"
+                    logger.debug(
+                        f"No connected interface IPv4 found, using interface name {port_name} for BGP neighbor"
+                    )
 
                 # Determine peer_type based on connected device AS
                 peer_type = "external"  # Default
@@ -807,6 +848,10 @@ def _add_bgp_configurations(
                     "v6only": "false" if has_transfer_ipv4 else "true",
                 }
 
+                # If using IP address as key, also store the local interface
+                if connected_ipv4:
+                    bgp_neighbor_config["local_interface"] = port_name
+
                 config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
 
                 if has_transfer_ipv4:
@@ -820,7 +865,24 @@ def _add_bgp_configurations(
 
     # Add BGP_NEIGHBOR configuration for connected port channels
     for pc_name in connected_portchannels:
-        neighbor_key = f"default|{pc_name}"
+        # Try to get the IPv4 address of the connected endpoint interface for port channel
+        connected_ipv4 = None
+        if netbox:
+            connected_ipv4 = get_connected_interface_ipv4_address(
+                device, pc_name, netbox
+            )
+
+        # Use the connected interface's IPv4 address if available, otherwise use port channel name
+        if connected_ipv4:
+            neighbor_key = f"default|{connected_ipv4}"
+            logger.debug(
+                f"Using connected interface IPv4 address {connected_ipv4} for BGP neighbor on {pc_name}"
+            )
+        else:
+            neighbor_key = f"default|{pc_name}"
+            logger.debug(
+                f"No connected interface IPv4 found, using port channel name {pc_name} for BGP neighbor"
+            )
 
         # Determine peer_type based on connected device AS
         peer_type = "external"  # Default
@@ -830,10 +892,16 @@ def _add_bgp_configurations(
                 device, connected_device, device_as_mapping
             )
 
-        config["BGP_NEIGHBOR"][neighbor_key] = {
+        bgp_neighbor_config = {
             "peer_type": peer_type,
             "v6only": "true",
         }
+
+        # If using IP address as key, also store the local interface
+        if connected_ipv4:
+            bgp_neighbor_config["local_interface"] = pc_name
+
+        config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
 
 
 def _get_connected_device_for_interface(device, interface_name):
