@@ -17,7 +17,7 @@ kombu==5.5.4
 kubernetes==33.1.0
 loguru==0.7.3
 nbcli==0.10.0.dev2
-openstacksdk==4.6.0
+openstacksdk==4.7.0
 paramiko==3.5.1
 pottery==3.0.1
 prompt-toolkit==3.0.51
