@@ -319,9 +319,9 @@ def get_device_interface_ips(device):
         device: NetBox device object
 
     Returns:
-        dict: Dictionary mapping interface names to their IPv4 addresses
+        dict: Dictionary mapping interface names to list of their IPv4 addresses
               {
-                  'interface_name': 'ip_address/prefix_length',
+                  'interface_name': ['ip_address/prefix_length', 'ip_address2/prefix_length2', ...],
                   ...
               }
     """
@@ -345,20 +345,24 @@ def get_device_interface_ips(device):
                 assigned_object_id=interface.id,
             )
 
+            ipv4_addresses = []
             for ip_addr in ip_addresses:
                 if ip_addr.address:
                     # Check if it's an IPv4 address
                     try:
                         ip_obj = ipaddress.ip_interface(ip_addr.address)
                         if ip_obj.version == 4:
-                            interface_ips[interface.name] = ip_addr.address
+                            ipv4_addresses.append(ip_addr.address)
                             logger.debug(
                                 f"Found IPv4 address {ip_addr.address} on interface {interface.name} of device {device.name}"
                             )
-                            break  # Only use the first IPv4 address found
                     except (ValueError, ipaddress.AddressValueError):
                         # Skip invalid IP addresses
                         continue
+
+            # Store all IPv4 addresses for this interface
+            if ipv4_addresses:
+                interface_ips[interface.name] = ipv4_addresses
 
     except Exception as e:
         logger.warning(
