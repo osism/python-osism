@@ -570,26 +570,28 @@ def _add_interface_configurations(
             if port_name in netbox_interfaces:
                 netbox_interface_name = netbox_interfaces[port_name]["netbox_name"]
 
-            # Check if this interface has an IPv4 address assigned
-            ipv4_address = None
+            # Check if this interface has IPv4 addresses assigned
+            ipv4_addresses = []
             if netbox_interface_name and netbox_interface_name in interface_ips:
-                ipv4_address = interface_ips[netbox_interface_name]
+                ipv4_addresses = interface_ips[netbox_interface_name]
                 logger.info(
-                    f"Interface {port_name} ({netbox_interface_name}) has IPv4 address: {ipv4_address}"
+                    f"Interface {port_name} ({netbox_interface_name}) has IPv4 addresses: {ipv4_addresses}"
                 )
 
-            if ipv4_address:
-                # If IPv4 address is available, configure the interface with it
+            if ipv4_addresses:
+                # If IPv4 addresses are available, configure the interface with all of them
                 # Add base interface entry (similar to VLAN_INTERFACE and LOOPBACK_INTERFACE patterns)
                 config["INTERFACE"][port_name] = {}
-                # Add IP address suffixed entry with scope and family parameters
-                config["INTERFACE"][f"{port_name}|{ipv4_address}"] = {
-                    "scope": "global",
-                    "family": "IPv4",
-                }
-                logger.info(
-                    f"Configured interface {port_name} with IPv4 address {ipv4_address}"
-                )
+
+                # Add IP address suffixed entry for each IPv4 address with scope and family parameters
+                for ipv4_address in ipv4_addresses:
+                    config["INTERFACE"][f"{port_name}|{ipv4_address}"] = {
+                        "scope": "global",
+                        "family": "IPv4",
+                    }
+                    logger.info(
+                        f"Configured interface {port_name} with IPv4 address {ipv4_address}"
+                    )
             else:
                 # Add interface to INTERFACE section with ipv6_use_link_local_only enabled
                 config["INTERFACE"][port_name] = {"ipv6_use_link_local_only": "enable"}
@@ -672,7 +674,7 @@ def _has_direct_ipv4_address(port_name, interface_ips, netbox_interfaces):
 
     Args:
         port_name: SONiC interface name (e.g., "Ethernet0")
-        interface_ips: Dict mapping NetBox interface names to IPv4 addresses
+        interface_ips: Dict mapping NetBox interface names to list of IPv4 addresses
         netbox_interfaces: Dict mapping SONiC names to NetBox interface info
 
     Returns:
@@ -857,7 +859,8 @@ def _add_bgp_configurations(
                             "netbox_name"
                         ]
                         if netbox_interface_name in interface_ips:
-                            local_ipv4 = interface_ips[netbox_interface_name].split(
+                            # Use the first IPv4 address for BGP local_addr
+                            local_ipv4 = interface_ips[netbox_interface_name][0].split(
                                 "/"
                             )[0]
                         elif netbox_interface_name in transfer_ips:
