@@ -757,8 +757,8 @@ def _add_bgp_configurations(
                         device, port_name, netbox
                     )
 
-                # Use the connected interface's IPv4 address if available, otherwise use interface name
-                neighbor_id = connected_ipv4 if connected_ipv4 else port_name
+                # For BGP_NEIGHBOR_AF, always use interface name like IPv6 does
+                neighbor_id = port_name
 
                 ipv4_key = f"default|{neighbor_id}|ipv4_unicast"
                 config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
@@ -788,8 +788,8 @@ def _add_bgp_configurations(
                 device, pc_name, netbox
             )
 
-        # Use the connected interface's IPv4 address if available, otherwise use port channel name
-        neighbor_id = connected_ipv4 if connected_ipv4 else pc_name
+        # For BGP_NEIGHBOR_AF, always use port channel name like interfaces
+        neighbor_id = pc_name
 
         ipv4_key = f"default|{neighbor_id}|ipv4_unicast"
         ipv6_key = f"default|{neighbor_id}|ipv6_unicast"
