@@ -1,8 +1,8 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { BaremetalNodesResponse, HealthCheckResponse } from './types';
 
-let API_URL = 'http://api:8000'; // Default fallback
-let apiClient: any = null;
+const API_URL = 'http://api:8000'; // Default fallback
+let apiClient: AxiosInstance | null = null;
 
 async function getApiUrl(): Promise<string> {
   if (typeof window !== 'undefined') {
@@ -10,7 +10,7 @@ async function getApiUrl(): Promise<string> {
       const response = await fetch('/api/config');
       const config = await response.json();
       return config.apiUrl;
-    } catch (error) {
+    } catch {
       console.warn('Failed to fetch API config, using fallback');
       return API_URL;
     }
