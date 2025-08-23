@@ -1,26 +1,49 @@
 import axios from 'axios';
 import { BaremetalNodesResponse, HealthCheckResponse } from './types';
 
-const API_URL = process.env.NEXT_PUBLIC_OSISM_API_URL || 'http://api:8000';
+let API_URL = 'http://api:8000'; // Default fallback
+let apiClient: any = null;
 
-const apiClient = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+async function getApiUrl(): Promise<string> {
+  if (typeof window !== 'undefined') {
+    try {
+      const response = await fetch('/api/config');
+      const config = await response.json();
+      return config.apiUrl;
+    } catch (error) {
+      console.warn('Failed to fetch API config, using fallback');
+      return API_URL;
+    }
+  }
+  return process.env.NEXT_PUBLIC_OSISM_API_URL || API_URL;
+}
+
+async function getApiClient() {
+  if (!apiClient) {
+    const baseURL = await getApiUrl();
+    apiClient = axios.create({
+      baseURL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+  return apiClient;
+}
 
 export const api = {
   health: {
     check: async (): Promise<HealthCheckResponse> => {
-      const response = await apiClient.get<HealthCheckResponse>('/v1');
+      const client = await getApiClient();
+      const response = await client.get<HealthCheckResponse>('/v1');
       return response.data;
     },
   },
 
   baremetal: {
     getNodes: async (): Promise<BaremetalNodesResponse> => {
-      const response = await apiClient.get<BaremetalNodesResponse>('/v1/baremetal/nodes');
+      const client = await getApiClient();
+      const response = await client.get<BaremetalNodesResponse>('/v1/baremetal/nodes');
       return response.data;
     },
   },
