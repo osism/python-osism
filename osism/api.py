@@ -110,11 +110,13 @@ class DeviceSearchResult(BaseModel):
 
 
 class BaremetalNode(BaseModel):
-    uuid: str = Field(..., description="Unique identifier of the node")
+    uuid: Optional[str] = Field(None, description="Unique identifier of the node")
     name: Optional[str] = Field(None, description="Name of the node")
     power_state: Optional[str] = Field(None, description="Current power state")
     provision_state: Optional[str] = Field(None, description="Current provision state")
-    maintenance: bool = Field(..., description="Whether node is in maintenance mode")
+    maintenance: Optional[bool] = Field(
+        None, description="Whether node is in maintenance mode"
+    )
     instance_uuid: Optional[str] = Field(
         None, description="UUID of associated instance"
     )
