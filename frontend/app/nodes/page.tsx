@@ -10,6 +10,7 @@ export default function NodesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProvisionState, setFilterProvisionState] = useState("all");
   const [filterPowerState, setFilterPowerState] = useState("all");
+  const [filterMaintenance, setFilterMaintenance] = useState("all");
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["baremetal-nodes"],
@@ -19,8 +20,8 @@ export default function NodesPage() {
 
   const filteredNodes = data?.nodes.filter((node: BaremetalNode) => {
     const matchesSearch = searchTerm === "" || 
-      node.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      node.uuid.toLowerCase().includes(searchTerm.toLowerCase());
+      (node.name && node.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (node.uuid && node.uuid.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesProvisionState = filterProvisionState === "all" || 
       node.provision_state === filterProvisionState;
@@ -28,7 +29,11 @@ export default function NodesPage() {
     const matchesPowerState = filterPowerState === "all" || 
       node.power_state === filterPowerState;
 
-    return matchesSearch && matchesProvisionState && matchesPowerState;
+    const matchesMaintenance = filterMaintenance === "all" ||
+      (filterMaintenance === "maintenance" && node.maintenance === true) ||
+      (filterMaintenance === "active" && node.maintenance === false);
+
+    return matchesSearch && matchesProvisionState && matchesPowerState && matchesMaintenance;
   });
 
   const uniqueProvisionStates = data ? 
@@ -58,7 +63,7 @@ export default function NodesPage() {
 
       <div className="bg-white shadow rounded-lg mb-6">
         <div className="px-4 py-5 sm:p-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             <div>
               <label htmlFor="search" className="block text-sm font-medium text-gray-700">
                 Search
@@ -112,6 +117,23 @@ export default function NodesPage() {
                 {uniquePowerStates.map(state => (
                   <option key={state} value={state}>{state}</option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="maintenance-state" className="block text-sm font-medium text-gray-700">
+                Maintenance
+              </label>
+              <select
+                id="maintenance-state"
+                name="maintenance-state"
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                value={filterMaintenance}
+                onChange={(e) => setFilterMaintenance(e.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="maintenance">Maintenance</option>
               </select>
             </div>
           </div>

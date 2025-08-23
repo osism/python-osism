@@ -105,53 +105,6 @@ export default function Home() {
         })}
       </div>
 
-      {nodesData && nodesData.nodes.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">
-            Recent Nodes
-          </h3>
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200">
-              {nodesData.nodes.slice(0, 5).map((node) => (
-                <li key={node.uuid}>
-                  <div className="px-4 py-4 sm:px-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <p className="text-sm font-medium text-gray-900">
-                          {node.name || node.uuid}
-                        </p>
-                        <div className="ml-4 flex items-center space-x-2">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            node.power_state === "power on" 
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}>
-                            {node.power_state || "unknown"}
-                          </span>
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            node.provision_state === "active"
-                              ? "bg-blue-100 text-blue-800"
-                              : node.provision_state === "available"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}>
-                            {node.provision_state || "unknown"}
-                          </span>
-                        </div>
-                      </div>
-                      {node.maintenance && (
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                          Maintenance
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
