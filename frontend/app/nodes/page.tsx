@@ -207,40 +207,18 @@ export default function NodesPage() {
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center">
-                        <p className="text-sm font-medium text-gray-900">
-                          {node.name || node.uuid}
-                        </p>
-                        {node.maintenance && (
-                          <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                            Maintenance
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-2 sm:flex sm:justify-between">
-                        <div className="sm:flex">
-                          <p className="flex items-center text-sm text-gray-500">
-                            UUID: {node.uuid}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <p className="text-sm font-medium text-gray-900">
+                            {node.name || node.uuid}
                           </p>
-                          {node.driver && (
-                            <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                              Driver: {node.driver}
-                            </p>
+                          {node.maintenance && (
+                            <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                              Maintenance
+                            </span>
                           )}
                         </div>
-                        <div className="mt-2 sm:flex">
-                          {node.created_at && (
-                            <p className="flex items-center text-sm text-gray-500">
-                              Created: {new Date(node.created_at).toLocaleString()}
-                            </p>
-                          )}
-                          {node.updated_at && (
-                            <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                              Updated: {new Date(node.updated_at).toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                        <div className="mt-2 flex items-center text-sm sm:mt-0">
+                        <div className="flex items-center gap-2">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             node.power_state === "power on" 
                               ? "bg-green-100 text-green-800"
@@ -248,7 +226,7 @@ export default function NodesPage() {
                           }`}>
                             Power: {node.power_state || "unknown"}
                           </span>
-                          <span className={`ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             node.provision_state === "active"
                               ? "bg-blue-100 text-blue-800"
                               : node.provision_state === "available"
@@ -262,6 +240,26 @@ export default function NodesPage() {
                             Provision: {node.provision_state || "unknown"}
                           </span>
                         </div>
+                      </div>
+                      <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <p className="flex items-center text-sm text-gray-500">
+                          UUID: {node.uuid}
+                        </p>
+                        {node.driver && (
+                          <p className="flex items-center text-sm text-gray-500">
+                            Driver: {node.driver}
+                          </p>
+                        )}
+                        {node.created_at && (
+                          <p className="flex items-center text-sm text-gray-500">
+                            Created: {new Date(node.created_at).toLocaleString()}
+                          </p>
+                        )}
+                        {node.updated_at && (
+                          <p className="flex items-center text-sm text-gray-500">
+                            Updated: {new Date(node.updated_at).toLocaleString()}
+                          </p>
+                        )}
                       </div>
                       {node.last_error && (
                         <div className="mt-2">
