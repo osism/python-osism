@@ -3,7 +3,7 @@ export interface BaremetalNode {
   name: string | null;
   power_state: string | null;
   provision_state: string | null;
-  maintenance: boolean;
+  maintenance: boolean | null;
   instance_uuid: string | null;
   driver: string | null;
   resource_class: string | null;

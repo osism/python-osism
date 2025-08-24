@@ -84,20 +84,21 @@ def get_baremetal_nodes():
     # Convert generator to list and extract relevant fields
     node_list = []
     for node in nodes:
+        # OpenStack SDK returns Resource objects, not dicts - use attribute access
         node_info = {
-            "uuid": node.get("uuid"),
-            "name": node.get("name"),
-            "power_state": node.get("power_state"),
-            "provision_state": node.get("provision_state"),
-            "maintenance": node.get("maintenance"),
-            "instance_uuid": node.get("instance_uuid"),
-            "driver": node.get("driver"),
-            "resource_class": node.get("resource_class"),
-            "properties": node.get("properties", {}),
-            "extra": node.get("extra", {}),
-            "last_error": node.get("last_error"),
-            "created_at": node.get("created_at"),
-            "updated_at": node.get("updated_at"),
+            "uuid": getattr(node, "uuid", None) or getattr(node, "id", None),
+            "name": getattr(node, "name", None),
+            "power_state": getattr(node, "power_state", None),
+            "provision_state": getattr(node, "provision_state", None),
+            "maintenance": getattr(node, "maintenance", None),
+            "instance_uuid": getattr(node, "instance_uuid", None),
+            "driver": getattr(node, "driver", None),
+            "resource_class": getattr(node, "resource_class", None),
+            "properties": getattr(node, "properties", {}),
+            "extra": getattr(node, "extra", {}),
+            "last_error": getattr(node, "last_error", None),
+            "created_at": getattr(node, "created_at", None),
+            "updated_at": getattr(node, "updated_at", None),
         }
         node_list.append(node_info)
 
