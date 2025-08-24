@@ -227,9 +227,16 @@ export default function NodesPage() {
                               Driver: {node.driver}
                             </p>
                           )}
-                          {node.resource_class && (
+                        </div>
+                        <div className="mt-2 sm:flex">
+                          {node.created_at && (
+                            <p className="flex items-center text-sm text-gray-500">
+                              Created: {new Date(node.created_at).toLocaleString()}
+                            </p>
+                          )}
+                          {node.updated_at && (
                             <p className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0 sm:ml-6">
-                              Resource Class: {node.resource_class}
+                              Updated: {new Date(node.updated_at).toLocaleString()}
                             </p>
                           )}
                         </div>
