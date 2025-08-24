@@ -18,9 +18,9 @@ export default function RootLayout({
   const pathname = usePathname();
 
   const navigation = [
-    { name: "Dashboard", href: "/" },
-    { name: "Nodes", href: "/nodes" },
-    { name: "Services", href: "/services" },
+    { id: "dashboard", name: "Dashboard", href: "/" },
+    { id: "nodes", name: "Nodes", href: "/nodes" },
+    { id: "services", name: "Services", href: "/services" },
   ];
 
   return (
@@ -40,7 +40,7 @@ export default function RootLayout({
                     <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                       {navigation.map((item) => (
                         <Link
-                          key={item.name}
+                          key={item.id}
                           href={item.href}
                           className={`${
                             pathname === item.href

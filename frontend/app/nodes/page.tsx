@@ -96,8 +96,8 @@ export default function NodesPage() {
                 onChange={(e) => setFilterProvisionState(e.target.value)}
               >
                 <option value="all">All</option>
-                {uniqueProvisionStates.map(state => (
-                  <option key={state} value={state}>{state}</option>
+                {uniqueProvisionStates.map((state, index) => (
+                  <option key={`provision-${state}-${index}`} value={state}>{state}</option>
                 ))}
               </select>
             </div>
@@ -114,8 +114,8 @@ export default function NodesPage() {
                 onChange={(e) => setFilterPowerState(e.target.value)}
               >
                 <option value="all">All</option>
-                {uniquePowerStates.map(state => (
-                  <option key={state} value={state}>{state}</option>
+                {uniquePowerStates.map((state, index) => (
+                  <option key={`power-${state}-${index}`} value={state}>{state}</option>
                 ))}
               </select>
             </div>
@@ -172,8 +172,8 @@ export default function NodesPage() {
       ) : filteredNodes && filteredNodes.length > 0 ? (
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <ul className="divide-y divide-gray-200">
-            {filteredNodes.map((node: BaremetalNode) => (
-              <li key={node.uuid}>
+            {filteredNodes.map((node: BaremetalNode, index) => (
+              <li key={node.uuid || `node-${index}`}>
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
