@@ -24,6 +24,7 @@ from osism.tasks import reconciler, openstack
 from osism import utils
 from osism.services.listener import BaremetalEvents
 from osism.services.websocket_manager import websocket_manager
+from osism.services.event_bridge import event_bridge
 
 
 class NotificationBaremetal(BaseModel):
@@ -106,6 +107,10 @@ app.add_middleware(
         "Content-Type",
         "Authorization",
         "X-Hook-Signature",
+        "Sec-WebSocket-Protocol",
+        "Sec-WebSocket-Key",
+        "Sec-WebSocket-Version",
+        "Sec-WebSocket-Extensions",
     ],
 )
 
@@ -113,6 +118,9 @@ dictConfig(LogConfig().model_dump())
 logger = logging.getLogger("osism.api")
 
 baremetal_events = BaremetalEvents()
+
+# Connect event bridge to WebSocket manager
+event_bridge.set_websocket_manager(websocket_manager)
 
 
 class DeviceSearchResult(BaseModel):
@@ -188,6 +196,16 @@ async def root() -> Dict[str, str]:
 async def v1() -> Dict[str, str]:
     """API version 1 health check endpoint."""
     return {"result": "ok"}
+
+
+@app.get("/v1/events", tags=["events"])
+async def events_info() -> Dict[str, str]:
+    """Events endpoint info - WebSocket available at /v1/events/openstack."""
+    return {
+        "result": "ok",
+        "websocket_endpoint": "/v1/events/openstack",
+        "description": "Real-time OpenStack events via WebSocket",
+    }
 
 
 class SinkResponse(BaseModel):
