@@ -218,7 +218,7 @@ export default function NodesPage() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-end gap-2">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             node.power_state === "power on" 
                               ? "bg-green-100 text-green-800"
@@ -242,7 +242,7 @@ export default function NodesPage() {
                         </div>
                       </div>
                       <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-                        <p className="flex items-center text-sm text-gray-500">
+                        <p className="flex items-center text-sm text-gray-500 lg:col-span-2">
                           UUID: {node.uuid}
                         </p>
                         {node.driver && (
@@ -251,12 +251,12 @@ export default function NodesPage() {
                           </p>
                         )}
                         {node.created_at && (
-                          <p className="flex items-center text-sm text-gray-500">
+                          <p className="flex items-center justify-end text-sm text-gray-500">
                             Created: {new Date(node.created_at).toLocaleString()}
                           </p>
                         )}
                         {node.updated_at && (
-                          <p className="flex items-center text-sm text-gray-500">
+                          <p className="flex items-center justify-end text-sm text-gray-500 lg:col-start-4">
                             Updated: {new Date(node.updated_at).toLocaleString()}
                           </p>
                         )}
