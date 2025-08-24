@@ -20,6 +20,7 @@ export default function Home() {
 
   const stats = [
     {
+      id: "total-nodes",
       name: "Total Nodes",
       value: nodesData?.count || 0,
       icon: Server,
@@ -27,6 +28,7 @@ export default function Home() {
       loading: nodesLoading,
     },
     {
+      id: "active-nodes", 
       name: "Active Nodes",
       value: nodesData?.nodes.filter(n => n.provision_state === "active").length || 0,
       icon: Activity,
@@ -34,7 +36,8 @@ export default function Home() {
       loading: nodesLoading,
     },
     {
-      name: "Services",
+      id: "services",
+      name: "Services", 
       value: "N/A",
       icon: Settings,
       href: "/services",
@@ -75,7 +78,7 @@ export default function Home() {
           const Icon = item.icon;
           return (
             <Link
-              key={item.name}
+              key={item.id}
               href={item.href}
               className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow"
             >
