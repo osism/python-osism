@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Search, AlertCircle } from "lucide-react";
+import { RefreshCw, Search, AlertCircle, ArrowUpDown } from "lucide-react";
 import api from "@/lib/api";
 import { BaremetalNode } from "@/lib/types";
 
@@ -11,6 +11,7 @@ export default function NodesPage() {
   const [filterProvisionState, setFilterProvisionState] = useState("all");
   const [filterPowerState, setFilterPowerState] = useState("all");
   const [filterMaintenance, setFilterMaintenance] = useState("all");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["baremetal-nodes"],
@@ -18,23 +19,38 @@ export default function NodesPage() {
     refetchInterval: 60000,
   });
 
-  const filteredNodes = data?.nodes.filter((node: BaremetalNode) => {
-    const matchesSearch = searchTerm === "" || 
-      (node.name && node.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (node.uuid && node.uuid.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesProvisionState = filterProvisionState === "all" || 
-      node.provision_state === filterProvisionState;
-    
-    const matchesPowerState = filterPowerState === "all" || 
-      node.power_state === filterPowerState;
+  const filteredAndSortedNodes = data?.nodes
+    .filter((node: BaremetalNode) => {
+      const matchesSearch = searchTerm === "" || 
+        (node.name && node.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (node.uuid && node.uuid.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesProvisionState = filterProvisionState === "all" || 
+        node.provision_state === filterProvisionState;
+      
+      const matchesPowerState = filterPowerState === "all" || 
+        node.power_state === filterPowerState;
 
-    const matchesMaintenance = filterMaintenance === "all" ||
-      (filterMaintenance === "maintenance" && node.maintenance === true) ||
-      (filterMaintenance === "active" && node.maintenance === false);
+      const matchesMaintenance = filterMaintenance === "all" ||
+        (filterMaintenance === "maintenance" && node.maintenance === true) ||
+        (filterMaintenance === "active" && node.maintenance === false);
 
-    return matchesSearch && matchesProvisionState && matchesPowerState && matchesMaintenance;
-  });
+      return matchesSearch && matchesProvisionState && matchesPowerState && matchesMaintenance;
+    })
+    .sort((a: BaremetalNode, b: BaremetalNode) => {
+      const nameA = a.name || a.uuid || '';
+      const nameB = b.name || b.uuid || '';
+      
+      if (sortDirection === "asc") {
+        return nameA.localeCompare(nameB);
+      } else {
+        return nameB.localeCompare(nameA);
+      }
+    });
+
+  const toggleSortDirection = () => {
+    setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+  };
 
   const uniqueProvisionStates = data ? 
     [...new Set(data.nodes.map(n => n.provision_state).filter((state): state is string => Boolean(state)))] : [];
@@ -169,10 +185,24 @@ export default function NodesPage() {
             </div>
           </div>
         </div>
-      ) : filteredNodes && filteredNodes.length > 0 ? (
+      ) : filteredAndSortedNodes && filteredAndSortedNodes.length > 0 ? (
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <div className="flex items-center">
+              <button
+                onClick={toggleSortDirection}
+                className="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                Name
+                <ArrowUpDown className="ml-1 h-4 w-4" />
+                <span className="ml-1 text-xs text-gray-500">
+                  ({sortDirection === "asc" ? "A-Z" : "Z-A"})
+                </span>
+              </button>
+            </div>
+          </div>
           <ul className="divide-y divide-gray-200">
-            {filteredNodes.map((node: BaremetalNode, index) => (
+            {filteredAndSortedNodes.map((node: BaremetalNode, index) => (
               <li key={node.uuid || `node-${index}`}>
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
@@ -250,7 +280,7 @@ export default function NodesPage() {
 
       {data && (
         <div className="mt-4 text-sm text-gray-600">
-          Showing {filteredNodes?.length || 0} of {data.count} nodes
+          Showing {filteredAndSortedNodes?.length || 0} of {data.count} nodes
         </div>
       )}
     </div>
