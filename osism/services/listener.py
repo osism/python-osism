@@ -2,6 +2,7 @@
 
 import os
 import time
+import asyncio
 from collections.abc import Callable
 from typing import Any
 
@@ -14,6 +15,41 @@ import requests
 from osism.tasks import netbox
 from osism import settings
 
+# Multiple exchanges for different OpenStack services
+EXCHANGES_CONFIG = {
+    "ironic": {
+        "exchange": "ironic",
+        "routing_key": "ironic_versioned_notifications.info",
+        "queue": "osism-listener-ironic",
+    },
+    "nova": {
+        "exchange": "nova",
+        "routing_key": "nova_versioned_notifications.info",
+        "queue": "osism-listener-nova",
+    },
+    "neutron": {
+        "exchange": "neutron",
+        "routing_key": "neutron_versioned_notifications.info",
+        "queue": "osism-listener-neutron",
+    },
+    "cinder": {
+        "exchange": "cinder",
+        "routing_key": "cinder_versioned_notifications.info",
+        "queue": "osism-listener-cinder",
+    },
+    "keystone": {
+        "exchange": "keystone",
+        "routing_key": "keystone_versioned_notifications.info",
+        "queue": "osism-listener-keystone",
+    },
+    "glance": {
+        "exchange": "glance",
+        "routing_key": "glance_versioned_notifications.info",
+        "queue": "osism-listener-glance",
+    },
+}
+
+# Legacy constants for backward compatibility
 EXCHANGE_NAME = "ironic"
 ROUTING_KEY = "ironic_versioned_notifications.info"
 QUEUE_NAME = "osism-listener-ironic"
@@ -138,39 +174,119 @@ class NotificationsDump(ConsumerMixin):
         self.baremetal_events = BaremetalEvents()
         self.osism_api_session: None | requests.Session = None
         self.osism_baremetal_api_url: None | str = None
+        self.websocket_manager = None
+
         if settings.OSISM_API_URL:
             logger.info("Setting up OSISM API")
             self.osism_api_session = requests.Session()
             self.osism_baremetal_api_url = (
                 settings.OSISM_API_URL.rstrip("/") + "/notifications/baremetal"
             )
+
+        # Import websocket_manager here to avoid circular imports
+        try:
+            from osism.services.websocket_manager import websocket_manager
+
+            self.websocket_manager = websocket_manager
+            logger.info("WebSocket manager connected to RabbitMQ listener")
+        except ImportError:
+            logger.warning("WebSocket manager not available")
+
         return
 
     def get_consumers(self, consumer, channel):
-        exchange = Exchange(EXCHANGE_NAME, type="topic", durable=False)
-        queue = Queue(
-            QUEUE_NAME,
-            exchange,
-            routing_key=ROUTING_KEY,
-            durable=False,
-            auto_delete=True,
-            no_ack=True,
-        )
-        return [consumer(queue, callbacks=[self.on_message])]
+        consumers = []
+
+        # Create consumers for all configured exchanges
+        for service_name, config in EXCHANGES_CONFIG.items():
+            try:
+                exchange = Exchange(config["exchange"], type="topic", durable=False)
+                queue = Queue(
+                    config["queue"],
+                    exchange,
+                    routing_key=config["routing_key"],
+                    durable=False,
+                    auto_delete=True,
+                    no_ack=True,
+                )
+                consumers.append(consumer(queue, callbacks=[self.on_message]))
+                logger.info(
+                    f"Configured consumer for {service_name} exchange: {config['exchange']}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to configure consumer for {service_name}: {e}")
+
+        if not consumers:
+            logger.warning(
+                "No consumers configured, falling back to legacy ironic consumer"
+            )
+            # Fallback to legacy configuration
+            exchange = Exchange(EXCHANGE_NAME, type="topic", durable=False)
+            queue = Queue(
+                QUEUE_NAME,
+                exchange,
+                routing_key=ROUTING_KEY,
+                durable=False,
+                auto_delete=True,
+                no_ack=True,
+            )
+            consumers.append(consumer(queue, callbacks=[self.on_message]))
+
+        return consumers
 
     def on_message(self, body, message):
         data = json.loads(body["oslo.message"])
-        logger.debug(
-            data["event_type"]
-            + ": "
-            + str(
-                {
+
+        # Log event with service type detection
+        event_type = data.get("event_type", "")
+        service_type = event_type.split(".")[0] if event_type else "unknown"
+
+        # Enhanced logging for different event types
+        payload_info = {}
+        if "payload" in data:
+            payload = data["payload"]
+
+            # Extract relevant info based on service type
+            if service_type == "baremetal" and "ironic_object.data" in payload:
+                ironic_data = payload["ironic_object.data"]
+                payload_info = {
                     k: v
-                    for k, v in data["payload"]["ironic_object.data"].items()
-                    if k in ["provision_state", "power_state"]
+                    for k, v in ironic_data.items()
+                    if k in ["name", "provision_state", "power_state"]
                 }
-            )
-        )
+            elif service_type in ["compute", "nova"] and "nova_object.data" in payload:
+                nova_data = payload["nova_object.data"]
+                payload_info = {
+                    k: v
+                    for k, v in nova_data.items()
+                    if k in ["uuid", "host", "state", "task_state"]
+                }
+            elif service_type in ["network", "neutron"]:
+                # Neutron events might have different structures
+                payload_info = {"service": "neutron"}
+            else:
+                # Generic payload info
+                payload_info = {"service": service_type}
+
+        logger.debug(f"{event_type}: {payload_info}")
+        logger.info(f"Received {service_type} event: {event_type}")
+
+        # Send event to WebSocket clients if WebSocket manager is available
+        if self.websocket_manager:
+            try:
+                # Use asyncio.run_coroutine_threadsafe to call async method from sync context
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(
+                        self.websocket_manager.broadcast_event_from_notification(
+                            data["event_type"], data["payload"]
+                        )
+                    )
+                finally:
+                    loop.close()
+            except Exception as e:
+                logger.error(f"Error broadcasting event to WebSocket clients: {e}")
 
         if self.osism_api_session:
             tries = 1

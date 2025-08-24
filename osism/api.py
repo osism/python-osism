@@ -3,16 +3,27 @@
 import datetime
 from logging.config import dictConfig
 import logging
+import json
 from typing import Optional, Dict, Any
 from uuid import UUID
 
-from fastapi import FastAPI, Header, Request, Response, HTTPException, status
+from fastapi import (
+    FastAPI,
+    Header,
+    Request,
+    Response,
+    HTTPException,
+    status,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
 
 from osism.tasks import reconciler, openstack
 from osism import utils
 from osism.services.listener import BaremetalEvents
+from osism.services.websocket_manager import websocket_manager
 
 
 class NotificationBaremetal(BaseModel):
@@ -348,6 +359,73 @@ def process_netbox_webhook(webhook_input: WebhookNetboxData) -> None:
             # netbox.generate.delay(device.name, custom_fields['configuration_template'])
     else:
         logger.info(f"Ignoring change for unmanaged device {name}")
+
+
+@app.websocket("/v1/events/openstack")
+async def websocket_openstack_events(websocket: WebSocket):
+    """WebSocket endpoint for streaming all OpenStack events in real-time.
+
+    Supports events from all OpenStack services: Ironic, Nova, Neutron, Cinder, Glance, Keystone
+
+    Clients can send filter messages in JSON format:
+    {
+        "action": "set_filters",
+        "event_filters": ["baremetal.node.power_set.end", "compute.instance.create.end", "network.port.create.end"],
+        "node_filters": ["server-01", "server-02"],
+        "service_filters": ["baremetal", "compute", "network"]
+    }
+    """
+    await websocket_manager.connect(websocket)
+    try:
+        # Keep the connection alive and listen for client messages
+        while True:
+            try:
+                # Receive messages from client for filtering configuration
+                data = await websocket.receive_text()
+                logger.debug(f"Received WebSocket message: {data}")
+
+                try:
+                    message = json.loads(data)
+                    if message.get("action") == "set_filters":
+                        event_filters = message.get("event_filters")
+                        node_filters = message.get("node_filters")
+                        service_filters = message.get("service_filters")
+
+                        await websocket_manager.update_filters(
+                            websocket,
+                            event_filters=event_filters,
+                            node_filters=node_filters,
+                            service_filters=service_filters,
+                        )
+
+                        # Send acknowledgment
+                        response = {
+                            "type": "filter_update",
+                            "status": "success",
+                            "event_filters": event_filters,
+                            "node_filters": node_filters,
+                            "service_filters": service_filters,
+                        }
+                        await websocket.send_text(json.dumps(response))
+
+                except json.JSONDecodeError:
+                    logger.warning(
+                        f"Invalid JSON received from WebSocket client: {data}"
+                    )
+                except Exception as e:
+                    logger.error(f"Error processing WebSocket filter message: {e}")
+
+            except WebSocketDisconnect:
+                logger.info("WebSocket client disconnected")
+                break
+            except Exception as e:
+                logger.error(f"Error handling WebSocket message: {e}")
+                break
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected")
+    finally:
+        await websocket_manager.disconnect(websocket)
 
 
 @app.post(
