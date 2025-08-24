@@ -142,6 +142,9 @@ class WebSocketManager:
     ) -> None:
         """Create and broadcast an event from RabbitMQ notification."""
         try:
+            logger.info(f"Processing event for WebSocket broadcast: {event_type}")
+            logger.debug(f"Active WebSocket connections: {len(self.connections)}")
+
             # Extract relevant identifiers from different service types
             node_name = None
             resource_id = None
@@ -190,9 +193,10 @@ class WebSocketManager:
             )
 
             await self.add_event(event)
-            logger.debug(
-                f"Added {service_type} event to queue: {event_type} for resource {node_name or resource_id}"
+            logger.info(
+                f"Added {service_type} event to WebSocket queue: {event_type} for resource {node_name or resource_id}"
             )
+            logger.debug(f"Event queue size: {self.event_queue.qsize()}")
 
         except Exception as e:
             logger.error(f"Error creating event from notification: {e}")
@@ -240,7 +244,7 @@ class WebSocketManager:
                         f"Active connections: {len(self.connections)}"
                     )
 
-                logger.debug(
+                logger.info(
                     f"Broadcasted event {event.event_type} to {sent_count}/{len(self.connections)} connection(s)"
                 )
 

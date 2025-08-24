@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Server, Settings } from "lucide-react";
+import { Activity, Server, Settings, Zap } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 
@@ -41,6 +41,14 @@ export default function Home() {
       value: "N/A",
       icon: Settings,
       href: "/services",
+      loading: false,
+    },
+    {
+      id: "events",
+      name: "Live Events",
+      value: "Stream",
+      icon: Zap,
+      href: "/events",
       loading: false,
     },
   ];

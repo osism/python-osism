@@ -21,6 +21,7 @@ export default function RootLayout({
     { id: "dashboard", name: "Dashboard", href: "/" },
     { id: "nodes", name: "Nodes", href: "/nodes" },
     { id: "services", name: "Services", href: "/services" },
+    { id: "events", name: "Events", href: "/events" },
   ];
 
   return (

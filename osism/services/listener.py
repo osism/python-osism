@@ -2,7 +2,6 @@
 
 import os
 import time
-import asyncio
 from collections.abc import Callable
 from typing import Any
 
@@ -183,14 +182,15 @@ class NotificationsDump(ConsumerMixin):
                 settings.OSISM_API_URL.rstrip("/") + "/notifications/baremetal"
             )
 
-        # Import websocket_manager here to avoid circular imports
+        # Import event_bridge for WebSocket forwarding
         try:
-            from osism.services.websocket_manager import websocket_manager
+            from osism.services.event_bridge import event_bridge
 
-            self.websocket_manager = websocket_manager
-            logger.info("WebSocket manager connected to RabbitMQ listener")
+            self.event_bridge = event_bridge
+            logger.info("Event bridge connected to RabbitMQ listener")
         except ImportError:
-            logger.warning("WebSocket manager not available")
+            logger.warning("Event bridge not available")
+            self.event_bridge = None
 
         return
 
@@ -271,22 +271,17 @@ class NotificationsDump(ConsumerMixin):
         logger.debug(f"{event_type}: {payload_info}")
         logger.info(f"Received {service_type} event: {event_type}")
 
-        # Send event to WebSocket clients if WebSocket manager is available
-        if self.websocket_manager:
+        # Send event to WebSocket clients via event bridge
+        if self.event_bridge:
             try:
-                # Use asyncio.run_coroutine_threadsafe to call async method from sync context
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(
-                        self.websocket_manager.broadcast_event_from_notification(
-                            data["event_type"], data["payload"]
-                        )
-                    )
-                finally:
-                    loop.close()
+                logger.debug(f"Forwarding event to WebSocket via bridge: {event_type}")
+                self.event_bridge.add_event(data["event_type"], data["payload"])
+                logger.debug(f"Successfully forwarded event to bridge: {event_type}")
             except Exception as e:
-                logger.error(f"Error broadcasting event to WebSocket clients: {e}")
+                logger.error(f"Error forwarding event to bridge: {e}")
+                logger.error(
+                    f"Event data was: {data['event_type']} - {data.get('payload', {}).get('ironic_object.data', {}).get('name', 'unknown')}"
+                )
 
         if self.osism_api_session:
             tries = 1
