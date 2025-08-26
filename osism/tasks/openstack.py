@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from celery import Celery
+import os
 import tempfile
+import yaml
+from loguru import logger
 
 from osism import utils
 from osism.tasks import Config, run_command
+from osism.tasks.conductor.utils import get_vault
 
 app = Celery("openstack")
 app.config_from_object(Config)
@@ -157,6 +161,80 @@ def baremetal_port_delete(self, port_or_id):
     return result
 
 
+def get_cloud_password(cloud):
+    """
+    Load and decrypt the OpenStack password for a specific cloud profile
+    from the Ansible Vault encrypted secrets.yml file.
+
+    Args:
+        cloud (str): The cloud profile name
+
+    Returns:
+        str: The decrypted password or None if not found/decryptable
+    """
+    if not cloud:
+        logger.warning("No cloud parameter provided for password lookup")
+        return None
+
+    secrets_path = "/opt/configuration/environments/openstack/secrets.yml"
+    # Replace hyphens with underscores for password key (admin-system -> admin_system)
+    cloud_normalized = cloud.replace("-", "_")
+    password_key = f"os_password_{cloud_normalized}"
+
+    try:
+        # Check if secrets file exists
+        if not os.path.exists(secrets_path):
+            logger.warning(f"Secrets file not found: {secrets_path}")
+            return None
+
+        # Get vault instance for decryption
+        vault = get_vault()
+
+        # Load and decrypt the entire Ansible Vault encrypted file
+        with open(secrets_path, "rb") as f:
+            encrypted_data = f.read()
+
+        # Decrypt the entire file content
+        decrypted_data = vault.decrypt(encrypted_data).decode()
+
+        # Parse the decrypted YAML content safely
+        try:
+            decrypted_secrets = yaml.safe_load(decrypted_data)
+        except yaml.YAMLError as yaml_exc:
+            logger.error(
+                f"Failed to parse YAML content from decrypted secrets file: {yaml_exc}"
+            )
+            return None
+
+        if not decrypted_secrets or not isinstance(decrypted_secrets, dict):
+            logger.warning(
+                f"Empty or invalid secrets file after decryption: {secrets_path}"
+            )
+            return None
+
+        # Extract the password for the specified cloud - validate key format first
+        if not password_key.isidentifier() or not password_key.startswith(
+            "os_password_"
+        ):
+            logger.error(f"Invalid password key format: '{password_key}'")
+            return None
+
+        password = decrypted_secrets.get(password_key)
+
+        if password and isinstance(password, str):
+            logger.info(f"Successfully loaded password for cloud '{cloud}'")
+            return password
+        else:
+            logger.warning(
+                f"Password key '{password_key}' not found or invalid type in secrets file"
+            )
+            return None
+
+    except Exception as exc:
+        logger.error(f"Failed to load/decrypt password for cloud '{cloud}': {exc}")
+        return None
+
+
 @app.task(bind=True, name="osism.tasks.openstack.image_manager")
 def image_manager(
     self,
@@ -165,9 +243,24 @@ def image_manager(
     publish=True,
     locking=False,
     auto_release_time=3600,
-    ignore_env=False
+    ignore_env=False,
+    cloud=None,
 ):
     command = "/usr/local/bin/openstack-image-manager"
+
+    # Prepare environment variables
+    env = {}
+
+    # Load and set OS_PASSWORD if cloud parameter is provided
+    if cloud:
+        password = get_cloud_password(cloud)
+        if password:
+            env["OS_PASSWORD"] = password
+        else:
+            logger.warning(
+                f"Could not load password for cloud '{cloud}', continuing without OS_PASSWORD"
+            )
+
     if configs:
         with tempfile.TemporaryDirectory() as temp_dir:
             for config in configs:
@@ -190,7 +283,7 @@ def image_manager(
             rc = run_command(
                 self.request.id,
                 command,
-                {},
+                env,
                 *sanitized_args,
                 publish=publish,
                 locking=locking,
@@ -202,7 +295,7 @@ def image_manager(
         return run_command(
             self.request.id,
             command,
-            {},
+            env,
             *arguments,
             publish=publish,
             locking=locking,

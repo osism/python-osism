@@ -112,7 +112,7 @@ class ImageClusterapi(Command):
         if parsed_args.dry_run:
             args.append("--dry-run")
 
-        task_signature = openstack.image_manager.si(*args, configs=result)
+        task_signature = openstack.image_manager.si(*args, configs=result, cloud=cloud)
         task = task_signature.apply_async()
         if wait:
             logger.info(
@@ -189,7 +189,7 @@ class ImageOctavia(Command):
         ]
 
         task_signature = openstack.image_manager.si(
-            *arguments, configs=result, ignore_env=True
+            *arguments, configs=result, ignore_env=True, cloud=cloud
         )
         task = task_signature.apply_async()
         if wait:
@@ -283,7 +283,7 @@ class Images(Command):
         else:
             arguments.append("/etc/images")
 
-        task_signature = openstack.image_manager.si(*arguments)
+        task_signature = openstack.image_manager.si(*arguments, cloud=parsed_args.cloud)
         task = task_signature.apply_async()
         if wait:
             logger.info(
