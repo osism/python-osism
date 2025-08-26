@@ -250,7 +250,6 @@ def image_manager(
     publish=True,
     locking=False,
     auto_release_time=3600,
-    ignore_env=False,
     cloud=None,
 ):
     command = "/usr/local/bin/openstack-image-manager"
@@ -320,7 +319,7 @@ def image_manager(
                     publish=publish,
                     locking=locking,
                     auto_release_time=auto_release_time,
-                    ignore_env=ignore_env,
+                    ignore_env=True,
                 )
             return rc
         else:
@@ -332,7 +331,7 @@ def image_manager(
                 publish=publish,
                 locking=locking,
                 auto_release_time=auto_release_time,
-                ignore_env=ignore_env,
+                ignore_env=True,
             )
             return rc
 
