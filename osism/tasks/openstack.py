@@ -221,13 +221,19 @@ def get_cloud_password(cloud):
 
         password = decrypted_secrets.get(password_key)
 
-        if password and isinstance(password, str):
-            logger.info(f"Successfully loaded password for cloud '{cloud}'")
-            return password
+        if password is not None:
+            # Convert password to string and strip whitespace
+            password_str = str(password).strip()
+            if password_str:
+                logger.info(f"Successfully loaded password for cloud '{cloud}'")
+                return password_str
+            else:
+                logger.warning(
+                    f"Password key '{password_key}' is empty after conversion"
+                )
+                return None
         else:
-            logger.warning(
-                f"Password key '{password_key}' not found or invalid type in secrets file"
-            )
+            logger.warning(f"Password key '{password_key}' not found in secrets file")
             return None
 
     except Exception as exc:
