@@ -219,14 +219,26 @@ def get_cloud_password(cloud):
             logger.error(f"Invalid password key format: '{password_key}'")
             return None
 
+        # Debug: Log available keys and the key we're looking for
+        available_keys = list(decrypted_secrets.keys())
+        logger.debug(f"Looking for key '{password_key}' in secrets file")
+        logger.debug(f"Available keys in secrets file: {available_keys}")
+
         password = decrypted_secrets.get(password_key)
 
-        if password and isinstance(password, str):
-            logger.info(f"Successfully loaded password for cloud '{cloud}'")
-            return password
+        if password is not None:
+            if isinstance(password, str):
+                logger.info(f"Successfully loaded password for cloud '{cloud}'")
+                return password
+            else:
+                logger.warning(
+                    f"Password key '{password_key}' has invalid type: {type(password).__name__}"
+                )
+                return None
         else:
-            logger.warning(
-                f"Password key '{password_key}' not found or invalid type in secrets file"
+            logger.warning(f"Password key '{password_key}' not found in secrets file")
+            logger.debug(
+                f"Available password keys: {[key for key in available_keys if key.startswith('os_password_')]}"
             )
             return None
 
