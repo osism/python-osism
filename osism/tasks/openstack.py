@@ -2,6 +2,7 @@
 
 from celery import Celery
 import os
+import shutil
 import tempfile
 import yaml
 from loguru import logger
@@ -248,60 +249,101 @@ def image_manager(
 ):
     command = "/usr/local/bin/openstack-image-manager"
 
-    # Prepare environment variables
-    env = {}
+    # Prepare temporary directory and files for cloud configuration
+    temp_files_to_cleanup = []
+    original_cwd = os.getcwd()
 
-    # Load and set OS_PASSWORD if cloud parameter is provided
-    if cloud:
-        password = get_cloud_password(cloud)
-        if password:
-            env["OS_PASSWORD"] = password
+    try:
+        # Load and prepare cloud configuration if cloud parameter is provided
+        if cloud:
+            password = get_cloud_password(cloud)
+            if password:
+                # Create secure.yml in /tmp
+                secure_yml_path = "/tmp/secure.yml"
+                secure_yml_content = {
+                    "clouds": {cloud: {"auth": {"password": password}}}
+                }
+
+                with open(secure_yml_path, "w") as f:
+                    yaml.dump(secure_yml_content, f)
+                temp_files_to_cleanup.append(secure_yml_path)
+
+                # Try both .yaml and .yml extensions
+                if os.path.exists("/etc/openstack/clouds.yaml"):
+                    shutil.copy2("/etc/openstack/clouds.yaml", "/tmp/clouds.yaml")
+                    temp_files_to_cleanup.append("/tmp/clouds.yaml")
+                elif os.path.exists("/etc/openstack/clouds.yml"):
+                    shutil.copy2("/etc/openstack/clouds.yml", "/tmp/clouds.yml")
+                    temp_files_to_cleanup.append("/tmp/clouds.yml")
+                else:
+                    logger.warning(
+                        "Could not find /etc/openstack/clouds.yaml or clouds.yml"
+                    )
+
+                # Change working directory to /tmp
+                os.chdir("/tmp")
+            else:
+                logger.warning(
+                    f"Could not load password for cloud '{cloud}', continuing without cloud configuration"
+                )
+
+        if configs:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                for config in configs:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w+", suffix=".yml", dir=temp_dir, delete=False
+                    ) as temp_file:
+                        temp_file.write(config)
+
+                sanitized_args = [
+                    arg for arg in arguments if not arg.startswith("--images=")
+                ]
+
+                try:
+                    images_index = sanitized_args.index("--images")
+                    sanitized_args.pop(images_index)
+                    sanitized_args.pop(images_index)
+                except ValueError:
+                    pass
+                sanitized_args.extend(["--images", temp_dir])
+                rc = run_command(
+                    self.request.id,
+                    command,
+                    {},
+                    *sanitized_args,
+                    publish=publish,
+                    locking=locking,
+                    auto_release_time=auto_release_time,
+                    ignore_env=ignore_env,
+                )
+            return rc
         else:
-            logger.warning(
-                f"Could not load password for cloud '{cloud}', continuing without OS_PASSWORD"
-            )
-
-    if configs:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            for config in configs:
-                with tempfile.NamedTemporaryFile(
-                    mode="w+", suffix=".yml", dir=temp_dir, delete=False
-                ) as temp_file:
-                    temp_file.write(config)
-
-            sanitized_args = [
-                arg for arg in arguments if not arg.startswith("--images=")
-            ]
-
-            try:
-                images_index = sanitized_args.index("--images")
-                sanitized_args.pop(images_index)
-                sanitized_args.pop(images_index)
-            except ValueError:
-                pass
-            sanitized_args.extend(["--images", temp_dir])
             rc = run_command(
                 self.request.id,
                 command,
-                env,
-                *sanitized_args,
+                {},
+                *arguments,
                 publish=publish,
                 locking=locking,
                 auto_release_time=auto_release_time,
                 ignore_env=ignore_env,
             )
-        return rc
-    else:
-        return run_command(
-            self.request.id,
-            command,
-            env,
-            *arguments,
-            publish=publish,
-            locking=locking,
-            auto_release_time=auto_release_time,
-            ignore_env=ignore_env,
-        )
+            return rc
+
+    finally:
+        # Clean up temporary files and restore working directory
+        try:
+            os.chdir(original_cwd)
+        except Exception as exc:
+            logger.warning(f"Could not restore original working directory: {exc}")
+
+        for temp_file in temp_files_to_cleanup:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+                    logger.debug(f"Cleaned up temporary file: {temp_file}")
+            except Exception as exc:
+                logger.warning(f"Could not remove temporary file {temp_file}: {exc}")
 
 
 @app.task(bind=True, name="osism.tasks.openstack.flavor_manager")
