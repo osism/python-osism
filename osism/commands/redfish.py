@@ -5,6 +5,7 @@ from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
 
+from osism import utils
 from osism.tasks.conductor import get_redfish_resources
 
 
@@ -145,6 +146,9 @@ class List(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         hostname = parsed_args.hostname
         resourcetype = parsed_args.resourcetype
         output_format = parsed_args.format

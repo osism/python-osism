@@ -5,6 +5,7 @@ import argparse
 from cliff.command import Command
 from loguru import logger
 
+from osism import utils
 from osism.tasks import ansible, handle_task
 
 
@@ -17,6 +18,9 @@ class Sync(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         arguments = parsed_args.arguments
 
         t = ansible.run.delay(

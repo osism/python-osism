@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 
-import getpass
 from cliff.command import Command
 from loguru import logger
 
@@ -14,13 +13,13 @@ class Lock(Command):
         parser = super(Lock, self).get_parser(prog_name)
         parser.add_argument(
             "--user",
-            help="User name to associate with the lock (defaults to current user)",
+            help="User name to associate with the lock (defaults to dragon)",
         )
         parser.add_argument("--reason", help="Reason for locking tasks")
         return parser
 
     def take_action(self, parsed_args):
-        user = parsed_args.user or getpass.getuser()
+        user = parsed_args.user or "dragon"
         reason = parsed_args.reason
 
         # Check if already locked

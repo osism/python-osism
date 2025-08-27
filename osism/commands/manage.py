@@ -9,6 +9,7 @@ from jinja2 import Template
 from loguru import logger
 import requests
 
+from osism import utils
 from osism.data import (
     TEMPLATE_IMAGE_CLUSTERAPI,
     TEMPLATE_IMAGE_OCTAVIA,
@@ -62,6 +63,9 @@ class ImageClusterapi(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         base_url = parsed_args.base_url
         cloud = parsed_args.cloud
         filter = parsed_args.filter
@@ -169,6 +173,9 @@ class ImageGardenlinux(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         base_url = parsed_args.base_url
         cloud = parsed_args.cloud
         filter = parsed_args.filter
@@ -254,6 +261,9 @@ class ImageOctavia(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
         cloud = parsed_args.cloud
         base_url = parsed_args.base_url
@@ -365,6 +375,9 @@ class Images(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
 
         arguments = []
@@ -441,6 +454,9 @@ class Flavors(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
         cloud = parsed_args.cloud
         name = parsed_args.name
@@ -481,6 +497,9 @@ class Dnsmasq(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
 
         task_signature = ansible.run.si("infrastructure", "dnsmasq", [])

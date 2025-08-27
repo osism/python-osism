@@ -3,6 +3,7 @@
 from cliff.command import Command
 from loguru import logger
 
+from osism import utils
 from osism.tasks import ansible
 
 
@@ -18,6 +19,9 @@ class Maintenance(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         host = parsed_args.host[0]
 
         logger.info(f"Set maintenance state on host {host}")
@@ -46,6 +50,9 @@ class Bootstrap(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         host = parsed_args.host[0]
 
         logger.info(f"Set bootstraped state on host {host}")

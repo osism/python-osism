@@ -738,6 +738,9 @@ class Reset(SonicCommandBase):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         hostname = parsed_args.hostname
         force = parsed_args.force
 
