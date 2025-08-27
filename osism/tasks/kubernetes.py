@@ -2,6 +2,7 @@
 
 from celery import Celery
 
+from osism import utils
 from osism.tasks import Config, run_ansible_in_environment
 
 app = Celery("kubernetes")
@@ -15,6 +16,9 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task(bind=True, name="osism.tasks.kubernetes.run")
 def run(self, environment, playbook, arguments, publish=True, auto_release_time=3600):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
     return run_ansible_in_environment(
         self.request.id,
         "kubernetes",

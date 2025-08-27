@@ -242,3 +242,84 @@ def create_redlock(key, auto_release_time=3600):
                 masters={redis},
                 auto_release_time=auto_release_time,
             )
+
+
+def set_task_lock(user=None, reason=None):
+    """
+    Set task lock to prevent new tasks from starting.
+
+    Args:
+        user (str): User who set the lock (optional)
+        reason (str): Reason for the lock (optional)
+
+    Returns:
+        bool: True if lock was set successfully
+    """
+    try:
+        import json
+        from datetime import datetime
+
+        lock_data = {
+            "locked": True,
+            "timestamp": datetime.now().isoformat(),
+            "user": user or "unknown",
+            "reason": reason,
+        }
+
+        redis.set("osism:task_lock", json.dumps(lock_data))
+        return True
+    except Exception as e:
+        logger.error(f"Failed to set task lock: {e}")
+        return False
+
+
+def remove_task_lock():
+    """
+    Remove task lock to allow new tasks to start.
+
+    Returns:
+        bool: True if lock was removed successfully
+    """
+    try:
+        redis.delete("osism:task_lock")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to remove task lock: {e}")
+        return False
+
+
+def is_task_locked():
+    """
+    Check if tasks are currently locked.
+
+    Returns:
+        dict: Lock status information or None if not locked
+    """
+    try:
+        import json
+
+        lock_data = redis.get("osism:task_lock")
+        if lock_data:
+            return json.loads(lock_data.decode("utf-8"))
+        return None
+    except Exception as e:
+        logger.error(f"Failed to check task lock status: {e}")
+        return None
+
+
+def check_task_lock_and_exit():
+    """
+    Check if tasks are locked and exit with error message if they are.
+    Used by commands that should not run when tasks are locked.
+    """
+    lock_info = is_task_locked()
+    if lock_info and lock_info.get("locked"):
+        user = lock_info.get("user", "unknown")
+        timestamp = lock_info.get("timestamp", "unknown")
+        reason = lock_info.get("reason")
+
+        logger.error(f"Tasks are currently locked by {user} at {timestamp}")
+        if reason:
+            logger.error(f"Reason: {reason}")
+        logger.error("Use 'osism unlock' to remove the lock")
+        exit(1)
