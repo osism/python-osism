@@ -458,7 +458,7 @@ class Flavors(Command):
             arguments.append("--url")
             arguments.append(url)
 
-        task_signature = openstack.flavor_manager.si(*arguments)
+        task_signature = openstack.flavor_manager.si(*arguments, cloud=cloud)
         task = task_signature.apply_async()
         if wait:
             logger.info(
