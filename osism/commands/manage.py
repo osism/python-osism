@@ -9,10 +9,15 @@ from jinja2 import Template
 from loguru import logger
 import requests
 
-from osism.data import TEMPLATE_IMAGE_CLUSTERAPI, TEMPLATE_IMAGE_OCTAVIA
+from osism.data import (
+    TEMPLATE_IMAGE_CLUSTERAPI,
+    TEMPLATE_IMAGE_OCTAVIA,
+    TEMPLATE_IMAGE_GARDENLINUX,
+)
 from osism.tasks import openstack, ansible, handle_task
 
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.31", "1.32", "1.33"]
+SUPPORTED_GARDENLINUX_VERSIONS = ["1877.2"]
 
 
 class ImageClusterapi(Command):
@@ -106,6 +111,107 @@ class ImageClusterapi(Command):
             cloud,
             "--filter",
             "ubuntu-capi-image",
+        ]
+        if tag is not None:
+            args.extend(["--tag", tag])
+        if parsed_args.dry_run:
+            args.append("--dry-run")
+
+        task_signature = openstack.image_manager.si(*args, configs=result, cloud=cloud)
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (image-manager) has been started and output is visible here."
+            )
+
+        return handle_task(task, wait, format="script", timeout=3600)
+
+
+class ImageGardenlinux(Command):
+    def get_parser(self, prog_name):
+        parser = super(ImageGardenlinux, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until image management has been completed",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--base-url",
+            type=str,
+            help="Base URL",
+            default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-images/gardenlinux/",
+        )
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml (will be overruled by OS_AUTH_URL envvar)",
+            default="admin",
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Do not perform any changes (--dry-run passed to openstack-image-manager)",
+        )
+        parser.add_argument(
+            "--tag",
+            type=str,
+            help="Name of the tag used to identify managed images (use openstack-image-manager's default if unset)",
+            default=None,
+        )
+        parser.add_argument(
+            "--filter",
+            type=str,
+            help="Filter the version to be managed (e.g. 1877.2)",
+            default=None,
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        base_url = parsed_args.base_url
+        cloud = parsed_args.cloud
+        filter = parsed_args.filter
+        tag = parsed_args.tag
+        wait = not parsed_args.no_wait
+
+        if filter:
+            supported_gardenlinux_versions = [filter]
+        else:
+            supported_gardenlinux_versions = SUPPORTED_GARDENLINUX_VERSIONS
+
+        result = []
+        for version in supported_gardenlinux_versions:
+            # Garden Linux uses direct URL construction instead of fetching last files
+            url = urljoin(
+                base_url, f"{version}/openstack-gardener_prod-amd64-{version}.qcow2"
+            )
+            logger.info(f"url: {url}")
+
+            # Get checksum file
+            checksum_url = f"{url}.sha256"
+            logger.info(f"checksum_url: {checksum_url}")
+            response_checksum = requests.get(checksum_url)
+            checksum = response_checksum.text.strip().split()[0]
+            logger.info(f"checksum: {checksum}")
+
+            template = Template(TEMPLATE_IMAGE_GARDENLINUX)
+            result.extend(
+                [
+                    template.render(
+                        image_url=url,
+                        image_checksum=f"sha256:{checksum}",
+                        image_version=version,
+                        image_builddate="null",  # No build date available for Garden Linux
+                    )
+                ]
+            )
+
+        args = [
+            "--cloud",
+            cloud,
+            "--filter",
+            "garden-linux-image",
         ]
         if tag is not None:
             args.extend(["--tag", tag])
