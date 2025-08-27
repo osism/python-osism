@@ -17,7 +17,7 @@ from osism.data import (
 from osism.tasks import openstack, ansible, handle_task
 
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.31", "1.32", "1.33"]
-SUPPORTED_GARDENLINUX_VERSIONS = ["1877.2"]
+SUPPORTED_GARDENLINUX_VERSIONS = {"1877.2": "2025-08-07"}
 
 
 class ImageClusterapi(Command):
@@ -176,12 +176,13 @@ class ImageGardenlinux(Command):
         wait = not parsed_args.no_wait
 
         if filter:
-            supported_gardenlinux_versions = [filter]
+            # For filter, we need to handle it as a dict with placeholder build date
+            supported_gardenlinux_versions = {filter: "unknown"}
         else:
             supported_gardenlinux_versions = SUPPORTED_GARDENLINUX_VERSIONS
 
         result = []
-        for version in supported_gardenlinux_versions:
+        for version, build_date in supported_gardenlinux_versions.items():
             # Garden Linux uses direct URL construction instead of fetching last files
             url = urljoin(
                 base_url, f"{version}/openstack-gardener_prod-amd64-{version}.qcow2"
@@ -202,7 +203,7 @@ class ImageGardenlinux(Command):
                         image_url=url,
                         image_checksum=f"sha256:{checksum}",
                         image_version=version,
-                        image_builddate="null",  # No build date available for Garden Linux
+                        image_builddate=build_date,
                     )
                 ]
             )
