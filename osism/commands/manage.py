@@ -296,7 +296,7 @@ class ImageOctavia(Command):
         ]
 
         task_signature = openstack.image_manager.si(
-            *arguments, configs=result, ignore_env=True, cloud=cloud
+            *arguments, configs=result, cloud=cloud
         )
         task = task_signature.apply_async()
         if wait:
