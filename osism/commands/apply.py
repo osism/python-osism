@@ -9,6 +9,7 @@ from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
 
+from osism import utils
 from osism.data import enums
 from osism.data.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
 from osism.tasks import ansible, ceph, kolla, kubernetes, handle_task
@@ -451,6 +452,9 @@ class Run(Command):
         return rc
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         action = parsed_args.action
         arguments = parsed_args.arguments
         environment = parsed_args.environment

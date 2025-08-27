@@ -7,6 +7,7 @@ from cliff.command import Command
 from watchdog.observers.polling import PollingObserver
 from watchdog.events import FileSystemEventHandler
 
+from osism import utils
 from osism.tasks import reconciler
 
 
@@ -17,6 +18,9 @@ class Run(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         service = parsed_args.type[0]
 
         if service == "api":

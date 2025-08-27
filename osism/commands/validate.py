@@ -70,6 +70,9 @@ class Run(Command):
             return 0
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         arguments = parsed_args.arguments
         environment = parsed_args.environment
         validator = parsed_args.validator[0]

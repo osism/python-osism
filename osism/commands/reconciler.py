@@ -47,6 +47,9 @@ class Sync(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
         task_timeout = parsed_args.task_timeout
         flush_cache = parsed_args.flush_cache

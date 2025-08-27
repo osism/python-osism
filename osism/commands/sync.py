@@ -3,6 +3,7 @@
 from cliff.command import Command
 from loguru import logger
 
+from osism import utils
 from osism.tasks import ansible, conductor, handle_task
 
 
@@ -12,6 +13,9 @@ class Facts(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         arguments = []
         t = ansible.run.delay(
             "generic", "gather-facts", arguments, auto_release_time=3600
@@ -49,6 +53,9 @@ class Sonic(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
         device_name = parsed_args.device
         show_diff = parsed_args.diff

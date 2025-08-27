@@ -38,6 +38,9 @@ class Ironic(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
         task_timeout = parsed_args.task_timeout
         node_name = parsed_args.node
@@ -87,6 +90,9 @@ class Sync(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
 
         task = conductor.sync_netbox.delay()
@@ -145,6 +151,9 @@ class Manage(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         wait = not parsed_args.no_wait
         arguments = ["run"]
 
@@ -192,6 +201,9 @@ class Versions(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
         task = netbox.ping.delay()
         task.wait(timeout=None, interval=0.5)
         result = task.get()
