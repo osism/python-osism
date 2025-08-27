@@ -27,6 +27,9 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
 def run(self, publish=True, flush_cache=False):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
     lock = utils.create_redlock(
         key="lock_osism_tasks_reconciler_run",
         auto_release_time=60,

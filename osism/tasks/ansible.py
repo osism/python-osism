@@ -37,6 +37,9 @@ def run(
     locking=False,
     auto_release_time=3600,
 ):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
     return run_ansible_in_environment(
         self.request.id,
         "osism-ansible",

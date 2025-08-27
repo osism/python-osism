@@ -17,6 +17,9 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task(bind=True, name="osism.tasks.netbox.run")
 def run(self, action, arguments):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
     pass
 
 
@@ -28,6 +31,8 @@ def run(self, action, arguments):
 @app.task(bind=True, name="osism.tasks.netbox.set_maintenance")
 def set_maintenance(self, device_name, state=True):
     """Set the maintenance state for a device in the NetBox."""
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
 
     lock = utils.create_redlock(
         key=f"lock_osism_tasks_netbox_set_maintenance_{device_name}",
@@ -56,6 +61,8 @@ def set_maintenance(self, device_name, state=True):
 @app.task(bind=True, name="osism.tasks.netbox.set_provision_state")
 def set_provision_state(self, device_name, state):
     """Set the provision state for a device in the NetBox."""
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
 
     lock = utils.create_redlock(
         key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
@@ -85,6 +92,8 @@ def set_provision_state(self, device_name, state):
 @app.task(bind=True, name="osism.tasks.netbox.set_power_state")
 def set_power_state(self, device_name, state):
     """Set the provision state for a device in the NetBox."""
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
 
     lock = utils.create_redlock(
         key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
@@ -156,6 +165,9 @@ def get_addresses_by_device_and_interface(self, device_name, interface_name):
 
 @app.task(bind=True, name="osism.tasks.netbox.manage")
 def manage(self, *arguments, publish=True, locking=False, auto_release_time=3600):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
     netbox_manager_env = {
         "NETBOX_MANAGER_URL": str(settings.NETBOX_URL),
         "NETBOX_MANAGER_TOKEN": str(settings.NETBOX_TOKEN),

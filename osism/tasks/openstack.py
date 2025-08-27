@@ -374,6 +374,9 @@ def image_manager(
     auto_release_time=3600,
     cloud=None,
 ):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
     command = "/usr/local/bin/openstack-image-manager"
 
     if configs:
@@ -436,6 +439,9 @@ def flavor_manager(
     auto_release_time=3600,
     cloud=None,
 ):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
     command = "/usr/local/bin/openstack-flavor-manager"
     return run_openstack_command_with_cloud(
         self.request.id,

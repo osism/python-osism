@@ -4,6 +4,7 @@ import multiprocessing
 import subprocess
 
 from cliff.command import Command
+from osism import utils
 
 
 class Run(Command):
@@ -25,6 +26,9 @@ class Run(Command):
         return parser
 
     def take_action(self, parsed_args):
+        # Check if tasks are locked before starting workers
+        utils.check_task_lock_and_exit()
+
         queue = parsed_args.type[0]
         number_of_workers = parsed_args.number_of_workers
 
