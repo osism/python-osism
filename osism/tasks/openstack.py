@@ -242,6 +242,128 @@ def get_cloud_password(cloud):
         return None
 
 
+def setup_cloud_environment(cloud):
+    """
+    Set up cloud configuration environment for OpenStack commands.
+
+    Creates secure.yml with cloud password and copies clouds.yaml to /tmp,
+    then changes working directory to /tmp.
+
+    Args:
+        cloud (str): The cloud profile name
+
+    Returns:
+        tuple: (temp_files_to_cleanup, original_cwd, success)
+    """
+    temp_files_to_cleanup = []
+    original_cwd = os.getcwd()
+
+    if not cloud:
+        logger.warning("No cloud parameter provided, skipping cloud configuration")
+        return temp_files_to_cleanup, original_cwd, False
+
+    password = get_cloud_password(cloud)
+    if not password:
+        logger.warning(
+            f"Could not load password for cloud '{cloud}', skipping cloud configuration"
+        )
+        return temp_files_to_cleanup, original_cwd, False
+
+    try:
+        # Create secure.yml in /tmp
+        secure_yml_path = "/tmp/secure.yml"
+        secure_yml_content = {"clouds": {cloud: {"auth": {"password": password}}}}
+
+        with open(secure_yml_path, "w") as f:
+            yaml.dump(secure_yml_content, f)
+        temp_files_to_cleanup.append(secure_yml_path)
+
+        # Try both .yaml and .yml extensions
+        if os.path.exists("/etc/openstack/clouds.yaml"):
+            shutil.copy2("/etc/openstack/clouds.yaml", "/tmp/clouds.yaml")
+            temp_files_to_cleanup.append("/tmp/clouds.yaml")
+        elif os.path.exists("/etc/openstack/clouds.yml"):
+            shutil.copy2("/etc/openstack/clouds.yml", "/tmp/clouds.yml")
+            temp_files_to_cleanup.append("/tmp/clouds.yml")
+        else:
+            logger.warning("Could not find /etc/openstack/clouds.yaml or clouds.yml")
+
+        # Change working directory to /tmp
+        os.chdir("/tmp")
+
+        logger.debug(f"Successfully set up cloud environment for '{cloud}'")
+        return temp_files_to_cleanup, original_cwd, True
+
+    except Exception as exc:
+        logger.error(f"Failed to set up cloud environment for '{cloud}': {exc}")
+        return temp_files_to_cleanup, original_cwd, False
+
+
+def cleanup_cloud_environment(temp_files_to_cleanup, original_cwd):
+    """
+    Clean up temporary files and restore working directory.
+
+    Args:
+        temp_files_to_cleanup (list): List of temporary files to remove
+        original_cwd (str): Original working directory to restore
+    """
+    # Restore working directory
+    try:
+        os.chdir(original_cwd)
+    except Exception as exc:
+        logger.warning(f"Could not restore original working directory: {exc}")
+
+    # Clean up temporary files
+    for temp_file in temp_files_to_cleanup:
+        try:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+                logger.debug(f"Cleaned up temporary file: {temp_file}")
+        except Exception as exc:
+            logger.warning(f"Could not remove temporary file {temp_file}: {exc}")
+
+
+def run_openstack_command_with_cloud(
+    request_id,
+    command,
+    cloud,
+    arguments,
+    publish=True,
+    locking=False,
+    auto_release_time=3600,
+):
+    """
+    Execute an OpenStack command with cloud configuration setup.
+
+    Args:
+        request_id: Celery request ID
+        command (str): Command to execute
+        cloud (str): Cloud profile name
+        arguments (list): Command arguments
+        **kwargs: Additional arguments for run_command
+
+    Returns:
+        int: Command return code
+    """
+    temp_files_to_cleanup, original_cwd, cloud_setup_success = setup_cloud_environment(
+        cloud
+    )
+
+    try:
+        return run_command(
+            request_id,
+            command,
+            {},
+            *arguments,
+            publish=publish,
+            locking=locking,
+            auto_release_time=auto_release_time,
+            ignore_env=True,
+        )
+    finally:
+        cleanup_cloud_environment(temp_files_to_cleanup, original_cwd)
+
+
 @app.task(bind=True, name="osism.tasks.openstack.image_manager")
 def image_manager(
     self,
@@ -254,45 +376,13 @@ def image_manager(
 ):
     command = "/usr/local/bin/openstack-image-manager"
 
-    # Prepare temporary directory and files for cloud configuration
-    temp_files_to_cleanup = []
-    original_cwd = os.getcwd()
+    if configs:
+        # For configs case, we need to handle image directory setup and cloud configuration
+        temp_files_to_cleanup, original_cwd, cloud_setup_success = (
+            setup_cloud_environment(cloud)
+        )
 
-    try:
-        # Load and prepare cloud configuration if cloud parameter is provided
-        if cloud:
-            password = get_cloud_password(cloud)
-            if password:
-                # Create secure.yml in /tmp
-                secure_yml_path = "/tmp/secure.yml"
-                secure_yml_content = {
-                    "clouds": {cloud: {"auth": {"password": password}}}
-                }
-
-                with open(secure_yml_path, "w") as f:
-                    yaml.dump(secure_yml_content, f)
-                temp_files_to_cleanup.append(secure_yml_path)
-
-                # Try both .yaml and .yml extensions
-                if os.path.exists("/etc/openstack/clouds.yaml"):
-                    shutil.copy2("/etc/openstack/clouds.yaml", "/tmp/clouds.yaml")
-                    temp_files_to_cleanup.append("/tmp/clouds.yaml")
-                elif os.path.exists("/etc/openstack/clouds.yml"):
-                    shutil.copy2("/etc/openstack/clouds.yml", "/tmp/clouds.yml")
-                    temp_files_to_cleanup.append("/tmp/clouds.yml")
-                else:
-                    logger.warning(
-                        "Could not find /etc/openstack/clouds.yaml or clouds.yml"
-                    )
-
-                # Change working directory to /tmp
-                os.chdir("/tmp")
-            else:
-                logger.warning(
-                    f"Could not load password for cloud '{cloud}', continuing without cloud configuration"
-                )
-
-        if configs:
+        try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 for config in configs:
                     with tempfile.NamedTemporaryFile(
@@ -311,7 +401,8 @@ def image_manager(
                 except ValueError:
                     pass
                 sanitized_args.extend(["--images", temp_dir])
-                rc = run_command(
+
+                return run_command(
                     self.request.id,
                     command,
                     {},
@@ -321,46 +412,36 @@ def image_manager(
                     auto_release_time=auto_release_time,
                     ignore_env=True,
                 )
-            return rc
-        else:
-            rc = run_command(
-                self.request.id,
-                command,
-                {},
-                *arguments,
-                publish=publish,
-                locking=locking,
-                auto_release_time=auto_release_time,
-                ignore_env=True,
-            )
-            return rc
-
-    finally:
-        # Clean up temporary files and restore working directory
-        try:
-            os.chdir(original_cwd)
-        except Exception as exc:
-            logger.warning(f"Could not restore original working directory: {exc}")
-
-        for temp_file in temp_files_to_cleanup:
-            try:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-                    logger.debug(f"Cleaned up temporary file: {temp_file}")
-            except Exception as exc:
-                logger.warning(f"Could not remove temporary file {temp_file}: {exc}")
+        finally:
+            cleanup_cloud_environment(temp_files_to_cleanup, original_cwd)
+    else:
+        # Simple case - use the generalized helper
+        return run_openstack_command_with_cloud(
+            self.request.id,
+            command,
+            cloud,
+            arguments,
+            publish=publish,
+            locking=locking,
+            auto_release_time=auto_release_time,
+        )
 
 
 @app.task(bind=True, name="osism.tasks.openstack.flavor_manager")
 def flavor_manager(
-    self, *arguments, publish=True, locking=False, auto_release_time=3600
+    self,
+    *arguments,
+    publish=True,
+    locking=False,
+    auto_release_time=3600,
+    cloud=None,
 ):
     command = "/usr/local/bin/openstack-flavor-manager"
-    return run_command(
+    return run_openstack_command_with_cloud(
         self.request.id,
         command,
-        {},
-        *arguments,
+        cloud,
+        arguments,
         publish=publish,
         locking=locking,
         auto_release_time=auto_release_time,
