@@ -422,7 +422,7 @@ class Flavors(Command):
             "--name",
             type=str,
             help="Name of flavor definitions",
-            default="scs",
+            default="local",
             choices=["scs", "osism", "local", "url"],
         )
         parser.add_argument(
