@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { 
-  Server, 
-  Power, 
-  Settings, 
-  Trash2, 
+import {
+  Server,
+  Power,
+  Settings,
+  Trash2,
   Plus,
   CheckCircle,
   XCircle,
@@ -52,17 +52,17 @@ const formatEventData = (event: OpenStackEvent) => {
   if (event.data.service_type === "baremetal" && "ironic_object" in event.data) {
     const baremetalEvent = event as BaremetalEvent;
     const ironicData = baremetalEvent.data.ironic_object?.data;
-    
+
     if (!ironicData) return null;
 
     const details = [];
     if (ironicData.power_state) details.push(`Power: ${ironicData.power_state}`);
     if (ironicData.provision_state) details.push(`Provision: ${ironicData.provision_state}`);
     if (ironicData.maintenance !== undefined) details.push(`Maintenance: ${ironicData.maintenance ? "Yes" : "No"}`);
-    
+
     return details.join(" | ");
   }
-  
+
   return null;
 };
 

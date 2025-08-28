@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Search, AlertCircle, ArrowUpDown } from "lucide-react";
+import { RefreshCw, Search, AlertCircle, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
 import { BaremetalNode } from "@/lib/types";
 
@@ -12,6 +12,8 @@ export default function NodesPage() {
   const [filterPowerState, setFilterPowerState] = useState("all");
   const [filterMaintenance, setFilterMaintenance] = useState("all");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["baremetal-nodes"],
@@ -21,14 +23,14 @@ export default function NodesPage() {
 
   const filteredAndSortedNodes = data?.nodes
     .filter((node: BaremetalNode) => {
-      const matchesSearch = searchTerm === "" || 
+      const matchesSearch = searchTerm === "" ||
         (node.name && node.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (node.uuid && node.uuid.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      const matchesProvisionState = filterProvisionState === "all" || 
+
+      const matchesProvisionState = filterProvisionState === "all" ||
         node.provision_state === filterProvisionState;
-      
-      const matchesPowerState = filterPowerState === "all" || 
+
+      const matchesPowerState = filterPowerState === "all" ||
         node.power_state === filterPowerState;
 
       const matchesMaintenance = filterMaintenance === "all" ||
@@ -40,7 +42,7 @@ export default function NodesPage() {
     .sort((a: BaremetalNode, b: BaremetalNode) => {
       const nameA = a.name || a.uuid || '';
       const nameB = b.name || b.uuid || '';
-      
+
       if (sortDirection === "asc") {
         return nameA.localeCompare(nameB);
       } else {
@@ -48,14 +50,25 @@ export default function NodesPage() {
       }
     });
 
+  const totalFilteredNodes = filteredAndSortedNodes?.length || 0;
+  const totalPages = Math.ceil(totalFilteredNodes / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedNodes = filteredAndSortedNodes?.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  const resetToFirstPage = () => {
+    setCurrentPage(1);
+  };
+
   const toggleSortDirection = () => {
     setSortDirection(prev => prev === "asc" ? "desc" : "asc");
   };
 
-  const uniqueProvisionStates = data ? 
+  const uniqueProvisionStates = data ?
     [...new Set(data.nodes.map(n => n.provision_state).filter((state): state is string => Boolean(state)))] : [];
-  
-  const uniquePowerStates = data ? 
+
+  const uniquePowerStates = data ?
     [...new Set(data.nodes.map(n => n.power_state).filter((state): state is string => Boolean(state)))] : [];
 
   return (
@@ -95,7 +108,10 @@ export default function NodesPage() {
                   className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-3 py-2 sm:text-sm border-gray-300 rounded-md"
                   placeholder="Name or UUID..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    resetToFirstPage();
+                  }}
                 />
               </div>
             </div>
@@ -109,7 +125,10 @@ export default function NodesPage() {
                 name="provision-state"
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                 value={filterProvisionState}
-                onChange={(e) => setFilterProvisionState(e.target.value)}
+                onChange={(e) => {
+                  setFilterProvisionState(e.target.value);
+                  resetToFirstPage();
+                }}
               >
                 <option value="all">All</option>
                 {uniqueProvisionStates.map((state, index) => (
@@ -127,7 +146,10 @@ export default function NodesPage() {
                 name="power-state"
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                 value={filterPowerState}
-                onChange={(e) => setFilterPowerState(e.target.value)}
+                onChange={(e) => {
+                  setFilterPowerState(e.target.value);
+                  resetToFirstPage();
+                }}
               >
                 <option value="all">All</option>
                 {uniquePowerStates.map((state, index) => (
@@ -145,7 +167,10 @@ export default function NodesPage() {
                 name="maintenance-state"
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                 value={filterMaintenance}
-                onChange={(e) => setFilterMaintenance(e.target.value)}
+                onChange={(e) => {
+                  setFilterMaintenance(e.target.value);
+                  resetToFirstPage();
+                }}
               >
                 <option value="all">All</option>
                 <option value="active">Active</option>
@@ -185,7 +210,7 @@ export default function NodesPage() {
             </div>
           </div>
         </div>
-      ) : filteredAndSortedNodes && filteredAndSortedNodes.length > 0 ? (
+      ) : paginatedNodes && paginatedNodes.length > 0 ? (
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
             <div className="flex items-center">
@@ -202,7 +227,7 @@ export default function NodesPage() {
             </div>
           </div>
           <ul className="divide-y divide-gray-200">
-            {filteredAndSortedNodes.map((node: BaremetalNode, index) => (
+            {paginatedNodes.map((node: BaremetalNode, index) => (
               <li key={node.uuid || `node-${index}`}>
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
@@ -220,7 +245,7 @@ export default function NodesPage() {
                         </div>
                         <div className="flex items-center justify-end gap-2">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            node.power_state === "power on" 
+                            node.power_state === "power on"
                               ? "bg-green-100 text-green-800"
                               : "bg-gray-100 text-gray-800"
                           }`}>
@@ -283,9 +308,69 @@ export default function NodesPage() {
         </div>
       )}
 
-      {data && (
-        <div className="mt-4 text-sm text-gray-600">
-          Showing {filteredAndSortedNodes?.length || 0} of {data.count} nodes
+      {data && totalFilteredNodes > 0 && (
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-gray-600">
+              Showing {startIndex + 1} to {Math.min(endIndex, totalFilteredNodes)} of {totalFilteredNodes} filtered nodes
+              {totalFilteredNodes !== data.count && (
+                <span className="text-gray-500"> ({data.count} total)</span>
+              )}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Previous
+                </button>
+
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      // Show first page, last page, current page, and pages around current
+                      return page === 1 ||
+                             page === totalPages ||
+                             Math.abs(page - currentPage) <= 1;
+                    })
+                    .map((page, index, array) => {
+                      // Add ellipsis if there's a gap
+                      const showEllipsisBefore = index > 0 && page - array[index - 1] > 1;
+                      return (
+                        <div key={page} className="flex items-center">
+                          {showEllipsisBefore && (
+                            <span className="px-2 py-1 text-gray-500">...</span>
+                          )}
+                          <button
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-2 text-sm font-medium rounded-md ${
+                              currentPage === page
+                                ? "bg-blue-500 text-white"
+                                : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50"
+                            } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                          >
+                            {page}
+                          </button>
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

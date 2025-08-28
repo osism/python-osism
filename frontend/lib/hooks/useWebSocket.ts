@@ -58,7 +58,7 @@ export const useWebSocket = (
     }
 
     isConnectingRef.current = true;
-    
+
     try {
       // Convert http/https URL to ws/wss for WebSocket
       const wsUrl = url.replace(/^http/, 'ws');
@@ -69,25 +69,25 @@ export const useWebSocket = (
         console.log('WebSocket connected:', wsUrl);
         isConnectingRef.current = false;
         reconnectAttemptsRef.current = 0;
-        
+
         setConnectionStatus({
           connected: true,
           lastConnected: new Date()
         });
-        
+
         onConnect?.();
       };
 
       websocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
+
           // Handle filter acknowledgment messages
           if (data.type === 'filter_update') {
             console.log('Filters updated:', data);
             return;
           }
-          
+
           // Handle OpenStack events
           if (data.event_type) {
             addEvent(data as OpenStackEvent);
@@ -101,19 +101,19 @@ export const useWebSocket = (
         console.log('WebSocket disconnected:', event.code, event.reason);
         isConnectingRef.current = false;
         wsRef.current = null;
-        
+
         setConnectionStatus({
           connected: false,
           error: event.reason || 'Connection closed'
         });
-        
+
         onDisconnect?.();
-        
+
         // Attempt reconnection if not manually closed
         if (event.code !== 1000 && reconnectAttemptsRef.current < reconnectAttempts) {
           reconnectAttemptsRef.current++;
           console.log(`Attempting reconnect ${reconnectAttemptsRef.current}/${reconnectAttempts}`);
-          
+
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, reconnectInterval);
@@ -124,21 +124,21 @@ export const useWebSocket = (
         console.error('WebSocket error:', error);
         console.error('WebSocket URL was:', wsUrl);
         isConnectingRef.current = false;
-        
+
         setConnectionStatus({
           connected: false,
           error: 'Connection error - check console for details'
         });
-        
+
         onError?.(error);
       };
 
       wsRef.current = websocket;
-      
+
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
       isConnectingRef.current = false;
-      
+
       setConnectionStatus({
         connected: false,
         error: 'Failed to connect'
@@ -150,15 +150,15 @@ export const useWebSocket = (
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
-    
+
     if (wsRef.current) {
       wsRef.current.close(1000, 'Manual disconnect');
       wsRef.current = null;
     }
-    
+
     reconnectAttemptsRef.current = reconnectAttempts; // Prevent reconnection
     isConnectingRef.current = false;
-    
+
     setConnectionStatus({
       connected: false
     });
