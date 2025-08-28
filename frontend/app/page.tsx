@@ -28,7 +28,7 @@ export default function Home() {
       loading: nodesLoading,
     },
     {
-      id: "active-nodes", 
+      id: "active-nodes",
       name: "Active Nodes",
       value: nodesData?.nodes.filter(n => n.provision_state === "active").length || 0,
       icon: Activity,
@@ -37,7 +37,7 @@ export default function Home() {
     },
     {
       id: "services",
-      name: "Services", 
+      name: "Services",
       value: "N/A",
       icon: Settings,
       href: "/services",

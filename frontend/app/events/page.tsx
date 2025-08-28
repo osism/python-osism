@@ -109,7 +109,7 @@ export default function EventsPage() {
               Real-time Baremetal events from OpenStack Ironic
             </p>
           </div>
-          
+
           {/* Connection Status */}
           <ConnectionStatus status={connectionStatus} />
         </div>
@@ -131,7 +131,7 @@ export default function EventsPage() {
               )}
             </div>
           </div>
-          
+
           <EventsFilters onFiltersChange={handleFiltersChange} />
         </div>
 
@@ -144,7 +144,7 @@ export default function EventsPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Reconnect
           </button>
-          
+
           <button
             onClick={handleClearEvents}
             className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"

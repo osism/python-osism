@@ -12,7 +12,7 @@ interface EventsFiltersProps {
 const BAREMETAL_EVENT_TYPES = [
   "baremetal.node.power_set.end",
   "baremetal.node.provision_set.start",
-  "baremetal.node.provision_set.end", 
+  "baremetal.node.provision_set.end",
   "baremetal.node.provision_set.success",
   "baremetal.node.power_state_corrected.success",
   "baremetal.node.maintenance_set.end",
@@ -49,7 +49,7 @@ export default function EventsFilters({ onFiltersChange, className = "" }: Event
   }, [onFiltersChange]);
 
   const toggleEventType = useCallback((eventType: string) => {
-    setSelectedEventTypes(prev => 
+    setSelectedEventTypes(prev =>
       prev.includes(eventType)
         ? prev.filter(t => t !== eventType)
         : [...prev, eventType]
