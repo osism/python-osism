@@ -232,3 +232,13 @@ def _get_conductor_redfish_address(device):
         logger.warning(f"Could not get conductor Redfish address: {exc}")
 
     return None
+
+
+def check_task_lock_and_exit():
+    """
+    Check if tasks are locked and exit with error message if they are.
+    Used by commands that should not run when tasks are locked.
+
+    This is a convenience wrapper around the main utils function.
+    """
+    return utils.check_task_lock_and_exit()
