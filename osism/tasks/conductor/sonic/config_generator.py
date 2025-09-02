@@ -217,6 +217,17 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
         utils.nb,
     )
 
+    # Add BFD configuration for BGP neighbors
+    _add_bfd_configurations(
+        config,
+        connected_interfaces,
+        connected_portchannels,
+        portchannel_info,
+        interface_ips,
+        netbox_interfaces,
+        transfer_ips,
+    )
+
     # Add NTP server configuration (device-specific)
     _add_ntp_configuration(config, device)
 
@@ -1010,6 +1021,58 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
             f"Could not determine peer type between {local_device.name} and {connected_device.name}: {e}"
         )
         return "external"  # Default to external on error
+
+
+def _add_bfd_configurations(
+    config,
+    connected_interfaces,
+    connected_portchannels,
+    portchannel_info,
+    interface_ips,
+    netbox_interfaces,
+    transfer_ips,
+):
+    """Add BFD configuration for all BGP neighbors.
+
+    This function iterates through all BGP_NEIGHBOR entries and creates
+    corresponding BFD_PEER_SINGLE_HOP configuration for each neighbor.
+
+    Args:
+        config: The configuration dictionary to update
+        connected_interfaces: Set of connected interface names
+        connected_portchannels: Set of connected port channel names
+        portchannel_info: Dictionary with port channel information
+        interface_ips: Dict mapping NetBox interface names to IPv4 addresses
+        netbox_interfaces: Dict mapping SONiC names to NetBox interface info
+        transfer_ips: Dict of IPv4 addresses from transfer role prefixes
+    """
+    if "BFD_PEER_SINGLE_HOP" not in config:
+        config["BFD_PEER_SINGLE_HOP"] = {}
+
+    # Iterate through all BGP_NEIGHBOR entries
+    for neighbor_key in config.get("BGP_NEIGHBOR", {}):
+        # neighbor_key format is "default|interface_name" (e.g., "default|Ethernet0")
+        parts = neighbor_key.split("|")
+        if len(parts) == 2:
+            vrf = parts[0]  # Usually "default"
+            interface_name = parts[1]
+
+            # Create BFD peer configuration key
+            # BFD peer key format: "default|interface_name|null"
+            bfd_key = f"{vrf}|{interface_name}|null"
+
+            # Add BFD configuration for this neighbor
+            config["BFD_PEER_SINGLE_HOP"][bfd_key] = {
+                "local_addr": interface_name,
+                "transmit_interval": "300",
+                "receive_interval": "300",
+                "detect_multiplier": "3",
+                "echo": "true",
+            }
+
+            logger.debug(
+                f"Added BFD configuration for BGP neighbor on interface {interface_name}"
+            )
 
 
 def _get_metalbox_ip_for_device(device):
