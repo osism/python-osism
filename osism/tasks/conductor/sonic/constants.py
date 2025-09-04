@@ -77,4 +77,5 @@ SUPPORTED_HWSKUS = [
     "Accton-AS7326-56X",
     "Accton-AS7726-32X",
     "Accton-AS9716-32D",
+    "Accton-AS9726-32D",
 ]
