@@ -87,7 +87,9 @@ class ImageClusterapi(Command):
             logger.info(f"date: {splitted[0]}")
             logger.info(f"image: {splitted[1]}")
 
-            r = findall(r".*ubuntu-2204-kube-v(.*\..*\..*).qcow2", splitted[1])
+            r = findall(
+                r".*ubuntu-[0-9][02468]04-kube-v(.*\..*\..*).qcow2", splitted[1]
+            )
             logger.info(f"version: {r[0].strip()}")
 
             url = urljoin(base_url, splitted[1])
