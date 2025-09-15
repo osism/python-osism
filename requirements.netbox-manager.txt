@@ -1,1 +1,1 @@
-netbox-manager==0.20250825.0
+netbox-manager==0.20250915.0
