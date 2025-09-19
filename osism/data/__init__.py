@@ -23,6 +23,7 @@ images:
       replace_frequency: quarterly
       uuid_validity: last-1
       provided_until: none
+      os_purpose: network
     tags:
       - amphora
     versions:
@@ -57,6 +58,7 @@ images:
       replace_frequency: never
       uuid_validity: none
       provided_until: none
+      os_purpose: k8snode
     tags: []
     versions:
       - version: "v{{ image_version }}"
@@ -90,6 +92,7 @@ images:
       replace_frequency: never
       uuid_validity: none
       provided_until: none
+      os_purpose: k8snode
     tags: []
     versions:
       - version: "{{ image_version }}"
