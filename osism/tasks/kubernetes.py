@@ -21,7 +21,7 @@ def run(self, environment, playbook, arguments, publish=True, auto_release_time=
 
     return run_ansible_in_environment(
         self.request.id,
-        "kubernetes",
+        "osism-kubernetes",
         environment,
         playbook,
         arguments,
