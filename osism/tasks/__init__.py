@@ -1,8 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import fcntl
+import json
 import os
 import re
 import subprocess
+import yaml
+from datetime import datetime, timezone
+from pathlib import Path
 
 from loguru import logger
 
@@ -28,6 +33,103 @@ class Config:
         "osism.tasks.openstack.*": {"queue": "openstack"},
         "osism.tasks.reconciler.*": {"queue": "reconciler"},
     }
+
+
+def get_container_version(worker):
+    """Read container version from YAML version file.
+
+    Args:
+        worker: The runtime container name (osism-ansible, kolla-ansible, ceph-ansible, osism-kubernetes)
+
+    Returns:
+        str: The container version, "latest" if empty, or "unknown" if not found
+
+    Examples:
+        >>> get_container_version("osism-ansible")
+        "7.0.5a"
+        >>> get_container_version("kolla-ansible")
+        "18.1.0"
+        >>> get_container_version("osism-kubernetes")
+        "1.29.0"
+
+    Note:
+        If the version parameter in the YAML file is an empty string (""),
+        the function returns "latest" as the default value.
+    """
+    version_file = Path(f"/interface/versions/{worker}.yml")
+
+    try:
+        if not version_file.exists():
+            logger.debug(f"Version file not found: {version_file}")
+            return "unknown"
+
+        with open(version_file, "r") as f:
+            version_data = yaml.safe_load(f)
+
+        # Convert worker name to version parameter name
+        # osism-ansible -> osism_ansible_version
+        # kolla-ansible -> kolla_ansible_version
+        # ceph-ansible -> ceph_ansible_version
+        version_key = f"{worker.replace('-', '_')}_version"
+
+        version = version_data.get(version_key, "unknown")
+
+        # If version is empty string, use "latest" as default
+        if version == "":
+            version = "latest"
+            logger.debug(f"Version parameter empty for {worker}, using 'latest'")
+
+        logger.debug(f"Read version {version} for {worker} from {version_file}")
+        return version
+
+    except Exception as e:
+        logger.warning(f"Failed to read version from {version_file}: {e}")
+        return "unknown"
+
+
+def log_play_execution(
+    request_id, worker, environment, role, hosts=None, result="started"
+):
+    """Log Ansible play execution to central tracking file.
+
+    Args:
+        request_id: The Celery task request ID for correlation
+        worker: The runtime container (osism-ansible, kolla-ansible, ceph-ansible, osism-kubernetes)
+        environment: The environment parameter
+        role: The playbook/role that was executed
+        hosts: List of hosts the play was executed against (default: empty list)
+        result: Execution result - "started", "success", or "failure"
+    """
+    log_file = Path("/share/ansible-execution-history.json")
+
+    # Get runtime version from YAML version file
+    runtime_version = get_container_version(worker)
+
+    execution_record = {
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "request_id": request_id,
+        "worker": worker,
+        "worker_version": runtime_version,
+        "environment": environment,
+        "role": role,
+        "hosts": hosts if isinstance(hosts, list) else [],
+        "result": result,
+    }
+
+    try:
+        # Create directory if it doesn't exist
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Append with file locking for thread safety
+        with open(log_file, "a") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.write(json.dumps(execution_record) + "\n")
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except Exception as e:
+        # Log warning but don't fail the execution
+        logger.warning(f"Failed to log play execution to {log_file}: {e}")
 
 
 def run_ansible_in_environment(
@@ -73,6 +175,16 @@ def run_ansible_in_environment(
     if ansible_vault_password:
         env["VAULT"] = "/ansible-vault.py"
 
+    # Log play execution start
+    log_play_execution(
+        request_id=request_id,
+        worker=worker,
+        environment=environment,
+        role=role,
+        hosts=None,  # Host extraction would require inventory parsing
+        result="started",
+    )
+
     # NOTE: Consider arguments in the future
     if locking:
         lock = utils.create_redlock(
@@ -110,8 +222,8 @@ def run_ansible_in_environment(
             env=env,
         )
 
-    # execute roles from kubernetes
-    elif worker == "kubernetes":
+    # execute roles from osism-kubernetes
+    elif worker == "osism-kubernetes":
         if locking:
             lock.acquire()
 
@@ -162,6 +274,16 @@ def run_ansible_in_environment(
         result += line
 
     rc = p.wait(timeout=60)
+
+    # Log play execution result
+    log_play_execution(
+        request_id=request_id,
+        worker=worker,
+        environment=environment,
+        role=role,
+        hosts=None,  # Host extraction would require inventory parsing
+        result="success" if rc == 0 else "failure",
+    )
 
     if publish:
         utils.finish_task_output(request_id, rc=rc)
