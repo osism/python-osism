@@ -13,6 +13,9 @@ from loguru import logger
 
 from osism import utils
 
+# Regex pattern for extracting hosts from Ansible output
+HOST_PATTERN = re.compile(r"^(ok|changed|failed|skipping|unreachable):\s+\[([^\]]+)\]")
+
 
 class Config:
     broker_connection_retry_on_startup = True
@@ -106,6 +109,10 @@ def log_play_execution(
     # Get runtime version from YAML version file
     runtime_version = get_container_version(worker)
 
+    # Use provided hosts or empty list
+    if hosts is None:
+        hosts = []
+
     execution_record = {
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "request_id": request_id,
@@ -113,7 +120,7 @@ def log_play_execution(
         "worker_version": runtime_version,
         "environment": environment,
         "role": role,
-        "hosts": hosts if isinstance(hosts, list) else [],
+        "hosts": hosts,
         "arguments": arguments if arguments else "",
         "result": result,
     }
@@ -145,6 +152,7 @@ def run_ansible_in_environment(
     auto_release_time=3600,
 ):
     result = ""
+    extracted_hosts = set()  # Local set for host deduplication
 
     if type(arguments) == list:
         joined_arguments = " ".join(arguments)
@@ -183,7 +191,7 @@ def run_ansible_in_environment(
         worker=worker,
         environment=environment,
         role=role,
-        hosts=None,  # Host extraction would require inventory parsing
+        hosts=None,  # Hosts will be empty at start, filled at completion
         arguments=joined_arguments,
         result="started",
     )
@@ -272,6 +280,13 @@ def run_ansible_in_environment(
 
     while p.poll() is None:
         line = p.stdout.readline().decode("utf-8")
+
+        # Extract hosts from Ansible output
+        match = HOST_PATTERN.match(line.strip())
+        if match:
+            hostname = match.group(2)
+            extracted_hosts.add(hostname)  # Local set (automatic deduplication)
+
         if publish:
             utils.push_task_output(request_id, line)
         result += line
@@ -284,7 +299,7 @@ def run_ansible_in_environment(
         worker=worker,
         environment=environment,
         role=role,
-        hosts=None,  # Host extraction would require inventory parsing
+        hosts=sorted(list(extracted_hosts)),  # Direct pass of extracted hosts
         arguments=joined_arguments,
         result="success" if rc == 0 else "failure",
     )
