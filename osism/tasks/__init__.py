@@ -88,7 +88,7 @@ def get_container_version(worker):
 
 
 def log_play_execution(
-    request_id, worker, environment, role, hosts=None, result="started"
+    request_id, worker, environment, role, hosts=None, arguments=None, result="started"
 ):
     """Log Ansible play execution to central tracking file.
 
@@ -98,6 +98,7 @@ def log_play_execution(
         environment: The environment parameter
         role: The playbook/role that was executed
         hosts: List of hosts the play was executed against (default: empty list)
+        arguments: Command-line arguments passed to ansible-playbook (default: None)
         result: Execution result - "started", "success", or "failure"
     """
     log_file = Path("/share/ansible-execution-history.json")
@@ -113,6 +114,7 @@ def log_play_execution(
         "environment": environment,
         "role": role,
         "hosts": hosts if isinstance(hosts, list) else [],
+        "arguments": arguments if arguments else "",
         "result": result,
     }
 
@@ -182,6 +184,7 @@ def run_ansible_in_environment(
         environment=environment,
         role=role,
         hosts=None,  # Host extraction would require inventory parsing
+        arguments=joined_arguments,
         result="started",
     )
 
@@ -282,6 +285,7 @@ def run_ansible_in_environment(
         environment=environment,
         role=role,
         hosts=None,  # Host extraction would require inventory parsing
+        arguments=joined_arguments,
         result="success" if rc == 0 else "failure",
     )
 
