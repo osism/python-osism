@@ -300,4 +300,56 @@ MAP_ROLE2ROLE = {
             ],
         ],
     ],
+    "cloudpod-infrastructure": [
+        "openstackclient",
+        "phpmyadmin",
+        [
+            "common",
+            [
+                ["loadbalancer", ["letsencrypt", "opensearch", "mariadb-ng"]],
+                ["openvswitch", ["ovn"]],
+                "memcached",
+                "redis",
+                "rabbitmq-ng",
+            ],
+        ],
+    ],
+    "cloudpod-openstack": [
+        "horizon",
+        [
+            "keystone",
+            [
+                "glance",
+                "cinder",
+                ["neutron", ["octavia"]],
+                "designate",
+                ["placement", ["nova"]],
+                "designate",
+                "skyline",
+                "kolla-ceph-rgw",
+            ],
+        ],
+    ],
+    "cloudpod-ceph": [
+        [
+            "ceph-create-lvm-devices",
+            [
+                "facts",
+                [
+                    "ceph",
+                    [
+                        [
+                            "ceph-pools",
+                            [
+                                [
+                                    "copy-ceph-keys",
+                                    [["cephclient", ["ceph-bootstrap-dashboard"]]],
+                                ]
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ],
 }
