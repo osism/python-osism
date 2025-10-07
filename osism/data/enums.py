@@ -321,7 +321,6 @@ MAP_ROLE2ROLE = {
                 "glance",
                 "cinder",
                 ["neutron", ["wait-for-nova", ["octavia"]]],
-                "designate",
                 ["placement", ["nova"]],
                 "designate",
                 "skyline",
