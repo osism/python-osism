@@ -92,6 +92,13 @@ class Run(Command):
             help="Dry run, do not initiate tasks (for collections only)",
             action="store_true",
         )
+        parser.add_argument(
+            "--show-tree",
+            dest="show_tree",
+            default=False,
+            help="Show only the execution tree for collections without additional output",
+            action="store_true",
+        )
         parser.add_argument("role", nargs="?", type=str, help="Role to be applied")
         parser.add_argument(
             "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
@@ -141,6 +148,7 @@ class Run(Command):
         task_timeout,
         retry,
         dry_run,
+        show_tree,
     ):
         g = []
         for item in data:
@@ -149,7 +157,10 @@ class Run(Command):
                 # e.g. "loadbalancer"
                 logger.info(f"A [{counter}] {'-' * (counter + 1)} {item[0]}")
 
-                if dry_run:
+                if show_tree:
+                    # Only show the tree, don't create tasks
+                    pt = None
+                elif dry_run:
                     pt = ansible.noop.si()
                 else:
                     pt = self._prepare_task(
@@ -182,17 +193,23 @@ class Run(Command):
                         task_timeout,
                         retry,
                         dry_run,
+                        show_tree,
                     )
-                    g.append(chain(pt, st))
+                    if not show_tree:
+                        g.append(chain(pt, st))
                 else:
-                    g.append(pt)
+                    if not show_tree:
+                        g.append(pt)
                     for inner_item in item[1:]:
                         if type(inner_item) == list:
                             logger.info(
                                 f"B [{counter}] {'-' * (counter + 1)} {inner_item[0]}"
                             )
 
-                            if dry_run:
+                            if show_tree:
+                                # Only show the tree, don't create tasks
+                                pt = None
+                            elif dry_run:
                                 pt = ansible.noop.si()
                             else:
                                 pt = self._prepare_task(
@@ -225,45 +242,50 @@ class Run(Command):
                                     task_timeout,
                                     retry,
                                     dry_run,
+                                    show_tree,
                                 )
-                                g.append(chain(pt, st))
+                                if not show_tree:
+                                    g.append(chain(pt, st))
                             else:
-                                g.append(pt)
+                                if not show_tree:
+                                    g.append(pt)
                         else:
                             logger.info(
                                 f"C [{counter}] {'-' * (counter + 1)} {inner_item}"
                             )
-                            g.append(
-                                self._prepare_task(
-                                    arguments,
-                                    environment,
-                                    overwrite,
-                                    sub,
-                                    inner_item,
-                                    action,
-                                    wait,
-                                    format,
-                                    timeout,
-                                    task_timeout,
+                            if not show_tree:
+                                g.append(
+                                    self._prepare_task(
+                                        arguments,
+                                        environment,
+                                        overwrite,
+                                        sub,
+                                        inner_item,
+                                        action,
+                                        wait,
+                                        format,
+                                        timeout,
+                                        task_timeout,
+                                    )
                                 )
-                            )
             # e.g. "common"
             else:
                 logger.info(f"D [{counter}] {'-' * (counter + 1)} {item}")
-                g.append(
-                    self._prepare_task(
-                        arguments,
-                        environment,
-                        overwrite,
-                        sub,
-                        item,
-                        action,
-                        wait,
-                        format,
-                        timeout,
-                        task_timeout,
+                if not show_tree:
+                    g.append(
+                        self._prepare_task(
+                            arguments,
+                            environment,
+                            overwrite,
+                            sub,
+                            item,
+                            action,
+                            wait,
+                            format,
+                            timeout,
+                            task_timeout,
+                        )
                     )
-                )
 
         if g:
             return group(g)
@@ -282,9 +304,12 @@ class Run(Command):
         task_timeout,
         retry,
         dry_run,
+        show_tree,
     ):
         if dry_run:
             logger.info(f"Dry run for collection {collection}. No tasks are scheduled.")
+        elif show_tree:
+            logger.info(f"Showing execution tree for collection {collection}")
         else:
             logger.info(f"Collection {collection} is prepared for execution")
 
@@ -303,10 +328,14 @@ class Run(Command):
             task_timeout,
             retry,
             dry_run,
+            show_tree,
         )
-        if t:
+
+        # Only apply tasks if not in show_tree mode
+        if t and not show_tree:
             t.apply_async()
-        if not dry_run:
+
+        if not dry_run and not show_tree:
             logger.info(
                 f"All tasks of the collection {collection} are prepared for execution"
             )
@@ -467,6 +496,7 @@ class Run(Command):
         task_timeout = parsed_args.task_timeout
         wait = not parsed_args.no_wait
         dry_run = parsed_args.dry_run
+        show_tree = parsed_args.show_tree
 
         rc = 0
 
@@ -496,6 +526,7 @@ class Run(Command):
                         task_timeout,
                         retry,
                         dry_run,
+                        show_tree,
                     )
                     if rc != 0:
                         outer_break = True
