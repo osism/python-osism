@@ -207,7 +207,7 @@ MAP_ROLE2ROLE = {
             [
                 "glance",
                 "cinder",
-                ["neutron", ["octavia"]],
+                ["neutron", ["wait-for-nova", ["octavia"]]],
                 "designate",
                 ["placement", ["nova"]],
             ],
@@ -220,10 +220,9 @@ MAP_ROLE2ROLE = {
             [
                 "glance",
                 "cinder",
-                "neutron",
                 "barbican",
                 "designate",
-                "octavia",
+                ["neutron", ["wait-for-nova", ["octavia"]]],
                 "ironic",
                 "kolla-ceph-rgw",
                 "magnum",
@@ -321,7 +320,7 @@ MAP_ROLE2ROLE = {
             [
                 "glance",
                 "cinder",
-                ["neutron", ["octavia"]],
+                ["neutron", ["wait-for-nova", ["octavia"]]],
                 "designate",
                 ["placement", ["nova"]],
                 "designate",
