@@ -14,9 +14,11 @@ from osism.data import (
     TEMPLATE_IMAGE_CLUSTERAPI,
     TEMPLATE_IMAGE_OCTAVIA,
     TEMPLATE_IMAGE_GARDENLINUX,
+    TEMPLATE_IMAGE_CLUSTERAPI_GARDENER,
 )
 from osism.tasks import openstack, ansible, handle_task
 
+SUPPORTED_CLUSTERAPI_GARDENER_K8S_IMAGES = ["1.33"]
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.31", "1.32", "1.33"]
 SUPPORTED_GARDENLINUX_VERSIONS = {"1877.2": "2025-08-07"}
 
@@ -117,6 +119,120 @@ class ImageClusterapi(Command):
             cloud,
             "--filter",
             "ubuntu-capi-image",
+        ]
+        if tag is not None:
+            args.extend(["--tag", tag])
+        if parsed_args.dry_run:
+            args.append("--dry-run")
+
+        task_signature = openstack.image_manager.si(*args, configs=result, cloud=cloud)
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (image-manager) has been started and output is visible here."
+            )
+
+        return handle_task(task, wait, format="script", timeout=3600)
+
+
+class ImageClusterapiGardener(Command):
+    def get_parser(self, prog_name):
+        parser = super(ImageClusterapiGardener, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until image management has been completed",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--base-url",
+            type=str,
+            help="Base URL",
+            default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-k8s-capi-images/",
+        )
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml (will be overruled by OS_AUTH_URL envvar)",
+            default="admin",
+        )
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Do not perform any changes (--dry-run passed to openstack-image-manager)",
+        )
+        parser.add_argument(
+            "--tag",
+            type=str,
+            help="Name of the tag used to identify managed images (use openstack-image-manager's default if unset)",
+            default=None,
+        )
+        parser.add_argument(
+            "--filter",
+            type=str,
+            help="Filter the version to be managed (e.g. 1.33)",
+            default=None,
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
+        base_url = parsed_args.base_url
+        cloud = parsed_args.cloud
+        filter = parsed_args.filter
+        tag = parsed_args.tag
+        wait = not parsed_args.no_wait
+
+        if filter:
+            supported_cluterapi_gardener_k8s_images = [filter]
+        else:
+            supported_cluterapi_gardener_k8s_images = (
+                SUPPORTED_CLUSTERAPI_GARDENER_K8S_IMAGES
+            )
+
+        result = []
+        for kubernetes_release in supported_cluterapi_gardener_k8s_images:
+            url = urljoin(base_url, f"last-{kubernetes_release}-gardener")
+
+            response = requests.get(url)
+            splitted = response.text.strip().split(" ")
+
+            logger.info(f"date: {splitted[0]}")
+            logger.info(f"image: {splitted[1]}")
+
+            r = findall(
+                r".*ubuntu-[0-9][02468]04-kube-v(.*\..*\..*)\.qcow2", splitted[1]
+            )
+            logger.info(f"version: {r[0].strip()}")
+
+            url = urljoin(base_url, splitted[1])
+            logger.info(f"url: {url}")
+
+            logger.info(f"checksum_url: {url}.CHECKSUM")
+            response_checksum = requests.get(f"{url}.CHECKSUM")
+            splitted_checksum = response_checksum.text.strip().split(" ")
+            logger.info(f"checksum: {splitted_checksum[0]}")
+
+            template = Template(TEMPLATE_IMAGE_CLUSTERAPI_GARDENER)
+            result.extend(
+                [
+                    template.render(
+                        image_url=url,
+                        image_checksum=f"sha256:{splitted_checksum[0]}",
+                        image_version=r[0].strip(),
+                        image_builddate=splitted[0],
+                    )
+                ]
+            )
+
+        args = [
+            "--cloud",
+            cloud,
+            "--filter",
+            "ubuntu-capi-image-gardener",
         ]
         if tag is not None:
             args.extend(["--tag", tag])
