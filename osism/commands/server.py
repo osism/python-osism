@@ -166,6 +166,7 @@ class ServerList(Command):
                         [
                             project.name,
                             project.id,
+                            server.user_id if hasattr(server, "user_id") else None,
                             server.id,
                             server.name,
                             server.flavor["original_name"],
@@ -176,7 +177,15 @@ class ServerList(Command):
             print(
                 tabulate(
                     result,
-                    headers=["Project", "Project ID", "ID", "Name", "Flavor", "Status"],
+                    headers=[
+                        "Project",
+                        "Project ID",
+                        "User ID",
+                        "ID",
+                        "Name",
+                        "Flavor",
+                        "Status",
+                    ],
                     tablefmt="psql",
                 )
             )
@@ -196,9 +205,20 @@ class ServerList(Command):
                 return
             query = {"project_id": _project.id}
 
+            # Get domain name from project
+            domain_name = None
+            if hasattr(_project, "domain_id") and _project.domain_id:
+                try:
+                    _domain = conn.identity.get_domain(_project.domain_id)
+                    domain_name = _domain.name if _domain else _project.domain_id
+                except Exception:
+                    domain_name = _project.domain_id
+
             for server in conn.compute.servers(all_projects=True, **query):
                 result.append(
                     [
+                        domain_name,
+                        server.user_id if hasattr(server, "user_id") else None,
                         server.id,
                         server.name,
                         server.flavor["original_name"],
@@ -209,7 +229,7 @@ class ServerList(Command):
             print(
                 tabulate(
                     result,
-                    headers=["ID", "Name", "Flavor", "Status"],
+                    headers=["Domain", "User ID", "ID", "Name", "Flavor", "Status"],
                     tablefmt="psql",
                 )
             )
@@ -218,8 +238,27 @@ class ServerList(Command):
             query = {"user_id": user_id}
 
             for server in conn.compute.servers(all_projects=True, **query):
+                # Get domain name from project
+                domain_name = None
+                if hasattr(server, "project_id") and server.project_id:
+                    try:
+                        _project = conn.identity.get_project(server.project_id)
+                        if (
+                            _project
+                            and hasattr(_project, "domain_id")
+                            and _project.domain_id
+                        ):
+                            _domain = conn.identity.get_domain(_project.domain_id)
+                            domain_name = (
+                                _domain.name if _domain else _project.domain_id
+                            )
+                    except Exception:
+                        domain_name = None
+
                 result.append(
                     [
+                        domain_name,
+                        server.project_id if hasattr(server, "project_id") else None,
                         server.id,
                         server.name,
                         server.flavor["original_name"],
@@ -230,7 +269,7 @@ class ServerList(Command):
             print(
                 tabulate(
                     result,
-                    headers=["ID", "Name", "Flavor", "Status"],
+                    headers=["Domain", "Project ID", "ID", "Name", "Flavor", "Status"],
                     tablefmt="psql",
                 )
             )
