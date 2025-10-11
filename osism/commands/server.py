@@ -108,6 +108,18 @@ class ServerList(Command):
         parser.add_argument(
             "--project-domain", help="Domain of the project", type=str, default=None
         )
+        parser.add_argument(
+            "--user",
+            default=None,
+            type=str,
+            help="Only list servers for the given user (name or ID)",
+        )
+        parser.add_argument(
+            "--user-domain",
+            default=None,
+            type=str,
+            help="Domain the user belongs to (name or ID)",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -115,8 +127,31 @@ class ServerList(Command):
         domain = parsed_args.domain
         project = parsed_args.project
         project_domain = parsed_args.project_domain
+        user = parsed_args.user
+        user_domain = parsed_args.user_domain
 
         result = []
+
+        # Handle user lookup if --user is specified
+        user_id = None
+        if user:
+            user_query = {}
+
+            if user_domain:
+                u_d = conn.identity.find_domain(user_domain, ignore_missing=True)
+                if u_d and "id" in u_d:
+                    user_query = dict(domain_id=u_d.id)
+                else:
+                    logger.error(f"No domain found for {user_domain}")
+                    return
+
+            u = conn.identity.find_user(user, ignore_missing=True, **user_query)
+            if u and "id" in u:
+                user_id = u.id
+            else:
+                logger.error(f"No user found for {user}")
+                return
+
         if domain:
             _domain = conn.identity.find_domain(domain)
             if not _domain:
@@ -160,6 +195,27 @@ class ServerList(Command):
                 logger.error(f"Project {project} not found")
                 return
             query = {"project_id": _project.id}
+
+            for server in conn.compute.servers(all_projects=True, **query):
+                result.append(
+                    [
+                        server.id,
+                        server.name,
+                        server.flavor["original_name"],
+                        server.status,
+                    ]
+                )
+
+            print(
+                tabulate(
+                    result,
+                    headers=["ID", "Name", "Flavor", "Status"],
+                    tablefmt="psql",
+                )
+            )
+
+        elif user_id:
+            query = {"user_id": user_id}
 
             for server in conn.compute.servers(all_projects=True, **query):
                 result.append(
