@@ -452,3 +452,83 @@ def flavor_manager(
         locking=locking,
         auto_release_time=auto_release_time,
     )
+
+
+@app.task(bind=True, name="osism.tasks.openstack.project_manager")
+def project_manager(
+    self,
+    *arguments,
+    publish=True,
+    locking=False,
+    auto_release_time=3600,
+    cloud=None,
+):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
+    command = "/usr/local/bin/python3"
+    script_path = "/openstack-project-manager/openstack_project_manager/create.py"
+    # Prepend script path to arguments
+    full_arguments = [script_path] + list(arguments)
+
+    # Setup cloud environment (changes to /tmp)
+    temp_files_to_cleanup, original_cwd, cloud_setup_success = setup_cloud_environment(
+        cloud
+    )
+
+    try:
+        # Change to working directory required by openstack-project-manager
+        os.chdir("/openstack-project-manager")
+
+        return run_command(
+            self.request.id,
+            command,
+            {},
+            *full_arguments,
+            publish=publish,
+            locking=locking,
+            auto_release_time=auto_release_time,
+            ignore_env=True,
+        )
+    finally:
+        cleanup_cloud_environment(temp_files_to_cleanup, original_cwd)
+
+
+@app.task(bind=True, name="osism.tasks.openstack.project_manager_sync")
+def project_manager_sync(
+    self,
+    *arguments,
+    publish=True,
+    locking=False,
+    auto_release_time=3600,
+    cloud=None,
+):
+    # Check if tasks are locked before execution
+    utils.check_task_lock_and_exit()
+
+    command = "/usr/local/bin/python3"
+    script_path = "/openstack-project-manager/openstack_project_manager/manage.py"
+    # Prepend script path to arguments
+    full_arguments = [script_path] + list(arguments)
+
+    # Setup cloud environment (changes to /tmp)
+    temp_files_to_cleanup, original_cwd, cloud_setup_success = setup_cloud_environment(
+        cloud
+    )
+
+    try:
+        # Change to working directory required by openstack-project-manager
+        os.chdir("/openstack-project-manager")
+
+        return run_command(
+            self.request.id,
+            command,
+            {},
+            *full_arguments,
+            publish=publish,
+            locking=locking,
+            auto_release_time=auto_release_time,
+            ignore_env=True,
+        )
+    finally:
+        cleanup_cloud_environment(temp_files_to_cleanup, original_cwd)
