@@ -628,3 +628,611 @@ class Dnsmasq(Command):
             )
 
         return handle_task(task, wait, format="log", timeout=300)
+
+
+class ProjectCreate(Command):
+    def get_parser(self, prog_name):
+        parser = super(ProjectCreate, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until project creation has been completed",
+            action="store_true",
+        )
+
+        # Boolean flags with positive and negative forms
+        parser.add_argument(
+            "--assign-admin-user",
+            dest="assign_admin_user",
+            default=True,
+            help="Assign admin user to the project (default: True)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--noassign-admin-user",
+            dest="assign_admin_user",
+            help="Do not assign admin user to the project",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--create-admin-user",
+            dest="create_admin_user",
+            default=True,
+            help="Create admin user for the project (default: True)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nocreate-admin-user",
+            dest="create_admin_user",
+            help="Do not create admin user for the project",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--create-domain",
+            dest="create_domain",
+            default=False,
+            help="Create a new domain for the project (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nocreate-domain",
+            dest="create_domain",
+            help="Do not create a new domain for the project",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--create-user",
+            dest="create_user",
+            default=False,
+            help="Create a new user for the project (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nocreate-user",
+            dest="create_user",
+            help="Do not create a new user for the project",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--domain-name-prefix",
+            dest="domain_name_prefix",
+            default=True,
+            help="Use domain name as prefix for project name (default: True)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nodomain-name-prefix",
+            dest="domain_name_prefix",
+            help="Do not use domain name as prefix for project name",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--has-service-network",
+            dest="has_service_network",
+            default=False,
+            help="Create a service network for the project (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nohas-service-network",
+            dest="has_service_network",
+            help="Do not create a service network for the project",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--has-public-network",
+            dest="has_public_network",
+            default=True,
+            help="Attach public network to the project (default: True)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nohas-public-network",
+            dest="has_public_network",
+            help="Do not attach public network to the project",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--has-shared-images",
+            dest="has_shared_images",
+            default=True,
+            help="Allow access to shared images (default: True)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nohas-shared-images",
+            dest="has_shared_images",
+            help="Do not allow access to shared images",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--random",
+            dest="random",
+            default=False,
+            help="Use random values for certain parameters (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--norandom",
+            dest="random",
+            help="Do not use random values",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--managed-network-resources",
+            dest="managed_network_resources",
+            default=False,
+            help="Manage network resources (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nomanaged-network-resources",
+            dest="managed_network_resources",
+            help="Do not manage network resources",
+            action="store_false",
+        )
+
+        # Integer arguments
+        parser.add_argument(
+            "--password-length",
+            dest="password_length",
+            type=int,
+            default=16,
+            help="Length of generated passwords (default: 16)",
+        )
+
+        parser.add_argument(
+            "--quota-multiplier",
+            dest="quota_multiplier",
+            type=int,
+            default=1,
+            help="Quota multiplier for all resources (default: 1)",
+        )
+
+        parser.add_argument(
+            "--quota-multiplier-compute",
+            dest="quota_multiplier_compute",
+            type=int,
+            default=None,
+            help="Quota multiplier for compute resources (default: None)",
+        )
+
+        parser.add_argument(
+            "--quota-multiplier-network",
+            dest="quota_multiplier_network",
+            type=int,
+            default=None,
+            help="Quota multiplier for network resources (default: None)",
+        )
+
+        parser.add_argument(
+            "--quota-multiplier-storage",
+            dest="quota_multiplier_storage",
+            type=int,
+            default=None,
+            help="Quota multiplier for storage resources (default: None)",
+        )
+
+        parser.add_argument(
+            "--quota-router",
+            dest="quota_router",
+            type=int,
+            default=1,
+            help="Router quota (default: 1)",
+        )
+
+        # String arguments
+        parser.add_argument(
+            "--admin-domain",
+            dest="admin_domain",
+            type=str,
+            default="default",
+            help="Admin domain name (default: default)",
+        )
+
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            default="admin",
+            help="Cloud name in clouds.yaml (default: admin)",
+        )
+
+        parser.add_argument(
+            "--domain",
+            type=str,
+            default="default",
+            help="Domain name for the project (default: default)",
+        )
+
+        parser.add_argument(
+            "--internal-id",
+            dest="internal_id",
+            type=str,
+            default=None,
+            help="Internal ID for the project (default: None)",
+        )
+
+        parser.add_argument(
+            "--name",
+            type=str,
+            default="sandbox",
+            help="Project name (default: sandbox)",
+        )
+
+        parser.add_argument(
+            "--owner",
+            type=str,
+            default=None,
+            help="Project owner (default: None)",
+        )
+
+        parser.add_argument(
+            "--password",
+            type=str,
+            default=None,
+            help="Password for created users (default: None, auto-generated)",
+        )
+
+        parser.add_argument(
+            "--public-network",
+            dest="public_network",
+            type=str,
+            default="public",
+            help="Public network name (default: public)",
+        )
+
+        parser.add_argument(
+            "--quota-class",
+            dest="quota_class",
+            type=str,
+            default="basic",
+            help="Quota class to apply (default: basic)",
+        )
+
+        parser.add_argument(
+            "--service-network-cidr",
+            dest="service_network_cidr",
+            type=str,
+            default=None,
+            help="Service network CIDR (default: None)",
+        )
+
+        return parser
+
+    def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
+        wait = not parsed_args.no_wait
+        cloud = parsed_args.cloud
+
+        # Build arguments list from all parsed_args
+        arguments = []
+
+        # Add boolean flags
+        if parsed_args.assign_admin_user:
+            arguments.append("--assign-admin-user")
+        else:
+            arguments.append("--noassign-admin-user")
+
+        if parsed_args.create_admin_user:
+            arguments.append("--create-admin-user")
+        else:
+            arguments.append("--nocreate-admin-user")
+
+        if parsed_args.create_domain:
+            arguments.append("--create-domain")
+        else:
+            arguments.append("--nocreate-domain")
+
+        if parsed_args.create_user:
+            arguments.append("--create-user")
+        else:
+            arguments.append("--nocreate-user")
+
+        if parsed_args.domain_name_prefix:
+            arguments.append("--domain-name-prefix")
+        else:
+            arguments.append("--nodomain-name-prefix")
+
+        if parsed_args.has_service_network:
+            arguments.append("--has-service-network")
+        else:
+            arguments.append("--nohas-service-network")
+
+        if parsed_args.has_public_network:
+            arguments.append("--has-public-network")
+        else:
+            arguments.append("--nohas-public-network")
+
+        if parsed_args.has_shared_images:
+            arguments.append("--has-shared-images")
+        else:
+            arguments.append("--nohas-shared-images")
+
+        if parsed_args.random:
+            arguments.append("--random")
+        else:
+            arguments.append("--norandom")
+
+        if parsed_args.managed_network_resources:
+            arguments.append("--managed-network-resources")
+        else:
+            arguments.append("--nomanaged-network-resources")
+
+        # Add integer arguments
+        arguments.extend(["--password-length", str(parsed_args.password_length)])
+        arguments.extend(["--quota-multiplier", str(parsed_args.quota_multiplier)])
+        arguments.extend(["--quota-router", str(parsed_args.quota_router)])
+
+        if parsed_args.quota_multiplier_compute is not None:
+            arguments.extend(
+                [
+                    "--quota-multiplier-compute",
+                    str(parsed_args.quota_multiplier_compute),
+                ]
+            )
+
+        if parsed_args.quota_multiplier_network is not None:
+            arguments.extend(
+                [
+                    "--quota-multiplier-network",
+                    str(parsed_args.quota_multiplier_network),
+                ]
+            )
+
+        if parsed_args.quota_multiplier_storage is not None:
+            arguments.extend(
+                [
+                    "--quota-multiplier-storage",
+                    str(parsed_args.quota_multiplier_storage),
+                ]
+            )
+
+        # Add string arguments
+        arguments.extend(["--admin-domain", parsed_args.admin_domain])
+        arguments.extend(["--cloud", cloud])
+        arguments.extend(["--domain", parsed_args.domain])
+        arguments.extend(["--name", parsed_args.name])
+        arguments.extend(["--public-network", parsed_args.public_network])
+        arguments.extend(["--quota-class", parsed_args.quota_class])
+
+        if parsed_args.internal_id is not None:
+            arguments.extend(["--internal-id", parsed_args.internal_id])
+
+        if parsed_args.owner is not None:
+            arguments.extend(["--owner", parsed_args.owner])
+
+        if parsed_args.password is not None:
+            arguments.extend(["--password", parsed_args.password])
+
+        if parsed_args.service_network_cidr is not None:
+            arguments.extend(
+                ["--service-network-cidr", parsed_args.service_network_cidr]
+            )
+
+        # Call the task
+        task_signature = openstack.project_manager.si(*arguments, cloud=cloud)
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (project-manager) has been started and output is visible here."
+            )
+
+        return handle_task(task, wait, format="script", timeout=3600)
+
+
+class ProjectSync(Command):
+    def get_parser(self, prog_name):
+        parser = super(ProjectSync, self).get_parser(prog_name)
+
+        # Boolean flags
+        parser.add_argument(
+            "--assign-admin-user",
+            dest="assign_admin_user",
+            default=False,
+            help="Assign admin user to projects (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--noassign-admin-user",
+            dest="assign_admin_user",
+            help="Do not assign admin user to projects",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--dry-run",
+            dest="dry_run",
+            default=False,
+            help="Do not really do anything, just simulate (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nodry-run",
+            dest="dry_run",
+            help="Execute actions (not a dry run)",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--manage-endpoints",
+            dest="manage_endpoints",
+            default=False,
+            help="Manage endpoints (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nomanage-endpoints",
+            dest="manage_endpoints",
+            help="Do not manage endpoints",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--manage-homeprojects",
+            dest="manage_homeprojects",
+            default=False,
+            help="Manage home projects (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nomanage-homeprojects",
+            dest="manage_homeprojects",
+            help="Do not manage home projects",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--manage-privatevolumetypes",
+            dest="manage_privatevolumetypes",
+            default=True,
+            help="Manage private volume types (default: True)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nomanage-privatevolumetypes",
+            dest="manage_privatevolumetypes",
+            help="Do not manage private volume types",
+            action="store_false",
+        )
+
+        parser.add_argument(
+            "--manage-privateflavors",
+            dest="manage_privateflavors",
+            default=True,
+            help="Manage private flavors (default: True)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nomanage-privateflavors",
+            dest="manage_privateflavors",
+            help="Do not manage private flavors",
+            action="store_false",
+        )
+
+        # String arguments
+        parser.add_argument(
+            "--admin-domain",
+            dest="admin_domain",
+            type=str,
+            default="default",
+            help="Admin domain name (default: default)",
+        )
+
+        parser.add_argument(
+            "--classes",
+            type=str,
+            default="etc/classes.yml",
+            help="Path to the classes.yml file (default: etc/classes.yml)",
+        )
+
+        parser.add_argument(
+            "--endpoints",
+            type=str,
+            default="etc/endpoints.yml",
+            help="Path to the endpoints.yml file (default: etc/endpoints.yml)",
+        )
+
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            default="admin",
+            help="Cloud name in clouds.yaml (default: admin)",
+        )
+
+        parser.add_argument(
+            "--domain",
+            type=str,
+            default=None,
+            help="Domain to be managed (default: None)",
+        )
+
+        parser.add_argument(
+            "--name",
+            type=str,
+            default=None,
+            help="Project to be managed (default: None)",
+        )
+
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until project sync has been completed",
+            action="store_true",
+        )
+
+        return parser
+
+    def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
+        wait = not parsed_args.no_wait
+        cloud = parsed_args.cloud
+
+        # Build arguments list from all parsed_args
+        arguments = []
+
+        # Add boolean flags
+        if parsed_args.assign_admin_user:
+            arguments.append("--assign-admin-user")
+        else:
+            arguments.append("--noassign-admin-user")
+
+        if parsed_args.dry_run:
+            arguments.append("--dry-run")
+        else:
+            arguments.append("--nodry-run")
+
+        if parsed_args.manage_endpoints:
+            arguments.append("--manage-endpoints")
+        else:
+            arguments.append("--nomanage-endpoints")
+
+        if parsed_args.manage_homeprojects:
+            arguments.append("--manage-homeprojects")
+        else:
+            arguments.append("--nomanage-homeprojects")
+
+        if parsed_args.manage_privatevolumetypes:
+            arguments.append("--manage-privatevolumetypes")
+        else:
+            arguments.append("--nomanage-privatevolumetypes")
+
+        if parsed_args.manage_privateflavors:
+            arguments.append("--manage-privateflavors")
+        else:
+            arguments.append("--nomanage-privateflavors")
+
+        # Add string arguments
+        arguments.extend(["--admin-domain", parsed_args.admin_domain])
+        arguments.extend(["--classes", parsed_args.classes])
+        arguments.extend(["--endpoints", parsed_args.endpoints])
+        arguments.extend(["--cloud", cloud])
+
+        if parsed_args.domain is not None:
+            arguments.extend(["--domain", parsed_args.domain])
+
+        if parsed_args.name is not None:
+            arguments.extend(["--name", parsed_args.name])
+
+        # Call the task
+        task_signature = openstack.project_manager_sync.si(*arguments, cloud=cloud)
+        task = task_signature.apply_async()
+        if wait:
+            logger.info(
+                f"It takes a moment until task {task.task_id} (project-manager-sync) has been started and output is visible here."
+            )
+
+        return handle_task(task, wait, format="script", timeout=3600)
