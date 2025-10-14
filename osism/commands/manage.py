@@ -699,6 +699,20 @@ class ProjectCreate(Command):
         )
 
         parser.add_argument(
+            "--create-application-credential",
+            dest="create_application_credential",
+            default=False,
+            help="Create application credential for user (default: False)",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--nocreate-application-credential",
+            dest="create_application_credential",
+            help="Do not create application credential for user",
+            action="store_false",
+        )
+
+        parser.add_argument(
             "--domain-name-prefix",
             dest="domain_name_prefix",
             default=True,
@@ -939,6 +953,11 @@ class ProjectCreate(Command):
             arguments.append("--create-user")
         else:
             arguments.append("--nocreate-user")
+
+        if parsed_args.create_application_credential:
+            arguments.append("--create-application-credential")
+        else:
+            arguments.append("--nocreate-application-credential")
 
         if parsed_args.domain_name_prefix:
             arguments.append("--domain-name-prefix")
