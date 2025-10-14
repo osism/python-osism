@@ -24,6 +24,31 @@ class Facts(Command):
         return rc
 
 
+class CephKeys(Command):
+    def get_parser(self, prog_name):
+        parser = super(CephKeys, self).get_parser(prog_name)
+        parser.add_argument(
+            "--no-wait",
+            default=False,
+            help="Do not wait until the sync has been completed",
+            action="store_true",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
+        wait = not parsed_args.no_wait
+        arguments = []
+        t = ansible.run.delay(
+            "manager", "copy-ceph-keys", arguments, auto_release_time=3600
+        )
+        logger.info(f"Task {t.task_id} (sync ceph-keys) started")
+        rc = handle_task(t, wait)
+        return rc
+
+
 class Sonic(Command):
     def get_parser(self, prog_name):
         parser = super(Sonic, self).get_parser(prog_name)
