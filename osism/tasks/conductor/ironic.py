@@ -226,10 +226,11 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=
                     )
                     node = openstack.baremetal_node_create(device.name, node_attributes)
                 else:
-                    # NOTE: The listener service only reacts to changes in the baremetal node. Explicitly sync provision and power state in case updates were missed by the listener.
+                    # NOTE: The listener service only reacts to changes in the baremetal node. Explicitly sync provision, power state and maintenance in case updates were missed by the listener.
                     # This sync is done unconditionally, because we do not know the state of secondary netboxes at this point
                     netbox.set_provision_state(device.name, node["provision_state"])
                     netbox.set_power_state(device.name, node["power_state"])
+                    netbox.set_maintenance(device.name, state=node["is_maintenance"])
                     # NOTE: Check whether the baremetal node needs to be updated
                     node_updates = {}
                     deep_compare(node_attributes, node, node_updates)
