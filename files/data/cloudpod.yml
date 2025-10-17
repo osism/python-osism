@@ -1,0 +1,166 @@
+---
+reference:
+  - field: name
+    mandatory_prefix: SCS-
+  - field: cpus
+  - field: ram
+  - field: disk
+  - field: public
+    default: true
+  - field: disabled
+    default: false
+
+mandatory:
+  - name: SCS-1L-1
+    cpus: 1
+    ram: 1024
+    disk: 0
+    scs:cpu-type: crowded-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-1L:1
+    scs:name-v2: SCS-1L-1
+    hw_rng:allowed: "true"
+  - name: SCS-1V-2
+    cpus: 1
+    ram: 2048
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-1V:2
+    scs:name-v2: SCS-1V-2
+    hw_rng:allowed: "true"
+  - name: SCS-1V-4
+    cpus: 1
+    ram: 4096
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-1V:4
+    scs:name-v2: SCS-1V-4
+    hw_rng:allowed: "true"
+  - name: SCS-1V-8
+    cpus: 1
+    ram: 8192
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-1V:8
+    scs:name-v2: SCS-1V-8
+    hw_rng:allowed: "true"
+  - name: SCS-2V-4
+    cpus: 2
+    ram: 4096
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-2V:4
+    scs:name-v2: SCS-2V-4
+    hw_rng:allowed: "true"
+  - name: SCS-2V-8
+    cpus: 2
+    ram: 8192
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-2V:8
+    scs:name-v2: SCS-2V-8
+    hw_rng:allowed: "true"
+  - name: SCS-2V-16
+    cpus: 2
+    ram: 16384
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-2V:16
+    scs:name-v2: SCS-2V-16
+    hw_rng:allowed: "true"
+  - name: SCS-4V-8
+    cpus: 4
+    ram: 8192
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-4V:8
+    scs:name-v2: SCS-4V-8
+    hw_rng:allowed: "true"
+  - name: SCS-4V-16
+    cpus: 4
+    ram: 16384
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-4V:16
+    scs:name-v2: SCS-4V-16
+    hw_rng:allowed: "true"
+  - name: SCS-4V-32
+    cpus: 4
+    ram: 32768
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-4V:32
+    scs:name-v2: SCS-4V-32
+    hw_rng:allowed: "true"
+  - name: SCS-8V-16
+    cpus: 8
+    ram: 16384
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-8V:16
+    scs:name-v2: SCS-8V-16
+    hw_rng:allowed: "true"
+  - name: SCS-8V-32
+    cpus: 8
+    ram: 32768
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-8V:32
+    scs:name-v2: SCS-8V-32
+    hw_rng:allowed: "true"
+  - name: SCS-16V-64
+    cpus: 16
+    ram: 65536
+    disk: 0
+    scs:cpu-type: shared-core
+    scs:disk0-type: network
+    scs:name-v1: SCS-16V:64
+    scs:name-v2: SCS-16V-64
+    hw_rng:allowed: "true"
+  - name: SCS-2V-4-20s
+    cpus: 2
+    ram: 4096
+    disk: 20
+    scs:cpu-type: shared-core
+    scs:disk0-type: ssd
+    scs:name-v1: SCS-2V:4:20s
+    scs:name-v2: SCS-2V-4-20s
+    hw_rng:allowed: "true"
+  - name: SCS-4V-8-50s
+    cpus: 4
+    ram: 8192
+    disk: 50
+    scs:cpu-type: shared-core
+    scs:disk0-type: ssd
+    scs:name-v1: SCS-4V:8:50s
+    scs:name-v2: SCS-4V-8-50s
+    hw_rng:allowed: "true"
+  - name: SCS-8V-32-100s
+    cpus: 8
+    ram: 32768
+    disk: 100
+    scs:cpu-type: shared-core
+    scs:disk0-type: ssd
+    scs:name-v1: SCS-8V:32:100s
+    scs:name-v2: SCS-8V-32-100s
+    hw_rng:allowed: "true"
+  - name: SCS-16V-64-100s
+    cpus: 16
+    ram: 65536
+    disk: 100
+    scs:cpu-type: shared-core
+    scs:disk0-type: ssd
+    scs:name-v1: SCS-8V:32:100s
+    scs:name-v2: SCS-8V-32-100s
+    hw_rng:allowed: "true"
