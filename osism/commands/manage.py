@@ -37,7 +37,7 @@ class ImageClusterapi(Command):
             "--base-url",
             type=str,
             help="Base URL",
-            default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-k8s-capi-images/",
+            default="https://nbg1.your-objectstorage.com/osism/openstack-k8s-capi-images/",
         )
         parser.add_argument(
             "--cloud",
@@ -149,7 +149,7 @@ class ImageClusterapiGardener(Command):
             "--base-url",
             type=str,
             help="Base URL",
-            default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-k8s-capi-images/",
+            default="https://nbg1.your-objectstorage.com/osism/openstack-k8s-capi-images/",
         )
         parser.add_argument(
             "--cloud",
@@ -263,7 +263,7 @@ class ImageGardenlinux(Command):
             "--base-url",
             type=str,
             help="Base URL",
-            default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-images/gardenlinux/",
+            default="https://nbg1.your-objectstorage.com/osism/openstack-images/gardenlinux/",
         )
         parser.add_argument(
             "--cloud",
@@ -374,7 +374,7 @@ class ImageOctavia(Command):
             "--base-url",
             type=str,
             help="Base URL",
-            default="https://swift.services.a.regiocloud.tech/swift/v1/AUTH_b182637428444b9aa302bb8d5a5a418c/openstack-octavia-amphora-image/",
+            default="https://nbg1.your-objectstorage.com/osism/openstack-octavia-amphora-image/",
         )
         return parser
 
