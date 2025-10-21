@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "c7e6855a577922404a3ab9e85f8490c9d1ac1e24c5482608a5cc1806d12d6adf"
+            "sha256": "e91862c6c8ca44361543676c28c3edacb7c0248092595efb7d1a8a84204882ed"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -765,11 +765,11 @@
         },
         "iniconfig": {
             "hashes": [
-                "sha256:3abbd2e30b36733fee78f9c7f7308f2d0050e88f0087fd25c2645f63c773e1c7",
-                "sha256:9deba5723312380e77435581c6bf4935c94cbfab9b1ed33ef8d238ea168eb760"
+                "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730",
+                "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
             ],
-            "markers": "python_version >= '3.8'",
-            "version": "==2.1.0"
+            "markers": "python_version >= '3.10'",
+            "version": "==2.3.0"
         },
         "invoke": {
             "hashes": [
@@ -789,12 +789,12 @@
         },
         "jc": {
             "hashes": [
-                "sha256:a2ec1e7bcadeb977f278b36a1619d85ea9070ab2b81aba74b7ee2c36470c3f8f",
-                "sha256:f8ac0e4bc427b0ee8a3bdb07a254cc9df6b6036cd440f6c425e2e519cdbda78a"
+                "sha256:27f58befc7ae0a4c63322926c5f1ec892e3eac4a065eff3b07cfe420a6924a07",
+                "sha256:7367b59e6e0da8babeede1e5b0da083f3c5aa6b6e585b4aed28dd7c4b2d76162"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.6'",
-            "version": "==1.25.5"
+            "version": "==1.25.6"
         },
         "jinja2": {
             "hashes": [
@@ -1245,18 +1245,18 @@
         },
         "psutil": {
             "hashes": [
-                "sha256:09ad740870c8d219ed8daae0ad3b726d3bf9a028a198e7f3080f6a1888b99bca",
-                "sha256:22e4454970b32472ce7deaa45d045b34d3648ce478e26a04c7e858a0a6e75ff3",
-                "sha256:57f5e987c36d3146c0dd2528cd42151cf96cd359b9d67cfff836995cc5df9a3d",
-                "sha256:5d007560c8c372efdff9e4579c2846d71de737e4605f611437255e81efcca2c5",
-                "sha256:655708b3c069387c8b77b072fc429a57d0e214221d01c0a772df7dfedcb3bcd2",
-                "sha256:6937cb68133e7c97b6cc9649a570c9a18ba0efebed46d8c5dae4c07fa1b67a07",
-                "sha256:76168cef4397494250e9f4e73eb3752b146de1dd950040b29186d0cce1d5ca13",
-                "sha256:7d4a113425c037300de3ac8b331637293da9be9713855c4fc9d2d97436d7259d",
-                "sha256:8c70e113920d51e89f212dd7be06219a9b88014e63a4cec69b684c327bc474e3"
+                "sha256:092b6350145007389c1cfe5716050f02030a05219d90057ea867d18fe8d372fc",
+                "sha256:146a704f224fb2ded2be3da5ac67fc32b9ea90c45b51676f9114a6ac45616967",
+                "sha256:295c4025b5cd880f7445e4379e6826f7307e3d488947bf9834e865e7847dc5f7",
+                "sha256:2a95104eae85d088891716db676f780c1404fc15d47fde48a46a5d61e8f5ad2c",
+                "sha256:5457cf741ca13da54624126cd5d333871b454ab133999a9a103fb097a7d7d21a",
+                "sha256:8fa59d7b1f01f0337f12cd10dbd76e4312a4d3c730a4fedcbdd4e5447a8b8460",
+                "sha256:92ebc58030fb054fa0f26c3206ef01c31c29d67aee1367e3483c16665c25c8d2",
+                "sha256:98629cd8567acefcc45afe2f4ba1e9290f579eacf490a917967decce4b74ee9b",
+                "sha256:9b4f17c5f65e44f69bd3a3406071a47b79df45cf2236d1f717970afcb526bcd3"
             ],
             "markers": "python_version >= '3.6'",
-            "version": "==7.1.0"
+            "version": "==7.1.1"
         },
         "ptyprocess": {
             "hashes": [
@@ -1291,11 +1291,11 @@
         },
         "pydantic": {
             "hashes": [
-                "sha256:25ff718ee909acd82f1ff9b1a4acfd781bb23ab3739adaa7144f19a6a4e231ae",
-                "sha256:7b8fa15b831a4bbde9d5b84028641ac3080a4ca2cbd4a621a661687e741624fd"
+                "sha256:1da1c82b0fc140bb0103bc1441ffe062154c8d38491189751ee00fd8ca65ce74",
+                "sha256:6986454a854bc3bc6e5443e1369e06a3a456af9d339eda45510f517d9ea5c6bf"
             ],
             "markers": "python_version >= '3.9'",
-            "version": "==2.12.2"
+            "version": "==2.12.3"
         },
         "pydantic-core": {
             "hashes": [
