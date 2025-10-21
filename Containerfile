@@ -1,6 +1,6 @@
 ARG PYTHON_VERSION=3.13.3
 ARG ALPINE_VERSION=3.21
-ARG IMAGE=registry.osism.tech/dockerhub/python
+ARG IMAGE=registry.osism.cloud/dockerhub/python
 
 FROM ${IMAGE}:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
 
