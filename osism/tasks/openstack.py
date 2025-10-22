@@ -165,7 +165,11 @@ def baremetal_port_delete(self, port_or_id):
 def get_cloud_password(cloud):
     """
     Load and decrypt the OpenStack password for a specific cloud profile
-    from the Ansible Vault encrypted secrets.yml file.
+    from the secrets.yml file.
+
+    This function supports both encrypted (Ansible Vault) and unencrypted
+    secrets files. Encrypted files are decrypted using the vault password,
+    while unencrypted files are read directly (development mode fallback).
 
     Args:
         cloud (str): The cloud profile name
@@ -191,21 +195,48 @@ def get_cloud_password(cloud):
         # Get vault instance for decryption
         vault = get_vault()
 
-        # Load and decrypt the entire Ansible Vault encrypted file
+        # Load the secrets file
         with open(secrets_path, "rb") as f:
-            encrypted_data = f.read()
+            file_data = f.read()
 
-        # Decrypt the entire file content
-        decrypted_data = vault.decrypt(encrypted_data).decode()
+        decrypted_secrets = None
 
-        # Parse the decrypted YAML content safely
+        # Try to decrypt the file if it's vault encrypted
         try:
-            decrypted_secrets = yaml.safe_load(decrypted_data)
-        except yaml.YAMLError as yaml_exc:
-            logger.error(
-                f"Failed to parse YAML content from decrypted secrets file: {yaml_exc}"
+            if vault.is_encrypted(file_data):
+                # File is encrypted, decrypt it
+                decrypted_data = vault.decrypt(file_data).decode()
+                logger.debug(f"Successfully decrypted secrets file: {secrets_path}")
+            else:
+                # File is not encrypted, use as-is
+                decrypted_data = file_data.decode()
+                logger.info(
+                    f"Secrets file is not encrypted (development mode): {secrets_path}"
+                )
+
+            # Parse the YAML content safely
+            try:
+                decrypted_secrets = yaml.safe_load(decrypted_data)
+            except yaml.YAMLError as yaml_exc:
+                logger.error(
+                    f"Failed to parse YAML content from secrets file: {yaml_exc}"
+                )
+                return None
+
+        except Exception as decrypt_exc:
+            # If decryption fails, try reading as plain YAML (development fallback)
+            logger.warning(
+                f"Failed to decrypt secrets file, attempting to read as plain YAML: {decrypt_exc}"
             )
-            return None
+            try:
+                with open(secrets_path, "r") as f:
+                    decrypted_secrets = yaml.safe_load(f)
+                logger.info(
+                    f"Successfully loaded unencrypted secrets file (development mode): {secrets_path}"
+                )
+            except Exception as plain_exc:
+                logger.error(f"Failed to read secrets file as plain YAML: {plain_exc}")
+                return None
 
         if not decrypted_secrets or not isinstance(decrypted_secrets, dict):
             logger.warning(
