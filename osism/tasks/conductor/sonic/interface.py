@@ -202,13 +202,32 @@ def _handle_breakout_interface(
 
                 # Calculate offset from minimum subport
                 min_subport = breakout_group[0][0]
-                current_offset = subport - min_subport
 
+                # Determine the offset multiplier based on master port lane count
+                # 400G ports have 8 lanes -> 4x100G with 2 lanes each -> increment by 2
+                # Standard ports have 4 lanes -> 4xXG with 1 lane each -> increment by 1
+                offset_multiplier = 1
+                master_port_name = f"Ethernet{base_port_num}"
+                if master_port_name in port_config:
+                    master_lanes = port_config[master_port_name]["lanes"]
+                    if "," in master_lanes:
+                        lanes_list = [lane.strip() for lane in master_lanes.split(",")]
+                        total_lanes = len(lanes_list)
+                        if total_lanes == 8:
+                            # 400G breakout: port numbers increment by 2
+                            offset_multiplier = 2
+                            logger.debug(
+                                f"Detected 400G breakout for {master_port_name}: "
+                                f"8 lanes, using offset multiplier {offset_multiplier}"
+                            )
+
+                current_offset = (subport - min_subport) * offset_multiplier
                 sonic_port_num = base_port_num + current_offset
                 result = f"Ethernet{sonic_port_num}"
 
                 logger.debug(
-                    f"Breakout mapping: {interface_name} -> {result} (base: {base_sonic_name}, offset: {current_offset})"
+                    f"Breakout mapping: {interface_name} -> {result} (base: {base_sonic_name}, "
+                    f"offset: {current_offset}, multiplier: {offset_multiplier})"
                 )
                 return result
 
@@ -725,8 +744,31 @@ def detect_breakout_ports(device):
 
                                 # Add all subports to breakout_ports
                                 min_subport = breakout_group[0][0]
+
+                                # Determine the offset multiplier based on master port lane count
+                                # 400G ports have 8 lanes -> 4x100G with 2 lanes each -> increment by 2
+                                # Standard ports have 4 lanes -> 4xXG with 1 lane each -> increment by 1
+                                offset_multiplier = 1
+                                if master_port in port_config:
+                                    master_lanes = port_config[master_port]["lanes"]
+                                    if "," in master_lanes:
+                                        lanes_list = [
+                                            lane.strip()
+                                            for lane in master_lanes.split(",")
+                                        ]
+                                        total_lanes = len(lanes_list)
+                                        if total_lanes == 8:
+                                            # 400G breakout: port numbers increment by 2
+                                            offset_multiplier = 2
+                                            logger.debug(
+                                                f"Detected 400G breakout for {master_port}: "
+                                                f"8 lanes, using offset multiplier {offset_multiplier}"
+                                            )
+
                                 for subport, iface in breakout_group:
-                                    current_offset = subport - min_subport
+                                    current_offset = (
+                                        subport - min_subport
+                                    ) * offset_multiplier
                                     sonic_port_num = base_port_num + current_offset
                                     port_name = f"Ethernet{sonic_port_num}"
                                     breakout_ports[port_name] = {"master": master_port}

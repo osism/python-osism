@@ -397,7 +397,26 @@ def _get_breakout_port_valid_speeds(port_speed):
 
 
 def _calculate_breakout_port_lane(port_name, master_port, port_config):
-    """Calculate individual lane for a breakout port."""
+    """Calculate lane(s) for a breakout port.
+
+    Supports both standard breakout (4 lanes -> 4x1 lane ports) and
+    400G breakout (8 lanes -> 4x2 lane ports).
+
+    Examples:
+        Standard 100G -> 4x25G (4 lanes total):
+            Master: Ethernet0 with lanes "1,2,3,4"
+            Ethernet0 -> "1"
+            Ethernet1 -> "2"
+            Ethernet2 -> "3"
+            Ethernet3 -> "4"
+
+        400G -> 4x100G (8 lanes total):
+            Master: Ethernet0 with lanes "73,74,75,76,77,78,79,80"
+            Ethernet0 -> "73,74"
+            Ethernet2 -> "75,76"
+            Ethernet4 -> "77,78"
+            Ethernet6 -> "79,80"
+    """
     # Get master port's lanes from port_config
     if master_port in port_config:
         master_lanes = port_config[master_port]["lanes"]
@@ -411,20 +430,57 @@ def _calculate_breakout_port_lane(port_name, master_port, port_config):
             # Single lane or simple number
             lanes_list = [int(master_lanes)]
 
-        # Calculate which lane this breakout port should use
+        total_lanes = len(lanes_list)
+
+        # Determine lanes per port based on total lanes
+        if total_lanes == 8:
+            # 400G breakout: 8 lanes -> 4 ports with 2 lanes each
+            lanes_per_port = 2
+            logger.debug(
+                f"Detected 400G breakout for {master_port}: 8 lanes -> 4x2 lanes per port"
+            )
+        elif total_lanes == 4:
+            # Standard breakout: 4 lanes -> 4 ports with 1 lane each
+            lanes_per_port = 1
+        else:
+            # Unexpected lane count, log warning and use default
+            logger.warning(
+                f"Unexpected lane count {total_lanes} for master port {master_port}, defaulting to 1 lane per port"
+            )
+            lanes_per_port = 1
+
+        # Calculate which lane(s) this breakout port should use
         port_match = re.match(r"Ethernet(\d+)", port_name)
         if port_match:
             sonic_port_num = int(port_match.group(1))
             master_port_match = re.match(r"Ethernet(\d+)", master_port)
             if master_port_match:
                 master_port_num = int(master_port_match.group(1))
-                # Calculate subport index (0, 1, 2, 3 for 4x breakout)
-                subport_index = sonic_port_num - master_port_num
-                if 0 <= subport_index < len(lanes_list):
-                    return str(lanes_list[subport_index])
+
+                # Calculate port increment (considering the port naming pattern)
+                port_increment = sonic_port_num - master_port_num
+
+                # Calculate subport index based on lanes per port
+                # For 400G: Ethernet0,2,4,6 -> indices 0,1,2,3
+                # For standard: Ethernet0,1,2,3 -> indices 0,1,2,3
+                subport_index = port_increment // lanes_per_port
+
+                # Extract the appropriate lanes for this subport
+                start_lane_idx = subport_index * lanes_per_port
+                end_lane_idx = start_lane_idx + lanes_per_port
+
+                if end_lane_idx <= len(lanes_list):
+                    selected_lanes = lanes_list[start_lane_idx:end_lane_idx]
+                    result = ",".join(str(lane) for lane in selected_lanes)
+                    logger.debug(
+                        f"Breakout lane calculation: {port_name} (offset={port_increment}, "
+                        f"subport_index={subport_index}) -> lanes {result}"
+                    )
+                    return result
                 else:
                     logger.warning(
-                        f"Breakout port {port_name}: subport_index {subport_index} out of range for lanes_list {lanes_list}"
+                        f"Breakout port {port_name}: calculated lane range [{start_lane_idx}:{end_lane_idx}] "
+                        f"out of bounds for lanes_list {lanes_list}"
                     )
     return "1"  # Default fallback
 
