@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import multiprocessing
 import os
 import subprocess
 
@@ -16,8 +17,12 @@ class Run(Command):
             "The osism reconciler command is deprecated and will be removed. Use osism service reconciler."
         )
         # NOTE: use python interface in the future, works for the moment
+        default_concurrency = min(multiprocessing.cpu_count(), 4)
+        concurrency = int(
+            os.environ.get("OSISM_CELERY_CONCURRENCY", default_concurrency)
+        )
         p = subprocess.Popen(
-            "celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler",
+            f"celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler -c {concurrency}",
             shell=True,
         )
         p.wait()

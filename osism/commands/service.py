@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import multiprocessing
+import os
 import subprocess
 import time
 
@@ -65,8 +67,12 @@ class Run(Command):
             p.wait()
 
         elif service == "reconciler":
+            default_concurrency = min(multiprocessing.cpu_count(), 4)
+            concurrency = int(
+                os.environ.get("OSISM_CELERY_CONCURRENCY", default_concurrency)
+            )
             p = subprocess.Popen(
-                "celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler",
+                f"celery -A osism.tasks.reconciler worker -n reconciler --loglevel=INFO -Q reconciler -c {concurrency}",
                 shell=True,
             )
             p.wait()
