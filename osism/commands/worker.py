@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import multiprocessing
+import os
 import subprocess
 
 from cliff.command import Command
@@ -9,10 +10,11 @@ from osism import utils
 
 class Run(Command):
     def get_parser(self, prog_name):
-        if multiprocessing.cpu_count() <= 8:
-            number_of_workers_default = multiprocessing.cpu_count()
-        else:
-            number_of_workers_default = 8
+        number_of_workers_default = int(
+            os.environ.get(
+                "OSISM_CELERY_CONCURRENCY", min(multiprocessing.cpu_count(), 4)
+            )
+        )
 
         parser = super(Run, self).get_parser(prog_name)
         parser.add_argument(
