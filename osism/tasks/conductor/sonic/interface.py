@@ -287,15 +287,13 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
             logger.debug(f"Skipping {sonic_port}: no alias")
             continue
 
-        # Extract number from alias (e.g., tenGigE1 -> 1, hundredGigE49 -> 49)
-        alias_match = re.search(r"(\d+)$", alias)
-        if not alias_match:
+        # Extract number from alias (e.g., tenGigE1 -> 1, Eth1(Port1) -> 1)
+        alias_num = _extract_port_number_from_alias(alias)
+        if alias_num is None:
             logger.debug(
-                f"Skipping {sonic_port}: alias '{alias}' has no trailing number"
+                f"Skipping {sonic_port}: could not extract number from alias '{alias}'"
             )
             continue
-
-        alias_num = int(alias_match.group(1))
 
         # Generate expected NetBox interface names for this alias
         expected_names = [
