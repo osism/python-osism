@@ -265,8 +265,8 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
     Returns:
         str: SONiC interface name or original name if not found
     """
-    logger.debug(f"Finding SONiC name for interface: '{interface_name}'")
-    logger.debug(f"Port config contains {len(port_config)} entries")
+    logger.debug(f"[AS4625-DEBUG] Mapping NetBox interface '{interface_name}' to SONiC name")
+    logger.debug(f"[AS4625-DEBUG] Port config has {len(port_config)} entries")
 
     # Handle new Eth1(Port1) format first
     paren_match = re.match(r"Eth(\d+)\(Port(\d*)\)", interface_name)
@@ -276,7 +276,8 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
         ethernet_num = eth_num - 1
         sonic_name = f"Ethernet{ethernet_num}"
         logger.debug(
-            f"Alias mapping: {interface_name} -> {sonic_name} via Eth(Port) format (eth_num={eth_num}, ethernet_num={ethernet_num})"
+            f"[AS4625-DEBUG] Alias mapping: {interface_name} -> {sonic_name} via Eth(Port) format "
+            f"(eth_num={eth_num}, ethernet_num={ethernet_num})"
         )
         return sonic_name
 
@@ -284,15 +285,11 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
     for sonic_port, config in port_config.items():
         alias = config.get("alias", "")
         if not alias:
-            logger.debug(f"Skipping {sonic_port}: no alias")
             continue
 
         # Extract number from alias (e.g., tenGigE1 -> 1, hundredGigE49 -> 49)
         alias_match = re.search(r"(\d+)$", alias)
         if not alias_match:
-            logger.debug(
-                f"Skipping {sonic_port}: alias '{alias}' has no trailing number"
-            )
             continue
 
         alias_num = int(alias_match.group(1))
@@ -304,18 +301,19 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
         ]
 
         logger.debug(
-            f"Checking {sonic_port} (alias='{alias}', alias_num={alias_num}) against expected_names: {expected_names}"
+            f"[AS4625-DEBUG] Checking {sonic_port} (alias='{alias}', alias_num={alias_num}) "
+            f"against expected_names: {expected_names}"
         )
 
         if interface_name in expected_names:
-            logger.debug(
-                f"Alias mapping: {interface_name} -> {sonic_port} via alias {alias}"
+            logger.info(
+                f"[AS4625-DEBUG] ✓ Alias mapping: {interface_name} -> {sonic_port} via alias {alias}"
             )
             return sonic_port
 
-    logger.warning(f"No alias mapping found for '{interface_name}'")
-    logger.debug(
-        f"Available aliases in port_config: {[(sonic_port, config.get('alias', '')) for sonic_port, config in port_config.items()]}"
+    logger.warning(
+        f"[AS4625-DEBUG] ✗ No alias mapping found for '{interface_name}'. "
+        f"Available aliases: {[(sonic_port, config.get('alias', '')) for sonic_port, config in list(port_config.items())[:5]]}"
     )
     return interface_name
 

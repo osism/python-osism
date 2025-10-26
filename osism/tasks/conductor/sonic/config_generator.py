@@ -258,6 +258,12 @@ def _add_port_configurations(
     device,
 ):
     """Add port configurations to config."""
+    # DEBUG: Log connected interfaces for AS4625-54T
+    logger.info(
+        f"[AS4625-DEBUG] Device has {len(connected_interfaces)} connected interfaces: "
+        f"{sorted(list(connected_interfaces)[:10])}"
+    )
+
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
     sorted_ports = sorted(port_config.keys(), key=natural_sort_key)
 

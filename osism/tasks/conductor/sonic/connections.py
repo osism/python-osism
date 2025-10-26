@@ -32,9 +32,31 @@ def get_connected_device_via_interface(
     Returns:
         Connected NetBox device object or None if not found/reachable
     """
+    # DEBUG: Log interface details
+    interface_type = None
+    if hasattr(interface, "type") and interface.type:
+        interface_type = getattr(interface.type, "value", None)
+
+    logger.debug(
+        f"[AS4625-DEBUG] Checking connection for interface: {interface.name}, "
+        f"type: {interface_type}, mgmt_only: {getattr(interface, 'mgmt_only', False)}"
+    )
+
     # Skip management-only interfaces
     if hasattr(interface, "mgmt_only") and interface.mgmt_only:
+        logger.debug(f"[AS4625-DEBUG] Skipping {interface.name}: mgmt_only=True")
         return None
+
+    # Check if interface has connected_endpoints
+    if not (
+        hasattr(interface, "connected_endpoints") and interface.connected_endpoints
+    ):
+        logger.debug(
+            f"[AS4625-DEBUG] Interface {interface.name} has no connected_endpoints, "
+            f"has_attr={hasattr(interface, 'connected_endpoints')}, "
+            f"is_empty={not interface.connected_endpoints if hasattr(interface, 'connected_endpoints') else 'N/A'}"
+        )
+        # Continue to cable fallback check...
 
     # Try modern connected_endpoints API first
     if hasattr(interface, "connected_endpoints") and interface.connected_endpoints:
@@ -60,6 +82,11 @@ def get_connected_device_via_interface(
     if hasattr(interface, "type") and interface.type:
         port_type = getattr(interface.type, "value", "").lower()
         is_1000base_t = port_type == "1000base-t"
+
+        logger.debug(
+            f"[AS4625-DEBUG] Interface {interface.name}: port_type='{port_type}', "
+            f"is_1000base_t={is_1000base_t}, has_cable={hasattr(interface, 'cable') and bool(interface.cable)}"
+        )
 
     # If 1000BASE-T and no connected_endpoints, try cable-based detection
     if is_1000base_t and hasattr(interface, "cable") and interface.cable:
