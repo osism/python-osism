@@ -22,6 +22,11 @@ def get_connected_device_via_interface(
 ) -> Optional[Any]:
     """Get the connected device for a given interface using connected_endpoints API.
 
+    Note: For some port types (especially 1000BASE-T), the connected_endpoints_reachable
+    flag may not be set correctly in NetBox even when a physical connection exists.
+    This function processes connections regardless of the reachability flag to ensure
+    1GbE and similar port types are properly detected.
+
     Args:
         interface: NetBox interface object
         source_device_id: ID of the source device to exclude from results
@@ -39,9 +44,16 @@ def get_connected_device_via_interface(
     ):
         return None
 
-    # Ensure connected_endpoints_reachable is True
-    if not getattr(interface, "connected_endpoints_reachable", False):
-        return None
+    # Check connected_endpoints_reachable flag
+    # Note: For some port types (especially 1000BASE-T), this flag may not be set correctly
+    # in NetBox even when a physical connection exists. We log a warning but still process
+    # the connection to ensure 1GbE ports are properly detected.
+    is_reachable = getattr(interface, "connected_endpoints_reachable", False)
+    if not is_reachable:
+        logger.debug(
+            f"Interface {interface.name} has connected_endpoints but connected_endpoints_reachable is False. "
+            f"Processing connection anyway (may be 1000BASE-T or similar port type)."
+        )
 
     try:
         # Process each connected endpoint
@@ -417,9 +429,16 @@ def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
         ):
             return None
 
-        # Ensure connected_endpoints_reachable is True
-        if not getattr(interface, "connected_endpoints_reachable", False):
-            return None
+        # Check connected_endpoints_reachable flag
+        # Note: For some port types (especially 1000BASE-T), this flag may not be set correctly
+        # in NetBox even when a physical connection exists. We log a warning but still process
+        # the connection to ensure 1GbE ports are properly detected.
+        is_reachable = getattr(interface, "connected_endpoints_reachable", False)
+        if not is_reachable:
+            logger.debug(
+                f"Interface {sonic_port_name} has connected_endpoints but connected_endpoints_reachable is False. "
+                f"Processing connection anyway (may be 1000BASE-T or similar port type)."
+            )
 
         # Process each connected endpoint to find the first valid interface
         connected_interface = None
