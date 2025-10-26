@@ -22,6 +22,9 @@ def get_connected_device_via_interface(
 ) -> Optional[Any]:
     """Get the connected device for a given interface using connected_endpoints API.
 
+    For 1000BASE-T ports, falls back to cable-based detection when connected_endpoints
+    is not available, as NetBox may not populate this field correctly for 1GbE ports.
+
     Args:
         interface: NetBox interface object
         source_device_id: ID of the source device to exclude from results
@@ -33,26 +36,64 @@ def get_connected_device_via_interface(
     if hasattr(interface, "mgmt_only") and interface.mgmt_only:
         return None
 
-    # Check if interface has connected_endpoints
-    if not (
-        hasattr(interface, "connected_endpoints") and interface.connected_endpoints
-    ):
-        return None
+    # Try modern connected_endpoints API first
+    if hasattr(interface, "connected_endpoints") and interface.connected_endpoints:
+        is_reachable = getattr(interface, "connected_endpoints_reachable", False)
+        if not is_reachable:
+            logger.debug(
+                f"Interface {interface.name} has connected_endpoints but connected_endpoints_reachable is False. "
+                f"Processing connection anyway (may be 1000BASE-T or similar port type)."
+            )
 
-    # Ensure connected_endpoints_reachable is True
-    if not getattr(interface, "connected_endpoints_reachable", False):
-        return None
+        try:
+            for endpoint in interface.connected_endpoints:
+                if hasattr(endpoint, "device") and endpoint.device.id != source_device_id:
+                    return endpoint.device
+        except Exception as e:
+            logger.debug(
+                f"Error processing connected_endpoints for interface {interface.name}: {e}"
+            )
 
-    try:
-        # Process each connected endpoint
-        for endpoint in interface.connected_endpoints:
-            # Get the connected device from the endpoint
-            if hasattr(endpoint, "device") and endpoint.device.id != source_device_id:
-                return endpoint.device
-    except Exception as e:
+    # Cable-based fallback ONLY for 1000BASE-T ports
+    # Check if this is a 1000BASE-T port type
+    is_1000base_t = False
+    if hasattr(interface, "type") and interface.type:
+        port_type = getattr(interface.type, "value", "").lower()
+        is_1000base_t = port_type == "1000base-t"
+
+    # If 1000BASE-T and no connected_endpoints, try cable-based detection
+    if is_1000base_t and hasattr(interface, "cable") and interface.cable:
         logger.debug(
-            f"Error processing connected_endpoints for interface {interface.name}: {e}"
+            f"Interface {interface.name} is 1000BASE-T, attempting cable-based fallback"
         )
+        cable = interface.cable
+
+        try:
+            # Try modern cable API (NetBox 3.0+)
+            if hasattr(cable, "a_terminations") and hasattr(cable, "b_terminations"):
+                for termination in list(cable.a_terminations) + list(cable.b_terminations):
+                    if hasattr(termination, "device") and termination.device.id != source_device_id:
+                        logger.info(
+                            f"Interface {interface.name} (1000BASE-T) found connection via cable fallback"
+                        )
+                        return termination.device
+
+            # Try legacy cable API (NetBox 2.x)
+            elif hasattr(cable, "termination_a") and hasattr(cable, "termination_b"):
+                if hasattr(cable.termination_a, "device") and cable.termination_a.device.id != source_device_id:
+                    logger.info(
+                        f"Interface {interface.name} (1000BASE-T) found connection via legacy cable API (termination_a)"
+                    )
+                    return cable.termination_a.device
+                elif hasattr(cable.termination_b, "device") and cable.termination_b.device.id != source_device_id:
+                    logger.info(
+                        f"Interface {interface.name} (1000BASE-T) found connection via legacy cable API (termination_b)"
+                    )
+                    return cable.termination_b.device
+        except Exception as e:
+            logger.debug(
+                f"Error processing cable fallback for interface {interface.name}: {e}"
+            )
 
     return None
 
@@ -394,6 +435,9 @@ def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
     Get the IPv4 address(es) of the connected endpoint interface for a given SONiC port.
     Checks for direct IP addresses first, then for FHRP VIP addresses.
 
+    For 1000BASE-T ports, falls back to cable-based detection when connected_endpoints
+    is not available.
+
     Args:
         device: The SONiC device
         sonic_port_name: The SONiC port name
@@ -411,22 +455,64 @@ def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
         if not interface:
             return None
 
-        # Check if interface has connected_endpoints using the modern API
-        if not (
-            hasattr(interface, "connected_endpoints") and interface.connected_endpoints
-        ):
-            return None
-
-        # Ensure connected_endpoints_reachable is True
-        if not getattr(interface, "connected_endpoints_reachable", False):
-            return None
-
-        # Process each connected endpoint to find the first valid interface
+        # Try modern connected_endpoints API first
         connected_interface = None
-        for endpoint in interface.connected_endpoints:
-            if hasattr(endpoint, "id"):
-                connected_interface = endpoint
-                break
+        if hasattr(interface, "connected_endpoints") and interface.connected_endpoints:
+            is_reachable = getattr(interface, "connected_endpoints_reachable", False)
+            if not is_reachable:
+                logger.debug(
+                    f"Interface {interface.name} has connected_endpoints but connected_endpoints_reachable is False. "
+                    f"Processing connection anyway (may be 1000BASE-T or similar port type)."
+                )
+
+            # Process each connected endpoint to find the first valid interface
+            for endpoint in interface.connected_endpoints:
+                if hasattr(endpoint, "id"):
+                    connected_interface = endpoint
+                    break
+
+        # Cable-based fallback ONLY for 1000BASE-T ports
+        if not connected_interface:
+            # Check if this is a 1000BASE-T port type
+            is_1000base_t = False
+            if hasattr(interface, "type") and interface.type:
+                port_type = getattr(interface.type, "value", "").lower()
+                is_1000base_t = port_type == "1000base-t"
+
+            # If 1000BASE-T and has cable, try cable-based detection
+            if is_1000base_t and hasattr(interface, "cable") and interface.cable:
+                logger.debug(
+                    f"Interface {interface.name} is 1000BASE-T, attempting cable-based fallback"
+                )
+                cable = interface.cable
+
+                try:
+                    # Try modern cable API (NetBox 3.0+)
+                    if hasattr(cable, "a_terminations") and hasattr(cable, "b_terminations"):
+                        for termination in list(cable.a_terminations) + list(cable.b_terminations):
+                            if hasattr(termination, "device") and termination.device.id != device.id:
+                                logger.info(
+                                    f"Interface {interface.name} (1000BASE-T) found connection via cable fallback"
+                                )
+                                connected_interface = termination
+                                break
+
+                    # Try legacy cable API (NetBox 2.x)
+                    elif hasattr(cable, "termination_a") and hasattr(cable, "termination_b"):
+                        if hasattr(cable.termination_a, "device") and cable.termination_a.device.id != device.id:
+                            logger.info(
+                                f"Interface {interface.name} (1000BASE-T) found connection via legacy cable API (termination_a)"
+                            )
+                            connected_interface = cable.termination_a
+                        elif hasattr(cable.termination_b, "device") and cable.termination_b.device.id != device.id:
+                            logger.info(
+                                f"Interface {interface.name} (1000BASE-T) found connection via legacy cable API (termination_b)"
+                            )
+                            connected_interface = cable.termination_b
+                except Exception as e:
+                    logger.debug(
+                        f"Error processing cable fallback for interface {interface.name}: {e}"
+                    )
 
         if not connected_interface:
             return None
