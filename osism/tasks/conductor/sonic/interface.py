@@ -139,7 +139,7 @@ def _map_interface_name_to_sonic(
     # For any other format, try to find by alias in port config
     for sonic_port, config in port_config.items():
         # Skip special keys like _reverse_mapping
-        if sonic_port.startswith('_'):
+        if sonic_port.startswith("_"):
             continue
         if config.get("alias") == interface_name:
             logger.debug(f"Found {interface_name} -> {sonic_port} via alias mapping")
@@ -296,7 +296,7 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
     # Create reverse mapping: expected NetBox name -> alias -> SONiC name
     for sonic_port, config in port_config.items():
         # Skip special keys like _reverse_mapping
-        if sonic_port.startswith('_'):
+        if sonic_port.startswith("_"):
             continue
         alias = config.get("alias", "")
         if not alias:
@@ -543,7 +543,7 @@ def _build_reverse_alias_mapping(port_config):
 
     for sonic_port, config in port_config.items():
         # Skip special keys like _reverse_mapping
-        if sonic_port.startswith('_'):
+        if sonic_port.startswith("_"):
             continue
         alias = config.get("alias", "")
         if not alias:

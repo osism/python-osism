@@ -56,6 +56,32 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     Returns:
         dict: Minimal SONiC configuration dictionary
     """
+    # Cache for interface name conversions to avoid redundant lookups
+    _interface_name_cache = {}
+
+    def get_sonic_interface_name(netbox_interface_name):
+        """Get SONiC interface name with caching.
+
+        Args:
+            netbox_interface_name: NetBox interface name or interface object
+
+        Returns:
+            str: SONiC interface name
+        """
+        # Handle both string names and interface objects
+        if hasattr(netbox_interface_name, "name"):
+            key = netbox_interface_name.name
+            interface_obj = netbox_interface_name
+        else:
+            key = netbox_interface_name
+            interface_obj = netbox_interface_name
+
+        if key not in _interface_name_cache:
+            _interface_name_cache[key] = convert_netbox_interface_to_sonic(
+                interface_obj, device
+            )
+        return _interface_name_cache[key]
+
     # Get port configuration for the HWSKU
     port_config = get_port_config(hwsku)
 
@@ -95,7 +121,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
             # If speed is not set, try to get it from port type
             if not interface_speed and hasattr(interface, "type") and interface.type:
                 interface_speed = get_speed_from_port_type(interface.type.value)
-            sonic_name = convert_netbox_interface_to_sonic(interface, device)
+            sonic_name = get_sonic_interface_name(interface)
             netbox_interfaces[sonic_name] = {
                 "speed": interface_speed,
                 "type": (
@@ -192,6 +218,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         netbox_interfaces,
         vlan_info,
         device,
+        get_sonic_interface_name,
     )
 
     # Add interface configurations
@@ -225,7 +252,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     _add_dns_configuration(config, device)
 
     # Add VLAN configuration
-    _add_vlan_configuration(config, vlan_info, netbox_interfaces, device)
+    _add_vlan_configuration(
+        config, vlan_info, netbox_interfaces, device, get_sonic_interface_name
+    )
 
     # Add Loopback configuration
     _add_loopback_configuration(config, loopback_info)
@@ -282,11 +311,12 @@ def _add_port_configurations(
     netbox_interfaces,
     vlan_info,
     device,
+    get_sonic_interface_name=None,
 ):
     """Add port configurations to config."""
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
     # Filter out special keys like _reverse_mapping
-    port_names = [k for k in port_config.keys() if not k.startswith('_')]
+    port_names = [k for k in port_config.keys() if not k.startswith("_")]
     sorted_ports = sorted(port_names, key=natural_sort_key)
 
     for port_name in sorted_ports:
@@ -404,7 +434,9 @@ def _add_port_configurations(
     )
 
     # Add tagged VLANs to PORT configuration
-    _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device)
+    _add_tagged_vlans_to_ports(
+        config, vlan_info, netbox_interfaces, device, get_sonic_interface_name
+    )
 
 
 def _get_breakout_port_valid_speeds(port_speed):
@@ -606,7 +638,9 @@ def _add_missing_breakout_ports(
             config["PORT"][port_name] = port_data
 
 
-def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device):
+def _add_tagged_vlans_to_ports(
+    config, vlan_info, netbox_interfaces, device, get_sonic_interface_name=None
+):
     """Add tagged VLANs to PORT configuration."""
     # Build a mapping of ports to their tagged VLANs
     port_tagged_vlans = {}
@@ -619,9 +653,12 @@ def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device):
                 if iface_info["netbox_name"] == netbox_interface_name:
                     speed = iface_info["speed"]
                     break
-            sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name, device
-            )
+            if get_sonic_interface_name:
+                sonic_interface_name = get_sonic_interface_name(netbox_interface_name)
+            else:
+                sonic_interface_name = convert_netbox_interface_to_sonic(
+                    netbox_interface_name, device
+                )
 
             # Only add if this is a tagged VLAN (not untagged)
             if tagging_mode == "tagged":
@@ -1306,7 +1343,9 @@ def clear_all_caches():
     logger.debug("Cleared all config_generator caches")
 
 
-def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
+def _add_vlan_configuration(
+    config, vlan_info, netbox_interfaces, device, get_sonic_interface_name=None
+):
     """Add VLAN configuration from NetBox."""
     # Add VLAN configuration
     for vid, vlan_data in vlan_info["vlans"].items():
@@ -1323,9 +1362,14 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
                     if iface_info["netbox_name"] == netbox_interface_name:
                         speed = iface_info["speed"]
                         break
-                sonic_interface_name = convert_netbox_interface_to_sonic(
-                    netbox_interface_name, device
-                )
+                if get_sonic_interface_name:
+                    sonic_interface_name = get_sonic_interface_name(
+                        netbox_interface_name
+                    )
+                else:
+                    sonic_interface_name = convert_netbox_interface_to_sonic(
+                        netbox_interface_name, device
+                    )
                 members.append(sonic_interface_name)
 
         config["VLAN"][vlan_name] = {
@@ -1346,9 +1390,12 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
                 if iface_info["netbox_name"] == netbox_interface_name:
                     speed = iface_info["speed"]
                     break
-            sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name, device
-            )
+            if get_sonic_interface_name:
+                sonic_interface_name = get_sonic_interface_name(netbox_interface_name)
+            else:
+                sonic_interface_name = convert_netbox_interface_to_sonic(
+                    netbox_interface_name, device
+                )
             # Create VLAN_MEMBER key in format "Vlan<vid>|<port_name>"
             member_key = f"{vlan_name}|{sonic_interface_name}"
             config["VLAN_MEMBER"][member_key] = {"tagging_mode": tagging_mode}
