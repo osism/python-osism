@@ -285,7 +285,9 @@ def _add_port_configurations(
 ):
     """Add port configurations to config."""
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
-    sorted_ports = sorted(port_config.keys(), key=natural_sort_key)
+    # Filter out special keys like _reverse_mapping
+    port_names = [k for k in port_config.keys() if not k.startswith('_')]
+    sorted_ports = sorted(port_names, key=natural_sort_key)
 
     for port_name in sorted_ports:
         port_info = port_config[port_name]

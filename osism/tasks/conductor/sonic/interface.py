@@ -138,6 +138,9 @@ def _map_interface_name_to_sonic(
 
     # For any other format, try to find by alias in port config
     for sonic_port, config in port_config.items():
+        # Skip special keys like _reverse_mapping
+        if sonic_port.startswith('_'):
+            continue
         if config.get("alias") == interface_name:
             logger.debug(f"Found {interface_name} -> {sonic_port} via alias mapping")
             return sonic_port
@@ -280,8 +283,21 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
         )
         return sonic_name
 
+    # NEW: Use pre-built reverse mapping if available (performance optimization)
+    if isinstance(port_config, dict) and "_reverse_mapping" in port_config:
+        reverse_mapping = port_config.get("_reverse_mapping", {})
+        if interface_name in reverse_mapping:
+            sonic_name = reverse_mapping[interface_name]
+            logger.debug(
+                f"Fast lookup via reverse mapping: {interface_name} -> {sonic_name}"
+            )
+            return sonic_name
+
     # Create reverse mapping: expected NetBox name -> alias -> SONiC name
     for sonic_port, config in port_config.items():
+        # Skip special keys like _reverse_mapping
+        if sonic_port.startswith('_'):
+            continue
         alias = config.get("alias", "")
         if not alias:
             logger.debug(f"Skipping {sonic_port}: no alias")
@@ -313,7 +329,7 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
 
     logger.warning(f"No alias mapping found for '{interface_name}'")
     logger.debug(
-        f"Available aliases in port_config: {[(sonic_port, config.get('alias', '')) for sonic_port, config in port_config.items()]}"
+        f"Available aliases in port_config: {[(sonic_port, config.get('alias', '')) for sonic_port, config in port_config.items() if not sonic_port.startswith('_')]}"
     )
     return interface_name
 
@@ -504,6 +520,55 @@ def _convert_using_speed_calculation(ethernet_num, interface_speed, is_breakout)
         return result
 
 
+def _build_reverse_alias_mapping(port_config):
+    """Build reverse mapping from NetBox interface names to SONiC port names.
+
+    This pre-computes the mapping to avoid repeated alias number extraction
+    and iteration over all ports during interface name lookups.
+
+    Args:
+        port_config: Port configuration dictionary
+
+    Returns:
+        dict: Reverse mapping from NetBox names to SONiC port names
+              Example: {
+                  'Eth1/1': 'Ethernet0',
+                  'Eth1/1/1': 'Ethernet0',
+                  'Eth1/2': 'Ethernet4',
+                  'Eth1(Port1)': 'Ethernet0',
+                  ...
+              }
+    """
+    reverse_mapping = {}
+
+    for sonic_port, config in port_config.items():
+        # Skip special keys like _reverse_mapping
+        if sonic_port.startswith('_'):
+            continue
+        alias = config.get("alias", "")
+        if not alias:
+            continue
+
+        # Extract port number once and cache it in the reverse mapping
+        alias_num = _extract_port_number_from_alias(alias)
+        if alias_num is None:
+            continue
+
+        # Generate all possible NetBox names for this port
+        expected_names = [
+            f"Eth1/{alias_num}",  # Standard format
+            f"Eth1/{alias_num}/1",  # Breakout format (first subport)
+        ]
+
+        for name in expected_names:
+            reverse_mapping[name] = sonic_port
+
+    logger.debug(
+        f"Built reverse alias mapping with {len(reverse_mapping)} entries from {len(port_config)} ports"
+    )
+    return reverse_mapping
+
+
 def get_port_config(hwsku):
     """Get port configuration for a given HWSKU. Uses caching to avoid repeated file reads.
 
@@ -511,8 +576,10 @@ def get_port_config(hwsku):
         hwsku: Hardware SKU name (e.g., 'Accton-AS5835-54T')
 
     Returns:
-        dict: Port configuration with port names as keys and their properties as values
-              Example: {'Ethernet0': {'lanes': '2', 'alias': 'tenGigE1', 'index': '1', 'speed': '10000', 'valid_speeds': '10000,25000'}}
+        dict: Port configuration with port names as keys and their properties as values.
+              Also includes a special '_reverse_mapping' key for fast interface name lookups.
+              Example: {'Ethernet0': {'lanes': '2', 'alias': 'tenGigE1', 'index': '1', 'speed': '10000', 'valid_speeds': '10000,25000'},
+                       '_reverse_mapping': {'Eth1/1': 'Ethernet0', 'Eth1/1/1': 'Ethernet0', ...}}
     """
     global _port_config_cache  # noqa F824
 
@@ -528,8 +595,8 @@ def get_port_config(hwsku):
     if not os.path.exists(config_path):
         logger.error(f"Port config file not found: {config_path}")
         # Cache empty config to avoid repeated file system checks
-        _port_config_cache[hwsku] = port_config
-        return port_config
+        _port_config_cache[hwsku] = {"_reverse_mapping": {}}
+        return {"_reverse_mapping": {}}
 
     try:
         with open(config_path, "r") as f:
@@ -560,16 +627,20 @@ def get_port_config(hwsku):
                         ):
                             port_config[port_name]["valid_speeds"] = sixth_column
 
+        # Build reverse mapping for fast lookups (performance optimization)
+        reverse_mapping = _build_reverse_alias_mapping(port_config)
+        port_config["_reverse_mapping"] = reverse_mapping
+
         # Cache the loaded configuration
         _port_config_cache[hwsku] = port_config
         logger.debug(
-            f"Cached port config for HWSKU {hwsku} with {len(port_config)} ports"
+            f"Cached port config for HWSKU {hwsku} with {len(port_config) - 1} ports and reverse mapping"
         )
 
     except Exception as e:
         logger.error(f"Error parsing port config file {config_path}: {e}")
         # Cache empty config on error to avoid repeated attempts
-        _port_config_cache[hwsku] = port_config
+        _port_config_cache[hwsku] = {"_reverse_mapping": {}}
 
     # Return a deep copy to ensure isolation between devices
     return copy.deepcopy(port_config)
