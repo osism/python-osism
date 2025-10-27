@@ -349,9 +349,12 @@ def _add_port_configurations(
             "unreliable_los": "auto",
         }
 
-        # Add valid_speeds if available in port_info
+        # Add valid_speeds if available in port_info, otherwise use port speed
         if "valid_speeds" in port_info:
             port_data["valid_speeds"] = port_info["valid_speeds"]
+        elif port_speed:
+            # Use port speed as valid_speeds if not configured in port_info
+            port_data["valid_speeds"] = port_speed
 
         # Override valid_speeds for breakout ports based on their individual speed
         if port_name in breakout_info["breakout_ports"]:
