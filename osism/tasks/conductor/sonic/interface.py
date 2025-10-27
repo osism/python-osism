@@ -549,8 +549,16 @@ def get_port_config(hwsku):
                         "speed": parts[4],
                     }
                     # Check for optional valid_speeds column (6th column)
+                    # Only parse as valid_speeds if it contains numeric values
                     if len(parts) >= 6:
-                        port_config[port_name]["valid_speeds"] = parts[5]
+                        sixth_column = parts[5]
+                        # valid_speeds should contain digits and optionally commas
+                        # Examples: "10000", "10000,25000", "1000,10000,25000"
+                        # Reject values like "on", "off" (autoneg column)
+                        if sixth_column and any(
+                            char.isdigit() for char in sixth_column
+                        ):
+                            port_config[port_name]["valid_speeds"] = sixth_column
 
         # Cache the loaded configuration
         _port_config_cache[hwsku] = port_config
