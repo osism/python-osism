@@ -163,13 +163,26 @@ def get_device_vlans(device):
                   'vlan_interfaces': {vid: {'addresses': [ip_with_prefix, ...]}}
               }
     """
+    from .sonic.cache import get_cached_device_interfaces
+
     vlans = {}
     vlan_members = {}
     vlan_interfaces = {}
 
     try:
-        # Get all interfaces for the device and convert to list for multiple iterations
-        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+        # Use cached interfaces instead of separate query
+        interfaces = get_cached_device_interfaces(device.id)
+
+        # Fetch ALL IP addresses for the device in ONE query
+        all_ip_addresses = list(utils.nb.ipam.ip_addresses.filter(device_id=device.id))
+
+        # Build lookup dictionary: interface_id -> list of IPs (O(1) lookups)
+        interface_ips_map = {}
+        for ip_addr in all_ip_addresses:
+            if ip_addr.assigned_object_id:
+                if ip_addr.assigned_object_id not in interface_ips_map:
+                    interface_ips_map[ip_addr.assigned_object_id] = []
+                interface_ips_map[ip_addr.assigned_object_id].append(ip_addr)
 
         for interface in interfaces:
             # Skip management interfaces and virtual interfaces
@@ -229,10 +242,8 @@ def get_device_vlans(device):
             ):
                 try:
                     vid = int(interface.name[4:])
-                    # Get IP addresses for this VLAN interface
-                    ip_addresses = utils.nb.ipam.ip_addresses.filter(
-                        assigned_object_id=interface.id,
-                    )
+                    # Use O(1) lookup instead of N queries
+                    ip_addresses = interface_ips_map.get(interface.id, [])
 
                     addresses = []
                     for ip_addr in ip_addresses:
@@ -270,11 +281,24 @@ def get_device_loopbacks(device):
                   'loopbacks': {'Loopback0': {'addresses': [ip_with_prefix, ...]}}
               }
     """
+    from .sonic.cache import get_cached_device_interfaces
+
     loopbacks = {}
 
     try:
-        # Get all interfaces for the device
-        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+        # Use cached interfaces instead of separate query
+        interfaces = get_cached_device_interfaces(device.id)
+
+        # Fetch ALL IP addresses for the device in ONE query
+        all_ip_addresses = list(utils.nb.ipam.ip_addresses.filter(device_id=device.id))
+
+        # Build lookup dictionary: interface_id -> list of IPs (O(1) lookups)
+        interface_ips_map = {}
+        for ip_addr in all_ip_addresses:
+            if ip_addr.assigned_object_id:
+                if ip_addr.assigned_object_id not in interface_ips_map:
+                    interface_ips_map[ip_addr.assigned_object_id] = []
+                interface_ips_map[ip_addr.assigned_object_id].append(ip_addr)
 
         for interface in interfaces:
             # Check if interface is virtual type and is a Loopback interface
@@ -286,10 +310,8 @@ def get_device_loopbacks(device):
             ):
 
                 try:
-                    # Get IP addresses for this Loopback interface
-                    ip_addresses = utils.nb.ipam.ip_addresses.filter(
-                        assigned_object_id=interface.id,
-                    )
+                    # Use O(1) lookup instead of N queries
+                    ip_addresses = interface_ips_map.get(interface.id, [])
 
                     addresses = []
                     for ip_addr in ip_addresses:
@@ -325,11 +347,24 @@ def get_device_interface_ips(device):
                   ...
               }
     """
+    from .sonic.cache import get_cached_device_interfaces
+
     interface_ips = {}
 
     try:
-        # Get all interfaces for the device
-        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+        # Use cached interfaces instead of separate query
+        interfaces = get_cached_device_interfaces(device.id)
+
+        # Fetch ALL IP addresses for the device in ONE query
+        all_ip_addresses = list(utils.nb.ipam.ip_addresses.filter(device_id=device.id))
+
+        # Build lookup dictionary: interface_id -> list of IPs (O(1) lookups)
+        interface_ips_map = {}
+        for ip_addr in all_ip_addresses:
+            if ip_addr.assigned_object_id:
+                if ip_addr.assigned_object_id not in interface_ips_map:
+                    interface_ips_map[ip_addr.assigned_object_id] = []
+                interface_ips_map[ip_addr.assigned_object_id].append(ip_addr)
 
         for interface in interfaces:
             # Skip management interfaces and virtual interfaces for now
@@ -340,10 +375,8 @@ def get_device_interface_ips(device):
             ):
                 continue
 
-            # Get IP addresses assigned to this interface
-            ip_addresses = utils.nb.ipam.ip_addresses.filter(
-                assigned_object_id=interface.id,
-            )
+            # Use O(1) lookup instead of N queries
+            ip_addresses = interface_ips_map.get(interface.id, [])
 
             for ip_addr in ip_addresses:
                 if ip_addr.address:
