@@ -44,13 +44,14 @@ def natural_sort_key(port_name):
     return int(match.group(1)) if match else 0
 
 
-def generate_sonic_config(device, hwsku, device_as_mapping=None):
+def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=None):
     """Generate minimal SONiC config.json for a device.
 
     Args:
         device: NetBox device object
         hwsku: Hardware SKU name
         device_as_mapping: Dict mapping device IDs to pre-calculated AS numbers for spine/superspine groups
+        config_version: Optional custom CONFIG DB VERSION (e.g., "version_4_0_1")
 
     Returns:
         dict: Minimal SONiC configuration dictionary
@@ -243,6 +244,31 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
 
     # Add port channel configuration
     _add_portchannel_configuration(config, portchannel_info)
+
+    # Set DATABASE VERSION from config_version parameter or default
+    if "VERSION" not in config:
+        config["VERSION"] = {}
+    if "DATABASE" not in config["VERSION"]:
+        config["VERSION"]["DATABASE"] = {}
+
+    if config_version:
+        # Normalize config_version: add "version_" prefix if not present
+        normalized_version = config_version
+        if not config_version.startswith("version_"):
+            normalized_version = f"version_{config_version}"
+            logger.debug(
+                f"Normalized config_version from '{config_version}' to '{normalized_version}' for device {device.name}"
+            )
+
+        config["VERSION"]["DATABASE"]["VERSION"] = normalized_version
+        logger.info(
+            f"Using custom config_version '{normalized_version}' for device {device.name}"
+        )
+    elif "VERSION" not in config.get("VERSION", {}).get("DATABASE", {}):
+        config["VERSION"]["DATABASE"]["VERSION"] = "version_4_0_1"
+        logger.debug(
+            f"Using default config_version 'version_4_0_1' for device {device.name}"
+        )
 
     return config
 

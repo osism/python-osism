@@ -135,6 +135,19 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
         ):
             hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
 
+        # Get config_version from sonic_parameters custom field, default to None
+        config_version = None
+        if (
+            hasattr(device, "custom_fields")
+            and "sonic_parameters" in device.custom_fields
+            and device.custom_fields["sonic_parameters"]
+            and "config_version" in device.custom_fields["sonic_parameters"]
+        ):
+            config_version = device.custom_fields["sonic_parameters"]["config_version"]
+            logger.debug(
+                f"Device {device.name} has custom config_version: {config_version}"
+            )
+
         # Skip devices without HWSKU
         if not hwsku:
             logger.debug(f"Skipping device {device.name}: no HWSKU configured")
@@ -154,7 +167,9 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
             continue
 
         # Generate SONIC configuration based on device HWSKU
-        sonic_config = generate_sonic_config(device, hwsku, device_as_mapping)
+        sonic_config = generate_sonic_config(
+            device, hwsku, device_as_mapping, config_version
+        )
 
         # Store configuration in the dictionary
         device_configs[device.name] = sonic_config
