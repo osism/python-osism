@@ -7,6 +7,7 @@ import ipaddress
 import json
 import os
 import re
+from typing import Optional
 from loguru import logger
 
 from osism import utils
@@ -36,6 +37,9 @@ from .cache import get_cached_device_interfaces
 
 # Global cache for NTP servers to avoid multiple queries
 _ntp_servers_cache = None
+
+# Global cache for metalbox IPs per device to avoid duplicate lookups
+_metalbox_ip_cache: dict[int, Optional[str]] = {}
 
 
 def natural_sort_key(port_name):
@@ -606,20 +610,23 @@ def _add_missing_breakout_ports(
 
 def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device):
     """Add tagged VLANs to PORT configuration."""
+    # Build reverse mapping once: NetBox interface name -> SONiC interface name (O(1) lookups)
+    netbox_name_to_sonic = {
+        info["netbox_name"]: sonic_name
+        for sonic_name, info in netbox_interfaces.items()
+    }
+
     # Build a mapping of ports to their tagged VLANs
     port_tagged_vlans = {}
     for vid, members in vlan_info["vlan_members"].items():
         for netbox_interface_name, tagging_mode in members.items():
-            # Convert NetBox interface name to SONiC format
-            # Try to find speed from netbox_interfaces
-            speed = None
-            for sonic_name, iface_info in netbox_interfaces.items():
-                if iface_info["netbox_name"] == netbox_interface_name:
-                    speed = iface_info["speed"]
-                    break
-            sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name, device
-            )
+            # Convert NetBox interface name to SONiC format using O(1) lookup
+            sonic_interface_name = netbox_name_to_sonic.get(netbox_interface_name)
+            if not sonic_interface_name:
+                logger.warning(
+                    f"Interface {netbox_interface_name} not found in mapping"
+                )
+                continue
 
             # Only add if this is a tagged VLAN (not untagged)
             if tagging_mode == "tagged":
@@ -699,9 +706,26 @@ def _get_transfer_role_ipv4_addresses(device):
     transfer_ips = {}
 
     try:
-        # Get all interfaces for the device
-        interfaces = list(utils.nb.dcim.interfaces.filter(device_id=device.id))
+        # Use cached interfaces to avoid redundant API calls
+        interfaces = get_cached_device_interfaces(device.id)
 
+        # Bulk fetch all IP addresses for this device (single API call)
+        all_ip_addresses = list(utils.nb.ipam.ip_addresses.filter(device_id=device.id))
+
+        # Bulk fetch all transfer role prefixes (single API call)
+        transfer_prefixes = list(utils.nb.ipam.prefixes.filter(role="transfer"))
+
+        # Convert transfer prefixes to ipaddress network objects for efficient containment checks
+        transfer_networks = []
+        for prefix in transfer_prefixes:
+            try:
+                transfer_networks.append(ipaddress.ip_network(str(prefix.prefix)))
+            except (ValueError, ipaddress.AddressValueError) as e:
+                logger.debug(f"Invalid transfer prefix {prefix.prefix}: {e}")
+                continue
+
+        # Build a mapping from interface ID to interface object
+        interface_map = {}
         for interface in interfaces:
             # Skip management interfaces and virtual interfaces
             if interface.mgmt_only or (
@@ -710,39 +734,42 @@ def _get_transfer_role_ipv4_addresses(device):
                 and interface.type.value == "virtual"
             ):
                 continue
+            interface_map[interface.id] = interface
 
-            # Get IP addresses assigned to this interface
-            ip_addresses = utils.nb.ipam.ip_addresses.filter(
-                assigned_object_id=interface.id,
-            )
+        # Process IP addresses and check if they belong to transfer role prefixes
+        for ip_addr in all_ip_addresses:
+            # Skip if IP not assigned to a valid interface
+            if (
+                not hasattr(ip_addr, "assigned_object_id")
+                or not ip_addr.assigned_object_id
+            ):
+                continue
 
-            for ip_addr in ip_addresses:
-                if ip_addr.address:
-                    try:
-                        ip_obj = ipaddress.ip_interface(ip_addr.address)
-                        if ip_obj.version == 4:
-                            # Check if this IP belongs to a prefix with 'transfer' role
-                            # Query for the prefix this IP belongs to
-                            prefixes = utils.nb.ipam.prefixes.filter(
-                                contains=str(ip_obj.ip)
-                            )
+            if ip_addr.assigned_object_id not in interface_map:
+                continue
 
-                            for prefix in prefixes:
-                                # Check if prefix has role and it's 'transfer'
-                                if hasattr(prefix, "role") and prefix.role:
-                                    if prefix.role.slug == "transfer":
-                                        transfer_ips[interface.name] = ip_addr.address
-                                        logger.debug(
-                                            f"Found transfer role IPv4 {ip_addr.address} on interface {interface.name} of device {device.name}"
-                                        )
-                                        break
+            interface = interface_map[ip_addr.assigned_object_id]
 
-                            # Break after first IPv4 found (transfer or not)
-                            if interface.name in transfer_ips:
+            # Check if interface already has a transfer IP assigned
+            if interface.name in transfer_ips:
+                continue
+
+            if ip_addr.address:
+                try:
+                    ip_obj = ipaddress.ip_interface(ip_addr.address)
+                    if ip_obj.version == 4:
+                        # Check if this IP belongs to any transfer role prefix
+                        # Using in-memory containment check with ipaddress module
+                        for transfer_net in transfer_networks:
+                            if ip_obj.ip in transfer_net:
+                                transfer_ips[interface.name] = ip_addr.address
+                                logger.debug(
+                                    f"Found transfer role IPv4 {ip_addr.address} on interface {interface.name} of device {device.name}"
+                                )
                                 break
-                    except (ValueError, ipaddress.AddressValueError):
-                        # Skip invalid IP addresses
-                        continue
+                except (ValueError, ipaddress.AddressValueError):
+                    # Skip invalid IP addresses
+                    continue
 
     except Exception as e:
         logger.warning(
@@ -1112,6 +1139,11 @@ def _get_metalbox_ip_for_device(device):
     Returns:
         str: IP address of the Metalbox or None if not found
     """
+    # Check cache first
+    if device.id in _metalbox_ip_cache:
+        logger.debug(f"Using cached metalbox IP for device {device.name}")
+        return _metalbox_ip_cache[device.id]
+
     try:
         # Get the OOB IP configuration for this SONiC device
         oob_ip_result = get_device_oob_ip(device)
@@ -1173,16 +1205,22 @@ def _get_metalbox_ip_for_device(device):
                                     f"Found Metalbox {ip_only} on {metalbox.name} "
                                     f"{interface_type} {interface.name} for SONiC device {device.name}"
                                 )
+                                # Cache the result
+                                _metalbox_ip_cache[device.id] = ip_only
                                 return ip_only
                         except ValueError:
                             # Skip non-IPv4 addresses
                             continue
 
         logger.warning(f"No suitable Metalbox found for SONiC device {device.name}")
+        # Cache None result to avoid repeated lookups
+        _metalbox_ip_cache[device.id] = None
         return None
 
     except Exception as e:
         logger.warning(f"Could not determine Metalbox IP for device {device.name}: {e}")
+        # Cache None result to avoid repeated lookups
+        _metalbox_ip_cache[device.id] = None
         return None
 
 
@@ -1276,6 +1314,13 @@ def clear_ntp_cache():
     logger.debug("Cleared NTP servers cache")
 
 
+def clear_metalbox_ip_cache():
+    """Clear the metalbox IP cache. Should be called at the start of sync_sonic."""
+    global _metalbox_ip_cache
+    _metalbox_ip_cache = {}
+    logger.debug("Cleared metalbox IP cache")
+
+
 def _add_dns_configuration(config, device):
     """Add DNS_NAMESERVER configuration to device config.
 
@@ -1300,12 +1345,19 @@ def _add_dns_configuration(config, device):
 def clear_all_caches():
     """Clear all caches in config_generator module."""
     clear_ntp_cache()
+    clear_metalbox_ip_cache()
     clear_port_config_cache()
     logger.debug("Cleared all config_generator caches")
 
 
 def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
     """Add VLAN configuration from NetBox."""
+    # Build reverse mapping once: NetBox interface name -> SONiC interface name (O(1) lookups)
+    netbox_name_to_sonic = {
+        info["netbox_name"]: sonic_name
+        for sonic_name, info in netbox_interfaces.items()
+    }
+
     # Add VLAN configuration
     for vid, vlan_data in vlan_info["vlans"].items():
         vlan_name = f"Vlan{vid}"
@@ -1314,16 +1366,13 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
         members = []
         if vid in vlan_info["vlan_members"]:
             for netbox_interface_name in vlan_info["vlan_members"][vid].keys():
-                # Convert NetBox interface name to SONiC format
-                # Try to find speed from netbox_interfaces
-                speed = None
-                for sonic_name, iface_info in netbox_interfaces.items():
-                    if iface_info["netbox_name"] == netbox_interface_name:
-                        speed = iface_info["speed"]
-                        break
-                sonic_interface_name = convert_netbox_interface_to_sonic(
-                    netbox_interface_name, device
-                )
+                # Convert NetBox interface name to SONiC format using O(1) lookup
+                sonic_interface_name = netbox_name_to_sonic.get(netbox_interface_name)
+                if not sonic_interface_name:
+                    logger.warning(
+                        f"Interface {netbox_interface_name} not found in mapping"
+                    )
+                    continue
                 members.append(sonic_interface_name)
 
         config["VLAN"][vlan_name] = {
@@ -1337,16 +1386,13 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
     for vid, members in vlan_info["vlan_members"].items():
         vlan_name = f"Vlan{vid}"
         for netbox_interface_name, tagging_mode in members.items():
-            # Convert NetBox interface name to SONiC format
-            # Try to find speed from netbox_interfaces
-            speed = None
-            for sonic_name, iface_info in netbox_interfaces.items():
-                if iface_info["netbox_name"] == netbox_interface_name:
-                    speed = iface_info["speed"]
-                    break
-            sonic_interface_name = convert_netbox_interface_to_sonic(
-                netbox_interface_name, device
-            )
+            # Convert NetBox interface name to SONiC format using O(1) lookup
+            sonic_interface_name = netbox_name_to_sonic.get(netbox_interface_name)
+            if not sonic_interface_name:
+                logger.warning(
+                    f"Interface {netbox_interface_name} not found in mapping"
+                )
+                continue
             # Create VLAN_MEMBER key in format "Vlan<vid>|<port_name>"
             member_key = f"{vlan_name}|{sonic_interface_name}"
             config["VLAN_MEMBER"][member_key] = {"tagging_mode": tagging_mode}
