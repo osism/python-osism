@@ -41,6 +41,9 @@ _ntp_servers_cache = None
 # Global cache for metalbox IPs per device to avoid duplicate lookups
 _metalbox_ip_cache: dict[int, Optional[str]] = {}
 
+# Global cache for all metalbox devices with their interfaces and IPs
+_metalbox_devices_cache: Optional[dict] = None
+
 
 def natural_sort_key(port_name):
     """Extract numeric part from port name for natural sorting."""
@@ -1076,40 +1079,12 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
         connected_as = None
         if device_as_mapping and connected_device.id in device_as_mapping:
             connected_as = device_as_mapping[connected_device.id]
-        else:
-            # If connected device is not in device_as_mapping, check if it's a spine/superspine
-            # and calculate AS for its group
-            if connected_device.role and connected_device.role.slug in [
-                "spine",
-                "superspine",
-            ]:
-                # Import here to avoid circular imports
-                from .bgp import calculate_minimum_as_for_group
-                from .connections import find_interconnected_devices
-
-                # Get all devices to find the group
-                all_devices = list(
-                    utils.nb.dcim.devices.filter(role=["spine", "superspine"])
-                )
-                spine_groups = find_interconnected_devices(
-                    all_devices, ["spine", "superspine"]
-                )
-
-                # Find which group the connected device belongs to
-                for group in spine_groups:
-                    if any(dev.id == connected_device.id for dev in group):
-                        connected_as = calculate_minimum_as_for_group(group)
-                        if connected_as:
-                            logger.debug(
-                                f"Calculated AS {connected_as} for connected spine/superspine device {connected_device.name}"
-                            )
-                        break
-
-            # Fallback to calculating from IPv4 if still no AS
-            if not connected_as and connected_device.primary_ip4:
-                connected_as = calculate_local_asn_from_ipv4(
-                    str(connected_device.primary_ip4.address)
-                )
+        elif connected_device.primary_ip4:
+            # If not in mapping (e.g., not in a spine/superspine group),
+            # calculate AS directly from IPv4 address
+            connected_as = calculate_local_asn_from_ipv4(
+                str(connected_device.primary_ip4.address)
+            )
 
         # Compare AS numbers
         if local_as and connected_as and local_as == connected_as:
@@ -1124,6 +1099,81 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
         return "external"  # Default to external on error
 
 
+def _load_metalbox_devices_cache():
+    """Load all metalbox devices with their interfaces and IPs into cache.
+
+    This function performs bulk fetching at the start of sync to avoid
+    repeated queries per device. It loads all metalbox devices, their
+    interfaces, and IP addresses in a single pass.
+    """
+    global _metalbox_devices_cache
+
+    logger.debug("Loading metalbox devices cache...")
+    _metalbox_devices_cache = {}
+
+    try:
+        # Bulk fetch all metalbox devices
+        metalbox_devices = list(utils.nb.dcim.devices.filter(role="metalbox"))
+        logger.debug(f"Found {len(metalbox_devices)} metalbox devices")
+
+        for metalbox in metalbox_devices:
+            metalbox_data = {
+                "device": metalbox,
+                "interfaces": {},
+            }
+
+            # Bulk fetch all interfaces for this metalbox
+            try:
+                interfaces = list(
+                    utils.nb.dcim.interfaces.filter(device_id=metalbox.id)
+                )
+                logger.debug(
+                    f"Metalbox {metalbox.name} has {len(interfaces)} interfaces"
+                )
+
+                for interface in interfaces:
+                    # Skip management-only interfaces
+                    if hasattr(interface, "mgmt_only") and interface.mgmt_only:
+                        continue
+
+                    # Check if this is a VLAN interface (SVI)
+                    is_vlan_interface = (
+                        hasattr(interface, "type")
+                        and interface.type
+                        and interface.type.value == "virtual"
+                        and interface.name.startswith("Vlan")
+                    )
+
+                    # Bulk fetch IP addresses for this interface
+                    ip_addresses = list(
+                        utils.nb.ipam.ip_addresses.filter(
+                            assigned_object_id=interface.id,
+                        )
+                    )
+
+                    # Store interface with its IPs
+                    metalbox_data["interfaces"][interface.id] = {
+                        "interface": interface,
+                        "is_vlan": is_vlan_interface,
+                        "ips": [ip_addr for ip_addr in ip_addresses if ip_addr.address],
+                    }
+
+            except Exception as e:
+                logger.warning(
+                    f"Could not fetch interfaces for metalbox {metalbox.name}: {e}"
+                )
+
+            _metalbox_devices_cache[metalbox.id] = metalbox_data
+
+        logger.info(
+            f"Loaded metalbox cache with {len(_metalbox_devices_cache)} devices"
+        )
+
+    except Exception as e:
+        logger.warning(f"Could not load metalbox devices cache: {e}")
+        _metalbox_devices_cache = {}
+
+
 def _get_metalbox_ip_for_device(device):
     """Get Metalbox IP for a SONiC device based on OOB connection.
 
@@ -1132,6 +1182,8 @@ def _get_metalbox_ip_for_device(device):
     SONiC switch management interface (eth0) has access.
 
     This IP is used for both NTP and DNS services.
+
+    Uses the pre-loaded metalbox devices cache for optimal performance.
 
     Args:
         device: SONiC device object
@@ -1149,6 +1201,7 @@ def _get_metalbox_ip_for_device(device):
         oob_ip_result = get_device_oob_ip(device)
         if not oob_ip_result:
             logger.debug(f"No OOB IP found for device {device.name}")
+            _metalbox_ip_cache[device.id] = None
             return None
 
         oob_ip, prefix_len = oob_ip_result
@@ -1159,58 +1212,46 @@ def _get_metalbox_ip_for_device(device):
 
         device_network = IPv4Network(f"{oob_ip}/{prefix_len}", strict=False)
 
-        # Get all metalbox devices
-        metalbox_devices = utils.nb.dcim.devices.filter(role="metalbox")
+        # Use the pre-loaded metalbox devices cache
+        if _metalbox_devices_cache is None:
+            logger.warning(
+                "Metalbox devices cache not loaded - call _load_metalbox_devices_cache() first"
+            )
+            _metalbox_ip_cache[device.id] = None
+            return None
 
-        for metalbox in metalbox_devices:
+        # Iterate through cached metalbox devices
+        for metalbox_id, metalbox_data in _metalbox_devices_cache.items():
+            metalbox = metalbox_data["device"]
             logger.debug(f"Checking metalbox device {metalbox.name} for services")
 
-            # Get all interfaces on this metalbox
-            interfaces = utils.nb.dcim.interfaces.filter(device_id=metalbox.id)
+            # Iterate through cached interfaces for this metalbox
+            for interface_id, interface_data in metalbox_data["interfaces"].items():
+                interface = interface_data["interface"]
+                is_vlan_interface = interface_data["is_vlan"]
 
-            for interface in interfaces:
-                # Skip management-only interfaces
-                if hasattr(interface, "mgmt_only") and interface.mgmt_only:
-                    continue
+                # Check all cached IP addresses for this interface
+                for ip_addr in interface_data["ips"]:
+                    # Extract IP address without prefix
+                    ip_only = ip_addr.address.split("/")[0]
 
-                # Check both physical interfaces and VLAN interfaces (SVIs)
-                # VLAN interfaces are typically named "Vlan123" for VLAN ID 123
-                is_vlan_interface = (
-                    hasattr(interface, "type")
-                    and interface.type
-                    and interface.type.value == "virtual"
-                    and interface.name.startswith("Vlan")
-                )
-
-                # Get IP addresses for this interface
-                ip_addresses = utils.nb.ipam.ip_addresses.filter(
-                    assigned_object_id=interface.id,
-                )
-
-                for ip_addr in ip_addresses:
-                    if ip_addr.address:
-                        # Extract IP address without prefix
-                        ip_only = ip_addr.address.split("/")[0]
-
-                        # Check if it's IPv4 and in the same network as the SONiC device
-                        try:
-                            metalbox_ip = IPv4Address(ip_only)
-                            if metalbox_ip in device_network:
-                                interface_type = (
-                                    "VLAN interface"
-                                    if is_vlan_interface
-                                    else "interface"
-                                )
-                                logger.info(
-                                    f"Found Metalbox {ip_only} on {metalbox.name} "
-                                    f"{interface_type} {interface.name} for SONiC device {device.name}"
-                                )
-                                # Cache the result
-                                _metalbox_ip_cache[device.id] = ip_only
-                                return ip_only
-                        except ValueError:
-                            # Skip non-IPv4 addresses
-                            continue
+                    # Check if it's IPv4 and in the same network as the SONiC device
+                    try:
+                        metalbox_ip = IPv4Address(ip_only)
+                        if metalbox_ip in device_network:
+                            interface_type = (
+                                "VLAN interface" if is_vlan_interface else "interface"
+                            )
+                            logger.info(
+                                f"Found Metalbox {ip_only} on {metalbox.name} "
+                                f"{interface_type} {interface.name} for SONiC device {device.name}"
+                            )
+                            # Cache the result
+                            _metalbox_ip_cache[device.id] = ip_only
+                            return ip_only
+                    except ValueError:
+                        # Skip non-IPv4 addresses
+                        continue
 
         logger.warning(f"No suitable Metalbox found for SONiC device {device.name}")
         # Cache None result to avoid repeated lookups
@@ -1321,6 +1362,13 @@ def clear_metalbox_ip_cache():
     logger.debug("Cleared metalbox IP cache")
 
 
+def clear_metalbox_devices_cache():
+    """Clear the metalbox devices cache. Should be called at the start of sync_sonic."""
+    global _metalbox_devices_cache
+    _metalbox_devices_cache = None
+    logger.debug("Cleared metalbox devices cache")
+
+
 def _add_dns_configuration(config, device):
     """Add DNS_NAMESERVER configuration to device config.
 
@@ -1346,6 +1394,7 @@ def clear_all_caches():
     """Clear all caches in config_generator module."""
     clear_ntp_cache()
     clear_metalbox_ip_cache()
+    clear_metalbox_devices_cache()
     clear_port_config_cache()
     logger.debug("Cleared all config_generator caches")
 

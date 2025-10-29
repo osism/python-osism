@@ -7,8 +7,16 @@ from loguru import logger
 from osism import utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_sonic
 from .bgp import calculate_minimum_as_for_group
-from .connections import find_interconnected_devices
-from .config_generator import generate_sonic_config, clear_all_caches
+from .connections import (
+    find_interconnected_devices,
+    load_vip_addresses_cache,
+    clear_vip_addresses_cache,
+)
+from .config_generator import (
+    generate_sonic_config,
+    clear_all_caches,
+    _load_metalbox_devices_cache,
+)
 from .constants import DEFAULT_SONIC_ROLES, SUPPORTED_HWSKUS
 from .exporter import save_config_to_netbox, export_config_to_file
 from .cache import clear_interface_cache, get_interface_cache_stats
@@ -34,6 +42,14 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
     clear_interface_cache()
     clear_all_caches()
     logger.debug("Initialized all caches for sync_sonic task")
+
+    # Load metalbox devices cache for optimal performance
+    _load_metalbox_devices_cache()
+    logger.debug("Loaded metalbox devices cache")
+
+    # Load VIP addresses cache for optimal performance
+    load_vip_addresses_cache()
+    logger.debug("Loaded VIP addresses cache")
 
     # Dictionary to store configurations for all devices
     device_configs = {}
@@ -220,6 +236,7 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
 
     clear_interface_cache()
     clear_all_caches()
+    clear_vip_addresses_cache()
     logger.debug("Cleared all caches after sync_sonic task completion")
 
     # Finish task output if task_id is available
