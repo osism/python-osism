@@ -16,6 +16,9 @@ from .interface import (
 )
 from .cache import get_cached_device_interfaces
 
+# Global cache for VIP addresses to avoid repeated queries
+_vip_addresses_cache = None
+
 
 def get_connected_device_via_interface(
     interface: Any, source_device_id: int
@@ -293,6 +296,31 @@ def find_interconnected_devices(
     return all_groups
 
 
+def load_vip_addresses_cache():
+    """Load all VIP addresses into cache at start of sync.
+
+    This avoids repeated queries for VIP addresses during connected interface
+    IP address lookups.
+    """
+    global _vip_addresses_cache
+
+    logger.debug("Loading VIP addresses cache...")
+
+    try:
+        _vip_addresses_cache = list(utils.nb.ipam.ip_addresses.filter(role="vip"))
+        logger.info(f"Loaded {len(_vip_addresses_cache)} VIP addresses into cache")
+    except Exception as e:
+        logger.warning(f"Could not load VIP addresses cache: {e}")
+        _vip_addresses_cache = []
+
+
+def clear_vip_addresses_cache():
+    """Clear the VIP addresses cache."""
+    global _vip_addresses_cache
+    _vip_addresses_cache = None
+    logger.debug("Cleared VIP addresses cache")
+
+
 def get_device_bgp_neighbors_via_loopback(
     device: Any,
     portchannel_info: dict,
@@ -457,12 +485,17 @@ def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
             interface_type="dcim.interface", interface_id=connected_interface.id
         )
 
-        # Get all VIP addresses once to avoid repeated API calls
-        try:
-            all_vip_addresses = netbox.ipam.ip_addresses.filter(role="vip")
-        except Exception as vip_e:
-            logger.debug(f"Could not query VIP addresses: {vip_e}")
-            all_vip_addresses = []
+        # Use cached VIP addresses if available, otherwise query
+        if _vip_addresses_cache is not None:
+            all_vip_addresses = _vip_addresses_cache
+            logger.debug("Using cached VIP addresses")
+        else:
+            try:
+                all_vip_addresses = list(netbox.ipam.ip_addresses.filter(role="vip"))
+                logger.debug("VIP cache not loaded, querying VIP addresses")
+            except Exception as vip_e:
+                logger.debug(f"Could not query VIP addresses: {vip_e}")
+                all_vip_addresses = []
 
         # Collect all VIP IPv4 addresses from all FHRP groups this interface belongs to
         vip_addresses_found = []
