@@ -554,7 +554,7 @@ class Flavors(Command):
             type=str,
             help="Name of flavor definitions",
             default="local",
-            choices=["scs", "osism", "local", "url"],
+            choices=["cloudpod", "scs", "osism", "local", "url"],
         )
         parser.add_argument(
             "--url",
