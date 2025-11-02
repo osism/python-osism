@@ -159,6 +159,11 @@ def run_ansible_in_environment(
     else:
         joined_arguments = arguments
 
+    # Add kolla_action_stop_ignore_missing=true for kolla-ansible stop actions
+    if worker == "kolla-ansible" and "-e kolla_action=stop" in joined_arguments:
+        if "-e kolla_action_stop_ignore_missing=true" not in joined_arguments:
+            joined_arguments += " -e kolla_action_stop_ignore_missing=true"
+
     env = os.environ.copy()
 
     # Bring back colored Ansible output, thanks to
