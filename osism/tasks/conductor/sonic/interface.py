@@ -789,9 +789,88 @@ def detect_breakout_ports(device):
             sonic_match = re.match(r"Ethernet(\d+)", interface_name)
             if sonic_match:
                 port_num = int(sonic_match.group(1))
+
+                # Try 400G breakout pattern first (increment by 2: Ethernet0, 2, 4, 6)
+                # 400G ports have 8 lanes and break into 4x100G ports
+                base_port_400g = (port_num // 8) * 8
+                group_key_400g = f"sonic_400g_{base_port_400g}"
+
+                if group_key_400g not in processed_groups:
+                    # Check if master port has 8 lanes in port_config
+                    master_port_400g = f"Ethernet{base_port_400g}"
+                    if master_port_400g in port_config:
+                        master_lanes = port_config[master_port_400g]["lanes"]
+                        if "," in master_lanes:
+                            lanes_list = [
+                                lane.strip() for lane in master_lanes.split(",")
+                            ]
+                            if len(lanes_list) == 8:
+                                # This is an 8-lane master port - check for 400G breakout
+                                # Look for Ethernet0, 2, 4, 6 (or 8, 10, 12, 14, etc.) with 100G speed
+                                sonic_400g_breakout_group = []
+                                for i in range(4):
+                                    ethernet_name = (
+                                        f"Ethernet{base_port_400g + (i * 2)}"
+                                    )
+                                    for iface in interfaces:
+                                        if iface.name == ethernet_name:
+                                            # Check if this interface has 100G speed
+                                            iface_speed = getattr(iface, "speed", None)
+                                            if (
+                                                not iface_speed
+                                                and hasattr(iface, "type")
+                                                and iface.type
+                                            ):
+                                                iface_speed = get_speed_from_port_type(
+                                                    iface.type.value
+                                                )
+
+                                            # 400G breakout uses 100G per port
+                                            if iface_speed == 100000:
+                                                sonic_400g_breakout_group.append(
+                                                    (base_port_400g + (i * 2), iface)
+                                                )
+                                            break
+
+                                # If we found 4 interfaces with increment of 2 and 100G speed
+                                if len(sonic_400g_breakout_group) == 4:
+                                    processed_groups.add(group_key_400g)
+                                    master_port = f"Ethernet{base_port_400g}"
+                                    brkout_mode = "4x100G"
+
+                                    # Calculate physical port number for 400G ports
+                                    # Ethernet0-7 -> port 1/1, Ethernet8-15 -> port 1/2, etc.
+                                    physical_port_index = (base_port_400g // 8) + 1
+                                    physical_port_num = f"1/{physical_port_index}"
+
+                                    # Add breakout config for master port
+                                    breakout_cfgs[master_port] = {
+                                        "breakout_owner": "MANUAL",
+                                        "brkout_mode": brkout_mode,
+                                        "port": physical_port_num,
+                                    }
+
+                                    # Add all ports to breakout_ports
+                                    for (
+                                        port_num_400g,
+                                        iface,
+                                    ) in sonic_400g_breakout_group:
+                                        port_name = f"Ethernet{port_num_400g}"
+                                        breakout_ports[port_name] = {
+                                            "master": master_port
+                                        }
+
+                                    logger.debug(
+                                        f"Detected SONiC 400G breakout group: Ethernet{base_port_400g},{base_port_400g+2},{base_port_400g+4},{base_port_400g+6} -> {master_port} ({brkout_mode})"
+                                    )
+
+                                    # Skip standard breakout check for this port
+                                    continue
+
+                # Standard breakout pattern (increment by 1: Ethernet0, 1, 2, 3)
                 # Check if this could be part of a breakout group (consecutive Ethernet ports)
                 base_port = (port_num // 4) * 4
-                group_key = f"sonic_{base_port}"
+                group_key = f"sonic_std_{base_port}"
 
                 if group_key in processed_groups:
                     continue
@@ -859,7 +938,7 @@ def detect_breakout_ports(device):
                         breakout_ports[port_name] = {"master": master_port}
 
                     logger.debug(
-                        f"Detected SONiC breakout group: Ethernet{base_port}-{base_port + 3} -> {master_port} ({brkout_mode})"
+                        f"Detected SONiC standard breakout group: Ethernet{base_port}-{base_port + 3} -> {master_port} ({brkout_mode})"
                     )
 
     except Exception as e:
