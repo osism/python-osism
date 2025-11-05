@@ -209,8 +209,8 @@ def _handle_breakout_interface(
                 offset_multiplier = 1
                 master_port_name = f"Ethernet{base_port_num}"
                 if master_port_name in port_config:
-                    master_lanes = port_config[master_port_name]["lanes"]
-                    if "," in master_lanes:
+                    master_lanes = port_config[master_port_name].get("lanes", "")
+                    if master_lanes and "," in master_lanes:
                         lanes_list = [lane.strip() for lane in master_lanes.split(",")]
                         total_lanes = len(lanes_list)
                         if total_lanes == 8:
@@ -616,10 +616,19 @@ def detect_breakout_ports(device):
     breakout_cfgs = {}
     breakout_ports = {}
 
+    # DIAGNOSTIC LOGGING: Log what we're working with
+    logger.info(f"detect_breakout_ports called for device: {device.name}")
+
     try:
         # Get all interfaces for the device (using cache)
         interfaces = get_cached_device_interfaces(device.id)
         interface_names = [iface.name for iface in interfaces]
+
+        # DIAGNOSTIC LOGGING: Show what interfaces NetBox has
+        logger.info(f"  Found {len(interfaces)} NetBox interfaces")
+        if interfaces:
+            sample_names = [i.name for i in interfaces[:10]]
+            logger.info(f"  Sample interface names: {sample_names}")
 
         # Get HWSKU for port config
         device_hwsku = None
@@ -644,6 +653,19 @@ def detect_breakout_ports(device):
                     "breakout_cfgs": breakout_cfgs,
                     "breakout_ports": breakout_ports,
                 }
+
+            # DIAGNOSTIC LOGGING: Show what's in port_config
+            logger.info(f"  port_config has {len(port_config)} entries")
+            if port_config:
+                sample_ports = list(port_config.keys())[:5]
+                logger.info(f"  Sample port_config keys: {sample_ports}")
+                if sample_ports and sample_ports[0] in port_config:
+                    first_port = port_config[sample_ports[0]]
+                    logger.info(
+                        f"  Sample port data: speed={first_port.get('speed')}, "
+                        f"lanes={first_port.get('lanes')}, alias={first_port.get('alias')}"
+                    )
+
         except Exception as e:
             logger.warning(f"Could not load port config for {device_hwsku}: {e}")
             return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
@@ -756,8 +778,8 @@ def detect_breakout_ports(device):
                                 # Standard ports have 4 lanes -> 4xXG with 1 lane each -> increment by 1
                                 offset_multiplier = 1
                                 if master_port in port_config:
-                                    master_lanes = port_config[master_port]["lanes"]
-                                    if "," in master_lanes:
+                                    master_lanes = port_config[master_port].get("lanes", "")
+                                    if master_lanes and "," in master_lanes:
                                         lanes_list = [
                                             lane.strip()
                                             for lane in master_lanes.split(",")
@@ -783,87 +805,130 @@ def detect_breakout_ports(device):
                                     f"Detected breakout group: {group_key} -> {master_port} ({brkout_mode}) with {len(breakout_group)} ports"
                                 )
 
-            # Also check for SONiC format breakout (Ethernet0, Ethernet1, Ethernet2, Ethernet3)
-            # Only process SONiC breakout if we have explicitly configured breakout ports in NetBox,
-            # not automatically assume consecutive Ethernet ports are breakouts
+            # Also check for SONiC format breakout (Ethernet0, Ethernet2, Ethernet4, Ethernet6)
+            # This detection uses ONLY NetBox interface data and port numbering patterns
+            # It does NOT rely on port_config speed comparisons which may not be available yet
             sonic_match = re.match(r"Ethernet(\d+)", interface_name)
             if sonic_match:
                 port_num = int(sonic_match.group(1))
-                # Check if this could be part of a breakout group (consecutive Ethernet ports)
-                base_port = (port_num // 4) * 4
-                group_key = f"sonic_{base_port}"
 
+                # Build complete picture of SONiC interfaces
+                sonic_nums = []
+                sonic_interfaces = {}
+                for iface in interfaces:
+                    m = re.match(r"Ethernet(\d+)", iface.name)
+                    if m:
+                        num = int(m.group(1))
+                        sonic_nums.append(num)
+                        sonic_interfaces[num] = iface
+
+                sonic_nums.sort()
+
+                # DIAGNOSTIC LOGGING: Show SONiC interface numbering
+                logger.debug(f"  SONiC interface numbers found: {sonic_nums[:20]}...")
+
+                # Detect step size from interface numbering pattern
+                # step=2: 0,2,4,6 (400G breakout) or 8,10,12,14 (next group)
+                # step=1: 0,1,2,3 (standard breakout) or 4,5,6,7 (next group)
+                step_size = 1
+                if len(sonic_nums) >= 2:
+                    diffs = [sonic_nums[i+1] - sonic_nums[i] for i in range(len(sonic_nums)-1)]
+                    valid_diffs = [d for d in diffs if 0 < d <= 8]
+                    if valid_diffs:
+                        step_size = min(valid_diffs)
+
+                logger.debug(f"  Detected step_size: {step_size}")
+
+                # Calculate base_port considering step size
+                # step=2: 0,2,4,6->base=0; 8,10,12,14->base=8
+                # step=1: 0,1,2,3->base=0; 4,5,6,7->base=4
+                group_span = step_size * 4
+                base_port = (port_num // group_span) * group_span
+
+                group_key = f"sonic_{base_port}"
                 if group_key in processed_groups:
                     continue
                 processed_groups.add(group_key)
 
-                # Find potential breakout group (4 consecutive Ethernet ports)
-                sonic_breakout_group = []
-                for i in range(4):
-                    ethernet_name = f"Ethernet{base_port + i}"
-                    for iface in interfaces:
-                        if iface.name == ethernet_name:
-                            # Check if this interface has a speed that suggests breakout
-                            iface_speed = getattr(iface, "speed", None)
-                            if (
-                                not iface_speed
-                                and hasattr(iface, "type")
-                                and iface.type
-                            ):
-                                iface_speed = get_speed_from_port_type(iface.type.value)
+                # Find all interfaces in this potential breakout group
+                group_members = []
+                for num in sonic_nums:
+                    # Check if this interface belongs to the same base group
+                    if (num // group_span) * group_span == base_port:
+                        iface = sonic_interfaces[num]
+                        # Get speed for this interface
+                        iface_speed = getattr(iface, "speed", None)
+                        if not iface_speed and hasattr(iface, "type") and iface.type:
+                            iface_speed = get_speed_from_port_type(iface.type.value)
 
-                            # Only consider as breakout if speed is 50G or less AND we have 4 consecutive ports
-                            # This prevents regular 100G ports from being treated as breakout ports
-                            if (
-                                iface_speed and iface_speed <= 50000
-                            ):  # 50G or less suggests breakout
-                                sonic_breakout_group.append((base_port + i, iface))
-                            break
+                        group_members.append((num, iface, iface_speed))
 
-                # If we found 4 consecutive interfaces with true breakout speeds (≤50G)
-                if len(sonic_breakout_group) == 4:
-                    master_port = f"Ethernet{base_port}"
+                logger.debug(f"  Found {len(group_members)} interfaces in group at base {base_port}")
 
-                    # Determine breakout mode based on speed
-                    interface_speed = getattr(sonic_breakout_group[0][1], "speed", None)
-                    if (
-                        not interface_speed
-                        and hasattr(sonic_breakout_group[0][1], "type")
-                        and sonic_breakout_group[0][1].type
-                    ):
-                        interface_speed = get_speed_from_port_type(
-                            sonic_breakout_group[0][1].type.value
+                # Valid breakout = exactly 4 members with SAME non-zero speed
+                if len(group_members) == 4:
+                    group_members.sort(key=lambda x: x[0])
+
+                    # Extract speeds from all members
+                    speeds = [speed for _, _, speed in group_members]
+
+                    logger.debug(f"  Group speeds: {speeds}")
+
+                    # All 4 must have same non-zero speed to confirm it's a breakout
+                    if speeds and all(s == speeds[0] and s for s in speeds):
+                        interface_speed = speeds[0]
+
+                        # Determine breakout mode from speed
+                        if interface_speed == 10000:
+                            brkout_mode = "4x10G"
+                        elif interface_speed == 25000:
+                            brkout_mode = "4x25G"
+                        elif interface_speed == 50000:
+                            brkout_mode = "4x50G"
+                        elif interface_speed == 100000:
+                            brkout_mode = "4x100G"
+                        elif interface_speed == 200000:
+                            brkout_mode = "4x200G"
+                        else:
+                            logger.debug(
+                                f"  Skipping group: unsupported speed {interface_speed} Mbps"
+                            )
+                            continue
+
+                        master_port = f"Ethernet{base_port}"
+                        physical_port_num = f"1/{(base_port // 8) + 1}"
+
+                        breakout_cfgs[master_port] = {
+                            "breakout_owner": "MANUAL",
+                            "brkout_mode": brkout_mode,
+                            "port": physical_port_num,
+                        }
+
+                        # Add all breakout ports
+                        for sonic_port_num, iface, _ in group_members:
+                            port_name = f"Ethernet{sonic_port_num}"
+                            breakout_ports[port_name] = {"master": master_port}
+
+                        logger.info(
+                            f"  Detected {brkout_mode} breakout: {master_port} with members "
+                            f"{[f'Ethernet{n}' for n, _, _ in group_members]} (step_size={step_size})"
                         )
-
-                    if interface_speed == 25000:
-                        brkout_mode = "4x25G"
-                    elif interface_speed == 50000:
-                        brkout_mode = "4x50G"
                     else:
-                        continue  # Skip unsupported speeds
-
-                    # Calculate physical port number (Ethernet0-3 -> port 1/1, Ethernet4-7 -> port 1/2, etc.)
-                    physical_port_index = (base_port // 4) + 1
-                    physical_port_num = f"1/{physical_port_index}"
-
-                    # Add breakout config for master port
-                    breakout_cfgs[master_port] = {
-                        "breakout_owner": "MANUAL",
-                        "brkout_mode": brkout_mode,
-                        "port": physical_port_num,
-                    }
-
-                    # Add all ports to breakout_ports
-                    for port_num, iface in sonic_breakout_group:
-                        port_name = f"Ethernet{port_num}"
-                        breakout_ports[port_name] = {"master": master_port}
-
-                    logger.debug(
-                        f"Detected SONiC breakout group: Ethernet{base_port}-{base_port + 3} -> {master_port} ({brkout_mode})"
-                    )
+                        logger.debug(
+                            f"  Not a breakout: group has inconsistent or missing speeds: {speeds}"
+                        )
 
     except Exception as e:
         logger.warning(f"Could not detect breakout ports for device {device.name}: {e}")
+
+    # DIAGNOSTIC LOGGING: Summary of what was detected
+    logger.info(
+        f"  Breakout detection complete: {len(breakout_cfgs)} master ports, "
+        f"{len(breakout_ports)} breakout ports"
+    )
+    if breakout_cfgs:
+        for master, cfg in breakout_cfgs.items():
+            logger.info(f"    {master}: {cfg['brkout_mode']} on port {cfg['port']}")
 
     return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
 
