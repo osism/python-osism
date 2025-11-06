@@ -5,6 +5,7 @@ import subprocess
 
 from cliff.command import Command
 from loguru import logger
+from tabulate import tabulate
 import yaml
 
 from osism.tasks import conductor, netbox, handle_task
@@ -270,3 +271,157 @@ class Console(Command):
                 yaml.dump(nbcli_config, fp, default_flow_style=False)
 
         subprocess.call(f"/usr/local/bin/nbcli {type_console} {arguments}", shell=True)
+
+
+class Show(Command):
+    def get_parser(self, prog_name):
+        parser = super(Show, self).get_parser(prog_name)
+        parser.add_argument(
+            "host",
+            nargs=1,
+            type=str,
+            help="Hostname or device name to search in NetBox",
+        )
+        parser.add_argument(
+            "field",
+            nargs="?",
+            type=str,
+            default=None,
+            help="Optional field name filter (case-insensitive, partial match)",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        host = parsed_args.host[0]
+        field_filter = parsed_args.field
+
+        # Check if NetBox connection is available
+        if not utils.nb:
+            logger.error("NetBox integration not configured.")
+            return
+
+        # Search for device by name first
+        devices = list(utils.nb.dcim.devices.filter(name=host))
+
+        # If not found by name, search by custom fields
+        if not devices:
+            # Search by alternative_name custom field
+            devices = list(utils.nb.dcim.devices.filter(cf_alternative_name=host))
+
+        if not devices:
+            # Search by inventory_hostname custom field
+            devices = list(utils.nb.dcim.devices.filter(cf_inventory_hostname=host))
+
+        if not devices:
+            # Search by external_hostname custom field
+            devices = list(utils.nb.dcim.devices.filter(cf_external_hostname=host))
+
+        if not devices:
+            logger.error(f"Device '{host}' not found in NetBox.")
+            return
+
+        # Get the first matching device
+        device = devices[0]
+
+        # Prepare table data for display
+        table = []
+
+        # Add basic device information
+        table.append(["Name", device.name])
+
+        # Device type - defensively accessed
+        device_type = getattr(device, "device_type", None)
+        table.append(["Device Type", str(device_type) if device_type else "N/A"])
+
+        # NetBox v3.x renamed device_role to role
+        device_role = getattr(device, "role", None)
+        table.append(["Device Role", str(device_role) if device_role else "N/A"])
+
+        # Site and status
+        site = getattr(device, "site", None)
+        table.append(["Site", str(site) if site else "N/A"])
+
+        status = getattr(device, "status", None)
+        table.append(["Status", str(status) if status else "N/A"])
+
+        # Add out-of-band IP
+        oob_ip = getattr(device, "oob_ip", None)
+        table.append(["Out-of-band IP", str(oob_ip.address) if oob_ip else "N/A"])
+
+        # Add primary IPs - defensively accessed
+        primary_ip4 = getattr(device, "primary_ip4", None)
+        table.append(
+            ["Primary IPv4", str(primary_ip4.address) if primary_ip4 else "N/A"]
+        )
+
+        primary_ip6 = getattr(device, "primary_ip6", None)
+        table.append(
+            ["Primary IPv6", str(primary_ip6.address) if primary_ip6 else "N/A"]
+        )
+
+        # Add custom fields if they exist - defensively accessed
+        custom_fields = getattr(device, "custom_fields", {})
+
+        # Display custom field parameters with YAML formatting
+        if custom_fields:
+            # Define YAML custom fields for consistent formatting
+            yaml_fields = [
+                "dnsmasq_parameters",
+                "netplan_parameters",
+                "sonic_parameters",
+                "frr_parameters",
+            ]
+
+            for field_name in yaml_fields:
+                field_value = custom_fields.get(field_name, None)
+                if field_value:
+                    try:
+                        # Parse YAML string if needed, or use value directly if already parsed
+                        if isinstance(field_value, str):
+                            parsed_value = yaml.safe_load(field_value)
+                        else:
+                            parsed_value = field_value
+
+                        # Format as YAML with proper indentation and structure
+                        formatted_value = yaml.dump(
+                            parsed_value,
+                            default_flow_style=False,
+                            indent=2,
+                            sort_keys=False,
+                            width=80,
+                        ).strip()
+
+                        table.append([field_name, formatted_value])
+                    except Exception:
+                        # Fallback to string representation if YAML parsing fails
+                        table.append([field_name, str(field_value)])
+
+            # alternative_name
+            alternative_name = custom_fields.get("alternative_name", None)
+            if alternative_name:
+                table.append(["Alternative Name", str(alternative_name)])
+
+            # inventory_hostname
+            inventory_hostname = custom_fields.get("inventory_hostname", None)
+            if inventory_hostname:
+                table.append(["Inventory Hostname", str(inventory_hostname)])
+
+            # external_hostname
+            external_hostname = custom_fields.get("external_hostname", None)
+            if external_hostname:
+                table.append(["External Hostname", str(external_hostname)])
+
+        # Apply field filter if specified
+        if field_filter:
+            filter_term = field_filter.lower()
+            filtered_table = [row for row in table if filter_term in row[0].lower()]
+
+            if not filtered_table:
+                logger.warning(f"No fields matching '{field_filter}' found")
+                return
+
+            table = filtered_table
+
+        # Print formatted table
+        result = tabulate(table, headers=["Field", "Value"], tablefmt="grid")
+        print(result)
