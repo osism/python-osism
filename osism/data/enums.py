@@ -1,5 +1,28 @@
 # SPDX-License-Identifier: Apache-2.0
 
+
+class Role:
+    """
+    Represents a role with optional dependencies in a hierarchical structure.
+
+    Args:
+        name: The name of the role (string)
+        dependencies: Optional list of dependent Role objects
+
+    Example:
+        >>> role = Role("keystone", dependencies=[Role("glance"), Role("cinder")])
+        >>> role.name
+        'keystone'
+        >>> len(role.dependencies)
+        2
+    """
+
+    def __init__(self, name, dependencies=None):
+        """Initialize a Role with a name and optional dependencies."""
+        self.name = name
+        self.dependencies = dependencies or []
+
+
 LOADBALANCER_PLAYBOOKS = [
     "loadbalancer-aodh",
     "loadbalancer-barbican",
@@ -111,243 +134,315 @@ VALIDATE_PLAYBOOKS = {
     "stress": {"environment": "generic", "runtime": "osism-ansible"},
 }
 
+# Role dependency collections
+#
+# The MAP_ROLE2ROLE dictionary defines collections of roles with their dependencies.
+# All roles are defined using Role objects for consistency and type safety.
+#
+# Format:
+#   - Role("name", dependencies=[...]): A role with Role object dependencies
+#   - Role("name"): A role with no dependencies (empty dependencies list)
+#
 MAP_ROLE2ROLE = {
     "nutshell": [
-        "dotfiles",
-        "homer",
-        "netdata",
-        "openstackclient",
-        "phpmyadmin",
-        [
+        Role("dotfiles"),
+        Role("homer"),
+        Role("netdata"),
+        Role("openstackclient"),
+        Role("phpmyadmin"),
+        Role(
             "common",
-            [
-                [
+            dependencies=[
+                Role(
                     "loadbalancer",
-                    [
-                        "opensearch",
-                        [
+                    dependencies=[
+                        Role("opensearch"),
+                        Role(
                             "mariadb-ng",
-                            [
-                                "horizon",
-                                [
+                            dependencies=[
+                                Role("horizon"),
+                                Role(
                                     "keystone",
-                                    [
-                                        ["neutron", [["wait-for-nova", ["octavia"]]]],
-                                        "barbican",
-                                        "designate",
-                                        "ironic",
-                                        "placement",
-                                        "magnum",
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-                ["openvswitch", ["ovn"]],
-                "memcached",
-                "redis",
-                "rabbitmq-ng",
-            ],
-        ],
-        ["kubernetes", ["kubeconfig", ["copy-kubeconfig"]]],
-        [
-            "ceph",
-            [
-                [
-                    "ceph-pools",
-                    [
-                        [
-                            "copy-ceph-keys",
-                            [
-                                [
-                                    "cephclient",
-                                    [
-                                        "ceph-bootstrap-dashboard",
-                                        [
-                                            "wait-for-keystone",
-                                            [
-                                                "kolla-ceph-rgw",
-                                                "glance",
-                                                "cinder",
-                                                "nova",
+                                    dependencies=[
+                                        Role(
+                                            "neutron",
+                                            dependencies=[
+                                                Role(
+                                                    "wait-for-nova",
+                                                    dependencies=[Role("octavia")],
+                                                )
                                             ],
-                                        ],
-                                        ["prometheus", ["grafana"]],
+                                        ),
+                                        Role("barbican"),
+                                        Role("designate"),
+                                        Role("ironic"),
+                                        Role("placement"),
+                                        Role("magnum"),
                                     ],
-                                ],
+                                ),
                             ],
-                        ],
+                        ),
                     ],
-                ],
+                ),
+                Role("openvswitch", dependencies=[Role("ovn")]),
+                Role("memcached"),
+                Role("redis"),
+                Role("rabbitmq-ng"),
             ],
-        ],
+        ),
+        Role(
+            "kubernetes",
+            dependencies=[
+                Role("kubeconfig"),
+                Role("copy-kubeconfig"),
+            ],
+        ),
+        Role(
+            "ceph",
+            dependencies=[
+                Role(
+                    "ceph-pools",
+                    dependencies=[
+                        Role(
+                            "copy-ceph-keys",
+                            dependencies=[
+                                Role(
+                                    "cephclient",
+                                    dependencies=[
+                                        Role("ceph-bootstrap-dashboard"),
+                                        Role(
+                                            "wait-for-keystone",
+                                            dependencies=[
+                                                Role("kolla-ceph-rgw"),
+                                                Role("glance"),
+                                                Role("cinder"),
+                                                Role("nova"),
+                                            ],
+                                        ),
+                                        Role(
+                                            "prometheus", dependencies=[Role("grafana")]
+                                        ),
+                                    ],
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ],
+        ),
     ],
     "collection-infrastructure": [
-        "openstackclient",
-        "phpmyadmin",
-        [
+        Role("openstackclient"),
+        Role("phpmyadmin"),
+        Role(
             "common",
-            [
-                ["loadbalancer", ["letsencrypt", "opensearch", "mariadb-ng"]],
-                ["openvswitch", ["ovn"]],
-                "memcached",
-                "redis",
-                "rabbitmq-ng",
+            dependencies=[
+                Role(
+                    "loadbalancer",
+                    dependencies=[
+                        Role("letsencrypt"),
+                        Role("opensearch"),
+                        Role("mariadb-ng"),
+                    ],
+                ),
+                Role("openvswitch", dependencies=[Role("ovn")]),
+                Role("memcached"),
+                Role("redis"),
+                Role("rabbitmq-ng"),
             ],
-        ],
+        ),
     ],
     "collection-kubernetes": [
-        ["kubernetes", ["kubeconfig", ["copy-kubeconfig"]]],
+        Role(
+            "kubernetes",
+            dependencies=[
+                Role("kubeconfig"),
+                Role("copy-kubeconfig"),
+            ],
+        ),
     ],
     "collection-openstack-core": [
-        "horizon",
-        [
+        Role("horizon"),
+        Role(
             "keystone",
-            [
-                "glance",
-                "cinder",
-                ["neutron", [["wait-for-nova", ["octavia"]]]],
-                "designate",
-                ["placement", ["nova"]],
+            dependencies=[
+                Role("glance"),
+                Role("cinder"),
+                Role(
+                    "neutron",
+                    dependencies=[
+                        Role("wait-for-nova", dependencies=[Role("octavia")]),
+                    ],
+                ),
+                Role("designate"),
+                Role("placement", dependencies=[Role("nova")]),
             ],
-        ],
+        ),
     ],
     "collection-openstack": [
-        "horizon",
-        [
+        Role("horizon"),
+        Role(
             "keystone",
-            [
-                "glance",
-                "cinder",
-                "barbican",
-                "designate",
-                ["neutron", [["wait-for-nova", ["octavia"]]]],
-                "ironic",
-                "kolla-ceph-rgw",
-                "magnum",
-                ["placement", ["nova"]],
+            dependencies=[
+                Role("glance"),
+                Role("cinder"),
+                Role("barbican"),
+                Role("designate"),
+                Role(
+                    "neutron",
+                    dependencies=[
+                        Role("wait-for-nova", dependencies=[Role("octavia")]),
+                    ],
+                ),
+                Role("ironic"),
+                Role("kolla-ceph-rgw"),
+                Role("magnum"),
+                Role("placement", dependencies=[Role("nova")]),
             ],
-        ],
+        ),
     ],
     "collection-ceph": [
-        [
+        Role(
             "ceph",
-            [
-                [
+            dependencies=[
+                Role(
                     "ceph-pools",
-                    [
-                        [
+                    dependencies=[
+                        Role(
                             "copy-ceph-keys",
-                            [["cephclient", ["ceph-bootstrap-dashboard"]]],
-                        ]
+                            dependencies=[
+                                Role(
+                                    "cephclient",
+                                    dependencies=[Role("ceph-bootstrap-dashboard")],
+                                )
+                            ],
+                        )
                     ],
-                ],
+                )
             ],
-        ],
+        ),
     ],
     "collection-monitoring": [
-        ["prometheus", ["grafana"]],
-        "netdata",
+        Role("prometheus", dependencies=[Role("grafana")]),
+        Role("netdata"),
     ],
     "collection-bootstrap": [
-        [
+        Role(
             "gather-facts",
-            [
-                [
+            dependencies=[
+                Role(
                     "hostname",
-                    [
-                        [
+                    dependencies=[
+                        Role(
                             "hosts",
-                            [
-                                [
+                            dependencies=[
+                                Role(
                                     "proxy",
-                                    [
-                                        [
+                                    dependencies=[
+                                        Role(
                                             "resolvconf",
-                                            [
-                                                [
+                                            dependencies=[
+                                                Role(
                                                     "repository",
-                                                    [
-                                                        "rsyslog",
-                                                        "journald",
-                                                        "systohc",
-                                                        "configfs",
-                                                        "packages",
-                                                        "sysctl",
-                                                        "limits",
-                                                        "services",
-                                                        "motd",
-                                                        "rng",
-                                                        "smartd",
-                                                        "cleanup",
-                                                        "timezone",
-                                                        "docker",
-                                                        "docker-compose",
-                                                        "chrony",
-                                                        "lldpd",
+                                                    dependencies=[
+                                                        Role("rsyslog"),
+                                                        Role("journald"),
+                                                        Role("systohc"),
+                                                        Role("configfs"),
+                                                        Role("packages"),
+                                                        Role("sysctl"),
+                                                        Role("limits"),
+                                                        Role("services"),
+                                                        Role("motd"),
+                                                        Role("rng"),
+                                                        Role("smartd"),
+                                                        Role("cleanup"),
+                                                        Role("timezone"),
+                                                        Role("docker"),
+                                                        Role("docker-compose"),
+                                                        Role("chrony"),
+                                                        Role("lldpd"),
                                                     ],
-                                                ],
+                                                )
                                             ],
-                                        ],
+                                        )
                                     ],
-                                ],
+                                )
                             ],
-                        ],
+                        )
                     ],
-                ],
+                )
             ],
-        ],
+        ),
     ],
     "cloudpod-infrastructure": [
-        "openstackclient",
-        "phpmyadmin",
-        [
+        Role("openstackclient"),
+        Role("phpmyadmin"),
+        Role(
             "common",
-            [
-                ["loadbalancer", ["letsencrypt", "opensearch", "mariadb-ng"]],
-                ["openvswitch", ["ovn"]],
-                "memcached",
-                "redis",
-                "rabbitmq-ng",
+            dependencies=[
+                Role(
+                    "loadbalancer",
+                    dependencies=[
+                        Role("letsencrypt"),
+                        Role("opensearch"),
+                        Role("mariadb-ng"),
+                    ],
+                ),
+                Role("openvswitch", dependencies=[Role("ovn")]),
+                Role("memcached"),
+                Role("redis"),
+                Role("rabbitmq-ng"),
             ],
-        ],
+        ),
     ],
     "cloudpod-openstack": [
-        "horizon",
-        [
+        Role("horizon"),
+        Role(
             "keystone",
-            [
-                "glance",
-                "cinder",
-                ["neutron", [["wait-for-nova", ["octavia"]]]],
-                ["placement", ["nova"]],
-                "designate",
-                "skyline",
-                "kolla-ceph-rgw",
+            dependencies=[
+                Role("glance"),
+                Role("cinder"),
+                Role(
+                    "neutron",
+                    dependencies=[
+                        Role("wait-for-nova", dependencies=[Role("octavia")]),
+                    ],
+                ),
+                Role("placement", dependencies=[Role("nova")]),
+                Role("designate"),
+                Role("skyline"),
+                Role("kolla-ceph-rgw"),
             ],
-        ],
+        ),
     ],
     "cloudpod-ceph": [
-        [
+        Role(
             "ceph-create-lvm-devices",
-            [
-                "facts",
-                [
+            dependencies=[
+                Role("facts"),
+                Role(
                     "ceph",
-                    [
-                        [
+                    dependencies=[
+                        Role(
                             "ceph-pools",
-                            [
-                                [
+                            dependencies=[
+                                Role(
                                     "copy-ceph-keys",
-                                    [["cephclient", ["ceph-bootstrap-dashboard"]]],
-                                ]
+                                    dependencies=[
+                                        Role(
+                                            "cephclient",
+                                            dependencies=[
+                                                Role("ceph-bootstrap-dashboard")
+                                            ],
+                                        )
+                                    ],
+                                )
                             ],
-                        ],
+                        )
                     ],
-                ],
+                ),
             ],
-        ],
+        ),
     ],
 }

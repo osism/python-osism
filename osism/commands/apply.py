@@ -11,6 +11,7 @@ from tabulate import tabulate
 
 from osism import utils
 from osism.data import enums
+from osism.data.enums import Role
 from osism.data.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
 from osism.tasks import ansible, ceph, kolla, kubernetes, handle_task
 
@@ -152,140 +153,62 @@ class Run(Command):
     ):
         g = []
         for item in data:
-            # e.g. ["loadbalancer", ["mariadb"]]
-            if type(item) == list:
-                # e.g. "loadbalancer"
-                logger.info(f"A [{counter}] {'-' * (counter + 1)} {item[0]}")
+            # All items must be Role objects
+            if not isinstance(item, Role):
+                logger.error(f"Expected Role object, got {type(item).__name__}: {item}")
+                raise TypeError(
+                    f"Expected Role object, got {type(item).__name__}: {item}"
+                )
 
-                if show_tree:
-                    # Only show the tree, don't create tasks
-                    pt = None
-                elif dry_run:
-                    pt = ansible.noop.si()
-                else:
-                    pt = self._prepare_task(
-                        arguments,
-                        environment,
-                        overwrite,
-                        sub,
-                        item[0],
-                        action,
-                        wait,
-                        format,
-                        timeout,
-                        task_timeout,
-                    )
+            # Process Role object
+            role_name = item.name
+            dependencies = item.dependencies
 
-                if len(item) > 1 and type(item[1]) == list:
-                    logger.debug(f"X [{counter + 1}] --> {item[1]}")
-                    st = self._handle_collection(
-                        item[1],
-                        counter + 1,
-                        arguments,
-                        environment,
-                        overwrite,
-                        sub,
-                        collection,
-                        action,
-                        wait,
-                        format,
-                        timeout,
-                        task_timeout,
-                        retry,
-                        dry_run,
-                        show_tree,
-                    )
-                    if not show_tree:
-                        g.append(chain(pt, st))
-                else:
-                    if not show_tree:
-                        g.append(pt)
-                    for inner_item in item[1:]:
-                        if type(inner_item) == list:
-                            logger.info(
-                                f"B [{counter}] {'-' * (counter + 1)} {inner_item[0]}"
-                            )
+            logger.info(f"A [{counter}] {'-' * (counter + 1)} {role_name}")
 
-                            if show_tree:
-                                # Only show the tree, don't create tasks
-                                pt = None
-                            elif dry_run:
-                                pt = ansible.noop.si()
-                            else:
-                                pt = self._prepare_task(
-                                    arguments,
-                                    environment,
-                                    overwrite,
-                                    sub,
-                                    inner_item[0],
-                                    action,
-                                    wait,
-                                    format,
-                                    timeout,
-                                    task_timeout,
-                                )
-
-                            if len(inner_item) > 1 and type(inner_item[1]) == list:
-                                logger.debug(f"X [{counter + 1}] --> {inner_item[1]}")
-                                st = self._handle_collection(
-                                    inner_item[1],
-                                    counter + 1,
-                                    arguments,
-                                    environment,
-                                    overwrite,
-                                    sub,
-                                    collection,
-                                    action,
-                                    wait,
-                                    format,
-                                    timeout,
-                                    task_timeout,
-                                    retry,
-                                    dry_run,
-                                    show_tree,
-                                )
-                                if not show_tree:
-                                    g.append(chain(pt, st))
-                            else:
-                                if not show_tree:
-                                    g.append(pt)
-                        else:
-                            logger.info(
-                                f"C [{counter}] {'-' * (counter + 1)} {inner_item}"
-                            )
-                            if not show_tree:
-                                g.append(
-                                    self._prepare_task(
-                                        arguments,
-                                        environment,
-                                        overwrite,
-                                        sub,
-                                        inner_item,
-                                        action,
-                                        wait,
-                                        format,
-                                        timeout,
-                                        task_timeout,
-                                    )
-                                )
-            # e.g. "common"
+            if show_tree:
+                # Only show the tree, don't create tasks
+                pt = None
+            elif dry_run:
+                pt = ansible.noop.si()
             else:
-                logger.info(f"D [{counter}] {'-' * (counter + 1)} {item}")
+                pt = self._prepare_task(
+                    arguments,
+                    environment,
+                    overwrite,
+                    sub,
+                    role_name,
+                    action,
+                    wait,
+                    format,
+                    timeout,
+                    task_timeout,
+                )
+
+            if dependencies:
+                logger.debug(f"X [{counter + 1}] --> {dependencies}")
+                st = self._handle_collection(
+                    dependencies,
+                    counter + 1,
+                    arguments,
+                    environment,
+                    overwrite,
+                    sub,
+                    collection,
+                    action,
+                    wait,
+                    format,
+                    timeout,
+                    task_timeout,
+                    retry,
+                    dry_run,
+                    show_tree,
+                )
                 if not show_tree:
-                    g.append(
-                        self._prepare_task(
-                            arguments,
-                            environment,
-                            overwrite,
-                            sub,
-                            item,
-                            action,
-                            wait,
-                            format,
-                            timeout,
-                            task_timeout,
-                        )
-                    )
+                    g.append(chain(pt, st))
+            else:
+                if not show_tree:
+                    g.append(pt)
 
         if g:
             return group(g)
