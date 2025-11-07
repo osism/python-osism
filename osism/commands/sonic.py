@@ -1120,31 +1120,25 @@ class List(Command):
                         f"Could not extract sonic_parameters for {device_name}: {e}"
                     )
 
-                # Determine provision state
-                provision_state = "Unknown"
+                # Determine provision state with HWSKU validation
+                provision_state = "n/a"
                 try:
                     if hwsku == "N/A":
                         provision_state = "No HWSKU"
                     elif hwsku not in SUPPORTED_HWSKUS:
                         provision_state = "Unsupported HWSKU"
+                        logger.warning(
+                            f"Device {device_name} has unsupported HWSKU: {hwsku}. "
+                            f"Supported HWSKUs: {', '.join(SUPPORTED_HWSKUS)}"
+                        )
                     else:
-                        # Use device status to determine provision state
-                        if device.status:
-                            status_value = (
-                                device.status.value
-                                if hasattr(device.status, "value")
-                                else str(device.status)
-                            )
-                            if status_value == "active":
-                                provision_state = "Provisioned"
-                            elif status_value == "staged":
-                                provision_state = "Staged"
-                            elif status_value == "planned":
-                                provision_state = "Planned"
-                            else:
-                                provision_state = status_value.title()
-                        else:
-                            provision_state = "No Status"
+                        # For valid HWSKUs, get provision state from Netbox custom field
+                        if (
+                            hasattr(device, "custom_fields")
+                            and "provision_state" in device.custom_fields
+                            and device.custom_fields["provision_state"]
+                        ):
+                            provision_state = device.custom_fields["provision_state"]
                 except Exception as e:
                     logger.debug(
                         f"Could not determine provision state for {device_name}: {e}"
