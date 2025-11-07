@@ -1068,6 +1068,7 @@ class List(Command):
             table_data = []
             headers = [
                 "Name",
+                "Device Role",
                 "OOB IP",
                 "Primary IP",
                 "HWSKU",
@@ -1078,6 +1079,14 @@ class List(Command):
             for device in devices:
                 # Get device name
                 device_name = device.name
+
+                # Get device role
+                device_role = "N/A"
+                try:
+                    if device.role and hasattr(device.role, "name"):
+                        device_role = device.role.name
+                except Exception as e:
+                    logger.debug(f"Could not get device role for {device_name}: {e}")
 
                 # Get OOB IP address
                 oob_ip = "N/A"
@@ -1121,7 +1130,7 @@ class List(Command):
                     )
 
                 # Determine provision state with HWSKU validation
-                provision_state = "n/a"
+                provision_state = "N/A"
                 try:
                     if hwsku == "N/A":
                         provision_state = "No HWSKU"
@@ -1145,7 +1154,15 @@ class List(Command):
                     )
 
                 table_data.append(
-                    [device_name, oob_ip, primary_ip, hwsku, version, provision_state]
+                    [
+                        device_name,
+                        device_role,
+                        oob_ip,
+                        primary_ip,
+                        hwsku,
+                        version,
+                        provision_state,
+                    ]
                 )
 
             # Sort by device name
