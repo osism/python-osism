@@ -83,6 +83,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     # Get Loopback configuration from NetBox
     loopback_info = get_device_loopbacks(device)
 
+    # Get VRF configuration from NetBox
+    vrf_info = _get_vrf_info(device)
+
     # Get interface IP addresses from NetBox
     interface_ips = get_device_interface_ips(device)
 
@@ -251,6 +254,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
 
     # Add port channel configuration
     _add_portchannel_configuration(config, portchannel_info)
+
+    # Add VRF configuration
+    _add_vrf_configuration(config, vrf_info, netbox_interfaces)
 
     # Set DATABASE VERSION from config_version parameter or default
     if "VERSION" not in config:
@@ -1490,6 +1496,113 @@ def _add_loopback_configuration(config, loopback_info):
                 except ValueError:
                     logger.warning(f"Invalid IP address format: {address}")
                     continue
+
+
+def _get_vrf_info(device):
+    """Get VRF configuration from NetBox interfaces.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        dict: Dictionary with VRF configuration:
+            {
+                "vrfs": {
+                    "Vrf42": {"table_id": 42}
+                },
+                "interface_vrf_mapping": {
+                    "Ethernet0": "Vrf42",
+                    "Ethernet4": "Vrf42"
+                }
+            }
+    """
+    vrf_info = {"vrfs": {}, "interface_vrf_mapping": {}}
+
+    try:
+        # Get all interfaces for this device
+        interfaces = get_cached_device_interfaces(device.id)
+
+        for interface in interfaces:
+            # Check if interface has a VRF assigned
+            if not hasattr(interface, "vrf") or not interface.vrf:
+                continue
+
+            try:
+                # Extract VRF table ID from VRF name (e.g., "vrf42" -> 42)
+                vrf_name_str = str(interface.vrf.name)
+                match = re.match(r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE)
+
+                if not match:
+                    logger.warning(
+                        f"Interface {interface.name} on device {device.name} has VRF '{vrf_name_str}' "
+                        f"that doesn't match expected pattern 'vrf<number>'"
+                    )
+                    continue
+
+                # Extract table ID and create SONiC VRF name with capital V
+                vrf_table_id = int(match.group(1))
+                sonic_vrf_name = f"Vrf{vrf_table_id}"
+
+                # Convert NetBox interface name to SONiC format
+                sonic_interface_name = convert_netbox_interface_to_sonic(
+                    interface, device
+                )
+
+                # Add VRF definition if not already present
+                if sonic_vrf_name not in vrf_info["vrfs"]:
+                    vrf_info["vrfs"][sonic_vrf_name] = {"table_id": vrf_table_id}
+                    logger.debug(
+                        f"Added VRF definition: {sonic_vrf_name} with table ID {vrf_table_id}"
+                    )
+
+                # Add interface to VRF mapping
+                vrf_info["interface_vrf_mapping"][sonic_interface_name] = sonic_vrf_name
+                logger.debug(
+                    f"Mapped interface {sonic_interface_name} to VRF {sonic_vrf_name} "
+                    f"for device {device.name}"
+                )
+
+            except Exception as e:
+                logger.warning(
+                    f"Error processing VRF for interface {interface.name} on device {device.name}: {e}"
+                )
+                continue
+
+    except Exception as e:
+        logger.warning(f"Could not get VRF information for device {device.name}: {e}")
+
+    return vrf_info
+
+
+def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
+    """Add VRF configuration to config.
+
+    Args:
+        config: Configuration dictionary to update
+        vrf_info: VRF information dictionary from _get_vrf_info()
+        netbox_interfaces: Dict mapping SONiC names to NetBox interface info
+    """
+    # Add VRF definitions to config
+    for vrf_name, vrf_data in vrf_info["vrfs"].items():
+        config["VRF"][vrf_name] = {"vrf_table_id": vrf_data["table_id"]}
+        logger.info(f"Added VRF {vrf_name} with table ID {vrf_data['table_id']}")
+
+    # Add VRF assignments to interfaces
+    for sonic_interface, vrf_name in vrf_info["interface_vrf_mapping"].items():
+        # Check if this is a regular interface
+        if sonic_interface in config.get("INTERFACE", {}):
+            config["INTERFACE"][sonic_interface]["vrf_name"] = vrf_name
+            logger.debug(f"Assigned interface {sonic_interface} to VRF {vrf_name}")
+
+        # Check if this is a port channel interface
+        elif sonic_interface in config.get("PORTCHANNEL_INTERFACE", {}):
+            config["PORTCHANNEL_INTERFACE"][sonic_interface]["vrf_name"] = vrf_name
+            logger.debug(f"Assigned port channel {sonic_interface} to VRF {vrf_name}")
+        else:
+            logger.debug(
+                f"Interface {sonic_interface} has VRF assignment but is not in "
+                f"INTERFACE or PORTCHANNEL_INTERFACE config sections"
+            )
 
 
 def _add_portchannel_configuration(config, portchannel_info):
