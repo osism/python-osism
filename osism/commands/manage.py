@@ -20,7 +20,7 @@ from osism.tasks import openstack, ansible, handle_task
 
 SUPPORTED_CLUSTERAPI_GARDENER_K8S_IMAGES = ["1.33"]
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.32", "1.33", "1.34"]
-SUPPORTED_GARDENLINUX_VERSIONS = {"1877.2": "2025-08-07"}
+SUPPORTED_GARDENLINUX_VERSIONS = {"1877.6": "2025-11-04"}
 
 
 class ImageClusterapi(Command):
