@@ -2,6 +2,7 @@
 
 """Main SONiC synchronization function."""
 
+import os
 from loguru import logger
 
 from osism import utils
@@ -20,6 +21,12 @@ from .config_generator import (
 from .constants import DEFAULT_SONIC_ROLES, SUPPORTED_HWSKUS
 from .exporter import save_config_to_netbox, export_config_to_file
 from .cache import clear_interface_cache, get_interface_cache_stats
+from .validator import validate_sonic_config
+
+# Validation configuration
+SONIC_VALIDATION_ENABLED = os.getenv("SONIC_VALIDATION_ENABLED", "true").lower() == "true"
+SONIC_VALIDATION_MODE = os.getenv("SONIC_VALIDATION_MODE", "strict").lower()
+SONIC_YANG_MODELS_DIR = os.getenv("SONIC_YANG_MODELS_DIR", "files/sonic/yang_models")
 
 
 def sync_sonic(device_name=None, task_id=None, show_diff=True):
@@ -186,6 +193,37 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
         sonic_config = generate_sonic_config(
             device, hwsku, device_as_mapping, config_version
         )
+
+        # YANG validation before Netbox save (if enabled)
+        if SONIC_VALIDATION_ENABLED:
+            logger.info(f"Validating SONiC configuration for device {device.name}")
+            try:
+                validation_result = validate_sonic_config(sonic_config, SONIC_YANG_MODELS_DIR)
+
+                if validation_result.is_valid:
+                    logger.info(f"✓ Validation successful for {device.name}")
+                else:
+                    if SONIC_VALIDATION_MODE == "strict":
+                        logger.error(f"✗ Validation failed for {device.name}: {validation_result.summary}")
+                        for error in validation_result.errors:
+                            logger.error(f"  - {error}")
+                        logger.error(f"Skipping device {device.name} due to validation failure (strict mode)")
+                        continue  # Skip this device, proceed to next
+                    elif SONIC_VALIDATION_MODE == "warn":
+                        logger.warning(f"⚠ Validation failed for {device.name}: {validation_result.summary}")
+                        for error in validation_result.errors:
+                            logger.warning(f"  - {error}")
+                        logger.warning(f"Continuing with {device.name} despite validation failure (warn mode)")
+                    # If mode is something else, treat as disabled and continue
+            except (FileNotFoundError, ValueError) as e:
+                # Handle validation setup errors (yanglint not found, YANG models missing)
+                logger.error(f"Validation setup error for {device.name}: {e}")
+                if SONIC_VALIDATION_MODE == "strict":
+                    logger.error(f"Skipping device {device.name} due to validation setup error (strict mode)")
+                    continue
+                elif SONIC_VALIDATION_MODE == "warn":
+                    logger.warning(f"Continuing with {device.name} despite validation setup error (warn mode)")
+                # Otherwise continue without validation
 
         # Store configuration in the dictionary
         device_configs[device.name] = sonic_config
