@@ -5,23 +5,26 @@
 import json
 import os
 import difflib
+from typing import Optional
 from loguru import logger
 from deepdiff import DeepDiff
 
 from osism import utils, settings
 from .device import get_device_hostname
+from .validator import ValidationResult
 
 
-def save_config_to_netbox(device, config, return_diff=False):
+def save_config_to_netbox(device, config, return_diff=False, validation_result: Optional[ValidationResult] = None):
     """Save SONiC configuration to NetBox device local context with diff checking.
 
     Checks for existing local context and only saves if configuration has changed.
-    Logs diff when changes are detected.
+    Logs diff when changes are detected. Optionally includes validation status in journal entry.
 
     Args:
         device: NetBox device object
         config: SONiC configuration dictionary
         return_diff (bool, optional): Whether to return diff output. Defaults to False.
+        validation_result (Optional[ValidationResult], optional): YANG validation result to include in journal. Defaults to None.
 
     Returns:
         bool or tuple: If return_diff is False, returns True if config was saved (changed), False if no changes.
@@ -66,13 +69,38 @@ def save_config_to_netbox(device, config, return_diff=False):
             if diff_output:
                 logger.info(f"Diff:\n{diff_output}")
 
-                # Save diff to device journal log
+                # Save diff to device journal log with optional validation status
                 try:
+                    # Build journal comments with validation status
+                    journal_comments = "SONiC Configuration Update\n\n"
+
+                    # Add validation status if validation result is provided
+                    if validation_result:
+                        if validation_result.is_valid:
+                            journal_comments += "**YANG Validation:** ✓ Successful\n\n"
+                        else:
+                            journal_comments += "**YANG Validation:** ⚠ Failed (warn mode - continued)\n\n"
+                            if validation_result.errors:
+                                journal_comments += "**Validation Errors:**\n"
+                                for error in validation_result.errors:
+                                    journal_comments += f"- {error}\n"
+                                journal_comments += "\n"
+
+                        # Add warnings if present
+                        if validation_result.warnings:
+                            journal_comments += "**Validation Warnings:**\n"
+                            for warning in validation_result.warnings:
+                                journal_comments += f"- {warning}\n"
+                            journal_comments += "\n"
+
+                    # Add configuration diff
+                    journal_comments += f"```diff\n{diff_output}\n```"
+
                     journal_entry = utils.nb.extras.journal_entries.create(
                         assigned_object_type="dcim.device",
                         assigned_object_id=device.id,
                         kind="info",
-                        comments=f"SONiC Configuration Update\n\n```diff\n{diff_output}\n```",
+                        comments=journal_comments,
                     )
                     logger.info(
                         f"Saved configuration diff to journal for device {device.name}"

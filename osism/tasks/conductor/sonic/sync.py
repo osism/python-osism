@@ -195,6 +195,7 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
         )
 
         # YANG validation before Netbox save (if enabled)
+        validation_result = None
         if SONIC_VALIDATION_ENABLED:
             logger.info(f"Validating SONiC configuration for device {device.name}")
             try:
@@ -231,7 +232,7 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
         # Save the generated configuration to NetBox config context (only if changed)
         if show_diff:
             netbox_changed, diff_output = save_config_to_netbox(
-                device, sonic_config, return_diff=True
+                device, sonic_config, return_diff=True, validation_result=validation_result
             )
 
             # Output diff to task if available and there are changes
@@ -249,7 +250,7 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
                     task_id, f"First-time configuration created for {device.name}\n"
                 )
         else:
-            netbox_changed = save_config_to_netbox(device, sonic_config)
+            netbox_changed = save_config_to_netbox(device, sonic_config, validation_result=validation_result)
 
         # Export the generated configuration to local file (only if changed)
         file_changed = export_config_to_file(device, sonic_config)

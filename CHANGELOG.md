@@ -16,3 +16,7 @@ All notable changes to this project will be documented in this file.
 - Added validation before Netbox configuration transfer
 - Added configurable validation modes (strict/warn/disabled)
 - Added environment variables: SONIC_VALIDATION_ENABLED, SONIC_VALIDATION_MODE, SONIC_YANG_MODELS_DIR
+- Enhanced Netbox journal entries with YANG validation status
+- Added validation errors and warnings to journal comments
+- Updated save_config_to_netbox() to accept validation results
+- Improved audit trail for configuration validation
