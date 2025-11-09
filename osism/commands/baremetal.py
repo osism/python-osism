@@ -701,3 +701,130 @@ class BaremetalMaintenanceUnset(Command):
             logger.error(
                 f"Unsetting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
             )
+
+
+class BaremetalDelete(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalDelete, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Delete given baremetal node",
+        )
+        parser.add_argument(
+            "--all",
+            default=False,
+            help="Delete all baremetal nodes",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--yes-i-really-really-mean-it",
+            default=False,
+            help="Specify this to actually delete all nodes",
+            action="store_true",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        all_nodes = parsed_args.all
+        name = parsed_args.name
+        yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
+
+        if not all_nodes and not name:
+            logger.error("Please specify a node name or use --all")
+            return
+
+        if all_nodes and not yes_i_really_really_mean_it:
+            logger.error(
+                "Please confirm that you wish to delete all nodes by specifying '--yes-i-really-really-mean-it'"
+            )
+            return
+
+        conn = get_cloud_connection()
+
+        if all_nodes:
+            delete_nodes = list(conn.baremetal.nodes())
+        else:
+            node = conn.baremetal.find_node(name, ignore_missing=True, details=False)
+            if not node:
+                logger.warning(f"Could not find node {name}")
+                return
+            delete_nodes = [node]
+
+        for node in delete_nodes:
+            if not node:
+                continue
+
+            try:
+                # Delete ports first (safe deletion pattern)
+                logger.info(f"Deleting ports for node {node.name} ({node.id})")
+                ports = conn.baremetal.ports(node_uuid=node.id)
+                for port in ports:
+                    try:
+                        conn.baremetal.delete_port(port.id, ignore_missing=True)
+                        logger.debug(f"Deleted port {port.id} for node {node.name}")
+                    except Exception as exc:
+                        logger.warning(
+                            f"Failed to delete port {port.id} for node {node.name}: {exc}"
+                        )
+
+                # Delete the node from Ironic
+                logger.info(f"Deleting node {node.name} ({node.id}) from Ironic")
+                conn.baremetal.delete_node(node.id, ignore_missing=True)
+                logger.info(
+                    f"Successfully deleted node {node.name} ({node.id}) from Ironic"
+                )
+
+                # Clear NetBox states after successful Ironic deletion
+                if utils.nb:
+                    logger.info(
+                        f"Clearing NetBox states for node {node.name} on primary NetBox"
+                    )
+                    try:
+                        device = utils.nb.dcim.devices.get(name=node.name)
+                        if device:
+                            device.custom_fields.update(
+                                {"provision_state": None, "power_state": None}
+                            )
+                            device.save()
+                            logger.info(
+                                f"Successfully cleared NetBox states for {node.name}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Device {node.name} not found in primary NetBox"
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Failed to clear NetBox states for {node.name} on primary NetBox: {exc}"
+                        )
+
+                # Clear NetBox states on secondary instances
+                for secondary_nb in utils.secondary_nb_list:
+                    logger.info(
+                        f"Clearing NetBox states for node {node.name} on secondary NetBox {secondary_nb.base_url}"
+                    )
+                    try:
+                        device = secondary_nb.dcim.devices.get(name=node.name)
+                        if device:
+                            device.custom_fields.update(
+                                {"provision_state": None, "power_state": None}
+                            )
+                            device.save()
+                            logger.info(
+                                f"Successfully cleared NetBox states for {node.name} on {secondary_nb.base_url}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Device {node.name} not found in secondary NetBox {secondary_nb.base_url}"
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Failed to clear NetBox states for {node.name} on {secondary_nb.base_url}: {exc}"
+                        )
+
+            except Exception as exc:
+                logger.error(f"Failed to delete node {node.name} ({node.id}): {exc}")
+                continue
