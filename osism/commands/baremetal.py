@@ -703,6 +703,70 @@ class BaremetalMaintenanceUnset(Command):
             )
 
 
+class BaremetalPowerOn(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalPowerOn, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Power on given baremetal node",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name
+
+        if not name:
+            logger.error("Please specify a node name")
+            return
+
+        conn = get_cloud_connection()
+        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+        if not node:
+            logger.warning(f"Could not find node {name}")
+            return
+
+        try:
+            conn.baremetal.set_node_power_state(node.id, "power on")
+            logger.info(f"Successfully powered on node {node.name} ({node.id})")
+        except Exception as exc:
+            logger.error(f"Failed to power on node {node.name} ({node.id}): {exc}")
+
+
+class BaremetalPowerOff(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalPowerOff, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Power off given baremetal node",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name
+
+        if not name:
+            logger.error("Please specify a node name")
+            return
+
+        conn = get_cloud_connection()
+        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+        if not node:
+            logger.warning(f"Could not find node {name}")
+            return
+
+        try:
+            conn.baremetal.set_node_power_state(node.id, "power off")
+            logger.info(f"Successfully powered off node {node.name} ({node.id})")
+        except Exception as exc:
+            logger.error(f"Failed to power off node {node.name} ({node.id}): {exc}")
+
+
 class BaremetalDelete(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalDelete, self).get_parser(prog_name)
