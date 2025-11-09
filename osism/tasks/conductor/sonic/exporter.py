@@ -14,7 +14,12 @@ from .device import get_device_hostname
 from .validator import ValidationResult
 
 
-def save_config_to_netbox(device, config, return_diff=False, validation_result: Optional[ValidationResult] = None):
+def save_config_to_netbox(
+    device,
+    config,
+    return_diff=False,
+    validation_result: Optional[ValidationResult] = None,
+):
     """Save SONiC configuration to NetBox device local context with diff checking.
 
     Checks for existing local context and only saves if configuration has changed.

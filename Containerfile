@@ -6,16 +6,9 @@ FROM ${IMAGE}:${PYTHON_VERSION}-alpine${ALPINE_VERSION}
 
 ENV PYTHONWARNINGS="ignore::UserWarning"
 
-# SONiC YANG validation configuration
-# SONIC_VALIDATION_ENABLED: Enable/disable YANG validation (true/false, default: true)
-# SONIC_VALIDATION_MODE: Validation mode (strict/warn/disabled, default: strict)
-#   - strict: Validation errors block Netbox save, device skipped
-#   - warn: Validation errors logged as warnings, save continues
-#   - disabled: Validation skipped entirely
-# SONIC_YANG_MODELS_DIR: Path to YANG models directory (default: files/sonic/yang_models)
 ENV SONIC_VALIDATION_ENABLED=true \
     SONIC_VALIDATION_MODE=strict \
-    SONIC_YANG_MODELS_DIR=files/sonic/yang_models
+    SONIC_YANG_MODELS_DIR=/etc/sonic/yang_models
 
 COPY . /src
 COPY --from=ghcr.io/astral-sh/uv:0.9.7 /uv /usr/local/bin/uv
@@ -30,6 +23,7 @@ COPY files/clustershell/clush.conf /etc/clustershell/clush.conf
 COPY files/clustershell/groups.conf /etc/clustershell/groups.conf
 
 COPY files/sonic/port_config/ /etc/sonic/port_config/
+COPY files/sonic/yang_models/ /etc/sonic/yang_models/
 COPY files/sonic/config_db.json /etc/sonic/config_db.json
 
 COPY files/netbox-manager/settings.toml /usr/local/config/settings.toml

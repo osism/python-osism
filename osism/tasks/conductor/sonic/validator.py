@@ -36,7 +36,9 @@ class ValidationResult:
             return "✓ Validation successful"
         error_count = len(self.errors)
         warning_count = len(self.warnings)
-        parts = [f"✗ Validation failed with {error_count} error{'s' if error_count != 1 else ''}"]
+        parts = [
+            f"✗ Validation failed with {error_count} error{'s' if error_count != 1 else ''}"
+        ]
         if warning_count > 0:
             parts.append(f"{warning_count} warning{'s' if warning_count != 1 else ''}")
         return ", ".join(parts)
@@ -73,8 +75,7 @@ def discover_yang_models(yang_models_dir: str) -> List[Path]:
 
 
 def validate_sonic_config(
-    config: dict,
-    yang_models_dir: str = "files/sonic/yang_models"
+    config: dict, yang_models_dir: str = "/etc/sonic/yang_models"
 ) -> ValidationResult:
     """Validate SONiC config_db.json against YANG models using yanglint.
 
@@ -115,17 +116,13 @@ def validate_sonic_config(
     if not yang_files:
         logger.warning(f"No YANG model files found in {yang_models_dir}")
         return ValidationResult(
-            is_valid=False,
-            errors=[f"No YANG model files found in {yang_models_dir}"]
+            is_valid=False, errors=[f"No YANG model files found in {yang_models_dir}"]
         )
 
     # Check if yanglint is available
     try:
         subprocess.run(
-            ["yanglint", "--version"],
-            capture_output=True,
-            check=True,
-            timeout=5
+            ["yanglint", "--version"], capture_output=True, check=True, timeout=5
         )
     except FileNotFoundError:
         error_msg = (
@@ -138,16 +135,15 @@ def validate_sonic_config(
     except subprocess.TimeoutExpired:
         logger.warning("yanglint --version timed out, but proceeding with validation")
     except subprocess.CalledProcessError as e:
-        logger.warning(f"yanglint --version returned error: {e}, but proceeding with validation")
+        logger.warning(
+            f"yanglint --version returned error: {e}, but proceeding with validation"
+        )
 
     # Write config to temporary JSON file
     temp_config_file = None
     try:
         with tempfile.NamedTemporaryFile(
-            mode='w',
-            suffix='.json',
-            delete=False,
-            encoding='utf-8'
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
         ) as f:
             json.dump(config, f, indent=2)
             temp_config_file = f.name
@@ -158,8 +154,10 @@ def validate_sonic_config(
         yang_dir = Path(yang_models_dir).resolve()
         cmd = [
             "yanglint",
-            "-p", str(yang_dir),  # Path for imports
-            "-t", "config",       # Validate as configuration data
+            "-p",
+            str(yang_dir),  # Path for imports
+            "-t",
+            "config",  # Validate as configuration data
         ]
 
         # Add all YANG model files
@@ -178,7 +176,7 @@ def validate_sonic_config(
                 capture_output=True,
                 text=True,
                 timeout=30,  # 30 second timeout
-                check=False  # Don't raise exception on non-zero exit
+                check=False,  # Don't raise exception on non-zero exit
             )
 
             # Parse validation results
@@ -187,16 +185,16 @@ def validate_sonic_config(
 
             # yanglint writes errors to stderr
             if result.stderr:
-                stderr_lines = result.stderr.strip().split('\n')
+                stderr_lines = result.stderr.strip().split("\n")
                 for line in stderr_lines:
                     line = line.strip()
                     if not line:
                         continue
 
                     # Categorize messages
-                    if 'err :' in line.lower() or 'error' in line.lower():
+                    if "err :" in line.lower() or "error" in line.lower():
                         errors.append(line)
-                    elif 'warn' in line.lower():
+                    elif "warn" in line.lower():
                         warnings.append(line)
                     else:
                         # Treat unknown messages as errors
@@ -206,32 +204,24 @@ def validate_sonic_config(
             is_valid = result.returncode == 0
 
             if is_valid:
-                logger.info("SONiC configuration validated successfully against YANG models")
+                logger.info(
+                    "SONiC configuration validated successfully against YANG models"
+                )
             else:
                 logger.warning(
                     f"SONiC configuration validation failed with {len(errors)} errors"
                 )
 
-            return ValidationResult(
-                is_valid=is_valid,
-                errors=errors,
-                warnings=warnings
-            )
+            return ValidationResult(is_valid=is_valid, errors=errors, warnings=warnings)
 
         except subprocess.TimeoutExpired:
             error_msg = "Validation timed out after 30 seconds"
             logger.error(error_msg)
-            return ValidationResult(
-                is_valid=False,
-                errors=[error_msg]
-            )
+            return ValidationResult(is_valid=False, errors=[error_msg])
         except Exception as e:
             error_msg = f"Validation subprocess failed: {e}"
             logger.error(error_msg)
-            return ValidationResult(
-                is_valid=False,
-                errors=[error_msg]
-            )
+            return ValidationResult(is_valid=False, errors=[error_msg])
 
     finally:
         # Clean up temporary file
@@ -240,4 +230,6 @@ def validate_sonic_config(
                 Path(temp_config_file).unlink()
                 logger.debug(f"Cleaned up temporary file: {temp_config_file}")
             except Exception as e:
-                logger.warning(f"Failed to clean up temporary file {temp_config_file}: {e}")
+                logger.warning(
+                    f"Failed to clean up temporary file {temp_config_file}: {e}"
+                )
