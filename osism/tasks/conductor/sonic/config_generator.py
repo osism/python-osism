@@ -226,6 +226,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         netbox_interfaces,
         transfer_ips,
         utils.nb,
+        vlan_info,
     )
 
     # Add NTP server configuration (device-specific)
@@ -830,6 +831,42 @@ def _has_transfer_role_ipv4(port_name, transfer_ips, netbox_interfaces):
     return False
 
 
+def _is_untagged_vlan_member(port_name, vlan_info, netbox_interfaces):
+    """Check if an interface is an untagged member of any VLAN.
+
+    When an interface is an untagged VLAN member, BGP peering should happen
+    over the VLAN interface (SVI) instead of the physical interface.
+
+    Args:
+        port_name: SONiC interface name (e.g., "Ethernet0")
+        vlan_info: VLAN information dict with vlan_members structure
+        netbox_interfaces: Dict mapping SONiC names to NetBox interface info
+
+    Returns:
+        bool: True if interface is an untagged VLAN member, False otherwise
+    """
+    if not vlan_info or not netbox_interfaces:
+        return False
+
+    # Get the NetBox interface name for this SONiC port
+    if port_name not in netbox_interfaces:
+        return False
+
+    netbox_interface_name = netbox_interfaces[port_name]["netbox_name"]
+
+    # Check all VLANs to see if this interface is an untagged member
+    for vid, members in vlan_info.get("vlan_members", {}).items():
+        if netbox_interface_name in members:
+            tagging_mode = members[netbox_interface_name]
+            if tagging_mode == "untagged":
+                logger.debug(
+                    f"Interface {port_name} ({netbox_interface_name}) is untagged member of VLAN {vid}"
+                )
+                return True
+
+    return False
+
+
 def _add_bgp_configurations(
     config,
     connected_interfaces,
@@ -841,6 +878,7 @@ def _add_bgp_configurations(
     netbox_interfaces=None,
     transfer_ips=None,
     netbox=None,
+    vlan_info=None,
 ):
     """Add BGP configurations.
 
@@ -855,6 +893,7 @@ def _add_bgp_configurations(
         netbox_interfaces: Dict mapping SONiC names to NetBox interface info
         transfer_ips: Dict of IPv4 addresses from transfer role prefixes
         netbox: NetBox API client for querying connected interface IPs
+        vlan_info: VLAN information dict for checking untagged VLAN membership
     """
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
     for port_name in config["PORT"]:
@@ -864,11 +903,21 @@ def _add_bgp_configurations(
         has_transfer_ipv4 = _has_transfer_role_ipv4(
             port_name, transfer_ips, netbox_interfaces
         )
+        is_untagged_vlan_member = _is_untagged_vlan_member(
+            port_name, vlan_info, netbox_interfaces
+        )
 
         if (
             port_name in connected_interfaces
             and port_name not in portchannel_info["member_mapping"]
         ):
+            # Skip interfaces that are untagged VLAN members - BGP peering happens over VLAN interface
+            if is_untagged_vlan_member:
+                logger.info(
+                    f"Excluding interface {port_name} from BGP configuration (untagged VLAN member)"
+                )
+                continue
+
             # Include interfaces with transfer role IPv4 or no direct IPv4
             if has_transfer_ipv4 or not has_direct_ipv4:
                 # Try to get the IPv4 address of the connected endpoint interface
@@ -925,11 +974,21 @@ def _add_bgp_configurations(
         has_transfer_ipv4 = _has_transfer_role_ipv4(
             port_name, transfer_ips, netbox_interfaces
         )
+        is_untagged_vlan_member = _is_untagged_vlan_member(
+            port_name, vlan_info, netbox_interfaces
+        )
 
         if (
             port_name in connected_interfaces
             and port_name not in portchannel_info["member_mapping"]
         ):
+            # Skip interfaces that are untagged VLAN members - BGP peering happens over VLAN interface
+            if is_untagged_vlan_member:
+                logger.info(
+                    f"Excluding interface {port_name} from BGP_NEIGHBOR configuration (untagged VLAN member)"
+                )
+                continue
+
             # Include interfaces with transfer role IPv4 or no direct IPv4
             if has_transfer_ipv4 or not has_direct_ipv4:
                 # Try to get the IPv4 address of the connected endpoint interface
@@ -1045,6 +1104,111 @@ def _add_bgp_configurations(
             # TODO: Implement port channel local address lookup if needed
 
         config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
+
+    # Add BGP configuration for VLAN interfaces (SVIs) based on peer IP addresses
+    # For each VLAN interface with IP addresses, find the connected peer interfaces
+    # and use their IP addresses (direct IP or FHRP VIP) as BGP neighbors
+    if vlan_info and "vlan_interfaces" in vlan_info and "vlan_members" in vlan_info:
+        for vid, vlan_interface_data in vlan_info["vlan_interfaces"].items():
+            if "addresses" not in vlan_interface_data:
+                continue
+
+            addresses = vlan_interface_data["addresses"]
+            if not addresses:
+                continue
+
+            # Find untagged member interfaces for this VLAN
+            # Only untagged members are relevant for VLAN BGP neighbors
+            if vid not in vlan_info["vlan_members"]:
+                logger.debug(
+                    f"No VLAN members found for VLAN {vid}, skipping BGP configuration"
+                )
+                continue
+
+            vlan_members = vlan_info["vlan_members"][vid]
+            untagged_members = [
+                iface_name
+                for iface_name, tagging_mode in vlan_members.items()
+                if tagging_mode == "untagged"
+            ]
+
+            if not untagged_members:
+                logger.debug(
+                    f"No untagged members found for VLAN {vid}, skipping BGP configuration"
+                )
+                continue
+
+            # For each untagged member interface, get the peer IP address
+            # and create BGP neighbor with the peer IP (not local VLAN IP!)
+            peer_ips_found = set()  # Track unique peer IPs to avoid duplicates
+
+            for netbox_iface_name in untagged_members:
+                # Convert NetBox interface name to SONiC name
+                sonic_iface_name = None
+                if netbox_interfaces:
+                    for sonic_name, iface_info in netbox_interfaces.items():
+                        if iface_info.get("netbox_name") == netbox_iface_name:
+                            sonic_iface_name = sonic_name
+                            break
+
+                if not sonic_iface_name:
+                    logger.debug(
+                        f"Could not find SONiC name for NetBox interface {netbox_iface_name} "
+                        f"in VLAN {vid}, skipping"
+                    )
+                    continue
+
+                # Get peer IP address using the existing FHRP VIP detection logic
+                peer_ipv4 = None
+                if netbox:
+                    peer_ipv4 = get_connected_interface_ipv4_address(
+                        device, sonic_iface_name, netbox
+                    )
+
+                if peer_ipv4:
+                    # Avoid duplicate peer IPs across multiple untagged members
+                    if peer_ipv4 in peer_ips_found:
+                        logger.debug(
+                            f"Peer IP {peer_ipv4} already configured for VLAN {vid}, "
+                            f"skipping duplicate from interface {sonic_iface_name}"
+                        )
+                        continue
+
+                    peer_ips_found.add(peer_ipv4)
+
+                    # Create BGP neighbor with peer IP address (FHRP VIP or direct IP)
+                    neighbor_key = f"default|{peer_ipv4}"
+
+                    # Determine peer_type - for VLAN interfaces, default to external
+                    peer_type = "external"
+
+                    # Set v6only=false for IPv4 BGP neighbor
+                    bgp_neighbor_config = {
+                        "peer_type": peer_type,
+                        "v6only": "false",
+                    }
+
+                    config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
+
+                    # Add BGP_NEIGHBOR_AF for IPv4 unicast
+                    ipv4_af_key = f"default|{peer_ipv4}|ipv4_unicast"
+                    config["BGP_NEIGHBOR_AF"][ipv4_af_key] = {"admin_status": "true"}
+
+                    logger.info(
+                        f"Added BGP neighbor configuration for VLAN {vid} using peer IP {peer_ipv4} "
+                        f"from connected interface {sonic_iface_name} (NetBox: {netbox_iface_name})"
+                    )
+                else:
+                    logger.debug(
+                        f"No peer IPv4 address found for interface {sonic_iface_name} "
+                        f"(NetBox: {netbox_iface_name}) in VLAN {vid}"
+                    )
+
+            if not peer_ips_found:
+                logger.warning(
+                    f"No peer IP addresses found for any untagged member of VLAN {vid}, "
+                    f"no BGP neighbors configured"
+                )
 
 
 def _get_connected_device_for_interface(device, interface_name):
