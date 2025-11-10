@@ -1006,6 +1006,44 @@ class Console(SonicCommandBase):
             return 1
 
 
+class Dump(SonicCommandBase):
+    """Dump SONiC switch configuration from NetBox config context"""
+
+    def get_parser(self, prog_name):
+        parser = super(Dump, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname",
+            type=str,
+            help="Hostname of the SONiC switch to dump configuration",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        hostname = parsed_args.hostname
+
+        try:
+            # Get device from NetBox
+            device = self._get_device_from_netbox(hostname)
+            if not device:
+                return 1
+
+            # Get device configuration context
+            config_context = self._get_config_context(device, hostname)
+            if not config_context:
+                return 1
+
+            # Print configuration to console (always pretty-printed)
+            print(json.dumps(config_context, indent=2))
+
+            return 0
+
+        except Exception as e:
+            logger.error(
+                f"Error dumping configuration for SONiC device {hostname}: {e}"
+            )
+            return 1
+
+
 class List(Command):
     """List SONiC switches with their details"""
 
