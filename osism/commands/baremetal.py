@@ -293,105 +293,220 @@ class BaremetalDump(Command):
             type=str,
             help="Dump deployment playbook for given baremetal node",
         )
+        parser.add_argument(
+            "--ironic",
+            default=False,
+            action="store_true",
+            help="Fetch data from Ironic instead of NetBox (shows actual deployment state)",
+        )
         return parser
 
     def take_action(self, parsed_args):
         name = parsed_args.name
-
-        # Check if NetBox connection is available
-        if not utils.nb:
-            logger.error("NetBox connection not available")
-            return
+        use_ironic = parsed_args.ironic
 
         try:
-            # Try to find device by name first
-            device = utils.nb.dcim.devices.get(name=name)
+            if use_ironic:
+                # Fetch data from Ironic (shows actual deployment state)
+                conn = get_cloud_connection()
+                node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
 
-            # If not found by name, try by inventory_hostname custom field
-            if not device:
-                devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=name)
-                if devices:
-                    device = devices[0]
+                if not node:
+                    logger.error(f"Could not find node {name} in Ironic")
+                    return
 
-            # If device not found, error out
-            if not device:
-                logger.error(f"Could not find device {name} in NetBox")
-                return
+                # Get default vars from NetBox local_context_data if available
+                default_vars = {}
+                if utils.nb:
+                    try:
+                        # Try to find device by name first
+                        device = utils.nb.dcim.devices.get(name=node.name)
 
-            # Get default vars from NetBox local_context_data if available
-            default_vars = {}
-            if hasattr(device, "local_context_data") and device.local_context_data:
-                default_vars = device.local_context_data
-                logger.info(f"Using NetBox local_context_data for device {device.name}")
+                        # If not found by name, try by inventory_hostname custom field
+                        if not device:
+                            devices = utils.nb.dcim.devices.filter(
+                                cf_inventory_hostname=node.name
+                            )
+                            if devices:
+                                device = devices[0]
+
+                        # Extract local_context_data if device found and has the field
+                        if (
+                            device
+                            and hasattr(device, "local_context_data")
+                            and device.local_context_data
+                        ):
+                            default_vars = device.local_context_data
+                            logger.info(
+                                f"Using NetBox local_context_data for node {node.name}"
+                            )
+                        else:
+                            logger.debug(
+                                f"No local_context_data found for node {node.name} in NetBox"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to fetch NetBox data for node {node.name}: {e}"
+                        )
+
+                playbook = []
+                play = {
+                    "name": "Run bootstrap",
+                    "hosts": "localhost",
+                    "connection": "local",
+                    "gather_facts": True,
+                    "vars": default_vars.copy(),
+                    "roles": [
+                        "osism.commons.hostname",
+                        "osism.commons.hosts",
+                        "osism.commons.operator",
+                    ],
+                    "tasks": [
+                        {
+                            "name": "Restart rsyslog service after hostname change",
+                            "ansible.builtin.systemd": {
+                                "name": "rsyslog",
+                                "state": "restarted",
+                            },
+                        }
+                    ],
+                }
+                play["vars"].update(
+                    {"hostname_name": node.name, "hosts_type": "template"}
+                )
+
+                # Get netplan_parameters from Ironic node extra (JSON string, needs parsing)
+                if (
+                    "netplan_parameters" in node.extra
+                    and node.extra["netplan_parameters"]
+                ):
+                    play["vars"].update(
+                        {
+                            "network_allow_service_restart": True,
+                        }
+                    )
+                    play["vars"].update(json.loads(node.extra["netplan_parameters"]))
+                    play["roles"].append("osism.commons.network")
+
+                # Get frr_parameters from Ironic node extra (JSON string, needs parsing)
+                if "frr_parameters" in node.extra and node.extra["frr_parameters"]:
+                    play["vars"].update(
+                        {
+                            "frr_dummy_interface": "loopback0",
+                        }
+                    )
+                    play["vars"].update(json.loads(node.extra["frr_parameters"]))
+                    play["roles"].append("osism.services.frr")
+
+                playbook.append(play)
+
+                # Output playbook to stdout
+                print(
+                    yaml.dump(
+                        playbook,
+                        default_flow_style=False,
+                        explicit_start=True,
+                        indent=2,
+                        sort_keys=False,
+                    )
+                )
             else:
-                logger.debug(
-                    f"No local_context_data found for device {device.name} in NetBox"
-                )
+                # Fetch data from NetBox (default behavior, may show newer data)
+                # Check if NetBox connection is available
+                if not utils.nb:
+                    logger.error("NetBox connection not available")
+                    return
 
-            playbook = []
-            play = {
-                "name": "Run bootstrap",
-                "hosts": "localhost",
-                "connection": "local",
-                "gather_facts": True,
-                "vars": default_vars.copy(),
-                "roles": [
-                    "osism.commons.hostname",
-                    "osism.commons.hosts",
-                    "osism.commons.operator",
-                ],
-                "tasks": [
-                    {
-                        "name": "Restart rsyslog service after hostname change",
-                        "ansible.builtin.systemd": {
-                            "name": "rsyslog",
-                            "state": "restarted",
-                        },
-                    }
-                ],
-            }
-            play["vars"].update(
-                {"hostname_name": device.name, "hosts_type": "template"}
-            )
+                # Try to find device by name first
+                device = utils.nb.dcim.devices.get(name=name)
 
-            # Get netplan_parameters from NetBox custom fields (already a dict, no JSON parsing needed)
-            if (
-                "netplan_parameters" in device.custom_fields
-                and device.custom_fields["netplan_parameters"]
-            ):
+                # If not found by name, try by inventory_hostname custom field
+                if not device:
+                    devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=name)
+                    if devices:
+                        device = devices[0]
+
+                # If device not found, error out
+                if not device:
+                    logger.error(f"Could not find device {name} in NetBox")
+                    return
+
+                # Get default vars from NetBox local_context_data if available
+                default_vars = {}
+                if hasattr(device, "local_context_data") and device.local_context_data:
+                    default_vars = device.local_context_data
+                    logger.info(
+                        f"Using NetBox local_context_data for device {device.name}"
+                    )
+                else:
+                    logger.debug(
+                        f"No local_context_data found for device {device.name} in NetBox"
+                    )
+
+                playbook = []
+                play = {
+                    "name": "Run bootstrap",
+                    "hosts": "localhost",
+                    "connection": "local",
+                    "gather_facts": True,
+                    "vars": default_vars.copy(),
+                    "roles": [
+                        "osism.commons.hostname",
+                        "osism.commons.hosts",
+                        "osism.commons.operator",
+                    ],
+                    "tasks": [
+                        {
+                            "name": "Restart rsyslog service after hostname change",
+                            "ansible.builtin.systemd": {
+                                "name": "rsyslog",
+                                "state": "restarted",
+                            },
+                        }
+                    ],
+                }
                 play["vars"].update(
-                    {
-                        "network_allow_service_restart": True,
-                    }
+                    {"hostname_name": device.name, "hosts_type": "template"}
                 )
-                play["vars"].update(device.custom_fields["netplan_parameters"])
-                play["roles"].append("osism.commons.network")
 
-            # Get frr_parameters from NetBox custom fields (already a dict, no JSON parsing needed)
-            if (
-                "frr_parameters" in device.custom_fields
-                and device.custom_fields["frr_parameters"]
-            ):
-                play["vars"].update(
-                    {
-                        "frr_dummy_interface": "loopback0",
-                    }
+                # Get netplan_parameters from NetBox custom fields (already a dict, no JSON parsing needed)
+                if (
+                    "netplan_parameters" in device.custom_fields
+                    and device.custom_fields["netplan_parameters"]
+                ):
+                    play["vars"].update(
+                        {
+                            "network_allow_service_restart": True,
+                        }
+                    )
+                    play["vars"].update(device.custom_fields["netplan_parameters"])
+                    play["roles"].append("osism.commons.network")
+
+                # Get frr_parameters from NetBox custom fields (already a dict, no JSON parsing needed)
+                if (
+                    "frr_parameters" in device.custom_fields
+                    and device.custom_fields["frr_parameters"]
+                ):
+                    play["vars"].update(
+                        {
+                            "frr_dummy_interface": "loopback0",
+                        }
+                    )
+                    play["vars"].update(device.custom_fields["frr_parameters"])
+                    play["roles"].append("osism.services.frr")
+
+                playbook.append(play)
+
+                # Output playbook to stdout
+                print(
+                    yaml.dump(
+                        playbook,
+                        default_flow_style=False,
+                        explicit_start=True,
+                        indent=2,
+                        sort_keys=False,
+                    )
                 )
-                play["vars"].update(device.custom_fields["frr_parameters"])
-                play["roles"].append("osism.services.frr")
-
-            playbook.append(play)
-
-            # Output playbook to stdout
-            print(
-                yaml.dump(
-                    playbook,
-                    default_flow_style=False,
-                    explicit_start=True,
-                    indent=2,
-                    sort_keys=False,
-                )
-            )
         except Exception as exc:
             logger.error(f"Failed to generate playbook for {name}: {exc}")
 
