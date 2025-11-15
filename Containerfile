@@ -57,9 +57,6 @@ uv pip install --no-cache --system -r /src/requirements.openstack-image-manager.
 uv pip install --no-cache --system -r /src/requirements.openstack-flavor-manager.txt
 uv pip install --no-cache --system -r /src/requirements.netbox-manager.txt
 
-# required by redfishMockupCreate.py
-uv pip install --no-cache --system "redfish==3.3.3"
-
 # install python-osism
 uv pip install --no-cache --system /src
 
