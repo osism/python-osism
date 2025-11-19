@@ -53,15 +53,38 @@ class BaremetalList(Command):
 
         baremetal = conn.baremetal.nodes(**query)
 
-        result = [
-            [
-                b["name"],
-                b["power_state"],
-                b["provision_state"],
-                b["maintenance"],
-            ]
-            for b in baremetal
-        ]
+        result = []
+        for b in baremetal:
+            # Get device role from NetBox
+            device_role = "N/A"
+            if utils.nb:
+                try:
+                    # Try to find device by name first
+                    device = utils.nb.dcim.devices.get(name=b["name"])
+
+                    # If not found by name, try by inventory_hostname custom field
+                    if not device:
+                        devices = utils.nb.dcim.devices.filter(
+                            cf_inventory_hostname=b["name"]
+                        )
+                        if devices:
+                            device = list(devices)[0]
+
+                    # Get device role
+                    if device and device.role and hasattr(device.role, "name"):
+                        device_role = device.role.name
+                except Exception as e:
+                    logger.debug(f"Could not get device role for {b['name']}: {e}")
+
+            result.append(
+                [
+                    b["name"],
+                    device_role,
+                    b["power_state"],
+                    b["provision_state"],
+                    b["maintenance"],
+                ]
+            )
 
         result.sort(key=lambda x: x[0])
 
@@ -70,6 +93,7 @@ class BaremetalList(Command):
                 result,
                 headers=[
                     "Name",
+                    "Device Role",
                     "Power State",
                     "Provision State",
                     "Maintenance",
