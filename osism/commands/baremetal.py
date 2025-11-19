@@ -873,52 +873,86 @@ class BaremetalClean(Command):
 
         parser.add_argument(
             "name",
+            nargs="?",
             type=str,
             help="Clean given baremetal node when in provision state available",
+        )
+        parser.add_argument(
+            "--all",
+            default=False,
+            help="Clean all baremetal nodes in provision state available",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--yes-i-really-really-mean-it",
+            default=False,
+            help="Specify this to actually clean all nodes",
+            action="store_true",
         )
         return parser
 
     def take_action(self, parsed_args):
+        all_nodes = parsed_args.all
         name = parsed_args.name
+        yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
+
+        if not all_nodes and not name:
+            logger.error("Please specify a node name or use --all")
+            return
+
+        if all_nodes and not yes_i_really_really_mean_it:
+            logger.error(
+                "Please confirm that you wish to clean all nodes by specifying '--yes-i-really-really-mean-it'"
+            )
+            return
 
         clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
 
         conn = get_cloud_connection()
 
-        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-        if not node:
-            logger.warning(f"Could not find node {name}")
-            return
-
-        if node.provision_state in ["available"]:
-            # NOTE: Clean is available in the "manageable" provision state, so we move the node into this state
-            try:
-                node = conn.baremetal.set_node_provision_state(node.id, "manage")
-                node = conn.baremetal.wait_for_nodes_provision_state(
-                    [node.id], "manageable"
-                )[0]
-            except Exception as exc:
-                logger.warning(
-                    f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
-                )
-                return
-
-        if node.provision_state in ["manageable"]:
-            try:
-                conn.baremetal.set_node_provision_state(
-                    node.id, "clean", clean_steps=clean_steps
-                )
-                logger.info(
-                    f"Successfully initiated clean for node {node.name} ({node.id})"
-                )
-            except Exception as exc:
-                logger.warning(f"Clean of node {node.name} ({node.id}) failed: {exc}")
-                return
+        if all_nodes:
+            clean_nodes = list(conn.baremetal.nodes(details=True))
         else:
-            logger.warning(
-                f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
-            )
-            return
+            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+            if not node:
+                logger.warning(f"Could not find node {name}")
+                return
+            clean_nodes = [node]
+
+        for node in clean_nodes:
+            if not node:
+                continue
+
+            if node.provision_state in ["available"]:
+                # NOTE: Clean is available in the "manageable" provision state, so we move the node into this state
+                try:
+                    node = conn.baremetal.set_node_provision_state(node.id, "manage")
+                    node = conn.baremetal.wait_for_nodes_provision_state(
+                        [node.id], "manageable"
+                    )[0]
+                except Exception as exc:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
+                    )
+                    continue
+
+            if node.provision_state in ["manageable"]:
+                try:
+                    conn.baremetal.set_node_provision_state(
+                        node.id, "clean", clean_steps=clean_steps
+                    )
+                    logger.info(
+                        f"Successfully initiated clean for node {node.name} ({node.id})"
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Clean of node {node.name} ({node.id}) failed: {exc}"
+                    )
+                    continue
+            else:
+                logger.warning(
+                    f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
+                )
 
 
 class BaremetalProvide(Command):
