@@ -867,6 +867,60 @@ class BaremetalBurnIn(Command):
                 continue
 
 
+class BaremetalClean(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalClean, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "name",
+            type=str,
+            help="Clean given baremetal node when in provision state available",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        name = parsed_args.name
+
+        clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
+
+        conn = get_cloud_connection()
+
+        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+        if not node:
+            logger.warning(f"Could not find node {name}")
+            return
+
+        if node.provision_state in ["available"]:
+            # NOTE: Clean is available in the "manageable" provision state, so we move the node into this state
+            try:
+                node = conn.baremetal.set_node_provision_state(node.id, "manage")
+                node = conn.baremetal.wait_for_nodes_provision_state(
+                    [node.id], "manageable"
+                )[0]
+            except Exception as exc:
+                logger.warning(
+                    f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
+                )
+                return
+
+        if node.provision_state in ["manageable"]:
+            try:
+                conn.baremetal.set_node_provision_state(
+                    node.id, "clean", clean_steps=clean_steps
+                )
+                logger.info(
+                    f"Successfully initiated clean for node {node.name} ({node.id})"
+                )
+            except Exception as exc:
+                logger.warning(f"Clean of node {node.name} ({node.id}) failed: {exc}")
+                return
+        else:
+            logger.warning(
+                f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
+            )
+            return
+
+
 class BaremetalMaintenanceSet(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalMaintenanceSet, self).get_parser(prog_name)
