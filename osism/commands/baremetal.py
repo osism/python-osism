@@ -921,6 +921,64 @@ class BaremetalClean(Command):
             return
 
 
+class BaremetalProvide(Command):
+    def get_parser(self, prog_name):
+        parser = super(BaremetalProvide, self).get_parser(prog_name)
+
+        parser.add_argument(
+            "name",
+            nargs="?",
+            type=str,
+            help="Provide given baremetal node when in provision state manageable",
+        )
+        parser.add_argument(
+            "--all",
+            default=False,
+            help="Provide all baremetal nodes in provision state manageable",
+            action="store_true",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        all_nodes = parsed_args.all
+        name = parsed_args.name
+
+        if not all_nodes and not name:
+            logger.error("Please specify a node name or use --all")
+            return
+
+        conn = get_cloud_connection()
+
+        if all_nodes:
+            provide_nodes = list(conn.baremetal.nodes(details=True))
+        else:
+            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+            if not node:
+                logger.warning(f"Could not find node {name}")
+                return
+            provide_nodes = [node]
+
+        for node in provide_nodes:
+            if not node:
+                continue
+
+            if node.provision_state == "manageable" and not node["maintenance"]:
+                try:
+                    conn.baremetal.set_node_provision_state(node.id, "provide")
+                    logger.info(
+                        f"Successfully initiated provide for node {node.name} ({node.id})"
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
+                    )
+                    continue
+            else:
+                logger.warning(
+                    f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
+                )
+
+
 class BaremetalMaintenanceSet(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalMaintenanceSet, self).get_parser(prog_name)
