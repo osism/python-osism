@@ -82,7 +82,7 @@ try:
         secondary_nb_list.append(
             get_netbox_connection(
                 secondary_nb_settings["NETBOX_URL"],
-                str(secondary_nb_settings["NETBOX_TOKEN"]),
+                str(secondary_nb_settings["NETBOX_TOKEN"]).strip(),
                 secondary_nb_settings.get("IGNORE_SSL_ERRORS", True),
             )
         )
