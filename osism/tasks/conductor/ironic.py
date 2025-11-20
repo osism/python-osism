@@ -34,16 +34,22 @@ driver_params = {
 
 
 def _prepare_node_attributes(device, get_ironic_parameters):
+    # Get base node attributes (no decryption needed)
     node_attributes = get_ironic_parameters()
+
+    # Create vault instance for Custom Field decryption
+    vault = get_vault()
+
+    # Decrypt and merge ironic_parameters Custom Field if present
     if (
         "ironic_parameters" in device.custom_fields
         and device.custom_fields["ironic_parameters"]
     ):
-        deep_merge(node_attributes, device.custom_fields["ironic_parameters"])
+        ironic_parameters_cf = device.custom_fields["ironic_parameters"]
+        deep_decrypt(ironic_parameters_cf, vault)
+        deep_merge(node_attributes, ironic_parameters_cf)
 
-    vault = get_vault()
-    deep_decrypt(node_attributes, vault)
-
+    # Decrypt secrets Custom Field
     node_secrets = device.custom_fields.get("secrets", {})
     if node_secrets is None:
         node_secrets = {}
