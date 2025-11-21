@@ -9,6 +9,7 @@ from loguru import logger
 from prompt_toolkit import prompt
 
 from osism import utils
+from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
 def resolve_hostname_to_ip(hostname: str) -> Optional[str]:
@@ -111,6 +112,12 @@ class Run(Command):
         type_console = parsed_args.type
         host = parsed_args.host[0]
 
+        # Ensure known_hosts file exists
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+            )
+
         # If certain characters are contained in the hostname, then
         # enforce a certain console type.
 
@@ -129,7 +136,7 @@ class Run(Command):
             type_console = "clush"
             host = host[1:]
 
-        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
+        ssh_options = f"-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
 
         if type_console == "ansible":
             subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
@@ -166,7 +173,7 @@ class Run(Command):
             target_command = "bash"
 
             ssh_command = f"docker exec -it {target_containername} {target_command}"
-            ssh_options = "-o RequestTTY=force -o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
+            ssh_options = f"-o RequestTTY=force -o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
 
             # Resolve hostname with Netbox fallback
             resolved_target_host = resolve_host_with_fallback(target_host)

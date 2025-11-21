@@ -8,6 +8,51 @@ from loguru import logger
 from osism import utils
 
 
+# Default path for SSH known_hosts file
+KNOWN_HOSTS_PATH = "/share/known_hosts"
+
+
+def ensure_known_hosts_file(known_hosts_path: str = KNOWN_HOSTS_PATH) -> bool:
+    """
+    Ensure the known_hosts file and its parent directory exist.
+
+    Args:
+        known_hosts_path: Path to the known_hosts file (default: /share/known_hosts)
+
+    Returns:
+        bool: True if file exists or was created successfully, False otherwise
+    """
+    try:
+        # Get the directory path
+        known_hosts_dir = os.path.dirname(known_hosts_path)
+
+        # Create directory if it doesn't exist
+        if not os.path.exists(known_hosts_dir):
+            logger.info(f"Creating directory: {known_hosts_dir}")
+            os.makedirs(known_hosts_dir, mode=0o755, exist_ok=True)
+
+        # Create empty known_hosts file if it doesn't exist
+        if not os.path.exists(known_hosts_path):
+            logger.info(f"Creating empty known_hosts file: {known_hosts_path}")
+            open(known_hosts_path, "a").close()
+            os.chmod(known_hosts_path, 0o644)
+
+        return True
+
+    except PermissionError as e:
+        logger.error(
+            f"Permission denied creating {known_hosts_path}: {e}. "
+            "Please ensure you have write permissions."
+        )
+        return False
+    except OSError as e:
+        logger.error(f"OS error creating {known_hosts_path}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error creating {known_hosts_path}: {e}")
+        return False
+
+
 def get_host_identifiers(hostname: str) -> List[str]:
     """
     Get all possible host identifiers for SSH known_hosts cleanup.
@@ -52,7 +97,7 @@ def get_host_identifiers(hostname: str) -> List[str]:
 
 
 def remove_known_hosts_entries(
-    hostname: str, known_hosts_path: str = "/share/known_hosts"
+    hostname: str, known_hosts_path: str = KNOWN_HOSTS_PATH
 ) -> bool:
     """
     Remove SSH known_hosts entries for a given hostname and its IP addresses.
@@ -149,7 +194,7 @@ def remove_known_hosts_entries(
 
 
 def backup_known_hosts(
-    known_hosts_path: str = "/share/known_hosts",
+    known_hosts_path: str = KNOWN_HOSTS_PATH,
 ) -> Optional[str]:
     """
     Create a backup of the SSH known_hosts file before making changes.
@@ -231,7 +276,7 @@ def cleanup_ssh_known_hosts_for_node(hostname: str, create_backup: bool = True) 
     Returns:
         True if cleanup was successful, False otherwise
     """
-    known_hosts_path = "/share/known_hosts"
+    known_hosts_path = KNOWN_HOSTS_PATH
 
     try:
         # Create backup if requested

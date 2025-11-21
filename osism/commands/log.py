@@ -5,11 +5,13 @@ import json
 import subprocess
 
 from cliff.command import Command
+from loguru import logger
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 import requests
 
 from osism import settings
+from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
 class Ansible(Command):
@@ -51,8 +53,14 @@ class Container(Command):
         container_name = parsed_args.container[0]
         parameters = " ".join(parsed_args.parameter)
 
+        # Ensure known_hosts file exists
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+            )
+
         ssh_command = f"docker logs {parameters} {container_name}"
-        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
+        ssh_options = f"-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
         subprocess.call(
