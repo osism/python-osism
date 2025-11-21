@@ -18,7 +18,11 @@ from osism.tasks.conductor.netbox import (
     get_device_oob_ip,
 )
 from osism.tasks.conductor.sonic.constants import DEFAULT_SONIC_ROLES, SUPPORTED_HWSKUS
-from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
+from osism.utils.ssh import (
+    cleanup_ssh_known_hosts_for_node,
+    ensure_known_hosts_file,
+    KNOWN_HOSTS_PATH,
+)
 
 # Suppress paramiko logging messages globally
 logging.getLogger("paramiko").setLevel(logging.ERROR)
@@ -108,10 +112,16 @@ class SonicCommandBase(Command):
             logger.error(f"SSH private key not found at {ssh_key_path}")
             return None
 
+        # Ensure known_hosts file exists
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, continuing with AutoAddPolicy"
+            )
+
         ssh = paramiko.SSHClient()
         # Load system host keys from centralized known_hosts file
         try:
-            ssh.load_host_keys("/share/known_hosts")
+            ssh.load_host_keys(KNOWN_HOSTS_PATH)
         except FileNotFoundError:
             logger.debug(
                 "Centralized known_hosts file not found, creating empty host key store"
@@ -983,10 +993,16 @@ class Console(SonicCommandBase):
                 logger.error(f"SSH private key not found at {ssh_key_path}")
                 return 1
 
+            # Ensure known_hosts file exists
+            if not ensure_known_hosts_file():
+                logger.warning(
+                    f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+                )
+
             logger.info(f"Connecting to {hostname} ({ssh_host}) via SSH console")
 
             # Execute SSH command using os.system to provide interactive terminal
-            ssh_command = f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/share/known_hosts {ssh_username}@{ssh_host}"
+            ssh_command = f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no -o UserKnownHostsFile={KNOWN_HOSTS_PATH} {ssh_username}@{ssh_host}"
 
             logger.info("Starting SSH session...")
             logger.info("To exit the console, type 'exit' or press Ctrl+D")

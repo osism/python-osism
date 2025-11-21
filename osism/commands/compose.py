@@ -4,6 +4,9 @@ import argparse
 import subprocess
 
 from cliff.command import Command
+from loguru import logger
+
+from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
 class Run(Command):
@@ -23,10 +26,16 @@ class Run(Command):
         environment = parsed_args.environment[0]
         arguments = "".join(parsed_args.arguments)
 
+        # Ensure known_hosts file exists
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+            )
+
         ssh_command = (
             f"docker compose --project-directory=/opt/{environment} {arguments}"
         )
-        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
+        ssh_options = f"-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
         subprocess.call(

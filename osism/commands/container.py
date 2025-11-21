@@ -4,7 +4,10 @@ import argparse
 import subprocess
 
 from cliff.command import Command
+from loguru import logger
 from prompt_toolkit import prompt
+
+from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
 class Run(Command):
@@ -23,7 +26,13 @@ class Run(Command):
         host = parsed_args.host[0]
         command = " ".join(parsed_args.command)
 
-        ssh_options = "-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile=/share/known_hosts"
+        # Ensure known_hosts file exists
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+            )
+
+        ssh_options = f"-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
 
         if not command:
             while True:
