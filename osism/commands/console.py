@@ -9,6 +9,7 @@ from loguru import logger
 from prompt_toolkit import prompt
 
 from osism import utils
+from osism.utils.netbox import find_device_by_identifier
 from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
@@ -46,7 +47,7 @@ def get_primary_ipv4_from_netbox(hostname: str) -> Optional[str]:
         return None
 
     try:
-        device = utils.nb.dcim.devices.get(name=hostname)
+        device = find_device_by_identifier(hostname)
         if device and device.primary_ip4:
             ip_address = str(device.primary_ip4.address).split("/")[0]
             logger.info(f"Found primary IPv4 for {hostname} in Netbox: {ip_address}")

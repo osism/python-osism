@@ -16,6 +16,7 @@ from openstack.baremetal import configdrive as configdrive_builder
 
 from osism.commands import get_cloud_connection
 from osism import utils
+from osism.utils.netbox import find_device_by_identifier
 from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
 from osism.tasks import netbox
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
@@ -59,16 +60,8 @@ class BaremetalList(Command):
             device_role = "N/A"
             if utils.nb:
                 try:
-                    # Try to find device by name first
-                    device = utils.nb.dcim.devices.get(name=b["name"])
-
-                    # If not found by name, try by inventory_hostname custom field
-                    if not device:
-                        devices = utils.nb.dcim.devices.filter(
-                            cf_inventory_hostname=b["name"]
-                        )
-                        if devices:
-                            device = list(devices)[0]
+                    # Use centralized device lookup function
+                    device = find_device_by_identifier(b["name"])
 
                     # Get device role
                     if device and device.role and hasattr(device.role, "name"):
@@ -206,16 +199,8 @@ class BaremetalDeploy(Command):
                 default_vars = {}
                 if utils.nb:
                     try:
-                        # Try to find device by name first
-                        device = utils.nb.dcim.devices.get(name=node.name)
-
-                        # If not found by name, try by inventory_hostname custom field
-                        if not device:
-                            devices = utils.nb.dcim.devices.filter(
-                                cf_inventory_hostname=node.name
-                            )
-                            if devices:
-                                device = devices[0]
+                        # Use centralized device lookup function
+                        device = find_device_by_identifier(node.name)
 
                         # Extract local_context_data if device found and has the field
                         if (
@@ -343,16 +328,8 @@ class BaremetalDump(Command):
                 default_vars = {}
                 if utils.nb:
                     try:
-                        # Try to find device by name first
-                        device = utils.nb.dcim.devices.get(name=node.name)
-
-                        # If not found by name, try by inventory_hostname custom field
-                        if not device:
-                            devices = utils.nb.dcim.devices.filter(
-                                cf_inventory_hostname=node.name
-                            )
-                            if devices:
-                                device = devices[0]
+                        # Use centralized device lookup function
+                        device = find_device_by_identifier(node.name)
 
                         # Extract local_context_data if device found and has the field
                         if (
@@ -441,14 +418,8 @@ class BaremetalDump(Command):
                     logger.error("NetBox connection not available")
                     return
 
-                # Try to find device by name first
-                device = utils.nb.dcim.devices.get(name=name)
-
-                # If not found by name, try by inventory_hostname custom field
-                if not device:
-                    devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=name)
-                    if devices:
-                        device = devices[0]
+                # Use centralized device lookup function
+                device = find_device_by_identifier(name)
 
                 # If device not found, error out
                 if not device:
@@ -695,10 +666,11 @@ class BaremetalPing(Command):
 
         try:
             if name:
-                devices = [utils.nb.dcim.devices.get(name=name)]
-                if not devices[0]:
+                device = find_device_by_identifier(name)
+                if not device:
                     logger.error(f"Device {name} not found in NetBox")
                     return
+                devices = [device]
             else:
                 # Use the NETBOX_FILTER_CONDUCTOR_IRONIC setting to get devices
                 devices = set()
@@ -1244,7 +1216,7 @@ class BaremetalDelete(Command):
                         f"Clearing NetBox states for node {node.name} on primary NetBox"
                     )
                     try:
-                        device = utils.nb.dcim.devices.get(name=node.name)
+                        device = find_device_by_identifier(node.name)
                         if device:
                             device.custom_fields.update(
                                 {"provision_state": None, "power_state": None}

@@ -6,6 +6,7 @@ from typing import List, Optional
 from loguru import logger
 
 from osism import utils
+from osism.utils.netbox import find_device_by_identifier
 
 
 # Default path for SSH known_hosts file
@@ -82,7 +83,7 @@ def get_host_identifiers(hostname: str) -> List[str]:
     # Try Netbox fallback if available
     if utils.nb:
         try:
-            device = utils.nb.dcim.devices.get(name=hostname)
+            device = find_device_by_identifier(hostname)
             if device and device.primary_ip4:
                 ip_address = str(device.primary_ip4.address).split("/")[0]
                 if ip_address and ip_address not in identifiers:
