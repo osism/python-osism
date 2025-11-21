@@ -22,6 +22,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from osism.tasks import reconciler, openstack
 from osism import utils
+from osism.utils.netbox import find_device_by_identifier
 from osism.services.listener import BaremetalEvents
 from osism.services.websocket_manager import websocket_manager
 from osism.services.event_bridge import event_bridge
@@ -159,31 +160,7 @@ class BaremetalNodesResponse(BaseModel):
     count: int = Field(..., description="Total number of nodes")
 
 
-def find_device_by_identifier(identifier: str):
-    """Find a device in NetBox by various identifiers."""
-    if not utils.nb:
-        return None
-
-    device = None
-
-    # Search by device name
-    devices = utils.nb.dcim.devices.filter(name=identifier)
-    if devices:
-        device = list(devices)[0]
-
-    # Search by inventory_hostname custom field
-    if not device:
-        devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=identifier)
-        if devices:
-            device = list(devices)[0]
-
-    # Search by serial number
-    if not device:
-        devices = utils.nb.dcim.devices.filter(serial=identifier)
-        if devices:
-            device = list(devices)[0]
-
-    return device
+# find_device_by_identifier has been moved to osism.utils.netbox
 
 
 @app.get("/", tags=["health"])

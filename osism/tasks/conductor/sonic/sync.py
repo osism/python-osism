@@ -5,6 +5,7 @@
 from loguru import logger
 
 from osism import utils
+from osism.utils.netbox import find_device_by_identifier
 from osism.tasks.conductor.netbox import get_nb_device_query_list_sonic
 from .bgp import calculate_minimum_as_for_group
 from .connections import (
@@ -61,7 +62,7 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
     if device_name:
         # When specific device is requested, fetch it directly
         try:
-            device = utils.nb.dcim.devices.get(name=device_name)
+            device = find_device_by_identifier(device_name)
             if device:
                 # Check if device role matches allowed roles
                 if device.role and device.role.slug in DEFAULT_SONIC_ROLES:

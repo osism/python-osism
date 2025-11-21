@@ -5,6 +5,7 @@ from ansible.parsing.vault import VaultLib, VaultSecret
 from loguru import logger
 
 from osism import utils
+from osism.utils.netbox import find_device_by_identifier
 import sushy
 import urllib3
 
@@ -109,14 +110,8 @@ def get_redfish_connection(
     # Try to find NetBox device first for conductor configuration fallback
     if utils.nb:
         try:
-            # First try to find device by name
-            device = utils.nb.dcim.devices.get(name=hostname)
-
-            # If not found by name, try by inventory_hostname custom field
-            if not device:
-                devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=hostname)
-                if devices:
-                    device = devices[0]
+            # Use centralized device lookup function
+            device = find_device_by_identifier(hostname)
         except Exception as exc:
             logger.warning(f"Could not resolve hostname {hostname} via NetBox: {exc}")
 

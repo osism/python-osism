@@ -10,6 +10,7 @@ import yaml
 
 from osism.tasks import conductor, netbox, handle_task
 from osism import utils
+from osism.utils.netbox import find_device_by_identifier
 
 
 class Ironic(Command):
@@ -300,21 +301,17 @@ class Dump(Command):
             logger.error("NetBox integration not configured.")
             return
 
-        # Search for device by name first
-        devices = list(utils.nb.dcim.devices.filter(name=host))
-
-        # If not found by name, search by custom fields
-        if not devices:
-            # Search by alternative_name custom field
-            devices = list(utils.nb.dcim.devices.filter(cf_alternative_name=host))
-
-        if not devices:
-            # Search by inventory_hostname custom field
-            devices = list(utils.nb.dcim.devices.filter(cf_inventory_hostname=host))
-
-        if not devices:
-            # Search by external_hostname custom field
-            devices = list(utils.nb.dcim.devices.filter(cf_external_hostname=host))
+        # Use centralized device lookup with extended search fields
+        device = find_device_by_identifier(
+            host,
+            search_fields=[
+                "name",
+                "cf_alternative_name",
+                "cf_inventory_hostname",
+                "cf_external_hostname",
+            ],
+        )
+        devices = [device] if device else []
 
         if not devices:
             logger.error(f"Device '{host}' not found in NetBox.")

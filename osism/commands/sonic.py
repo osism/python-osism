@@ -12,6 +12,7 @@ from prompt_toolkit import prompt
 from tabulate import tabulate
 
 from osism import utils
+from osism.utils.netbox import find_device_by_identifier
 from osism.tasks import netbox
 from osism.tasks.conductor.netbox import (
     get_nb_device_query_list_sonic,
@@ -34,17 +35,12 @@ class SonicCommandBase(Command):
 
     def _get_device_from_netbox(self, hostname):
         """Get device from NetBox by name or inventory_hostname"""
-        device = utils.nb.dcim.devices.get(name=hostname)
+        device = find_device_by_identifier(hostname)
         if not device:
-            devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=hostname)
-            if devices:
-                device = devices[0]
-                logger.info(f"Device found by inventory_hostname: {device.name}")
-            else:
-                logger.error(
-                    f"Device {hostname} not found in NetBox (searched by name and inventory_hostname)"
-                )
-                return None
+            logger.error(
+                f"Device {hostname} not found in NetBox (searched by name and inventory_hostname)"
+            )
+            return None
         return device
 
     def _get_config_context(self, device, hostname):
