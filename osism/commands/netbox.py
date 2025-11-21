@@ -273,9 +273,9 @@ class Console(Command):
         subprocess.call(f"/usr/local/bin/nbcli {type_console} {arguments}", shell=True)
 
 
-class Show(Command):
+class Dump(Command):
     def get_parser(self, prog_name):
-        parser = super(Show, self).get_parser(prog_name)
+        parser = super(Dump, self).get_parser(prog_name)
         parser.add_argument(
             "host",
             nargs=1,
