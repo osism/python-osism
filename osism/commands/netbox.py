@@ -5,6 +5,7 @@ import subprocess
 
 from cliff.command import Command
 from loguru import logger
+import requests
 from tabulate import tabulate
 import yaml
 
@@ -174,31 +175,50 @@ class Sync(Command):
                 nb.http_session.timeout = original_timeout
 
     def _check_netbox_connectivity(self, nb, url, token, ignore_ssl_errors, timeout=20):
-        """Check connectivity by creating a fresh connection.
+        """Check connectivity using two-stage approach: reachability then authentication.
+
+        Stage 1: Simple reachability test (can we reach the server?)
+        Stage 2: Authentication test (can we authenticate?)
 
         Args:
             nb: Existing NetBox instance (may be None)
-            url: NetBox URL
-            token: NetBox token
+            url: NetBox URL (unused, kept for backward compatibility)
+            token: NetBox token (unused, kept for backward compatibility)
             ignore_ssl_errors: Whether to ignore SSL errors
             timeout: Connection timeout in seconds
 
         Returns:
             str: Status message ("Success" or "Error: [message]")
         """
-        if not url or not token:
+        if not nb:
             return "Error: Not configured"
 
+        # Stage 1: Simple reachability test (no authentication)
         try:
-            # Create a test connection with timeout
-            test_nb = utils.get_netbox_connection(
-                url, token, ignore_ssl_errors, timeout=timeout
-            )
-            if not test_nb:
-                return "Error: Connection failed"
+            base_url = nb.base_url
+            # Make simple GET request without auth to test reachability
+            requests.get(base_url, timeout=timeout, verify=not ignore_ssl_errors)
+        except requests.exceptions.Timeout:
+            return "Error: Timeout"
+        except requests.exceptions.ConnectionError:
+            return "Error: Connection refused"
+        except requests.exceptions.SSLError:
+            return "Error: SSL error"
+        except Exception as e:
+            error_msg = str(e)
+            short_msg = error_msg[:50] if len(error_msg) > 50 else error_msg
+            return f"Error: {short_msg}"
 
-            # Test with status() call
-            test_nb.status()
+        # Stage 2: Authentication test (only if reachability succeeded)
+        try:
+            # Configure timeout on the http session
+            original_timeout = None
+            if hasattr(nb, "http_session"):
+                original_timeout = getattr(nb.http_session, "timeout", None)
+                nb.http_session.timeout = timeout
+
+            # Test API connectivity with authentication
+            nb.status()
             return "Success"
 
         except Exception as e:
@@ -216,8 +236,13 @@ class Sync(Command):
             elif "ssl" in error_msg.lower() or "certificate" in error_msg.lower():
                 return "Error: SSL error"
             else:
+                # Truncate long error messages
                 short_msg = error_msg[:50] if len(error_msg) > 50 else error_msg
                 return f"Error: {short_msg}"
+        finally:
+            # Ensure timeout is restored
+            if hasattr(nb, "http_session") and original_timeout is not None:
+                nb.http_session.timeout = original_timeout
 
     def get_parser(self, prog_name):
         parser = super(Sync, self).get_parser(prog_name)
