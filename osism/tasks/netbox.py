@@ -15,6 +15,43 @@ def setup_periodic_tasks(sender, **kwargs):
     pass
 
 
+def _matches_netbox_filter(nb, netbox_filter, is_primary=False):
+    """Check if a NetBox instance matches the given filter.
+
+    Args:
+        nb: NetBox API instance
+        netbox_filter: Filter string (substring match, case-insensitive)
+        is_primary: Whether this is the primary NetBox instance
+
+    Returns:
+        bool: True if the NetBox instance matches the filter
+    """
+    if not netbox_filter:
+        return True
+
+    filter_lower = netbox_filter.lower()
+
+    # Check if primary NetBox matches 'primary' filter
+    if is_primary and "primary" in filter_lower:
+        return True
+
+    # Check URL
+    if filter_lower in nb.base_url.lower():
+        return True
+
+    # Check NETBOX_NAME attribute (if present on secondary instances)
+    netbox_name = getattr(nb, "netbox_name", None)
+    if netbox_name and filter_lower in netbox_name.lower():
+        return True
+
+    # Check NETBOX_SITE attribute (if present on secondary instances)
+    netbox_site = getattr(nb, "netbox_site", None)
+    if netbox_site and filter_lower in netbox_site.lower():
+        return True
+
+    return False
+
+
 @app.task(bind=True, name="osism.tasks.netbox.run")
 def run(self, action, arguments):
     # Check if tasks are locked before execution
@@ -35,8 +72,9 @@ def set_maintenance(self, device_name, state=True, netbox_filter=None):
     Args:
         device_name: Name of the device
         state: Maintenance state (True/False)
-        netbox_filter: Optional URL filter (substring match, case-insensitive).
-                      Only NetBox instances whose base_url contains this substring will be updated.
+        netbox_filter: Optional filter (substring match, case-insensitive).
+                      Matches against NetBox name, site, or URL.
+                      Use 'primary' to match the primary NetBox instance.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -47,9 +85,27 @@ def set_maintenance(self, device_name, state=True, netbox_filter=None):
     )
     if lock.acquire(timeout=20):
         try:
-            for nb in [utils.nb] + utils.secondary_nb_list:
-                # Apply filter if specified
-                if netbox_filter and netbox_filter.lower() not in nb.base_url.lower():
+            # Process primary NetBox
+            if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
+                logger.info(
+                    f"Set maintenance state of device {device_name} = {state} on {utils.nb.base_url}"
+                )
+                device = utils.nb.dcim.devices.get(name=device_name)
+                if device:
+                    device.custom_fields.update({"maintenance": state})
+                    device.save()
+                else:
+                    logger.error(
+                        f"Could not set maintenance for {device_name} on {utils.nb.base_url}"
+                    )
+            else:
+                logger.debug(
+                    f"Skipping primary NetBox {utils.nb.base_url} (does not match filter: {netbox_filter})"
+                )
+
+            # Process secondary NetBox instances
+            for nb in utils.secondary_nb_list:
+                if not _matches_netbox_filter(nb, netbox_filter, is_primary=False):
                     logger.debug(
                         f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
                     )
@@ -79,8 +135,9 @@ def set_provision_state(self, device_name, state, netbox_filter=None):
     Args:
         device_name: Name of the device
         state: Provision state value
-        netbox_filter: Optional URL filter (substring match, case-insensitive).
-                      Only NetBox instances whose base_url contains this substring will be updated.
+        netbox_filter: Optional filter (substring match, case-insensitive).
+                      Matches against NetBox name, site, or URL.
+                      Use 'primary' to match the primary NetBox instance.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -91,9 +148,27 @@ def set_provision_state(self, device_name, state, netbox_filter=None):
     )
     if lock.acquire(timeout=20):
         try:
-            for nb in [utils.nb] + utils.secondary_nb_list:
-                # Apply filter if specified
-                if netbox_filter and netbox_filter.lower() not in nb.base_url.lower():
+            # Process primary NetBox
+            if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
+                logger.info(
+                    f"Set provision state of device {device_name} = {state} on {utils.nb.base_url}"
+                )
+                device = utils.nb.dcim.devices.get(name=device_name)
+                if device:
+                    device.custom_fields.update({"provision_state": state})
+                    device.save()
+                else:
+                    logger.error(
+                        f"Could not set provision state for {device_name} on {utils.nb.base_url}"
+                    )
+            else:
+                logger.debug(
+                    f"Skipping primary NetBox {utils.nb.base_url} (does not match filter: {netbox_filter})"
+                )
+
+            # Process secondary NetBox instances
+            for nb in utils.secondary_nb_list:
+                if not _matches_netbox_filter(nb, netbox_filter, is_primary=False):
                     logger.debug(
                         f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
                     )
@@ -123,8 +198,9 @@ def set_power_state(self, device_name, state, netbox_filter=None):
     Args:
         device_name: Name of the device
         state: Power state value
-        netbox_filter: Optional URL filter (substring match, case-insensitive).
-                      Only NetBox instances whose base_url contains this substring will be updated.
+        netbox_filter: Optional filter (substring match, case-insensitive).
+                      Matches against NetBox name, site, or URL.
+                      Use 'primary' to match the primary NetBox instance.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -135,9 +211,27 @@ def set_power_state(self, device_name, state, netbox_filter=None):
     )
     if lock.acquire(timeout=20):
         try:
-            for nb in [utils.nb] + utils.secondary_nb_list:
-                # Apply filter if specified
-                if netbox_filter and netbox_filter.lower() not in nb.base_url.lower():
+            # Process primary NetBox
+            if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
+                logger.info(
+                    f"Set power state of device {device_name} = {state} on {utils.nb.base_url}"
+                )
+                device = utils.nb.dcim.devices.get(name=device_name)
+                if device:
+                    device.custom_fields.update({"power_state": state})
+                    device.save()
+                else:
+                    logger.error(
+                        f"Could not set power state for {device_name} on {utils.nb.base_url}"
+                    )
+            else:
+                logger.debug(
+                    f"Skipping primary NetBox {utils.nb.base_url} (does not match filter: {netbox_filter})"
+                )
+
+            # Process secondary NetBox instances
+            for nb in utils.secondary_nb_list:
+                if not _matches_netbox_filter(nb, netbox_filter, is_primary=False):
                     logger.debug(
                         f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
                     )
