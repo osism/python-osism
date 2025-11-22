@@ -102,6 +102,9 @@ class Sync(Command):
         if settings.NETBOX_URL:
             row = ["primary", settings.NETBOX_URL, "N/A"]
             if check_connectivity:
+                logger.info(
+                    f"Checking connectivity to primary Netbox: {settings.NETBOX_URL}"
+                )
                 status = self._check_netbox_connectivity(
                     utils.nb,
                     settings.NETBOX_URL,
@@ -120,6 +123,7 @@ class Sync(Command):
             row = [name, url, site]
 
             if check_connectivity:
+                logger.info(f"Checking connectivity to {name} ({url})")
                 status = self._check_netbox_instance(nb, timeout)
                 row.append(status)
 
