@@ -16,16 +16,34 @@ import yaml
 from osism import settings
 
 
-def get_netbox_connection(netbox_url, netbox_token, ignore_ssl_errors=False):
+def get_netbox_connection(
+    netbox_url, netbox_token, ignore_ssl_errors=False, timeout=20
+):
+    """Create a NetBox API connection.
+
+    Args:
+        netbox_url: NetBox URL
+        netbox_token: NetBox API token
+        ignore_ssl_errors: Whether to ignore SSL certificate errors
+        timeout: Request timeout in seconds (default: 20)
+
+    Returns:
+        pynetbox.api instance or None
+    """
     if netbox_url and netbox_token:
         nb = pynetbox.api(netbox_url, token=netbox_token)
 
-        if ignore_ssl_errors and nb:
+        if nb:
             import requests
 
-            urllib3.disable_warnings()
+            # Create session with timeout
             session = requests.Session()
-            session.verify = False
+            session.timeout = timeout
+
+            if ignore_ssl_errors:
+                urllib3.disable_warnings()
+                session.verify = False
+
             nb.http_session = session
 
     else:

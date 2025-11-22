@@ -81,6 +81,144 @@ class Ironic(Command):
 
 
 class Sync(Command):
+    def _build_netbox_table(self, check_connectivity=False, timeout=20):
+        """Build table data for NetBox instances.
+
+        Args:
+            check_connectivity: If True, test connectivity and add Status column
+            timeout: Connection timeout in seconds for connectivity checks
+
+        Returns:
+            tuple: (table_data, headers)
+        """
+        table = []
+        headers = ["Name", "URL", "Site"]
+
+        if check_connectivity:
+            headers.append("Status")
+
+        # Add primary NetBox instance
+        if settings.NETBOX_URL:
+            row = ["primary", settings.NETBOX_URL, "N/A"]
+            if check_connectivity:
+                status = self._check_netbox_connectivity(
+                    utils.nb,
+                    settings.NETBOX_URL,
+                    settings.NETBOX_TOKEN,
+                    settings.IGNORE_SSL_ERRORS,
+                    timeout,
+                )
+                row.append(status)
+            table.append(row)
+
+        # Add secondary NetBox instances
+        for nb in utils.secondary_nb_list:
+            name = getattr(nb, "netbox_name", "N/A")
+            site = getattr(nb, "netbox_site", "N/A")
+            url = nb.base_url
+            row = [name, url, site]
+
+            if check_connectivity:
+                status = self._check_netbox_instance(nb, timeout)
+                row.append(status)
+
+            table.append(row)
+
+        return table, headers
+
+    def _check_netbox_instance(self, nb, timeout=20):
+        """Check connectivity for an already-initialized NetBox instance.
+
+        Args:
+            nb: pynetbox API instance
+            timeout: Connection timeout in seconds
+
+        Returns:
+            str: Status message ("Success" or "Error: [message]")
+        """
+        if not nb:
+            return "Error: Not configured"
+
+        try:
+            # Configure timeout on the http session
+            original_timeout = None
+            if hasattr(nb, "http_session"):
+                original_timeout = getattr(nb.http_session, "timeout", None)
+                nb.http_session.timeout = timeout
+
+            # Test API connectivity with a simple status call
+            nb.status()
+            return "Success"
+
+        except Exception as e:
+            error_msg = str(e)
+            if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                return "Error: Timeout"
+            elif (
+                "401" in error_msg
+                or "authentication" in error_msg.lower()
+                or "unauthorized" in error_msg.lower()
+            ):
+                return "Error: Auth failed"
+            elif "connection" in error_msg.lower() or "refused" in error_msg.lower():
+                return "Error: Connection refused"
+            elif "ssl" in error_msg.lower() or "certificate" in error_msg.lower():
+                return "Error: SSL error"
+            else:
+                # Truncate long error messages
+                short_msg = error_msg[:50] if len(error_msg) > 50 else error_msg
+                return f"Error: {short_msg}"
+        finally:
+            # Ensure timeout is restored
+            if hasattr(nb, "http_session") and original_timeout is not None:
+                nb.http_session.timeout = original_timeout
+
+    def _check_netbox_connectivity(self, nb, url, token, ignore_ssl_errors, timeout=20):
+        """Check connectivity by creating a fresh connection.
+
+        Args:
+            nb: Existing NetBox instance (may be None)
+            url: NetBox URL
+            token: NetBox token
+            ignore_ssl_errors: Whether to ignore SSL errors
+            timeout: Connection timeout in seconds
+
+        Returns:
+            str: Status message ("Success" or "Error: [message]")
+        """
+        if not url or not token:
+            return "Error: Not configured"
+
+        try:
+            # Create a test connection with timeout
+            test_nb = utils.get_netbox_connection(
+                url, token, ignore_ssl_errors, timeout=timeout
+            )
+            if not test_nb:
+                return "Error: Connection failed"
+
+            # Test with status() call
+            test_nb.status()
+            return "Success"
+
+        except Exception as e:
+            error_msg = str(e)
+            if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                return "Error: Timeout"
+            elif (
+                "401" in error_msg
+                or "authentication" in error_msg.lower()
+                or "unauthorized" in error_msg.lower()
+            ):
+                return "Error: Auth failed"
+            elif "connection" in error_msg.lower() or "refused" in error_msg.lower():
+                return "Error: Connection refused"
+            elif "ssl" in error_msg.lower() or "certificate" in error_msg.lower():
+                return "Error: SSL error"
+            else:
+                short_msg = error_msg[:50] if len(error_msg) > 50 else error_msg
+                return f"Error: {short_msg}"
+
     def get_parser(self, prog_name):
         parser = super(Sync, self).get_parser(prog_name)
         parser.add_argument(
@@ -110,6 +248,11 @@ class Sync(Command):
             help="List all configured NetBox instances and exit",
             action="store_true",
         )
+        parser.add_argument(
+            "--check",
+            help="Check connectivity to all configured NetBox instances and display status",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -118,24 +261,27 @@ class Sync(Command):
 
         # Handle --list option
         if parsed_args.list:
-            table = []
-
-            # Add primary NetBox instance (always labeled as 'primary')
-            if settings.NETBOX_URL:
-                table.append(["primary", settings.NETBOX_URL, "N/A"])
-
-            # Add secondary NetBox instances
-            for nb in utils.secondary_nb_list:
-                name = getattr(nb, "netbox_name", "N/A")
-                site = getattr(nb, "netbox_site", "N/A")
-                url = nb.base_url
-                table.append([name, url, site])
+            table, headers = self._build_netbox_table(check_connectivity=False)
 
             if not table:
                 logger.warning("No NetBox instances configured")
                 return
 
-            result = tabulate(table, headers=["Name", "URL", "Site"], tablefmt="grid")
+            result = tabulate(table, headers=headers, tablefmt="grid")
+            print(result)
+            return
+
+        # Handle --check option
+        if parsed_args.check:
+            table, headers = self._build_netbox_table(
+                check_connectivity=True, timeout=20
+            )
+
+            if not table:
+                logger.warning("No NetBox instances configured")
+                return
+
+            result = tabulate(table, headers=headers, tablefmt="grid")
             print(result)
             return
 
