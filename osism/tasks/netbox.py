@@ -29,8 +29,15 @@ def run(self, action, arguments):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_maintenance")
-def set_maintenance(self, device_name, state=True):
-    """Set the maintenance state for a device in the NetBox."""
+def set_maintenance(self, device_name, state=True, netbox_filter=None):
+    """Set the maintenance state for a device in the NetBox.
+
+    Args:
+        device_name: Name of the device
+        state: Maintenance state (True/False)
+        netbox_filter: Optional URL filter (substring match, case-insensitive).
+                      Only NetBox instances whose base_url contains this substring will be updated.
+    """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
 
@@ -41,6 +48,13 @@ def set_maintenance(self, device_name, state=True):
     if lock.acquire(timeout=20):
         try:
             for nb in [utils.nb] + utils.secondary_nb_list:
+                # Apply filter if specified
+                if netbox_filter and netbox_filter.lower() not in nb.base_url.lower():
+                    logger.debug(
+                        f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
+                    )
+                    continue
+
                 logger.info(
                     f"Set maintenance state of device {device_name} = {state} on {nb.base_url}"
                 )
@@ -59,8 +73,15 @@ def set_maintenance(self, device_name, state=True):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_provision_state")
-def set_provision_state(self, device_name, state):
-    """Set the provision state for a device in the NetBox."""
+def set_provision_state(self, device_name, state, netbox_filter=None):
+    """Set the provision state for a device in the NetBox.
+
+    Args:
+        device_name: Name of the device
+        state: Provision state value
+        netbox_filter: Optional URL filter (substring match, case-insensitive).
+                      Only NetBox instances whose base_url contains this substring will be updated.
+    """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
 
@@ -70,8 +91,14 @@ def set_provision_state(self, device_name, state):
     )
     if lock.acquire(timeout=20):
         try:
-
             for nb in [utils.nb] + utils.secondary_nb_list:
+                # Apply filter if specified
+                if netbox_filter and netbox_filter.lower() not in nb.base_url.lower():
+                    logger.debug(
+                        f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
+                    )
+                    continue
+
                 logger.info(
                     f"Set provision state of device {device_name} = {state} on {nb.base_url}"
                 )
@@ -90,8 +117,15 @@ def set_provision_state(self, device_name, state):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_power_state")
-def set_power_state(self, device_name, state):
-    """Set the provision state for a device in the NetBox."""
+def set_power_state(self, device_name, state, netbox_filter=None):
+    """Set the power state for a device in the NetBox.
+
+    Args:
+        device_name: Name of the device
+        state: Power state value
+        netbox_filter: Optional URL filter (substring match, case-insensitive).
+                      Only NetBox instances whose base_url contains this substring will be updated.
+    """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
 
@@ -102,6 +136,13 @@ def set_power_state(self, device_name, state):
     if lock.acquire(timeout=20):
         try:
             for nb in [utils.nb] + utils.secondary_nb_list:
+                # Apply filter if specified
+                if netbox_filter and netbox_filter.lower() not in nb.base_url.lower():
+                    logger.debug(
+                        f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
+                    )
+                    continue
+
                 logger.info(
                     f"Set power state of device {device_name} = {state} on {nb.base_url}"
                 )

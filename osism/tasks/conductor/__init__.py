@@ -3,7 +3,6 @@
 import copy
 from celery import Celery
 from celery.signals import worker_process_init
-from loguru import logger
 
 from osism import utils
 from osism.tasks import Config
@@ -40,11 +39,13 @@ def get_ironic_parameters(self):
 
 
 @app.task(bind=True, name="osism.tasks.conductor.sync_netbox")
-def sync_netbox(self, force_update=False):
+def sync_netbox(self, node_name=None, netbox_filter=None):
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
 
-    logger.info("Not implemented")
+    from osism.tasks.conductor.ironic import sync_netbox_from_ironic
+
+    sync_netbox_from_ironic(self.request.id, node_name, netbox_filter)
 
 
 @app.task(bind=True, name="osism.tasks.conductor.sync_ironic")
