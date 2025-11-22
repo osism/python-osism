@@ -26,7 +26,7 @@ def setup_periodic_tasks(sender, **kwargs):
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run")
-def run(self, publish=True, flush_cache=False):
+def run(self, publish=True):
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
 
@@ -39,8 +39,6 @@ def run(self, publish=True, flush_cache=False):
         logger.info("RUN /run.sh")
 
         env = os.environ.copy()
-        if flush_cache:
-            env["FLUSH_CACHE"] = "true"
 
         p = subprocess.Popen(
             "/run.sh",
