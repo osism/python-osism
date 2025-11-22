@@ -232,11 +232,6 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=
                     )
                     node = openstack.baremetal_node_create(device.name, node_attributes)
                 else:
-                    # NOTE: The listener service only reacts to changes in the baremetal node. Explicitly sync provision, power state and maintenance in case updates were missed by the listener.
-                    # This sync is done unconditionally, because we do not know the state of secondary netboxes at this point
-                    netbox.set_provision_state(device.name, node["provision_state"])
-                    netbox.set_power_state(device.name, node["power_state"])
-                    netbox.set_maintenance(device.name, state=node["is_maintenance"])
                     # NOTE: Check whether the baremetal node needs to be updated
                     node_updates = {}
                     deep_compare(node_attributes, node, node_updates)
@@ -369,5 +364,72 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=
             osism_utils.push_task_output(
                 "Could not acquire lock for node {device.name}"
             )
+
+    osism_utils.finish_task_output(request_id, rc=0)
+
+
+def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
+    """Sync Ironic node states to NetBox (including secondaries)
+
+    This function synchronizes the state of Ironic baremetal nodes to NetBox.
+    It updates three custom fields in NetBox:
+    - provision_state: The current provision state of the node
+    - power_state: The current power state of the node
+    - maintenance: Whether the node is in maintenance mode
+
+    The sync is performed for the primary NetBox instance and all configured
+    secondary NetBox instances. NetBox instances can be filtered by URL substring.
+
+    Args:
+        request_id: The Celery task request ID for output tracking
+        node_name: Optional name of a specific node to sync. If None, all nodes are synced.
+        netbox_filter: Optional URL filter (substring match). If provided, only NetBox
+                      instances whose base_url contains this substring will be updated.
+                      Example: 'primary' matches 'https://primary-netbox.example.com'
+    """
+    filter_msg = f" (NetBox filter: {netbox_filter})" if netbox_filter else ""
+    if node_name:
+        osism_utils.push_task_output(
+            request_id,
+            f"Starting Ironic to NetBox synchronisation for node {node_name}{filter_msg}\n",
+        )
+    else:
+        osism_utils.push_task_output(
+            request_id,
+            f"Starting Ironic to NetBox synchronisation{filter_msg}\n",
+        )
+
+    # Get all Ironic nodes
+    nodes = openstack.baremetal_node_list()
+
+    # Filter by node_name if specified
+    if node_name:
+        nodes = [n for n in nodes if n["name"] == node_name]
+        if not nodes:
+            osism_utils.push_task_output(
+                request_id,
+                f"Node {node_name} not found in Ironic\n",
+            )
+            osism_utils.finish_task_output(request_id, rc=1)
+            return
+
+    # Sync each node to NetBox (including secondaries)
+    for node in nodes:
+        osism_utils.push_task_output(
+            request_id,
+            f"Syncing state of {node['name']} to NetBox (including secondaries)\n",
+        )
+
+        # Update all three states (each function handles primary + secondary NetBox instances)
+        # Pass netbox_filter to only update matching NetBox instances
+        netbox.set_provision_state(
+            node["name"], node["provision_state"], netbox_filter=netbox_filter
+        )
+        netbox.set_power_state(
+            node["name"], node["power_state"], netbox_filter=netbox_filter
+        )
+        netbox.set_maintenance(
+            node["name"], state=node["is_maintenance"], netbox_filter=netbox_filter
+        )
 
     osism_utils.finish_task_output(request_id, rc=0)

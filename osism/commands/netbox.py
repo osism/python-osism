@@ -84,9 +84,26 @@ class Sync(Command):
     def get_parser(self, prog_name):
         parser = super(Sync, self).get_parser(prog_name)
         parser.add_argument(
+            "node",
+            nargs="?",
+            help="Optional node name to sync only a specific node",
+        )
+        parser.add_argument(
             "--no-wait",
             help="Do not wait until the sync has been completed",
             action="store_true",
+        )
+        parser.add_argument(
+            "--task-timeout",
+            default=os.environ.get("OSISM_TASK_TIMEOUT", 300),
+            type=int,
+            help="Timeout for a scheduled task that has not been executed yet",
+        )
+        parser.add_argument(
+            "--netbox-filter",
+            type=str,
+            default=None,
+            help="Filter NetBox instances by URL (substring match, e.g. 'primary' or 'secondary-1')",
         )
         return parser
 
@@ -95,13 +112,42 @@ class Sync(Command):
         utils.check_task_lock_and_exit()
 
         wait = not parsed_args.no_wait
+        task_timeout = parsed_args.task_timeout
+        node_name = parsed_args.node
+        netbox_filter = parsed_args.netbox_filter
 
-        task = conductor.sync_netbox.delay()
+        task = conductor.sync_netbox.delay(
+            node_name=node_name, netbox_filter=netbox_filter
+        )
         if wait:
-            logger.info(
-                f"Task {task.task_id} (sync netbox) is running. Wait. No more output."
-            )
-            task.wait(timeout=None, interval=0.5)
+            if node_name:
+                logger.info(
+                    f"Task {task.task_id} (sync netbox for node {node_name}) is running in background. Output comming soon."
+                )
+            else:
+                logger.info(
+                    f"Task {task.task_id} (sync netbox) is running in background. Output comming soon."
+                )
+            try:
+                return utils.fetch_task_output(task.id, timeout=task_timeout)
+            except TimeoutError:
+                if node_name:
+                    logger.error(
+                        f"Timeout while waiting for further output of task {task.task_id} (sync netbox for node {node_name})"
+                    )
+                else:
+                    logger.error(
+                        f"Timeout while waiting for further output of task {task.task_id} (sync netbox)"
+                    )
+        else:
+            if node_name:
+                logger.info(
+                    f"Task {task.task_id} (sync netbox for node {node_name}) is running in background. No more output."
+                )
+            else:
+                logger.info(
+                    f"Task {task.task_id} (sync netbox) is running in background. No more output."
+                )
 
 
 class Manage(Command):
