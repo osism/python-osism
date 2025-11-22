@@ -10,10 +10,25 @@ import openstack
 import pynetbox
 from pottery import Redlock
 from redis import Redis
+import requests
+from requests.adapters import HTTPAdapter
 import urllib3
 import yaml
 
 from osism import settings
+
+
+class TimeoutHTTPAdapter(HTTPAdapter):
+    """HTTPAdapter that sets a default timeout for all requests."""
+
+    def __init__(self, timeout=None, *args, **kwargs):
+        self.timeout = timeout
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        if kwargs.get("timeout") is None and self.timeout is not None:
+            kwargs["timeout"] = self.timeout
+        return super().send(request, **kwargs)
 
 
 def get_netbox_connection(
@@ -34,11 +49,13 @@ def get_netbox_connection(
         nb = pynetbox.api(netbox_url, token=netbox_token)
 
         if nb:
-            import requests
-
-            # Create session with timeout
+            # Create session with timeout adapter
             session = requests.Session()
-            session.timeout = timeout
+
+            # Mount timeout adapter for both http and https
+            adapter = TimeoutHTTPAdapter(timeout=timeout)
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
 
             if ignore_ssl_errors:
                 urllib3.disable_warnings()
