@@ -144,6 +144,37 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=
             request_id,
             "Starting NetBox device synchronisation with ironic\n",
         )
+
+    # Check NetBox API connectivity
+    try:
+        osism_utils.push_task_output(
+            request_id, "Checking NetBox API connectivity...\n"
+        )
+        osism_utils.nb.status()
+        osism_utils.push_task_output(request_id, "NetBox API is reachable\n")
+    except Exception as e:
+        osism_utils.push_task_output(
+            request_id, f"ERROR: NetBox API is not reachable: {e}\n"
+        )
+        osism_utils.finish_task_output(request_id, rc=1)
+        return
+
+    # Check Ironic API connectivity
+    try:
+        osism_utils.push_task_output(
+            request_id, "Checking Ironic API connectivity...\n"
+        )
+        conn = osism_utils.get_openstack_connection()
+        # Try a simple API call to verify connectivity
+        list(conn.baremetal.nodes(limit=1))
+        osism_utils.push_task_output(request_id, "Ironic API is reachable\n")
+    except Exception as e:
+        osism_utils.push_task_output(
+            request_id, f"ERROR: Ironic API is not reachable: {e}\n"
+        )
+        osism_utils.finish_task_output(request_id, rc=1)
+        return
+
     devices = set()
     nb_device_query_list = get_nb_device_query_list_ironic()
     for nb_device_query in nb_device_query_list:
