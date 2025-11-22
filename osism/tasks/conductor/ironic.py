@@ -448,6 +448,46 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
         osism_utils.finish_task_output(request_id, rc=1)
         return
 
+    # Check secondary NetBox instances connectivity
+    reachable_secondaries = []
+    if osism_utils.secondary_nb_list:
+        osism_utils.push_task_output(
+            request_id, "Checking secondary NetBox instances connectivity...\n"
+        )
+        for nb in osism_utils.secondary_nb_list:
+            try:
+                nb.status()
+                reachable_secondaries.append(nb)
+
+                # Build info message
+                name = getattr(nb, "netbox_name", None)
+                site = getattr(nb, "netbox_site", None)
+                info_parts = []
+                if name:
+                    info_parts.append(f"Name: {name}")
+                if site:
+                    info_parts.append(f"Site: {site}")
+                info = f" ({', '.join(info_parts)})" if info_parts else ""
+
+                osism_utils.push_task_output(
+                    request_id, f"Secondary NetBox is reachable: {nb.base_url}{info}\n"
+                )
+            except Exception as e:
+                # Build warning message
+                name = getattr(nb, "netbox_name", None)
+                site = getattr(nb, "netbox_site", None)
+                info_parts = []
+                if name:
+                    info_parts.append(f"Name: {name}")
+                if site:
+                    info_parts.append(f"Site: {site}")
+                info = f" ({', '.join(info_parts)})" if info_parts else ""
+
+                osism_utils.push_task_output(
+                    request_id,
+                    f"WARNING: Secondary NetBox not reachable: {nb.base_url}{info}: {e}\n",
+                )
+
     # Check Ironic API connectivity
     try:
         osism_utils.push_task_output(
@@ -487,14 +527,24 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
 
         # Update all three states (each function handles primary + secondary NetBox instances)
         # Pass netbox_filter to only update matching NetBox instances
+        # Pass reachable_secondaries to only use reachable secondary instances
         netbox.set_provision_state(
-            node["name"], node["provision_state"], netbox_filter=netbox_filter
+            node["name"],
+            node["provision_state"],
+            netbox_filter=netbox_filter,
+            secondary_nb_list=reachable_secondaries,
         )
         netbox.set_power_state(
-            node["name"], node["power_state"], netbox_filter=netbox_filter
+            node["name"],
+            node["power_state"],
+            netbox_filter=netbox_filter,
+            secondary_nb_list=reachable_secondaries,
         )
         netbox.set_maintenance(
-            node["name"], state=node["is_maintenance"], netbox_filter=netbox_filter
+            node["name"],
+            state=node["is_maintenance"],
+            netbox_filter=netbox_filter,
+            secondary_nb_list=reachable_secondaries,
         )
 
     osism_utils.finish_task_output(request_id, rc=0)

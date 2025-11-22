@@ -66,7 +66,9 @@ def run(self, action, arguments):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_maintenance")
-def set_maintenance(self, device_name, state=True, netbox_filter=None):
+def set_maintenance(
+    self, device_name, state=True, netbox_filter=None, secondary_nb_list=None
+):
     """Set the maintenance state for a device in the NetBox.
 
     Args:
@@ -75,6 +77,8 @@ def set_maintenance(self, device_name, state=True, netbox_filter=None):
         netbox_filter: Optional filter (substring match, case-insensitive).
                       Matches against NetBox name, site, or URL.
                       Use 'primary' to match the primary NetBox instance.
+        secondary_nb_list: Optional list of secondary NetBox instances to use.
+                          If not provided, uses utils.secondary_nb_list.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -104,7 +108,12 @@ def set_maintenance(self, device_name, state=True, netbox_filter=None):
                 )
 
             # Process secondary NetBox instances
-            for nb in utils.secondary_nb_list:
+            secondary_list = (
+                secondary_nb_list
+                if secondary_nb_list is not None
+                else utils.secondary_nb_list
+            )
+            for nb in secondary_list:
                 if not _matches_netbox_filter(nb, netbox_filter, is_primary=False):
                     logger.debug(
                         f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
@@ -129,7 +138,9 @@ def set_maintenance(self, device_name, state=True, netbox_filter=None):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_provision_state")
-def set_provision_state(self, device_name, state, netbox_filter=None):
+def set_provision_state(
+    self, device_name, state, netbox_filter=None, secondary_nb_list=None
+):
     """Set the provision state for a device in the NetBox.
 
     Args:
@@ -138,6 +149,8 @@ def set_provision_state(self, device_name, state, netbox_filter=None):
         netbox_filter: Optional filter (substring match, case-insensitive).
                       Matches against NetBox name, site, or URL.
                       Use 'primary' to match the primary NetBox instance.
+        secondary_nb_list: Optional list of secondary NetBox instances to use.
+                          If not provided, uses utils.secondary_nb_list.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -167,7 +180,12 @@ def set_provision_state(self, device_name, state, netbox_filter=None):
                 )
 
             # Process secondary NetBox instances
-            for nb in utils.secondary_nb_list:
+            secondary_list = (
+                secondary_nb_list
+                if secondary_nb_list is not None
+                else utils.secondary_nb_list
+            )
+            for nb in secondary_list:
                 if not _matches_netbox_filter(nb, netbox_filter, is_primary=False):
                     logger.debug(
                         f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
@@ -192,7 +210,9 @@ def set_provision_state(self, device_name, state, netbox_filter=None):
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_power_state")
-def set_power_state(self, device_name, state, netbox_filter=None):
+def set_power_state(
+    self, device_name, state, netbox_filter=None, secondary_nb_list=None
+):
     """Set the power state for a device in the NetBox.
 
     Args:
@@ -201,6 +221,8 @@ def set_power_state(self, device_name, state, netbox_filter=None):
         netbox_filter: Optional filter (substring match, case-insensitive).
                       Matches against NetBox name, site, or URL.
                       Use 'primary' to match the primary NetBox instance.
+        secondary_nb_list: Optional list of secondary NetBox instances to use.
+                          If not provided, uses utils.secondary_nb_list.
     """
     # Convert None to "n/a" for clearer user feedback
     if state is None:
@@ -234,7 +256,12 @@ def set_power_state(self, device_name, state, netbox_filter=None):
                 )
 
             # Process secondary NetBox instances
-            for nb in utils.secondary_nb_list:
+            secondary_list = (
+                secondary_nb_list
+                if secondary_nb_list is not None
+                else utils.secondary_nb_list
+            )
+            for nb in secondary_list:
                 if not _matches_netbox_filter(nb, netbox_filter, is_primary=False):
                     logger.debug(
                         f"Skipping {nb.base_url} (does not match filter: {netbox_filter})"
