@@ -48,7 +48,13 @@ nb = get_netbox_connection(
 
 try:
     secondary_nb_settings_list = yaml.safe_load(settings.NETBOX_SECONDARIES)
-    supported_secondary_nb_keys = ["NETBOX_URL", "NETBOX_TOKEN", "IGNORE_SSL_ERRORS"]
+    supported_secondary_nb_keys = [
+        "NETBOX_URL",
+        "NETBOX_TOKEN",
+        "IGNORE_SSL_ERRORS",
+        "NETBOX_NAME",
+        "NETBOX_SITE",
+    ]
     secondary_nb_list = []
     if type(secondary_nb_settings_list) is not list:
         raise TypeError(
@@ -79,13 +85,19 @@ try:
                 "All NETBOX_TOKEN values in the elements of setting NETBOX_SECONDARIES need to be valid NetBox tokens"
             )
 
-        secondary_nb_list.append(
-            get_netbox_connection(
-                secondary_nb_settings["NETBOX_URL"],
-                str(secondary_nb_settings["NETBOX_TOKEN"]).strip(),
-                secondary_nb_settings.get("IGNORE_SSL_ERRORS", True),
-            )
+        secondary_nb = get_netbox_connection(
+            secondary_nb_settings["NETBOX_URL"],
+            str(secondary_nb_settings["NETBOX_TOKEN"]).strip(),
+            secondary_nb_settings.get("IGNORE_SSL_ERRORS", True),
         )
+
+        # Store optional metadata as attributes
+        if "NETBOX_NAME" in secondary_nb_settings:
+            secondary_nb.netbox_name = secondary_nb_settings["NETBOX_NAME"]
+        if "NETBOX_SITE" in secondary_nb_settings:
+            secondary_nb.netbox_site = secondary_nb_settings["NETBOX_SITE"]
+
+        secondary_nb_list.append(secondary_nb)
 except (yaml.YAMLError, TypeError, ValueError) as exc:
     logger.error(f"Error parsing settings NETBOX_SECONDARIES: {exc}")
     secondary_nb_list = []
