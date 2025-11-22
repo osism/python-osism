@@ -378,14 +378,18 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
     - maintenance: Whether the node is in maintenance mode
 
     The sync is performed for the primary NetBox instance and all configured
-    secondary NetBox instances. NetBox instances can be filtered by URL substring.
+    secondary NetBox instances. NetBox instances can be filtered.
 
     Args:
         request_id: The Celery task request ID for output tracking
         node_name: Optional name of a specific node to sync. If None, all nodes are synced.
-        netbox_filter: Optional URL filter (substring match). If provided, only NetBox
-                      instances whose base_url contains this substring will be updated.
-                      Example: 'primary' matches 'https://primary-netbox.example.com'
+        netbox_filter: Optional filter (substring match, case-insensitive). If provided,
+                      only NetBox instances matching the filter will be updated.
+                      The filter matches against:
+                      - NetBox name (NETBOX_NAME attribute for secondaries, 'primary' for primary)
+                      - NetBox site (NETBOX_SITE attribute if configured)
+                      - NetBox URL (base_url)
+                      Examples: 'primary', 'site-a', 'backup', 'netbox.example.com'
     """
     filter_msg = f" (NetBox filter: {netbox_filter})" if netbox_filter else ""
     if node_name:

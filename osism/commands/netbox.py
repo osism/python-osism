@@ -100,10 +100,10 @@ class Sync(Command):
             help="Timeout for a scheduled task that has not been executed yet",
         )
         parser.add_argument(
-            "--netbox-filter",
+            "--filter",
             type=str,
             default=None,
-            help="Filter NetBox instances by URL (substring match, e.g. 'primary' or 'secondary-1')",
+            help="Filter NetBox instances by name, site, or URL (substring match, case-insensitive)",
         )
         parser.add_argument(
             "--list",
@@ -120,7 +120,7 @@ class Sync(Command):
         if parsed_args.list:
             table = []
 
-            # Add primary NetBox instance
+            # Add primary NetBox instance (always labeled as 'primary')
             if settings.NETBOX_URL:
                 table.append(["primary", settings.NETBOX_URL, "N/A"])
 
@@ -142,7 +142,7 @@ class Sync(Command):
         wait = not parsed_args.no_wait
         task_timeout = parsed_args.task_timeout
         node_name = parsed_args.node
-        netbox_filter = parsed_args.netbox_filter
+        netbox_filter = parsed_args.filter
 
         task = conductor.sync_netbox.delay(
             node_name=node_name, netbox_filter=netbox_filter
