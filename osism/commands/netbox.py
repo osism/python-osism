@@ -9,7 +9,7 @@ from tabulate import tabulate
 import yaml
 
 from osism.tasks import conductor, netbox, handle_task
-from osism import utils
+from osism import utils, settings
 
 
 class Ironic(Command):
@@ -105,11 +105,39 @@ class Sync(Command):
             default=None,
             help="Filter NetBox instances by URL (substring match, e.g. 'primary' or 'secondary-1')",
         )
+        parser.add_argument(
+            "--list",
+            help="List all configured NetBox instances and exit",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
         # Check if tasks are locked before proceeding
         utils.check_task_lock_and_exit()
+
+        # Handle --list option
+        if parsed_args.list:
+            table = []
+
+            # Add primary NetBox instance
+            if settings.NETBOX_URL:
+                table.append(["primary", settings.NETBOX_URL, "N/A"])
+
+            # Add secondary NetBox instances
+            for nb in utils.secondary_nb_list:
+                name = getattr(nb, "netbox_name", "N/A")
+                site = getattr(nb, "netbox_site", "N/A")
+                url = nb.base_url
+                table.append([name, url, site])
+
+            if not table:
+                logger.warning("No NetBox instances configured")
+                return
+
+            result = tabulate(table, headers=["Name", "URL", "Site"], tablefmt="grid")
+            print(result)
+            return
 
         wait = not parsed_args.no_wait
         task_timeout = parsed_args.task_timeout
