@@ -197,11 +197,15 @@ def set_power_state(self, device_name, state, netbox_filter=None):
 
     Args:
         device_name: Name of the device
-        state: Power state value
+        state: Power state value (None is converted to "n/a")
         netbox_filter: Optional filter (substring match, case-insensitive).
                       Matches against NetBox name, site, or URL.
                       Use 'primary' to match the primary NetBox instance.
     """
+    # Convert None to "n/a" for clearer user feedback
+    if state is None:
+        state = "n/a"
+
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
 

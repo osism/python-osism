@@ -80,7 +80,7 @@ class BaremetalList(Command):
                 [
                     b["name"],
                     device_role,
-                    b["power_state"],
+                    b["power_state"] if b["power_state"] is not None else "n/a",
                     b["provision_state"],
                     b["maintenance"],
                 ]
