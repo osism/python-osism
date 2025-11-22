@@ -434,6 +434,36 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
             f"Starting Ironic to NetBox synchronisation{filter_msg}\n",
         )
 
+    # Check NetBox API connectivity
+    try:
+        osism_utils.push_task_output(
+            request_id, "Checking NetBox API connectivity...\n"
+        )
+        osism_utils.nb.status()
+        osism_utils.push_task_output(request_id, "NetBox API is reachable\n")
+    except Exception as e:
+        osism_utils.push_task_output(
+            request_id, f"ERROR: NetBox API is not reachable: {e}\n"
+        )
+        osism_utils.finish_task_output(request_id, rc=1)
+        return
+
+    # Check Ironic API connectivity
+    try:
+        osism_utils.push_task_output(
+            request_id, "Checking Ironic API connectivity...\n"
+        )
+        conn = osism_utils.get_openstack_connection()
+        # Try a simple API call to verify connectivity
+        list(conn.baremetal.nodes(limit=1))
+        osism_utils.push_task_output(request_id, "Ironic API is reachable\n")
+    except Exception as e:
+        osism_utils.push_task_output(
+            request_id, f"ERROR: Ironic API is not reachable: {e}\n"
+        )
+        osism_utils.finish_task_output(request_id, rc=1)
+        return
+
     # Get all Ironic nodes
     nodes = openstack.baremetal_node_list()
 
