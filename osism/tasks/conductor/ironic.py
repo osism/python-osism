@@ -133,7 +133,7 @@ def _prepare_node_attributes(device, get_ironic_parameters):
     return node_attributes
 
 
-def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=False):
+def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
     if node_name:
         osism_utils.push_task_output(
             request_id,
@@ -275,7 +275,7 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force_update=
                             node_updates["driver_info"].pop(password_key, None)
                             if not node_updates["driver_info"]:
                                 node_updates.pop("driver_info", None)
-                    if node_updates or force_update:
+                    if node_updates or force:
                         osism_utils.push_task_output(
                             request_id,
                             f"Updating baremetal node for {device.name} with {node_updates}\n",

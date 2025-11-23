@@ -33,7 +33,7 @@ class Ironic(Command):
             help="Timeout for a scheduled task that has not been executed yet",
         )
         parser.add_argument(
-            "--force-update",
+            "--force",
             help="Force update of baremetal nodes (Used to update non-comparable items like passwords)",
             action="store_true",
         )
@@ -47,9 +47,7 @@ class Ironic(Command):
         task_timeout = parsed_args.task_timeout
         node_name = parsed_args.node
 
-        task = conductor.sync_ironic.delay(
-            node_name=node_name, force_update=parsed_args.force_update
-        )
+        task = conductor.sync_ironic.delay(node_name=node_name, force=parsed_args.force)
         if wait:
             if node_name:
                 logger.info(
