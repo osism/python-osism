@@ -434,31 +434,118 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
             f"Starting Ironic to NetBox synchronisation{filter_msg}\n",
         )
 
-    # Check NetBox API connectivity
-    try:
-        osism_utils.push_task_output(
-            request_id, "Checking NetBox API connectivity...\n"
-        )
-        osism_utils.nb.status()
-        osism_utils.push_task_output(request_id, "NetBox API is reachable\n")
-    except Exception as e:
-        osism_utils.push_task_output(
-            request_id, f"ERROR: NetBox API is not reachable: {e}\n"
-        )
-        osism_utils.finish_task_output(request_id, rc=1)
-        return
-
-    # Check secondary NetBox instances connectivity
+    # Determine which NetBox instances to check based on filter
     reachable_secondaries = []
-    if osism_utils.secondary_nb_list:
-        osism_utils.push_task_output(
-            request_id, "Checking secondary NetBox instances connectivity...\n"
-        )
-        for nb in osism_utils.secondary_nb_list:
-            try:
-                nb.status()
-                reachable_secondaries.append(nb)
 
+    if netbox_filter:
+        # When filter is set, only check NetBox instances that match the filter
+        filtered_netboxes = []
+
+        # Check if primary matches filter
+        if netbox._matches_netbox_filter(
+            osism_utils.nb, netbox_filter, is_primary=True
+        ):
+            filtered_netboxes.append(("primary", osism_utils.nb))
+
+        # Check which secondaries match filter
+        for nb in osism_utils.secondary_nb_list:
+            if netbox._matches_netbox_filter(nb, netbox_filter, is_primary=False):
+                filtered_netboxes.append(("secondary", nb))
+
+        if not filtered_netboxes:
+            osism_utils.push_task_output(
+                request_id,
+                f"ERROR: No NetBox instances match filter: {netbox_filter}\n",
+            )
+            osism_utils.finish_task_output(request_id, rc=1)
+            return
+
+        # Test connectivity for filtered instances only
+        primary_reachable = False
+        for nb_type, nb in filtered_netboxes:
+            try:
+                name = (
+                    getattr(nb, "netbox_name", None) if nb_type == "secondary" else None
+                )
+                site = (
+                    getattr(nb, "netbox_site", None) if nb_type == "secondary" else None
+                )
+                info_parts = []
+                if name:
+                    info_parts.append(f"Name: {name}")
+                if site:
+                    info_parts.append(f"Site: {site}")
+                info = f" ({', '.join(info_parts)})" if info_parts else ""
+
+                osism_utils.push_task_output(
+                    request_id,
+                    f"Checking connectivity to filtered NetBox: {nb.base_url}{info}...\n",
+                )
+                nb.status()
+
+                if nb_type == "primary":
+                    primary_reachable = True
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Filtered primary NetBox is reachable: {nb.base_url}\n",
+                    )
+                else:
+                    reachable_secondaries.append(nb)
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Filtered secondary NetBox is reachable: {nb.base_url}{info}\n",
+                    )
+            except Exception as e:
+                # Build error message
+                if nb_type == "primary":
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"WARNING: Filtered primary NetBox not reachable: {nb.base_url}: {e}\n",
+                    )
+                else:
+                    name = getattr(nb, "netbox_name", None)
+                    site = getattr(nb, "netbox_site", None)
+                    info_parts = []
+                    if name:
+                        info_parts.append(f"Name: {name}")
+                    if site:
+                        info_parts.append(f"Site: {site}")
+                    info = f" ({', '.join(info_parts)})" if info_parts else ""
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"WARNING: Filtered secondary NetBox not reachable: {nb.base_url}{info}: {e}\n",
+                    )
+
+        # If no filtered instances are reachable, error out
+        if not primary_reachable and not reachable_secondaries:
+            osism_utils.push_task_output(
+                request_id,
+                f"ERROR: No NetBox instances matching filter '{netbox_filter}' are reachable\n",
+            )
+            osism_utils.finish_task_output(request_id, rc=1)
+            return
+    else:
+        # Original behavior when no filter is set: check primary and all secondaries
+        # Check NetBox API connectivity
+        try:
+            osism_utils.push_task_output(
+                request_id, "Checking NetBox API connectivity...\n"
+            )
+            osism_utils.nb.status()
+            osism_utils.push_task_output(request_id, "NetBox API is reachable\n")
+        except Exception as e:
+            osism_utils.push_task_output(
+                request_id, f"ERROR: NetBox API is not reachable: {e}\n"
+            )
+            osism_utils.finish_task_output(request_id, rc=1)
+            return
+
+        # Check secondary NetBox instances connectivity
+        if osism_utils.secondary_nb_list:
+            osism_utils.push_task_output(
+                request_id, "Checking secondary NetBox instances connectivity...\n"
+            )
+            for nb in osism_utils.secondary_nb_list:
                 # Build info message
                 name = getattr(nb, "netbox_name", None)
                 site = getattr(nb, "netbox_site", None)
@@ -469,24 +556,23 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
                     info_parts.append(f"Site: {site}")
                 info = f" ({', '.join(info_parts)})" if info_parts else ""
 
-                osism_utils.push_task_output(
-                    request_id, f"Secondary NetBox is reachable: {nb.base_url}{info}\n"
-                )
-            except Exception as e:
-                # Build warning message
-                name = getattr(nb, "netbox_name", None)
-                site = getattr(nb, "netbox_site", None)
-                info_parts = []
-                if name:
-                    info_parts.append(f"Name: {name}")
-                if site:
-                    info_parts.append(f"Site: {site}")
-                info = f" ({', '.join(info_parts)})" if info_parts else ""
+                try:
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Checking connectivity to NetBox: {nb.base_url}{info}...\n",
+                    )
+                    nb.status()
+                    reachable_secondaries.append(nb)
 
-                osism_utils.push_task_output(
-                    request_id,
-                    f"WARNING: Secondary NetBox not reachable: {nb.base_url}{info}: {e}\n",
-                )
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Secondary NetBox is reachable: {nb.base_url}{info}\n",
+                    )
+                except Exception as e:
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"WARNING: Secondary NetBox not reachable: {nb.base_url}{info}: {e}\n",
+                    )
 
     # Check Ironic API connectivity
     try:
@@ -518,12 +604,17 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
             osism_utils.finish_task_output(request_id, rc=1)
             return
 
-    # Sync each node to NetBox (including secondaries)
+    # Sync each node to NetBox
     for node in nodes:
-        osism_utils.push_task_output(
-            request_id,
-            f"Syncing state of {node['name']} to NetBox (including secondaries)\n",
-        )
+        # Adjust message based on whether secondaries are actually being synced
+        if reachable_secondaries:
+            sync_msg = (
+                f"Syncing state of {node['name']} to NetBox (including secondaries)\n"
+            )
+        else:
+            sync_msg = f"Syncing state of {node['name']} to NetBox\n"
+
+        osism_utils.push_task_output(request_id, sync_msg)
 
         # Update all three states (each function handles primary + secondary NetBox instances)
         # Pass netbox_filter to only update matching NetBox instances
