@@ -15,6 +15,28 @@ def setup_periodic_tasks(sender, **kwargs):
     pass
 
 
+def _update_netbox_device_field(nb, device_name, field_name, value):
+    """Helper to update a NetBox device field with semaphore limiting.
+
+    Args:
+        nb: NetBox API instance
+        device_name: Name of the device
+        field_name: Custom field name to update
+        value: Value to set
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    semaphore = utils.create_netbox_semaphore(nb.base_url)
+    with semaphore:
+        device = nb.dcim.devices.get(name=device_name)
+        if device:
+            device.custom_fields.update({field_name: value})
+            device.save()
+            return True
+        return False
+
+
 def _matches_netbox_filter(nb, netbox_filter, is_primary=False):
     """Check if a NetBox instance matches the given filter.
 
@@ -84,21 +106,19 @@ def set_maintenance(
     utils.check_task_lock_and_exit()
 
     lock = utils.create_redlock(
-        key=f"lock_osism_tasks_netbox_set_maintenance_{device_name}",
-        auto_release_time=60,
+        key=f"lock_osism_tasks_netbox_{device_name}",
+        auto_release_time=300,
     )
-    if lock.acquire(timeout=20):
+    if lock.acquire(timeout=120):
         try:
             # Process primary NetBox
             if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
                 logger.info(
                     f"Set maintenance state of device {device_name} = {state} on {utils.nb.base_url}"
                 )
-                device = utils.nb.dcim.devices.get(name=device_name)
-                if device:
-                    device.custom_fields.update({"maintenance": state})
-                    device.save()
-                else:
+                if not _update_netbox_device_field(
+                    utils.nb, device_name, "maintenance", state
+                ):
                     logger.error(
                         f"Could not set maintenance for {device_name} on {utils.nb.base_url}"
                     )
@@ -123,11 +143,9 @@ def set_maintenance(
                 logger.info(
                     f"Set maintenance state of device {device_name} = {state} on {nb.base_url}"
                 )
-                device = nb.dcim.devices.get(name=device_name)
-                if device:
-                    device.custom_fields.update({"maintenance": state})
-                    device.save()
-                else:
+                if not _update_netbox_device_field(
+                    nb, device_name, "maintenance", state
+                ):
                     logger.error(
                         f"Could not set maintenance for {device_name} on {nb.base_url}"
                     )
@@ -156,21 +174,19 @@ def set_provision_state(
     utils.check_task_lock_and_exit()
 
     lock = utils.create_redlock(
-        key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
-        auto_release_time=60,
+        key=f"lock_osism_tasks_netbox_{device_name}",
+        auto_release_time=300,
     )
-    if lock.acquire(timeout=20):
+    if lock.acquire(timeout=120):
         try:
             # Process primary NetBox
             if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
                 logger.info(
                     f"Set provision state of device {device_name} = {state} on {utils.nb.base_url}"
                 )
-                device = utils.nb.dcim.devices.get(name=device_name)
-                if device:
-                    device.custom_fields.update({"provision_state": state})
-                    device.save()
-                else:
+                if not _update_netbox_device_field(
+                    utils.nb, device_name, "provision_state", state
+                ):
                     logger.error(
                         f"Could not set provision state for {device_name} on {utils.nb.base_url}"
                     )
@@ -195,11 +211,9 @@ def set_provision_state(
                 logger.info(
                     f"Set provision state of device {device_name} = {state} on {nb.base_url}"
                 )
-                device = nb.dcim.devices.get(name=device_name)
-                if device:
-                    device.custom_fields.update({"provision_state": state})
-                    device.save()
-                else:
+                if not _update_netbox_device_field(
+                    nb, device_name, "provision_state", state
+                ):
                     logger.error(
                         f"Could not set provision state for {device_name} on {nb.base_url}"
                     )
@@ -232,21 +246,19 @@ def set_power_state(
     utils.check_task_lock_and_exit()
 
     lock = utils.create_redlock(
-        key=f"lock_osism_tasks_netbox_set_provision_state_{device_name}",
-        auto_release_time=60,
+        key=f"lock_osism_tasks_netbox_{device_name}",
+        auto_release_time=300,
     )
-    if lock.acquire(timeout=20):
+    if lock.acquire(timeout=120):
         try:
             # Process primary NetBox
             if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
                 logger.info(
                     f"Set power state of device {device_name} = {state} on {utils.nb.base_url}"
                 )
-                device = utils.nb.dcim.devices.get(name=device_name)
-                if device:
-                    device.custom_fields.update({"power_state": state})
-                    device.save()
-                else:
+                if not _update_netbox_device_field(
+                    utils.nb, device_name, "power_state", state
+                ):
                     logger.error(
                         f"Could not set power state for {device_name} on {utils.nb.base_url}"
                     )
@@ -271,11 +283,9 @@ def set_power_state(
                 logger.info(
                     f"Set power state of device {device_name} = {state} on {nb.base_url}"
                 )
-                device = nb.dcim.devices.get(name=device_name)
-                if device:
-                    device.custom_fields.update({"power_state": state})
-                    device.save()
-                else:
+                if not _update_netbox_device_field(
+                    nb, device_name, "power_state", state
+                ):
                     logger.error(
                         f"Could not set power state for {device_name} on {nb.base_url}"
                     )

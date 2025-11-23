@@ -59,3 +59,6 @@ NETBOX_SECONDARIES = (
 
 # Redfish connection timeout in seconds
 REDFISH_TIMEOUT = int(os.getenv("REDFISH_TIMEOUT", "20"))
+
+# NetBox connection limiting
+NETBOX_MAX_CONNECTIONS = int(os.getenv("NETBOX_MAX_CONNECTIONS", "5"))
