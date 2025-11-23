@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import requests.exceptions
 from celery import Celery
 from loguru import logger
 
@@ -29,12 +30,37 @@ def _update_netbox_device_field(nb, device_name, field_name, value):
     """
     semaphore = utils.create_netbox_semaphore(nb.base_url)
     with semaphore:
-        device = nb.dcim.devices.get(name=device_name)
-        if device:
-            device.custom_fields.update({field_name: value})
-            device.save()
-            return True
-        return False
+        try:
+            device = nb.dcim.devices.get(name=device_name)
+            if device:
+                device.custom_fields.update({field_name: value})
+                device.save()
+                return True
+            return False
+        except requests.exceptions.ConnectTimeout as e:
+            logger.error(
+                f"Connection timeout while updating {field_name} for device {device_name} "
+                f"on {nb.base_url}: {e}"
+            )
+            return False
+        except requests.exceptions.Timeout as e:
+            logger.error(
+                f"Request timeout while updating {field_name} for device {device_name} "
+                f"on {nb.base_url}: {e}"
+            )
+            return False
+        except requests.exceptions.ConnectionError as e:
+            logger.error(
+                f"Connection error while updating {field_name} for device {device_name} "
+                f"on {nb.base_url}: {e}"
+            )
+            return False
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                f"Request error while updating {field_name} for device {device_name} "
+                f"on {nb.base_url}: {e}"
+            )
+            return False
 
 
 def _matches_netbox_filter(nb, netbox_filter, is_primary=False):
