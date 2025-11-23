@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import time
+import uuid
 import os
 from contextlib import redirect_stdout, redirect_stderr
 from cryptography.fernet import Fernet
@@ -16,6 +17,74 @@ import urllib3
 import yaml
 
 from osism import settings
+
+
+class RedisSemaphore:
+    """Redis-based distributed semaphore for limiting concurrent operations.
+
+    This implementation uses Redis sorted sets to track active holders and enforce
+    a maximum concurrency limit.
+    """
+
+    def __init__(self, redis_client, key, maxsize, timeout=None):
+        """Initialize the semaphore.
+
+        Args:
+            redis_client: Redis client instance
+            key: Redis key for this semaphore
+            maxsize: Maximum number of concurrent holders
+            timeout: Optional timeout for acquisition in seconds
+        """
+        self.redis = redis_client
+        self.key = f"semaphore:{key}"
+        self.maxsize = maxsize
+        self.timeout = timeout
+        self.identifier = None
+
+    def acquire(self, timeout=None):
+        """Acquire the semaphore.
+
+        Args:
+            timeout: Optional timeout in seconds (overrides instance timeout)
+
+        Returns:
+            bool: True if acquired, False if timeout
+        """
+        timeout = timeout or self.timeout or 10
+        identifier = str(uuid.uuid4())
+        now = time.time()
+        end_time = now + timeout
+
+        while time.time() < end_time:
+            # Clean up expired holders
+            self.redis.zremrangebyscore(self.key, 0, now - 60)
+
+            # Try to acquire
+            if self.redis.zcard(self.key) < self.maxsize:
+                self.redis.zadd(self.key, {identifier: now})
+                self.identifier = identifier
+                return True
+
+            time.sleep(0.01)  # Wait 10ms before retry
+
+        return False
+
+    def release(self):
+        """Release the semaphore."""
+        if self.identifier:
+            self.redis.zrem(self.key, self.identifier)
+            self.identifier = None
+
+    def __enter__(self):
+        """Context manager entry."""
+        if not self.acquire():
+            raise TimeoutError(f"Could not acquire semaphore {self.key}")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.release()
+        return False
 
 
 class TimeoutHTTPAdapter(HTTPAdapter):
@@ -289,6 +358,34 @@ def create_redlock(key, auto_release_time=3600):
                 masters={redis},
                 auto_release_time=auto_release_time,
             )
+
+
+def create_netbox_semaphore(netbox_url, max_connections=None):
+    """
+    Create a Redis semaphore for limiting concurrent NetBox connections.
+
+    Args:
+        netbox_url (str): The NetBox URL to create a semaphore for
+        max_connections (int): Maximum concurrent connections (default: from settings.NETBOX_MAX_CONNECTIONS)
+
+    Returns:
+        RedisSemaphore: The configured semaphore instance
+    """
+    if max_connections is None:
+        max_connections = settings.NETBOX_MAX_CONNECTIONS
+
+    # Create unique key per NetBox instance based on URL
+    import hashlib
+
+    url_hash = hashlib.md5(netbox_url.encode()).hexdigest()[:8]
+    key = f"netbox_semaphore_{url_hash}"
+
+    return RedisSemaphore(
+        key=key,
+        maxsize=max_connections,
+        redis_client=redis,
+        timeout=30,
+    )
 
 
 def set_task_lock(user=None, reason=None):
