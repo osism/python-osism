@@ -230,7 +230,8 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
                 openstack.baremetal_node_delete(node["uuid"])
             else:
                 osism_utils.push_task_output(
-                    f"Cannot remove baremetal node because it is still provisioned or running: {node}"
+                    request_id,
+                    f"Cannot remove baremetal node because it is still provisioned or running: {node}\n",
                 )
 
     # NOTE: Find nodes in NetBox which are not present in Ironic and add them
@@ -394,7 +395,7 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
 
         else:
             osism_utils.push_task_output(
-                "Could not acquire lock for node {device.name}"
+                request_id, f"Could not acquire lock for node {device.name}\n"
             )
 
     osism_utils.finish_task_output(request_id, rc=0)
