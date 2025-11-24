@@ -127,6 +127,9 @@ def set_maintenance(
                       Use 'primary' to match the primary NetBox instance.
         secondary_nb_list: Optional list of secondary NetBox instances to use.
                           If not provided, uses utils.secondary_nb_list.
+
+    Returns:
+        bool: True if lock was acquired and operation succeeded, False if lock could not be acquired.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -177,8 +180,10 @@ def set_maintenance(
                     )
         finally:
             lock.release()
+        return True
     else:
         logger.error(f"Could not acquire lock for node {device_name}")
+        return False
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_provision_state")
@@ -195,6 +200,9 @@ def set_provision_state(
                       Use 'primary' to match the primary NetBox instance.
         secondary_nb_list: Optional list of secondary NetBox instances to use.
                           If not provided, uses utils.secondary_nb_list.
+
+    Returns:
+        bool: True if lock was acquired and operation succeeded, False if lock could not be acquired.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -245,8 +253,10 @@ def set_provision_state(
                     )
         finally:
             lock.release()
+        return True
     else:
         logger.error(f"Could not acquire lock for node {device_name}")
+        return False
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_power_state")
@@ -263,6 +273,9 @@ def set_power_state(
                       Use 'primary' to match the primary NetBox instance.
         secondary_nb_list: Optional list of secondary NetBox instances to use.
                           If not provided, uses utils.secondary_nb_list.
+
+    Returns:
+        bool: True if lock was acquired and operation succeeded, False if lock could not be acquired.
     """
     # Convert None to "n/a" for clearer user feedback
     if state is None:
@@ -317,8 +330,10 @@ def set_power_state(
                     )
         finally:
             lock.release()
+        return True
     else:
         logger.error(f"Could not acquire lock for node {device_name}")
+        return False
 
 
 @app.task(bind=True, name="osism.tasks.netbox.get_location_id")

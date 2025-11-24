@@ -605,6 +605,7 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
             return
 
     # Sync each node to NetBox
+    failed_devices = []
     for node in nodes:
         # Adjust message based on whether secondaries are actually being synced
         if reachable_secondaries:
@@ -616,26 +617,44 @@ def sync_netbox_from_ironic(request_id, node_name=None, netbox_filter=None):
 
         osism_utils.push_task_output(request_id, sync_msg)
 
+        # Track if this device failed to sync
+        device_failed = False
+
         # Update all three states (each function handles primary + secondary NetBox instances)
         # Pass netbox_filter to only update matching NetBox instances
         # Pass reachable_secondaries to only use reachable secondary instances
-        netbox.set_provision_state(
+        if not netbox.set_provision_state(
             node["name"],
             node["provision_state"],
             netbox_filter=netbox_filter,
             secondary_nb_list=reachable_secondaries,
-        )
-        netbox.set_power_state(
+        ):
+            device_failed = True
+
+        if not netbox.set_power_state(
             node["name"],
             node["power_state"],
             netbox_filter=netbox_filter,
             secondary_nb_list=reachable_secondaries,
-        )
-        netbox.set_maintenance(
+        ):
+            device_failed = True
+
+        if not netbox.set_maintenance(
             node["name"],
             state=node["is_maintenance"],
             netbox_filter=netbox_filter,
             secondary_nb_list=reachable_secondaries,
+        ):
+            device_failed = True
+
+        if device_failed:
+            failed_devices.append(node["name"])
+
+    # Report failed devices if any
+    if failed_devices:
+        osism_utils.push_task_output(
+            request_id,
+            f"WARNING: Failed to sync {len(failed_devices)} device(s) due to lock timeout: {', '.join(failed_devices)}\n",
         )
 
     osism_utils.finish_task_output(request_id, rc=0)
