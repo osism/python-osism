@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import atexit
+import threading
 import time
 import uuid
 import os
@@ -90,9 +92,16 @@ class RedisSemaphore:
 class TimeoutHTTPAdapter(HTTPAdapter):
     """HTTPAdapter that sets a default timeout for all requests."""
 
-    def __init__(self, timeout=None, *args, **kwargs):
+    def __init__(
+        self, timeout=None, pool_connections=10, pool_maxsize=10, *args, **kwargs
+    ):
         self.timeout = timeout
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            pool_connections=pool_connections,
+            pool_maxsize=pool_maxsize,
+            *args,
+            **kwargs,
+        )
 
     def send(self, request, **kwargs):
         if kwargs.get("timeout") is None and self.timeout is not None:
@@ -100,10 +109,60 @@ class TimeoutHTTPAdapter(HTTPAdapter):
         return super().send(request, **kwargs)
 
 
+class NetBoxSessionManager:
+    """Manages a shared HTTP session for all NetBox connections.
+
+    This class implements lazy initialization of a single shared session
+    to prevent file descriptor exhaustion from multiple session instances.
+    """
+
+    _session = None
+    _lock = None
+
+    @classmethod
+    def get_session(cls, ignore_ssl_errors=False, timeout=20):
+        """Get or create the shared session (lazy initialization).
+
+        Args:
+            ignore_ssl_errors: Whether to ignore SSL certificate errors
+            timeout: Request timeout in seconds (default: 20)
+
+        Returns:
+            requests.Session: The shared session instance
+        """
+        if cls._session is None:
+            if cls._lock is None:
+                cls._lock = threading.Lock()
+            with cls._lock:
+                if cls._session is None:
+                    cls._session = requests.Session()
+                    adapter = TimeoutHTTPAdapter(
+                        timeout=timeout, pool_connections=10, pool_maxsize=10
+                    )
+                    cls._session.mount("http://", adapter)
+                    cls._session.mount("https://", adapter)
+                    if ignore_ssl_errors:
+                        urllib3.disable_warnings()
+                        cls._session.verify = False
+        return cls._session
+
+    @classmethod
+    def close_session(cls):
+        """Close the shared session and release resources."""
+        if cls._session is not None:
+            cls._session.close()
+            cls._session = None
+
+
+def cleanup_netbox_sessions():
+    """Cleanup function to close all NetBox sessions."""
+    NetBoxSessionManager.close_session()
+
+
 def get_netbox_connection(
     netbox_url, netbox_token, ignore_ssl_errors=False, timeout=20
 ):
-    """Create a NetBox API connection.
+    """Create a NetBox API connection with shared session.
 
     Args:
         netbox_url: NetBox URL
@@ -118,19 +177,10 @@ def get_netbox_connection(
         nb = pynetbox.api(netbox_url, token=netbox_token)
 
         if nb:
-            # Create session with timeout adapter
-            session = requests.Session()
-
-            # Mount timeout adapter for both http and https
-            adapter = TimeoutHTTPAdapter(timeout=timeout)
-            session.mount("http://", adapter)
-            session.mount("https://", adapter)
-
-            if ignore_ssl_errors:
-                urllib3.disable_warnings()
-                session.verify = False
-
-            nb.http_session = session
+            # Use shared session instead of creating new one
+            nb.http_session = NetBoxSessionManager.get_session(
+                ignore_ssl_errors=ignore_ssl_errors, timeout=timeout
+            )
 
     else:
         nb = None
@@ -205,6 +255,10 @@ try:
 except (yaml.YAMLError, TypeError, ValueError) as exc:
     logger.error(f"Error parsing settings NETBOX_SECONDARIES: {exc}")
     secondary_nb_list = []
+
+
+# Register cleanup handler to close sessions on program exit
+atexit.register(cleanup_netbox_sessions)
 
 
 def get_openstack_connection():
