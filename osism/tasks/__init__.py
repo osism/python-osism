@@ -18,14 +18,63 @@ HOST_PATTERN = re.compile(r"^(ok|changed|failed|skipping|unreachable):\s+\[([^\]
 
 
 class Config:
+    # Basic settings
     broker_connection_retry_on_startup = True
     enable_utc = True
     enable_ironic = os.environ.get("ENABLE_IRONIC", "True")
-    broker_url = "redis://redis"
-    result_backend = "redis://redis"
+
+    # Redis connection settings from environment
+    _redis_host = os.environ.get("REDIS_HOST", "redis")
+    _redis_port = os.environ.get("REDIS_PORT", "6379")
+    _redis_db = os.environ.get("REDIS_DB", "0")
+
+    broker_url = f"redis://{_redis_host}:{_redis_port}/{_redis_db}"
+    result_backend = f"redis://{_redis_host}:{_redis_port}/{_redis_db}"
+
+    # Connection pool settings
+    broker_pool_limit = int(os.environ.get("CELERY_BROKER_POOL_LIMIT", "10"))
+    redis_max_connections = int(os.environ.get("CELERY_REDIS_MAX_CONNECTIONS", "20"))
+
+    # Redis transport options for reliability
+    broker_transport_options = {
+        "visibility_timeout": int(
+            os.environ.get("CELERY_VISIBILITY_TIMEOUT", "43200")
+        ),  # 12 hours
+        "socket_timeout": 30,
+        "socket_connect_timeout": 30,
+        "retry_on_timeout": True,
+        "health_check_interval": 10,
+    }
+
+    # Result backend transport options
+    result_backend_transport_options = {
+        "socket_timeout": 30,
+        "socket_connect_timeout": 30,
+        "retry_on_timeout": True,
+    }
+
+    # Task acknowledgement settings - acknowledge after completion
+    task_acks_late = True
+    task_reject_on_worker_lost = True
+
+    # Worker settings - prevent task hoarding
+    worker_prefetch_multiplier = 1
+
+    # Heartbeat for connection detection
+    broker_heartbeat = int(os.environ.get("CELERY_BROKER_HEARTBEAT", "10"))
+
+    # Task time limits (can be overridden per-task)
+    task_time_limit = int(
+        os.environ.get("CELERY_TASK_TIME_LIMIT", "86400")
+    )  # 24h hard limit
+    task_soft_time_limit = int(
+        os.environ.get("CELERY_TASK_SOFT_TIME_LIMIT", "82800")
+    )  # 23h soft limit
+
+    # Queue settings
     task_create_missing_queues = True
     task_default_queue = "default"
-    task_track_started = (True,)
+    task_track_started = True
     task_routes = {
         "osism.tasks.ansible.*": {"queue": "osism-ansible"},
         "osism.tasks.ceph.*": {"queue": "ceph-ansible"},
