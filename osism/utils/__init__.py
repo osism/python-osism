@@ -13,6 +13,8 @@ import openstack
 import pynetbox
 from pottery import Redlock
 from redis import Redis
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
 import requests
 from requests.adapters import HTTPAdapter
 import urllib3
@@ -188,11 +190,19 @@ def get_netbox_connection(
     return nb
 
 
+# Redis retry configuration with exponential backoff
+_redis_retry = Retry(ExponentialBackoff(), retries=3)
+
 redis = Redis(
     host=settings.REDIS_HOST,
     port=settings.REDIS_PORT,
     db=settings.REDIS_DB,
     socket_keepalive=True,
+    socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
+    socket_connect_timeout=settings.REDIS_SOCKET_CONNECT_TIMEOUT,
+    retry_on_timeout=True,
+    retry=_redis_retry,
+    health_check_interval=settings.REDIS_HEALTH_CHECK_INTERVAL,
 )
 redis.ping()
 
