@@ -178,7 +178,7 @@ def set_maintenance(
         finally:
             lock.release()
     else:
-        logger.error("Could not acquire lock for node {device_name}")
+        logger.error(f"Could not acquire lock for node {device_name}")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_provision_state")
@@ -246,7 +246,7 @@ def set_provision_state(
         finally:
             lock.release()
     else:
-        logger.error("Could not acquire lock for node {device_name}")
+        logger.error(f"Could not acquire lock for node {device_name}")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.set_power_state")
@@ -318,7 +318,7 @@ def set_power_state(
         finally:
             lock.release()
     else:
-        logger.error("Could not acquire lock for node {device_name}")
+        logger.error(f"Could not acquire lock for node {device_name}")
 
 
 @app.task(bind=True, name="osism.tasks.netbox.get_location_id")
