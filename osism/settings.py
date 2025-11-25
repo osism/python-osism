@@ -21,9 +21,6 @@ OPENSEARCH_PORT = os.getenv("OPENSEARCH_PORT")
 REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
-REDIS_SOCKET_TIMEOUT: int = int(os.getenv("REDIS_SOCKET_TIMEOUT", "30"))
-REDIS_SOCKET_CONNECT_TIMEOUT: int = int(os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", "30"))
-REDIS_HEALTH_CHECK_INTERVAL: int = int(os.getenv("REDIS_HEALTH_CHECK_INTERVAL", "10"))
 
 
 NETBOX_URL = os.getenv("NETBOX_API", os.getenv("NETBOX_URL"))
