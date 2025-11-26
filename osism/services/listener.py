@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import threading
 import time
 from collections.abc import Callable
 from typing import Any
@@ -16,6 +17,9 @@ from osism import settings
 
 # Retry interval when exchange doesn't exist yet (in seconds)
 EXCHANGE_RETRY_INTERVAL = 60
+
+# Interval for checking for new exchanges after initial connection (in seconds)
+EXCHANGE_DISCOVERY_INTERVAL = 60
 
 # Multiple exchanges for different OpenStack services
 EXCHANGES_CONFIG = {
@@ -178,6 +182,9 @@ class NotificationsDump(ConsumerMixin):
         self.osism_baremetal_api_url: None | str = None
         self.websocket_manager = None
         self._available_exchanges: dict[str, dict] = {}
+        self._discovery_thread: threading.Thread | None = None
+        self._stop_discovery = threading.Event()
+        self._new_exchanges_found = threading.Event()
 
         if settings.OSISM_API_URL:
             logger.info("Setting up OSISM API")
@@ -222,15 +229,18 @@ class NotificationsDump(ConsumerMixin):
             logger.debug(f"Exchange '{exchange_name}' does not exist: {e}")
             return None
 
-    def _wait_for_exchanges(self):
+    def _check_for_new_exchanges(self):
         """
-        Wait for at least one configured exchange to become available.
-        Checks exchanges passively without creating them.
+        Check for newly available exchanges that aren't yet being consumed.
+        Returns True if new exchanges were found.
         """
-        while not self._available_exchanges:
-            logger.info("Checking for available exchanges...")
+        new_found = False
+        try:
             with self.connection.channel() as channel:
                 for service_name, config in EXCHANGES_CONFIG.items():
+                    if service_name in self._available_exchanges:
+                        # Already consuming this exchange
+                        continue
                     exchange_name = config["exchange"]
                     props = self._get_exchange_properties(channel, exchange_name)
                     if props:
@@ -239,8 +249,73 @@ class NotificationsDump(ConsumerMixin):
                             "exchange_props": props,
                         }
                         logger.info(
-                            f"Exchange '{exchange_name}' for {service_name} is available"
+                            f"New exchange '{exchange_name}' for {service_name} is now available"
                         )
+                        new_found = True
+        except Exception as e:
+            logger.warning(f"Error checking for new exchanges: {e}")
+        return new_found
+
+    def _exchange_discovery_loop(self):
+        """
+        Background thread that periodically checks for new exchanges.
+        When new exchanges are found, signals the main consumer to restart.
+        """
+        logger.info("Starting exchange discovery thread")
+        while not self._stop_discovery.is_set():
+            # Wait for the discovery interval
+            if self._stop_discovery.wait(timeout=EXCHANGE_DISCOVERY_INTERVAL):
+                # Stop was requested
+                break
+
+            # Check if all exchanges are already available
+            if len(self._available_exchanges) >= len(EXCHANGES_CONFIG):
+                logger.info(
+                    "All configured exchanges are now available. "
+                    "Stopping exchange discovery."
+                )
+                break
+
+            logger.debug("Checking for new exchanges...")
+            if self._check_for_new_exchanges():
+                logger.info(
+                    "New exchanges found. Signaling consumer restart to add new consumers."
+                )
+                self._new_exchanges_found.set()
+                # Signal the consumer to stop so it can restart with new exchanges
+                self.should_stop = True
+
+        logger.info("Exchange discovery thread stopped")
+
+    def _start_exchange_discovery(self):
+        """Start the background exchange discovery thread."""
+        if len(self._available_exchanges) >= len(EXCHANGES_CONFIG):
+            # All exchanges already available, no need for discovery
+            logger.info("All exchanges available, skipping discovery thread")
+            return
+
+        self._stop_discovery.clear()
+        self._discovery_thread = threading.Thread(
+            target=self._exchange_discovery_loop,
+            name="exchange-discovery",
+            daemon=True,
+        )
+        self._discovery_thread.start()
+
+    def _stop_exchange_discovery(self):
+        """Stop the background exchange discovery thread."""
+        self._stop_discovery.set()
+        if self._discovery_thread and self._discovery_thread.is_alive():
+            self._discovery_thread.join(timeout=5)
+
+    def _wait_for_exchanges(self):
+        """
+        Wait for at least one configured exchange to become available.
+        Checks exchanges passively without creating them.
+        """
+        while not self._available_exchanges:
+            logger.info("Checking for available exchanges...")
+            self._check_for_new_exchanges()
 
             if not self._available_exchanges:
                 logger.warning(
@@ -258,6 +333,9 @@ class NotificationsDump(ConsumerMixin):
 
         # Wait for exchanges to be available before creating consumers
         self._wait_for_exchanges()
+
+        # Start background discovery for remaining exchanges
+        self._start_exchange_discovery()
 
         # Create consumers only for available exchanges
         for service_name, config in self._available_exchanges.items():
@@ -406,11 +484,31 @@ class NotificationsDump(ConsumerMixin):
 
 
 def main():
+    # Track available exchanges across restarts
+    available_exchanges: dict[str, dict] = {}
+
     while True:
         try:
             with Connection(BROKER_URI, connect_timeout=30.0) as connection:
                 connection.connect()
-                NotificationsDump(connection).run()
+                consumer = NotificationsDump(connection)
+                # Restore previously discovered exchanges
+                consumer._available_exchanges = available_exchanges
+                consumer.run()
+                # Save discovered exchanges for next iteration
+                available_exchanges = consumer._available_exchanges
+                # Stop discovery thread if running
+                consumer._stop_exchange_discovery()
+
+                # Check if we stopped due to new exchanges being found
+                if consumer._new_exchanges_found.is_set():
+                    logger.info(
+                        "Restarting consumer to add new exchange consumers. "
+                        f"Total exchanges: {len(available_exchanges)}"
+                    )
+                    consumer._new_exchanges_found.clear()
+                    continue
+
         except ConnectionRefusedError:
             logger.error("Connection with broker refused. Retry in 60 seconds.")
             time.sleep(60)
