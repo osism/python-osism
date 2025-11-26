@@ -14,6 +14,9 @@ import requests
 from osism.tasks import netbox
 from osism import settings
 
+# Retry interval when exchange doesn't exist yet (in seconds)
+EXCHANGE_RETRY_INTERVAL = 60
+
 # Multiple exchanges for different OpenStack services
 EXCHANGES_CONFIG = {
     "ironic": {
@@ -174,6 +177,7 @@ class NotificationsDump(ConsumerMixin):
         self.osism_api_session: None | requests.Session = None
         self.osism_baremetal_api_url: None | str = None
         self.websocket_manager = None
+        self._available_exchanges: dict[str, dict] = {}
 
         if settings.OSISM_API_URL:
             logger.info("Setting up OSISM API")
@@ -194,13 +198,81 @@ class NotificationsDump(ConsumerMixin):
 
         return
 
+    def _get_exchange_properties(self, channel, exchange_name: str) -> dict | None:
+        """
+        Check if an exchange exists and retrieve its properties.
+        Uses passive declaration to check existence without creating the exchange.
+
+        Returns exchange properties dict if exists, None otherwise.
+        """
+        try:
+            # Use exchange_declare with passive=True to check if exchange exists
+            # This will raise an exception if the exchange doesn't exist
+            channel.exchange_declare(
+                exchange=exchange_name,
+                type="topic",
+                passive=True,
+            )
+            # Exchange exists, get its properties via RabbitMQ management API
+            # or assume topic type since that's what OpenStack uses
+            logger.info(f"Exchange '{exchange_name}' exists")
+            return {"type": "topic", "durable": True}
+        except Exception as e:
+            # Exchange doesn't exist
+            logger.debug(f"Exchange '{exchange_name}' does not exist: {e}")
+            return None
+
+    def _wait_for_exchanges(self):
+        """
+        Wait for at least one configured exchange to become available.
+        Checks exchanges passively without creating them.
+        """
+        while not self._available_exchanges:
+            logger.info("Checking for available exchanges...")
+            with self.connection.channel() as channel:
+                for service_name, config in EXCHANGES_CONFIG.items():
+                    exchange_name = config["exchange"]
+                    props = self._get_exchange_properties(channel, exchange_name)
+                    if props:
+                        self._available_exchanges[service_name] = {
+                            **config,
+                            "exchange_props": props,
+                        }
+                        logger.info(
+                            f"Exchange '{exchange_name}' for {service_name} is available"
+                        )
+
+            if not self._available_exchanges:
+                logger.warning(
+                    f"No exchanges available yet. Waiting {EXCHANGE_RETRY_INTERVAL} seconds before retry..."
+                )
+                time.sleep(EXCHANGE_RETRY_INTERVAL)
+
+        logger.info(
+            f"Found {len(self._available_exchanges)} available exchange(s): "
+            f"{list(self._available_exchanges.keys())}"
+        )
+
     def get_consumers(self, consumer, channel):
         consumers = []
 
-        # Create consumers for all configured exchanges
-        for service_name, config in EXCHANGES_CONFIG.items():
+        # Wait for exchanges to be available before creating consumers
+        self._wait_for_exchanges()
+
+        # Create consumers only for available exchanges
+        for service_name, config in self._available_exchanges.items():
             try:
-                exchange = Exchange(config["exchange"], type="topic", durable=False)
+                exchange_props = config["exchange_props"]
+                # Create exchange object matching the existing exchange properties
+                # Use passive=True to ensure we don't try to create/modify the exchange
+                exchange = Exchange(
+                    config["exchange"],
+                    type=exchange_props.get("type", "topic"),
+                    durable=exchange_props.get("durable", True),
+                    passive=True,
+                )
+                # Create our own queue bound to the existing exchange
+                # Our queue can have its own properties (non-durable, auto-delete)
                 queue = Queue(
                     config["queue"],
                     exchange,
@@ -217,20 +289,10 @@ class NotificationsDump(ConsumerMixin):
                 logger.error(f"Failed to configure consumer for {service_name}: {e}")
 
         if not consumers:
-            logger.warning(
-                "No consumers configured, falling back to legacy ironic consumer"
+            logger.error(
+                "No consumers could be configured. This should not happen after "
+                "waiting for exchanges."
             )
-            # Fallback to legacy configuration
-            exchange = Exchange(EXCHANGE_NAME, type="topic", durable=False)
-            queue = Queue(
-                QUEUE_NAME,
-                exchange,
-                routing_key=ROUTING_KEY,
-                durable=False,
-                auto_delete=True,
-                no_ack=True,
-            )
-            consumers.append(consumer(queue, callbacks=[self.on_message]))
 
         return consumers
 
