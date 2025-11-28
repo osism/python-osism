@@ -249,11 +249,20 @@ class Versions(Command):
 
         # Construct SBOM image reference if not provided
         if sbom_image is None:
-            # Use kolla/release namespace for versions starting with 'v' (e.g. v0.20251128.0)
-            if openstack_version.startswith("v"):
-                sbom_image = f"registry.osism.cloud/kolla/release:{openstack_version}"
+            # Strip 'v' prefix if present (v0.20251128.0 -> 0.20251128.0)
+            version_tag = openstack_version.lstrip("v")
+
+            # Use kolla/release/sbom for release versions (contain date like 0.20251128.0)
+            # Use kolla/sbom for OpenStack versions (like 2025.1)
+            is_release_version = any(
+                len(part) == 8 and part.startswith("20") and part.isdigit()
+                for part in version_tag.split(".")
+            )
+
+            if is_release_version:
+                sbom_image = f"registry.osism.cloud/kolla/release/sbom:{version_tag}"
             else:
-                sbom_image = f"registry.osism.cloud/kolla/sbom:{openstack_version}"
+                sbom_image = f"registry.osism.cloud/kolla/sbom:{version_tag}"
 
         logger.info(f"OpenStack version: {openstack_version}")
         logger.info(f"Configuration path: {config_path}")
