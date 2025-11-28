@@ -48,6 +48,7 @@ apk add --no-cache \
   libyang \
   openssh-client \
   procps \
+  skopeo \
   tini
 
 # install python packages
