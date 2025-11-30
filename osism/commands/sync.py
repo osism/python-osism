@@ -9,6 +9,7 @@ from pathlib import Path
 from cliff.command import Command
 import jinja2
 from loguru import logger
+import requests
 from yaml import safe_load, YAMLError
 
 from osism import utils
@@ -138,6 +139,24 @@ class Versions(Command):
             help="SBOM container image (default: registry.osism.cloud/kolla/sbom:<version>)",
         )
         parser.add_argument(
+            "--release",
+            type=str,
+            default=None,
+            help="OSISM release version (e.g., 9.4.0) to fetch SBOM version from",
+        )
+        parser.add_argument(
+            "--release-repository-url",
+            type=str,
+            default="https://raw.githubusercontent.com/osism/release/main",
+            help="Base URL for the release repository (default: https://raw.githubusercontent.com/osism/release/main)",
+        )
+        parser.add_argument(
+            "--sbom-image-base",
+            type=str,
+            default="registry.osism.cloud/kolla/release/sbom",
+            help="Base path for the SBOM container image (default: registry.osism.cloud/kolla/release/sbom)",
+        )
+        parser.add_argument(
             "--dry-run",
             default=False,
             help="Show rendered versions without writing to file",
@@ -224,15 +243,62 @@ class Versions(Command):
 
             return sbom
 
+    def _get_kolla_version_from_release(
+        self, release: str, release_repository_url: str
+    ) -> str:
+        """
+        Fetch the Kolla SBOM version from the OSISM release repository.
+
+        Args:
+            release: OSISM release version (e.g., '9.4.0')
+            release_repository_url: Base URL for the release repository
+
+        Returns:
+            Kolla SBOM version string (e.g., '0.20250928.0')
+        """
+        url = f"{release_repository_url}/{release}/base.yml"
+        logger.info(f"Fetching release configuration from {url}")
+
+        try:
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Failed to fetch release configuration: {e}")
+
+        try:
+            release_config = safe_load(response.text)
+        except YAMLError as e:
+            raise RuntimeError(f"Failed to parse release configuration: {e}")
+
+        docker_images = release_config.get("docker_images", {})
+        kolla_version = docker_images.get("kolla")
+
+        if kolla_version is None:
+            raise RuntimeError(
+                f"Kolla version not found in release {release} configuration"
+            )
+
+        logger.info(f"Found Kolla version {kolla_version} for release {release}")
+        return kolla_version
+
     def take_action(self, parsed_args):
         sync_type = parsed_args.type
         openstack_version = parsed_args.openstack_version
         config_path = Path(parsed_args.configuration_path)
         dry_run = parsed_args.dry_run
+        release = parsed_args.release
+        release_repository_url = parsed_args.release_repository_url.rstrip("/")
+        sbom_image_base = parsed_args.sbom_image_base
 
         if sync_type == "kolla":
             return self._sync_kolla_versions(
-                openstack_version, config_path, parsed_args.sbom_image, dry_run
+                openstack_version,
+                config_path,
+                parsed_args.sbom_image,
+                dry_run,
+                release,
+                release_repository_url,
+                sbom_image_base,
             )
 
         logger.error(f"Unknown sync type: {sync_type}")
@@ -244,26 +310,42 @@ class Versions(Command):
         config_path: Path,
         sbom_image: str | None,
         dry_run: bool,
+        release: str | None,
+        release_repository_url: str,
+        sbom_image_base: str,
     ) -> int:
         """Sync Kolla versions from SBOM container image."""
 
         # Construct SBOM image reference if not provided
         if sbom_image is None:
-            # Strip 'v' prefix if present (v0.20251128.0 -> 0.20251128.0)
-            version_tag = openstack_version.lstrip("v")
-
-            # Use kolla/release/sbom for release versions (contain date like 0.20251128.0)
-            # Use kolla/sbom for OpenStack versions (like 2025.1)
-            is_release_version = any(
-                len(part) == 8 and part.startswith("20") and part.isdigit()
-                for part in version_tag.split(".")
-            )
-
-            if is_release_version:
-                sbom_image = f"registry.osism.cloud/kolla/release/sbom:{version_tag}"
+            # If release is specified, fetch the Kolla version from the release repository
+            if release is not None:
+                try:
+                    kolla_version = self._get_kolla_version_from_release(
+                        release, release_repository_url
+                    )
+                    sbom_image = f"{sbom_image_base}:{kolla_version}"
+                except RuntimeError as e:
+                    logger.error(str(e))
+                    return 1
             else:
-                sbom_image = f"registry.osism.cloud/kolla/sbom:{version_tag}"
+                # Strip 'v' prefix if present (v0.20251128.0 -> 0.20251128.0)
+                version_tag = openstack_version.lstrip("v")
 
+                # Use kolla/release/sbom for release versions (contain date like 0.20251128.0)
+                # Use kolla/sbom for OpenStack versions (like 2025.1)
+                is_release_version = any(
+                    len(part) == 8 and part.startswith("20") and part.isdigit()
+                    for part in version_tag.split(".")
+                )
+
+                if is_release_version:
+                    sbom_image = f"{sbom_image_base}:{version_tag}"
+                else:
+                    sbom_image = f"registry.osism.cloud/kolla/sbom:{version_tag}"
+
+        if release is not None:
+            logger.info(f"OSISM release: {release}")
         logger.info(f"OpenStack version: {openstack_version}")
         logger.info(f"Configuration path: {config_path}")
         logger.info(f"SBOM image: {sbom_image}")
