@@ -344,12 +344,6 @@ class Versions(Command):
                 else:
                     sbom_image = f"registry.osism.cloud/kolla/sbom:{version_tag}"
 
-        if release is not None:
-            logger.info(f"OSISM release: {release}")
-        logger.info(f"OpenStack version: {openstack_version}")
-        logger.info(f"Configuration path: {config_path}")
-        logger.info(f"SBOM image: {sbom_image}")
-
         # Check configuration path exists
         if not dry_run and not config_path.exists():
             logger.error(f"Configuration path does not exist: {config_path}")
@@ -366,6 +360,15 @@ class Versions(Command):
             return 1
 
         versions = sbom.get("versions", {})
+
+        # Always use openstack_version from SBOM
+        openstack_version = sbom.get("openstack_version", openstack_version)
+
+        if release is not None:
+            logger.info(f"OSISM release: {release}")
+        logger.info(f"OpenStack version: {openstack_version}")
+        logger.info(f"Configuration path: {config_path}")
+        logger.info(f"SBOM image: {sbom_image}")
         logger.info(f"Found {len(versions)} version entries in SBOM")
 
         # Render template
