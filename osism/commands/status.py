@@ -466,6 +466,12 @@ class Messaging(Command):
     def get_parser(self, prog_name):
         parser = super(Messaging, self).get_parser(prog_name)
         parser.add_argument(
+            "hosts",
+            nargs="*",
+            default=[],
+            help="Optional hostname(s) to filter (default: all nodes)",
+        )
+        parser.add_argument(
             "--format",
             default="log",
             help="Output type",
@@ -794,6 +800,7 @@ class Messaging(Command):
 
     def take_action(self, parsed_args):
         format = parsed_args.format
+        filter_hosts = parsed_args.hosts
 
         # Get RabbitMQ node addresses from inventory
         node_addresses = self._get_rabbitmq_node_addresses()
@@ -801,6 +808,30 @@ class Messaging(Command):
             if format == "log":
                 logger.error("Failed to get RabbitMQ node addresses from inventory")
             return 1
+
+        # Filter nodes if hostnames specified
+        if filter_hosts:
+            available_hosts = [name for _, name in node_addresses]
+            filtered_addresses = [
+                (addr, name) for addr, name in node_addresses if name in filter_hosts
+            ]
+
+            # Warn about unknown hosts
+            for host in filter_hosts:
+                if host not in available_hosts:
+                    if format == "log":
+                        logger.warning(
+                            f"Host '{host}' not found in rabbitmq group, skipping"
+                        )
+
+            if not filtered_addresses:
+                if format == "log":
+                    logger.error(
+                        f"None of the specified hosts found. Available: {', '.join(available_hosts)}"
+                    )
+                return 1
+
+            node_addresses = filtered_addresses
 
         # Load RabbitMQ password
         password = self._load_rabbitmq_password()
