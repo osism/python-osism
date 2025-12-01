@@ -152,43 +152,80 @@ class Database(Command):
     def _check_galera_status(self, connection):
         """Check the Galera cluster status and return validation results"""
         results = {
+            # Basic cluster status
             "cluster_status": None,
             "connected": None,
             "ready": None,
             "cluster_size": None,
             "local_state": None,
             "cluster_state_uuid": None,
+            # Cluster members
+            "incoming_addresses": None,
+            "provider_version": None,
+            "local_node_uuid": None,
+            # Flow control metrics
+            "flow_control_paused": None,
+            "local_recv_queue_avg": None,
+            "local_send_queue_avg": None,
+            # Transaction statistics
+            "local_commits": None,
+            "local_cert_failures": None,
+            "local_bf_aborts": None,
+            "replicated": None,
+            "received": None,
+            # General MariaDB metrics
+            "uptime": None,
+            "threads_connected": None,
+            "threads_running": None,
+            "questions": None,
+            "slow_queries": None,
+            "aborted_connects": None,
         }
         errors = []
+        warnings = []
 
         try:
             with connection.cursor() as cursor:
+                # Get wsrep status variables
                 cursor.execute("SHOW STATUS LIKE 'wsrep_%'")
-                status_rows = cursor.fetchall()
+                wsrep_rows = cursor.fetchall()
 
-            status = {row[0]: row[1] for row in status_rows}
+                # Get general status variables
+                cursor.execute(
+                    "SHOW GLOBAL STATUS WHERE Variable_name IN "
+                    "('Uptime', 'Threads_connected', 'Threads_running', "
+                    "'Questions', 'Slow_queries', 'Aborted_connects')"
+                )
+                general_rows = cursor.fetchall()
+
+            wsrep_status = {row[0]: row[1] for row in wsrep_rows}
+            general_status = {row[0]: row[1] for row in general_rows}
+
+            # === Basic Cluster Status ===
 
             # Check wsrep_cluster_status (should be "Primary")
-            results["cluster_status"] = status.get("wsrep_cluster_status", "UNKNOWN")
+            results["cluster_status"] = wsrep_status.get(
+                "wsrep_cluster_status", "UNKNOWN"
+            )
             if results["cluster_status"] != "Primary":
                 errors.append(
                     f"Cluster status is '{results['cluster_status']}', expected 'Primary'"
                 )
 
             # Check wsrep_connected (should be "ON")
-            results["connected"] = status.get("wsrep_connected", "UNKNOWN")
+            results["connected"] = wsrep_status.get("wsrep_connected", "UNKNOWN")
             if results["connected"] != "ON":
                 errors.append(
                     f"Cluster connected is '{results['connected']}', expected 'ON'"
                 )
 
             # Check wsrep_ready (should be "ON")
-            results["ready"] = status.get("wsrep_ready", "UNKNOWN")
+            results["ready"] = wsrep_status.get("wsrep_ready", "UNKNOWN")
             if results["ready"] != "ON":
                 errors.append(f"Cluster ready is '{results['ready']}', expected 'ON'")
 
             # Check wsrep_cluster_size (should be > 0)
-            results["cluster_size"] = status.get("wsrep_cluster_size", "0")
+            results["cluster_size"] = wsrep_status.get("wsrep_cluster_size", "0")
             try:
                 size = int(results["cluster_size"])
                 if size < 1:
@@ -197,21 +234,97 @@ class Database(Command):
                 errors.append(f"Invalid cluster size: {results['cluster_size']}")
 
             # Check wsrep_local_state_comment (should be "Synced")
-            results["local_state"] = status.get("wsrep_local_state_comment", "UNKNOWN")
+            results["local_state"] = wsrep_status.get(
+                "wsrep_local_state_comment", "UNKNOWN"
+            )
             if results["local_state"] != "Synced":
                 errors.append(
                     f"Local state is '{results['local_state']}', expected 'Synced'"
                 )
 
             # Get cluster state UUID for informational purposes
-            results["cluster_state_uuid"] = status.get(
+            results["cluster_state_uuid"] = wsrep_status.get(
                 "wsrep_cluster_state_uuid", "UNKNOWN"
             )
+
+            # === Cluster Members ===
+
+            results["incoming_addresses"] = wsrep_status.get(
+                "wsrep_incoming_addresses", "UNKNOWN"
+            )
+            results["provider_version"] = wsrep_status.get(
+                "wsrep_provider_version", "UNKNOWN"
+            )
+            results["local_node_uuid"] = wsrep_status.get("wsrep_gcomm_uuid", "UNKNOWN")
+
+            # === Flow Control Metrics ===
+
+            results["flow_control_paused"] = wsrep_status.get(
+                "wsrep_flow_control_paused", "0"
+            )
+            results["local_recv_queue_avg"] = wsrep_status.get(
+                "wsrep_local_recv_queue_avg", "0"
+            )
+            results["local_send_queue_avg"] = wsrep_status.get(
+                "wsrep_local_send_queue_avg", "0"
+            )
+
+            # Check flow control - warn if paused > 5%
+            try:
+                fc_paused = float(results["flow_control_paused"])
+                if fc_paused > 0.05:
+                    warnings.append(
+                        f"Flow control paused ratio is {fc_paused:.2%}, "
+                        "which may indicate replication lag"
+                    )
+            except ValueError:
+                pass
+
+            # Check receive queue average - warn if > 0.5
+            try:
+                recv_queue = float(results["local_recv_queue_avg"])
+                if recv_queue > 0.5:
+                    warnings.append(
+                        f"Local receive queue average is {recv_queue:.2f}, "
+                        "which may indicate apply lag"
+                    )
+            except ValueError:
+                pass
+
+            # === Transaction Statistics ===
+
+            results["local_commits"] = wsrep_status.get("wsrep_local_commits", "0")
+            results["local_cert_failures"] = wsrep_status.get(
+                "wsrep_local_cert_failures", "0"
+            )
+            results["local_bf_aborts"] = wsrep_status.get("wsrep_local_bf_aborts", "0")
+            results["replicated"] = wsrep_status.get("wsrep_replicated", "0")
+            results["received"] = wsrep_status.get("wsrep_received", "0")
+
+            # Check certification failures - warn if > 0
+            try:
+                cert_failures = int(results["local_cert_failures"])
+                if cert_failures > 0:
+                    warnings.append(
+                        f"Certification failures: {cert_failures} "
+                        "(transaction conflicts detected)"
+                    )
+            except ValueError:
+                pass
+
+            # === General MariaDB Metrics ===
+
+            results["uptime"] = general_status.get("Uptime", "0")
+            results["threads_connected"] = general_status.get("Threads_connected", "0")
+            results["threads_running"] = general_status.get("Threads_running", "0")
+            results["questions"] = general_status.get("Questions", "0")
+            results["slow_queries"] = general_status.get("Slow_queries", "0")
+            results["aborted_connects"] = general_status.get("Aborted_connects", "0")
 
         except Exception as exc:
             errors.append(f"Failed to query Galera status: {exc}")
 
-        return results, errors
+        return results, errors, warnings
 
     def take_action(self, parsed_args):
         format = parsed_args.format
@@ -262,15 +375,67 @@ class Database(Command):
 
         try:
             # Check Galera status
-            results, errors = self._check_galera_status(connection)
+            results, errors, warnings = self._check_galera_status(connection)
 
             if format == "log":
+                # === Basic Cluster Status ===
                 logger.info(f"Cluster Status: {results['cluster_status']}")
                 logger.info(f"Connected: {results['connected']}")
                 logger.info(f"Ready: {results['ready']}")
                 logger.info(f"Cluster Size: {results['cluster_size']}")
                 logger.info(f"Local State: {results['local_state']}")
                 logger.info(f"Cluster State UUID: {results['cluster_state_uuid']}")
+
+                # === Cluster Members ===
+                logger.info(f"Cluster Members: {results['incoming_addresses']}")
+                logger.info(f"Galera Version: {results['provider_version']}")
+                logger.info(f"Local Node UUID: {results['local_node_uuid']}")
+
+                # === Flow Control Metrics ===
+                try:
+                    fc_paused = float(results["flow_control_paused"])
+                    logger.info(f"Flow Control Paused: {fc_paused:.2%}")
+                except (ValueError, TypeError):
+                    logger.info(
+                        f"Flow Control Paused: {results['flow_control_paused']}"
+                    )
+
+                logger.info(f"Recv Queue Avg: {results['local_recv_queue_avg']}")
+                logger.info(f"Send Queue Avg: {results['local_send_queue_avg']}")
+
+                # === Transaction Statistics ===
+                logger.info(
+                    f"Transactions: {results['local_commits']} local commits, "
+                    f"{results['replicated']} replicated, "
+                    f"{results['received']} received"
+                )
+                logger.info(
+                    f"Conflicts: {results['local_cert_failures']} cert failures, "
+                    f"{results['local_bf_aborts']} bf aborts"
+                )
+
+                # === General MariaDB Metrics ===
+                try:
+                    uptime_seconds = int(results["uptime"])
+                    uptime_str = display_time(uptime_seconds)
+                    logger.info(f"MariaDB Uptime: {uptime_str}")
+                except (ValueError, TypeError):
+                    logger.info(f"MariaDB Uptime: {results['uptime']}s")
+
+                logger.info(
+                    f"Threads: {results['threads_connected']} connected, "
+                    f"{results['threads_running']} running"
+                )
+                logger.info(
+                    f"Queries: {results['questions']} total, "
+                    f"{results['slow_queries']} slow"
+                )
+                logger.info(f"Aborted Connects: {results['aborted_connects']}")
+
+                # Show warnings
+                if warnings:
+                    for warning in warnings:
+                        logger.warning(warning)
 
                 if errors:
                     for error in errors:
