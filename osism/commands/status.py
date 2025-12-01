@@ -475,8 +475,8 @@ class Messaging(Command):
         )
         return parser
 
-    def _get_rabbitmq_node_address(self):
-        """Get the internal IPv4 address of the first RabbitMQ node from inventory"""
+    def _get_rabbitmq_node_addresses(self):
+        """Get the internal IPv4 addresses of all RabbitMQ nodes from inventory"""
         try:
             # Use ansible-inventory with --limit to get hosts in rabbitmq group
             result = subprocess.check_output(
@@ -496,88 +496,95 @@ class Messaging(Command):
                 logger.error("No hosts found in rabbitmq group")
                 return None
 
-            # Sort for consistent ordering and get first host
+            # Sort for consistent ordering
             rabbitmq_hosts.sort()
-            first_host = rabbitmq_hosts[0]
-            logger.debug(f"First RabbitMQ host: {first_host}")
+            logger.debug(f"RabbitMQ hosts: {rabbitmq_hosts}")
 
-            # Get ansible facts from Redis cache
-            facts_data = redis.get(f"ansible_facts{first_host}")
-            if not facts_data:
-                logger.error(f"No ansible facts found in cache for {first_host}")
-                return None
+            node_addresses = []
+            for host in rabbitmq_hosts:
+                # Get ansible facts from Redis cache
+                facts_data = redis.get(f"ansible_facts{host}")
+                if not facts_data:
+                    logger.error(f"No ansible facts found in cache for {host}")
+                    continue
 
-            facts = json.loads(facts_data)
+                facts = json.loads(facts_data)
 
-            # Get hostvars for this host to find internal_interface
-            result = subprocess.check_output(
-                f"ansible-inventory -i /ansible/inventory/hosts.yml --host {first_host}",
-                shell=True,
-                stderr=subprocess.DEVNULL,
-            )
-            hostvars = json.loads(result)
-
-            internal_interface_raw = hostvars.get("internal_interface")
-            if not internal_interface_raw:
-                logger.error(
-                    f"internal_interface not found in hostvars for {first_host}"
+                # Get hostvars for this host to find internal_interface
+                result = subprocess.check_output(
+                    f"ansible-inventory -i /ansible/inventory/hosts.yml --host {host}",
+                    shell=True,
+                    stderr=subprocess.DEVNULL,
                 )
-                return None
+                hostvars = json.loads(result)
 
-            # Resolve Jinja2 template if present (e.g., "{{ ansible_local.testbed_network_devices.management }}")
-            internal_interface = internal_interface_raw
-            template_match = re.match(r"\{\{\s*(.+?)\s*\}\}", internal_interface_raw)
-            if template_match:
-                path = template_match.group(1).strip()
-                parts = path.split(".")
-                value = facts
-                for part in parts:
-                    if isinstance(value, dict):
-                        value = value.get(part)
+                internal_interface_raw = hostvars.get("internal_interface")
+                if not internal_interface_raw:
+                    logger.error(f"internal_interface not found in hostvars for {host}")
+                    continue
+
+                # Resolve Jinja2 template if present (e.g., "{{ ansible_local.testbed_network_devices.management }}")
+                internal_interface = internal_interface_raw
+                template_match = re.match(
+                    r"\{\{\s*(.+?)\s*\}\}", internal_interface_raw
+                )
+                if template_match:
+                    path = template_match.group(1).strip()
+                    parts = path.split(".")
+                    value = facts
+                    for part in parts:
+                        if isinstance(value, dict):
+                            value = value.get(part)
+                        else:
+                            value = None
+                            break
+                    if value and isinstance(value, str):
+                        internal_interface = value
                     else:
-                        value = None
-                        break
-                if value and isinstance(value, str):
-                    internal_interface = value
-                else:
+                        logger.error(
+                            f"Could not resolve template '{internal_interface_raw}' from facts for {host}"
+                        )
+                        continue
+
+                logger.debug(f"Internal interface for {host}: {internal_interface}")
+
+                # Look for the interface in ansible facts
+                # Interface names with special chars are normalized (e.g., eth0.100 -> ansible_eth0_100)
+                normalized_interface = internal_interface.replace(".", "_").replace(
+                    "-", "_"
+                )
+                interface_key = f"ansible_{normalized_interface}"
+
+                interface_facts = facts.get(interface_key)
+                if not interface_facts:
                     logger.error(
-                        f"Could not resolve template '{internal_interface_raw}' from facts for {first_host}"
+                        f"Interface {internal_interface} ({interface_key}) not found in ansible facts for {host}"
                     )
-                    return None
+                    continue
 
-            logger.debug(f"Internal interface for {first_host}: {internal_interface}")
+                # Get IPv4 address
+                ipv4_info = interface_facts.get("ipv4")
+                if not ipv4_info:
+                    logger.error(
+                        f"No IPv4 address found for interface {internal_interface} on {host}"
+                    )
+                    continue
 
-            # Look for the interface in ansible facts
-            # Interface names with special chars are normalized (e.g., eth0.100 -> ansible_eth0_100)
-            normalized_interface = internal_interface.replace(".", "_").replace(
-                "-", "_"
-            )
-            interface_key = f"ansible_{normalized_interface}"
+                ipv4_address = ipv4_info.get("address")
+                if not ipv4_address:
+                    logger.error(
+                        f"No IPv4 address found for interface {internal_interface} on {host}"
+                    )
+                    continue
 
-            interface_facts = facts.get(interface_key)
-            if not interface_facts:
-                logger.error(
-                    f"Interface {internal_interface} ({interface_key}) not found in ansible facts for {first_host}"
-                )
+                logger.debug(f"IPv4 address for {host}: {ipv4_address}")
+                node_addresses.append((ipv4_address, host))
+
+            if not node_addresses:
+                logger.error("Could not retrieve address for any RabbitMQ node")
                 return None
 
-            # Get IPv4 address
-            ipv4_info = interface_facts.get("ipv4")
-            if not ipv4_info:
-                logger.error(
-                    f"No IPv4 address found for interface {internal_interface} on {first_host}"
-                )
-                return None
-
-            ipv4_address = ipv4_info.get("address")
-            if not ipv4_address:
-                logger.error(
-                    f"No IPv4 address found for interface {internal_interface} on {first_host}"
-                )
-                return None
-
-            logger.debug(f"IPv4 address for {first_host}: {ipv4_address}")
-            return ipv4_address, first_host
+            return node_addresses
 
         except subprocess.CalledProcessError as exc:
             logger.error(f"Failed to query ansible inventory: {exc}")
@@ -586,7 +593,7 @@ class Messaging(Command):
             logger.error(f"Failed to parse inventory data: {exc}")
             return None
         except Exception as exc:
-            logger.error(f"Failed to get RabbitMQ node address: {exc}")
+            logger.error(f"Failed to get RabbitMQ node addresses: {exc}")
             return None
 
     def _load_rabbitmq_password(self):
@@ -629,7 +636,7 @@ class Messaging(Command):
             logger.error(f"Failed to load RabbitMQ password: {exc}")
             return None
 
-    def _check_rabbitmq_status(self, vip_address, username, password):
+    def _check_rabbitmq_status(self, vip_address, username, password, target_host=None):
         """Check the RabbitMQ cluster status and return validation results"""
         results = {
             "cluster_name": None,
@@ -650,7 +657,7 @@ class Messaging(Command):
             # Message rates
             "publish_rate": 0.0,
             "deliver_rate": 0.0,
-            # Node resources (from first node as reference)
+            # Node resources (from target node or first node as reference)
             "disk_free": None,
             "disk_free_limit": None,
             "mem_used": None,
@@ -704,6 +711,7 @@ class Messaging(Command):
             response.raise_for_status()
             nodes_data = response.json()
 
+            resource_node_found = False
             for idx, node in enumerate(nodes_data):
                 node_name = node.get("name", "UNKNOWN")
                 results["nodes"].append(node_name)
@@ -727,16 +735,36 @@ class Messaging(Command):
                         f"CRITICAL: Node '{node_name}' has partitions: {partitions}"
                     )
 
-                # Get resource info from first node as reference
-                if idx == 0:
-                    results["disk_free"] = node.get("disk_free")
-                    results["disk_free_limit"] = node.get("disk_free_limit")
-                    results["mem_used"] = node.get("mem_used")
-                    results["mem_limit"] = node.get("mem_limit")
-                    results["fd_used"] = node.get("fd_used")
-                    results["fd_total"] = node.get("fd_total")
-                    results["sockets_used"] = node.get("sockets_used")
-                    results["sockets_total"] = node.get("sockets_total")
+                # Get resource info from target node (match by hostname in node name)
+                # Node names are typically "rabbit@hostname"
+                is_target_node = False
+                if target_host:
+                    is_target_node = node_name.endswith(f"@{target_host}")
+
+                # Use target node's resources, or fall back to first node
+                if (
+                    (target_host and is_target_node)
+                    or (not target_host and idx == 0)
+                    or (
+                        target_host
+                        and not resource_node_found
+                        and idx == len(nodes_data) - 1
+                    )
+                ):
+                    if (
+                        is_target_node
+                        or not target_host
+                        or (not resource_node_found and idx == len(nodes_data) - 1)
+                    ):
+                        results["disk_free"] = node.get("disk_free")
+                        results["disk_free_limit"] = node.get("disk_free_limit")
+                        results["mem_used"] = node.get("mem_used")
+                        results["mem_limit"] = node.get("mem_limit")
+                        results["fd_used"] = node.get("fd_used")
+                        results["fd_total"] = node.get("fd_total")
+                        results["sockets_used"] = node.get("sockets_used")
+                        results["sockets_total"] = node.get("sockets_total")
+                        resource_node_found = True
 
             results["cluster_size"] = len(results["nodes"])
 
@@ -767,14 +795,12 @@ class Messaging(Command):
     def take_action(self, parsed_args):
         format = parsed_args.format
 
-        # Get RabbitMQ node address from inventory
-        node_info = self._get_rabbitmq_node_address()
-        if node_info is None:
+        # Get RabbitMQ node addresses from inventory
+        node_addresses = self._get_rabbitmq_node_addresses()
+        if node_addresses is None:
             if format == "log":
-                logger.error("Failed to get RabbitMQ node address from inventory")
+                logger.error("Failed to get RabbitMQ node addresses from inventory")
             return 1
-
-        node_address, node_name = node_info
 
         # Load RabbitMQ password
         password = self._load_rabbitmq_password()
@@ -786,85 +812,104 @@ class Messaging(Command):
         # RabbitMQ user for OpenStack
         rabbitmq_user = "openstack"
 
-        # Connect to RabbitMQ Management API
+        all_errors = []
+        all_results = []
+
+        # Check each node
+        for node_address, node_name in node_addresses:
+            if format == "log":
+                logger.info(
+                    f"[{node_name}] Connecting to RabbitMQ Management API at {node_address}:15672 as {rabbitmq_user}..."
+                )
+
+            # Check RabbitMQ status for this node
+            results, errors = self._check_rabbitmq_status(
+                node_address, rabbitmq_user, password, target_host=node_name
+            )
+            results["node_name"] = node_name
+            all_results.append(results)
+            all_errors.extend([(node_name, e) for e in errors])
+
+            if format == "log":
+                # Version info
+                logger.info(
+                    f"[{node_name}] RabbitMQ Version: {results['rabbitmq_version']}"
+                )
+                logger.info(
+                    f"[{node_name}] Erlang Version: {results['erlang_version']}"
+                )
+
+                # Cluster info
+                logger.info(f"[{node_name}] Cluster Name: {results['cluster_name']}")
+                logger.info(f"[{node_name}] Cluster Size: {results['cluster_size']}")
+                logger.info(
+                    f"[{node_name}] Nodes: {', '.join(results['nodes']) or 'None'}"
+                )
+                logger.info(
+                    f"[{node_name}] Running Nodes: {', '.join(results['running_nodes']) or 'None'}"
+                )
+
+                # Partition status
+                if results["partitioned_nodes"]:
+                    logger.error(
+                        f"[{node_name}] Partitioned Nodes: {', '.join(results['partitioned_nodes'])}"
+                    )
+                else:
+                    logger.info(f"[{node_name}] Partitions: None (healthy)")
+
+                # Statistics
+                logger.info(
+                    f"[{node_name}] Connections: {results['total_connections']}, "
+                    f"Channels: {results['total_channels']}, "
+                    f"Queues: {results['total_queues']}"
+                )
+                logger.info(
+                    f"[{node_name}] Messages: {results['total_messages']} total, "
+                    f"{results['messages_ready']} ready, "
+                    f"{results['messages_unacked']} unacked"
+                )
+                logger.info(
+                    f"[{node_name}] Message Rates: {results['publish_rate']:.1f}/s publish, "
+                    f"{results['deliver_rate']:.1f}/s deliver"
+                )
+
+                # Resource usage
+                if results["disk_free"] is not None:
+                    disk_free_gb = results["disk_free"] / (1024**3)
+                    disk_limit_gb = (results["disk_free_limit"] or 0) / (1024**3)
+                    logger.info(
+                        f"[{node_name}] Disk Free: {disk_free_gb:.1f} GB (limit: {disk_limit_gb:.1f} GB)"
+                    )
+
+                if results["mem_used"] is not None:
+                    mem_used_gb = results["mem_used"] / (1024**3)
+                    mem_limit_gb = (results["mem_limit"] or 0) / (1024**3)
+                    logger.info(
+                        f"[{node_name}] Memory Used: {mem_used_gb:.2f} GB (limit: {mem_limit_gb:.2f} GB)"
+                    )
+
+                if results["fd_used"] is not None:
+                    logger.info(
+                        f"[{node_name}] File Descriptors: {results['fd_used']}/{results['fd_total']}"
+                    )
+
+                if results["sockets_used"] is not None:
+                    logger.info(
+                        f"[{node_name}] Sockets: {results['sockets_used']}/{results['sockets_total']}"
+                    )
+
+                if results["alarms"]:
+                    logger.warning(f"[{node_name}] Alarms: {results['alarms']}")
+
+                # Show errors for this node
+                node_errors = [e for n, e in all_errors if n == node_name]
+                if node_errors:
+                    for error in node_errors:
+                        logger.error(f"[{node_name}] {error}")
+
+        # Final summary
         if format == "log":
-            logger.info(
-                f"Connecting to RabbitMQ Management API at {node_address}:15672 ({node_name}) as {rabbitmq_user}..."
-            )
-
-        # Check RabbitMQ status
-        results, errors = self._check_rabbitmq_status(
-            node_address, rabbitmq_user, password
-        )
-
-        if format == "log":
-            # Version info
-            logger.info(f"RabbitMQ Version: {results['rabbitmq_version']}")
-            logger.info(f"Erlang Version: {results['erlang_version']}")
-
-            # Cluster info
-            logger.info(f"Cluster Name: {results['cluster_name']}")
-            logger.info(f"Cluster Size: {results['cluster_size']}")
-            logger.info(f"Nodes: {', '.join(results['nodes']) or 'None'}")
-            logger.info(
-                f"Running Nodes: {', '.join(results['running_nodes']) or 'None'}"
-            )
-
-            # Partition status
-            if results["partitioned_nodes"]:
-                logger.error(
-                    f"Partitioned Nodes: {', '.join(results['partitioned_nodes'])}"
-                )
-            else:
-                logger.info("Partitions: None (healthy)")
-
-            # Statistics
-            logger.info(
-                f"Connections: {results['total_connections']}, "
-                f"Channels: {results['total_channels']}, "
-                f"Queues: {results['total_queues']}"
-            )
-            logger.info(
-                f"Messages: {results['total_messages']} total, "
-                f"{results['messages_ready']} ready, "
-                f"{results['messages_unacked']} unacked"
-            )
-            logger.info(
-                f"Message Rates: {results['publish_rate']:.1f}/s publish, "
-                f"{results['deliver_rate']:.1f}/s deliver"
-            )
-
-            # Resource usage (from first node)
-            if results["disk_free"] is not None:
-                disk_free_gb = results["disk_free"] / (1024**3)
-                disk_limit_gb = (results["disk_free_limit"] or 0) / (1024**3)
-                logger.info(
-                    f"Disk Free: {disk_free_gb:.1f} GB (limit: {disk_limit_gb:.1f} GB)"
-                )
-
-            if results["mem_used"] is not None:
-                mem_used_gb = results["mem_used"] / (1024**3)
-                mem_limit_gb = (results["mem_limit"] or 0) / (1024**3)
-                logger.info(
-                    f"Memory Used: {mem_used_gb:.2f} GB (limit: {mem_limit_gb:.2f} GB)"
-                )
-
-            if results["fd_used"] is not None:
-                logger.info(
-                    f"File Descriptors: {results['fd_used']}/{results['fd_total']}"
-                )
-
-            if results["sockets_used"] is not None:
-                logger.info(
-                    f"Sockets: {results['sockets_used']}/{results['sockets_total']}"
-                )
-
-            if results["alarms"]:
-                logger.warning(f"Alarms: {results['alarms']}")
-
-            if errors:
-                for error in errors:
-                    logger.error(error)
+            if all_errors:
                 logger.error("RabbitMQ Cluster validation FAILED")
                 return 1
             else:
@@ -872,10 +917,10 @@ class Messaging(Command):
                 return 0
 
         elif format == "script":
-            if errors:
+            if all_errors:
                 print("FAILED")
-                for error in errors:
-                    print(f"  - {error}")
+                for node_name, error in all_errors:
+                    print(f"  - [{node_name}] {error}")
                 return 1
             else:
                 print("PASSED")
