@@ -33,6 +33,7 @@ SERVICE_QUEUE_PATTERNS = {
         r"^ceilometer-agent-notification_fanout_.*$",
         r"^metering$",
         r"^metering\..*$",
+        r"^event\.sample$",
     ],
     "cinder": [
         r"^cinder-backup$",
