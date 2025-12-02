@@ -650,18 +650,6 @@ class Rabbitmq3to4(Command):
                 f"Found {len(queues_to_delete)} classic queue(s){service_info}{vhost_info}"
             )
 
-            if not dry_run:
-                if service:
-                    logger.warning(
-                        f"Make sure the '{service}' service is stopped before deleting queues, "
-                        "otherwise queues will be recreated automatically."
-                    )
-                else:
-                    logger.warning(
-                        "Make sure all services using RabbitMQ are stopped before deleting queues, "
-                        "otherwise queues will be recreated automatically."
-                    )
-
             failed_count = 0
             for queue in sorted(queues_to_delete, key=lambda q: q.get("name", "")):
                 name = queue.get("name", "")
