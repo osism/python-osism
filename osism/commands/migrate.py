@@ -584,14 +584,47 @@ class Rabbitmq3to4(Command):
             all_queues = self._get_all_queues(base_url, auth)
             if all_queues is None:
                 return 1
+
+            # Get queues by vhost
+            queues_root = [q for q in all_queues if q.get("vhost", "/") == "/"]
+            queues_openstack = [
+                q for q in all_queues if q.get("vhost", "/") == "/openstack"
+            ]
+
+            # Get classic queues in / vhost
+            classic_in_root = self._get_classic_queues(queues_root)
+            # Get quorum queues in /openstack vhost
+            quorum_in_openstack = self._get_quorum_queues(queues_openstack)
+            # Get quorum queues in / vhost (legacy mixed setup)
+            quorum_in_root = self._get_quorum_queues(queues_root)
+
+            # Also get totals for logging
             all_classic = self._get_classic_queues(all_queues)
             all_quorum = self._get_quorum_queues(all_queues)
 
+            has_classic_in_root = len(classic_in_root) > 0
+            has_quorum_in_openstack = len(quorum_in_openstack) > 0
+            has_quorum_in_root = len(quorum_in_root) > 0
             has_classic = len(all_classic) > 0
             has_quorum = len(all_quorum) > 0
 
             logger.info(f"Found {len(all_classic)} classic queue(s)")
             logger.info(f"Found {len(all_quorum)} quorum queue(s)")
+            logger.info(f"  - {len(classic_in_root)} classic queue(s) in vhost /")
+            logger.info(
+                f"  - {len(quorum_in_openstack)} quorum queue(s) in vhost /openstack"
+            )
+            logger.info(f"  - {len(quorum_in_root)} quorum queue(s) in vhost /")
+
+            # Check for migration in progress scenarios:
+            # 1. Classic queues in / AND quorum queues in /openstack
+            # 2. Classic queues in / AND quorum queues in / (legacy mixed setup)
+            if has_classic_in_root and (has_quorum_in_openstack or has_quorum_in_root):
+                logger.info(
+                    "Migration is IN PROGRESS: Classic queues in / and quorum queues "
+                    "in /openstack or / found"
+                )
+                return 0
 
             if has_classic and not has_quorum:
                 logger.info(
