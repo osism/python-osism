@@ -111,7 +111,7 @@ SERVICE_QUEUE_PATTERNS = {
 
 
 # Special commands that are not service names
-SPECIAL_COMMANDS = ["list", "delete", "prepare"]
+SPECIAL_COMMANDS = ["list", "delete", "prepare", "check"]
 
 
 class Rabbitmq3to4(Command):
@@ -124,7 +124,7 @@ class Rabbitmq3to4(Command):
             nargs="?",
             default=None,
             choices=SPECIAL_COMMANDS,
-            help="Command: 'list' (show queues), 'delete' (remove queues), 'prepare' (create vhost)",
+            help="Command: 'list' (show queues), 'delete' (remove queues), 'prepare' (create vhost), 'check' (check if migration needed)",
         )
         parser.add_argument(
             "service",
@@ -147,6 +147,16 @@ class Rabbitmq3to4(Command):
             "--no-close-connections",
             action="store_true",
             help="Do not close consumer connections before deleting queues (default: connections are closed)",
+        )
+        parser.add_argument(
+            "--quorum",
+            action="store_true",
+            help="List quorum queues instead of classic queues (only for 'list' command)",
+        )
+        parser.add_argument(
+            "--vhost",
+            default="/",
+            help="Virtual host to filter queues (default: /). Used with 'list' and 'delete' commands",
         )
         return parser
 
@@ -297,6 +307,22 @@ class Rabbitmq3to4(Command):
             if queue_type == "classic":
                 classic_queues.append(queue)
         return classic_queues
+
+    def _get_quorum_queues(self, queues):
+        """Filter queues to only include quorum queues.
+
+        Args:
+            queues: List of queue dictionaries from RabbitMQ API.
+
+        Returns:
+            list: List of quorum queue dictionaries.
+        """
+        quorum_queues = []
+        for queue in queues:
+            queue_type = queue.get("type", "classic")
+            if queue_type == "quorum":
+                quorum_queues.append(queue)
+        return quorum_queues
 
     def _match_queues_for_service(self, queues, service):
         """Match queues against service patterns.
@@ -462,15 +488,18 @@ class Rabbitmq3to4(Command):
         server = parsed_args.server
         dry_run = parsed_args.dry_run
         close_connections = not parsed_args.no_close_connections
+        list_quorum = parsed_args.quorum
+        vhost_filter = parsed_args.vhost
 
         # Determine command type
         is_list = command == "list"
         is_delete = command == "delete"
         is_prepare = command == "prepare"
+        is_check = command == "check"
 
         # Validate arguments
         if not command:
-            logger.error("A command (list, delete, prepare) must be specified")
+            logger.error("A command (list, delete, prepare, check) must be specified")
             return 1
 
         # Get RabbitMQ node addresses from inventory
@@ -524,24 +553,74 @@ class Rabbitmq3to4(Command):
         if queues is None:
             return 1
 
-        # Filter to classic queues only
+        # Filter queues by vhost for list and delete commands
+        if is_list or is_delete:
+            queues = [q for q in queues if q.get("vhost", "/") == vhost_filter]
+
+        # Get classic and quorum queues
         classic_queues = self._get_classic_queues(queues)
+        quorum_queues = self._get_quorum_queues(queues)
+
+        # Handle 'check' command
+        if is_check:
+            # Get all queues (not filtered by vhost) for check
+            all_queues = self._get_all_queues(base_url, auth)
+            if all_queues is None:
+                return 1
+            all_classic = self._get_classic_queues(all_queues)
+            all_quorum = self._get_quorum_queues(all_queues)
+
+            has_classic = len(all_classic) > 0
+            has_quorum = len(all_quorum) > 0
+
+            logger.info(f"Found {len(all_classic)} classic queue(s)")
+            logger.info(f"Found {len(all_quorum)} quorum queue(s)")
+
+            if has_classic and not has_quorum:
+                logger.info(
+                    "Migration is REQUIRED: Only classic queues found, no quorum queues"
+                )
+                return 0
+            elif not has_classic and has_quorum:
+                logger.info("Migration is NOT required: Only quorum queues found")
+                return 0
+            elif has_classic and has_quorum:
+                logger.info(
+                    "Migration is IN PROGRESS: Both classic and quorum queues found"
+                )
+                return 0
+            else:
+                logger.info("Migration is NOT required: No queues found")
+                return 0
 
         # Handle 'list' command
         if is_list:
-            # Filter by service if specified
-            if service:
-                queues_to_list = self._match_queues_for_service(classic_queues, service)
-                service_info = f" for service '{service}'"
+            # Determine which queues to list
+            if list_quorum:
+                queues_to_list = quorum_queues
+                queue_type_info = "quorum"
             else:
                 queues_to_list = classic_queues
+                queue_type_info = "classic"
+
+            # Filter by service if specified
+            if service:
+                queues_to_list = self._match_queues_for_service(queues_to_list, service)
+                service_info = f" for service '{service}'"
+            else:
                 service_info = ""
 
+            vhost_info = f" in vhost '{vhost_filter}'"
+
             if not queues_to_list:
-                logger.info(f"No classic queues found{service_info}")
+                logger.info(
+                    f"No {queue_type_info} queues found{service_info}{vhost_info}"
+                )
                 return 0
 
-            logger.info(f"Found {len(queues_to_list)} classic queue(s){service_info}:")
+            logger.info(
+                f"Found {len(queues_to_list)} {queue_type_info} queue(s){service_info}{vhost_info}:"
+            )
             for queue in sorted(queues_to_list, key=lambda q: q.get("name", "")):
                 name = queue.get("name", "")
                 vhost = queue.get("vhost", "/")
@@ -561,11 +640,15 @@ class Rabbitmq3to4(Command):
                 queues_to_delete = classic_queues
                 service_info = ""
 
+            vhost_info = f" in vhost '{vhost_filter}'"
+
             if not queues_to_delete:
-                logger.info(f"No classic queues found{service_info}")
+                logger.info(f"No classic queues found{service_info}{vhost_info}")
                 return 0
 
-            logger.info(f"Found {len(queues_to_delete)} classic queue(s){service_info}")
+            logger.info(
+                f"Found {len(queues_to_delete)} classic queue(s){service_info}{vhost_info}"
+            )
 
             if not dry_run:
                 if service:
@@ -594,11 +677,11 @@ class Rabbitmq3to4(Command):
 
             if dry_run:
                 logger.info(
-                    f"[DRY-RUN] Would delete {len(queues_to_delete)} queue(s){service_info}"
+                    f"[DRY-RUN] Would delete {len(queues_to_delete)} queue(s){service_info}{vhost_info}"
                 )
             else:
                 logger.info(
-                    f"Successfully deleted {len(queues_to_delete)} queue(s){service_info}"
+                    f"Successfully deleted {len(queues_to_delete)} queue(s){service_info}{vhost_info}"
                 )
             return 0
 
