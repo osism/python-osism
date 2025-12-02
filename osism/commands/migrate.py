@@ -210,6 +210,23 @@ class Rabbitmq3to4(Command):
             )
             return False
 
+        # Check that om_notify_vhost: "openstack" or om_notify_vhost: openstack is present
+        has_notify_vhost = False
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if re.match(r'^om_notify_vhost:\s*["\']?openstack["\']?\s*$', stripped):
+                has_notify_vhost = True
+                break
+
+        if not has_notify_vhost:
+            logger.error(
+                f"Missing configuration in {config_path}: "
+                "'om_notify_vhost: openstack' must be added"
+            )
+            return False
+
         logger.info("Kolla configuration check passed")
         return True
 
