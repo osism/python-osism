@@ -57,7 +57,7 @@ SERVICE_QUEUE_PATTERNS = {
         r"^worker_fanout_.*$",
         r"^reply_[a-f0-9]+$",
     ],
-    "generic": [
+    "notifications": [
         r"^notifications\..*$",
         r"^versioned_notifications\..*$",
     ],
