@@ -350,13 +350,13 @@ class NotificationsDump(ConsumerMixin):
                     passive=True,
                 )
                 # Create our own queue bound to the existing exchange
-                # Our queue can have its own properties (non-durable, auto-delete)
+                # Don't set durable explicitly to use RabbitMQ's configured default
+                # queue type (e.g., quorum queues in RabbitMQ 4)
                 queue = Queue(
                     config["queue"],
                     exchange,
                     routing_key=config["routing_key"],
-                    durable=False,
-                    auto_delete=True,
+                    auto_delete=False,
                     no_ack=True,
                 )
                 consumers.append(consumer(queue, callbacks=[self.on_message]))
