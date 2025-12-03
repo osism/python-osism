@@ -102,12 +102,15 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         for interface in interfaces:
             # Convert NetBox interface name to SONiC format for lookup
             interface_speed = getattr(interface, "speed", None)
+            # Track if speed was explicitly set in NetBox (not derived from port type)
+            speed_explicit = interface_speed is not None
             # If speed is not set, try to get it from port type
             if not interface_speed and hasattr(interface, "type") and interface.type:
                 interface_speed = get_speed_from_port_type(interface.type.value)
             sonic_name = convert_netbox_interface_to_sonic(interface, device)
             netbox_interfaces[sonic_name] = {
                 "speed": interface_speed,
+                "speed_explicit": speed_explicit,
                 "type": (
                     getattr(interface.type, "value", None)
                     if hasattr(interface, "type") and interface.type
@@ -326,14 +329,28 @@ def _add_port_configurations(
         port_speed = port_info["speed"]
         port_lanes = port_info["lanes"]
 
-        # Override with NetBox data if available and hardware config has no speed
+        # Override with NetBox data if available
+        # - Always use explicitly set NetBox speed (overrides port config)
+        # - Use derived speed (from port type) only if port config has no speed
         if port_name in netbox_interfaces:
             netbox_speed = netbox_interfaces[port_name]["speed"]
-            if netbox_speed and (not port_speed or port_speed == "0"):
-                logger.info(
-                    f"Using NetBox speed {netbox_speed} for port {port_name} (hardware config had: {port_speed})"
-                )
-                port_speed = str(netbox_speed)
+            speed_explicit = netbox_interfaces[port_name].get("speed_explicit", False)
+            if netbox_speed:
+                if speed_explicit:
+                    # Explicitly set speed in NetBox always takes precedence
+                    if str(netbox_speed) != str(port_speed):
+                        logger.info(
+                            f"Using explicit NetBox speed {netbox_speed} for port {port_name} "
+                            f"(overriding port config speed: {port_speed})"
+                        )
+                    port_speed = str(netbox_speed)
+                elif not port_speed or port_speed == "0":
+                    # Derived speed (from port type) only used if port config has no speed
+                    logger.info(
+                        f"Using derived NetBox speed {netbox_speed} for port {port_name} "
+                        f"(hardware config had: {port_speed})"
+                    )
+                    port_speed = str(netbox_speed)
 
         if port_name in breakout_info["breakout_ports"]:
             # Get the master port to determine original speed and lanes
