@@ -332,25 +332,28 @@ def _add_port_configurations(
         # Override with NetBox data if available
         # - Always use explicitly set NetBox speed (overrides port config)
         # - Use derived speed (from port type) only if port config has no speed
+        # Note: NetBox stores speed in kbps, SONiC expects Mbps (divide by 1000)
         if port_name in netbox_interfaces:
             netbox_speed = netbox_interfaces[port_name]["speed"]
             speed_explicit = netbox_interfaces[port_name].get("speed_explicit", False)
             if netbox_speed:
+                # Convert NetBox speed (kbps) to SONiC speed (Mbps)
+                sonic_speed = str(int(netbox_speed) // 1000)
                 if speed_explicit:
                     # Explicitly set speed in NetBox always takes precedence
-                    if str(netbox_speed) != str(port_speed):
+                    if sonic_speed != str(port_speed):
                         logger.info(
-                            f"Using explicit NetBox speed {netbox_speed} for port {port_name} "
+                            f"Using explicit NetBox speed {netbox_speed} kbps -> {sonic_speed} Mbps for port {port_name} "
                             f"(overriding port config speed: {port_speed})"
                         )
-                    port_speed = str(netbox_speed)
+                    port_speed = sonic_speed
                 elif not port_speed or port_speed == "0":
                     # Derived speed (from port type) only used if port config has no speed
                     logger.info(
-                        f"Using derived NetBox speed {netbox_speed} for port {port_name} "
+                        f"Using derived NetBox speed {netbox_speed} kbps -> {sonic_speed} Mbps for port {port_name} "
                         f"(hardware config had: {port_speed})"
                     )
-                    port_speed = str(netbox_speed)
+                    port_speed = sonic_speed
 
         if port_name in breakout_info["breakout_ports"]:
             # Get the master port to determine original speed and lanes
@@ -358,9 +361,11 @@ def _add_port_configurations(
 
             # Override with individual breakout port speed from NetBox if available
             if port_name in netbox_interfaces and netbox_interfaces[port_name]["speed"]:
-                port_speed = str(netbox_interfaces[port_name]["speed"])
+                # Convert NetBox speed (kbps) to SONiC speed (Mbps)
+                netbox_speed = netbox_interfaces[port_name]["speed"]
+                port_speed = str(int(netbox_speed) // 1000)
                 logger.debug(
-                    f"Using NetBox speed {port_speed} for breakout port {port_name}"
+                    f"Using NetBox speed {netbox_speed} kbps -> {port_speed} Mbps for breakout port {port_name}"
                 )
             elif master_port in breakout_info["breakout_cfgs"]:
                 # Fallback to extracting speed from breakout mode
