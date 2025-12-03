@@ -65,6 +65,22 @@ SERVICE_QUEUE_PATTERNS = {
     "manager": [
         r"^osism-listener-.*$",
     ],
+    "magnum": [
+        r"^magnum-conductor$",
+        r"^magnum-conductor\..*$",
+        r"^magnum-conductor_fanout_.*$",
+    ],
+    "manila": [
+        r"^manila-data$",
+        r"^manila-data\..*$",
+        r"^manila-data_fanout_.*$",
+        r"^manila-scheduler$",
+        r"^manila-scheduler\..*$",
+        r"^manila-scheduler_fanout_.*$",
+        r"^manila-share$",
+        r"^manila-share\..*$",
+        r"^manila-share_fanout_.*$",
+    ],
     "neutron": [
         r"^q-plugin$",
         r"^q-plugin\..*$",
