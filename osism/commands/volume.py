@@ -23,6 +23,12 @@ class VolumeList(Command):
     def get_parser(self, prog_name):
         parser = super(VolumeList, self).get_parser(prog_name)
         parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
+        parser.add_argument(
             "--domain",
             help="List all volumes of a specific domain",
             type=str,
@@ -40,7 +46,8 @@ class VolumeList(Command):
         return parser
 
     def take_action(self, parsed_args):
-        conn = get_cloud_connection()
+        cloud = parsed_args.cloud
+        conn = get_cloud_connection(cloud)
         domain = parsed_args.domain
         project = parsed_args.project
         project_domain = parsed_args.project_domain
