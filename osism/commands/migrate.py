@@ -602,7 +602,31 @@ class Rabbitmq3to4(Command):
             if all_queues is None:
                 return 1
 
-            # Get queues by vhost
+            # Get all unique vhosts
+            all_vhosts = sorted(set(q.get("vhost", "/") for q in all_queues))
+
+            # Get totals
+            all_classic = self._get_classic_queues(all_queues)
+            all_quorum = self._get_quorum_queues(all_queues)
+
+            logger.info(f"Found {len(all_classic)} classic queue(s)")
+            logger.info(f"Found {len(all_quorum)} quorum queue(s)")
+
+            # Log breakdown by vhost
+            for vhost in all_vhosts:
+                vhost_queues = [q for q in all_queues if q.get("vhost", "/") == vhost]
+                classic_in_vhost = self._get_classic_queues(vhost_queues)
+                quorum_in_vhost = self._get_quorum_queues(vhost_queues)
+                if classic_in_vhost:
+                    logger.info(
+                        f"  - {len(classic_in_vhost)} classic queue(s) in vhost {vhost}"
+                    )
+                if quorum_in_vhost:
+                    logger.info(
+                        f"  - {len(quorum_in_vhost)} quorum queue(s) in vhost {vhost}"
+                    )
+
+            # Get queues by known vhosts for migration status check
             queues_root = [q for q in all_queues if q.get("vhost", "/") == "/"]
             queues_openstack = [
                 q for q in all_queues if q.get("vhost", "/") == "/openstack"
@@ -615,23 +639,11 @@ class Rabbitmq3to4(Command):
             # Get quorum queues in / vhost (legacy mixed setup)
             quorum_in_root = self._get_quorum_queues(queues_root)
 
-            # Also get totals for logging
-            all_classic = self._get_classic_queues(all_queues)
-            all_quorum = self._get_quorum_queues(all_queues)
-
             has_classic_in_root = len(classic_in_root) > 0
             has_quorum_in_openstack = len(quorum_in_openstack) > 0
             has_quorum_in_root = len(quorum_in_root) > 0
             has_classic = len(all_classic) > 0
             has_quorum = len(all_quorum) > 0
-
-            logger.info(f"Found {len(all_classic)} classic queue(s)")
-            logger.info(f"Found {len(all_quorum)} quorum queue(s)")
-            logger.info(f"  - {len(classic_in_root)} classic queue(s) in vhost /")
-            logger.info(
-                f"  - {len(quorum_in_openstack)} quorum queue(s) in vhost /openstack"
-            )
-            logger.info(f"  - {len(quorum_in_root)} quorum queue(s) in vhost /")
 
             # Check for migration in progress scenarios:
             # 1. Classic queues in / AND quorum queues in /openstack
