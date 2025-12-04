@@ -398,7 +398,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 I'll now create the merged changelog entry based on the batch provided:
 
-```markdown
 ## [v0.20250824.1] - 2025-08-24
 
 ### Added
