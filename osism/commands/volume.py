@@ -1,14 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime, timezone
+from time import sleep
 
 from cliff.command import Command
 import dateutil
 from loguru import logger
+from prompt_toolkit import prompt
 import pytz
 from tabulate import tabulate
 
 from osism.commands import get_cloud_connection
+
+# Time threshold for stuck volumes (2 hours in seconds)
+STUCK_VOLUME_THRESHOLD_SECONDS = 7200
+
+# Wait time for API operations
+SLEEP_WAIT_FOR_API = 2
 
 
 class VolumeList(Command):
@@ -171,3 +179,99 @@ class VolumeList(Command):
                     tablefmt="psql",
                 )
             )
+
+
+class VolumeRepair(Command):
+    """Repair volumes stuck in problematic states.
+
+    Handles volumes in the following states:
+    - DETACHING (> 2 hours): Aborts the detach operation
+    - CREATING (> 2 hours): Deletes the volume (with confirmation)
+    - ERROR_DELETING: Retries deletion (with confirmation)
+    - DELETING (> 2 hours): Resets status and retries deletion (with confirmation)
+    """
+
+    def get_parser(self, prog_name):
+        parser = super(VolumeRepair, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
+        parser.add_argument(
+            "--yes",
+            default=False,
+            help="Automatically confirm all prompts",
+            action="store_true",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
+        auto_confirm = parsed_args.yes
+
+        conn = get_cloud_connection(cloud)
+
+        # Handle volumes stuck in DETACHING state
+        for volume in conn.block_storage.volumes(all_projects=True, status="detaching"):
+            created_at = pytz.utc.localize(dateutil.parser.parse(volume.created_at))
+            duration = datetime.now(timezone.utc) - created_at
+            if duration.total_seconds() > STUCK_VOLUME_THRESHOLD_SECONDS:
+                logger.info(
+                    f"Volume {volume.id} hangs in DETACHING status for more than 2 hours"
+                )
+                logger.info(f"Aborting detach of attachment(s) of volume {volume.id}")
+                conn.block_storage.abort_volume_detaching(volume.id)
+
+        # Handle volumes stuck in CREATING state
+        for volume in conn.block_storage.volumes(all_projects=True, status="creating"):
+            created_at = pytz.utc.localize(dateutil.parser.parse(volume.created_at))
+            duration = datetime.now(timezone.utc) - created_at
+            if duration.total_seconds() > STUCK_VOLUME_THRESHOLD_SECONDS:
+                logger.info(
+                    f"Volume {volume.id} hangs in CREATING status for more than 2 hours"
+                )
+                if auto_confirm:
+                    result = "yes"
+                else:
+                    result = prompt(f"Delete volume {volume.id} [yes/no]: ")
+                if result == "yes":
+                    logger.info(f"Deleting volume {volume.id}")
+                    conn.block_storage.delete_volume(volume.id, force=True)
+
+        # Handle volumes in ERROR_DELETING state
+        for volume in conn.block_storage.volumes(
+            all_projects=True, status="error_deleting"
+        ):
+            logger.info(f"Volume {volume.id} is in ERROR_DELETING status")
+            if auto_confirm:
+                result = "yes"
+            else:
+                result = prompt(f"Retry to delete volume {volume.id} [yes/no]: ")
+            if result == "yes":
+                logger.info(f"Deleting volume {volume.id}")
+                conn.block_storage.delete_volume(volume.id, force=True)
+
+        # Handle volumes stuck in DELETING state
+        for volume in conn.block_storage.volumes(all_projects=True, status="deleting"):
+            created_at = pytz.utc.localize(dateutil.parser.parse(volume.created_at))
+            duration = datetime.now(timezone.utc) - created_at
+            if duration.total_seconds() > STUCK_VOLUME_THRESHOLD_SECONDS:
+                logger.info(
+                    f"Volume {volume.id} hangs in DELETING status for more than 2 hours"
+                )
+                if auto_confirm:
+                    result = "yes"
+                else:
+                    result = prompt(f"Retry deletion of volume {volume.id} [yes/no]: ")
+                if result == "yes":
+                    logger.info(f"Resetting and deleting volume {volume.id}")
+                    conn.block_storage.reset_volume_status(
+                        volume.id,
+                        status="available",
+                        attach_status=None,
+                        migration_status=None,
+                    )
+                    sleep(SLEEP_WAIT_FOR_API)
+                    conn.block_storage.delete_volume(volume.id, force=True)
