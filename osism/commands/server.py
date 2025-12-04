@@ -94,6 +94,12 @@ class ServerList(Command):
     def get_parser(self, prog_name):
         parser = super(ServerList, self).get_parser(prog_name)
         parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
+        parser.add_argument(
             "--domain",
             help="List all servers of a specific domain",
             type=str,
@@ -123,7 +129,8 @@ class ServerList(Command):
         return parser
 
     def take_action(self, parsed_args):
-        conn = get_cloud_connection()
+        cloud = parsed_args.cloud
+        conn = get_cloud_connection(cloud)
         domain = parsed_args.domain
         project = parsed_args.project
         project_domain = parsed_args.project_domain
@@ -322,6 +329,12 @@ class ServerClean(Command):
     def get_parser(self, prog_name):
         parser = super(ServerClean, self).get_parser(prog_name)
         parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
+        parser.add_argument(
             "--yes",
             default=False,
             help="Always say yes",
@@ -336,10 +349,11 @@ class ServerClean(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         yes = parsed_args.yes
         build_timeout = parsed_args.build_timeout
 
-        conn = get_cloud_connection()
+        conn = get_cloud_connection(cloud)
 
         # Handle servers stuck in BUILD status
         for server in conn.compute.servers(all_projects=True, status="build"):
