@@ -11,10 +11,8 @@ from tabulate import tabulate
 import yaml
 
 from osism.commands import get_cloud_connection
+from osism.commands.octavia import wait_for_amphora_boot
 from osism.tasks.conductor.utils import get_vault
-
-SLEEP_WAIT_FOR_AMPHORA_BOOT = 5
-TIMEOUT_WAIT_FOR_AMPHORA_BOOT = 120
 
 
 def _load_kolla_configuration():
@@ -114,24 +112,6 @@ def _get_octavia_database_connection():
     except pymysql.Error as exc:
         logger.error(f"Failed to connect to Octavia database: {exc}")
         return None
-
-
-def _wait_for_amphora_boot(conn, loadbalancer_id):
-    """Wait for amphora to finish booting"""
-    logger.info(
-        f"Wait up to {TIMEOUT_WAIT_FOR_AMPHORA_BOOT} seconds for amphora boot of loadbalancer {loadbalancer_id}"
-    )
-
-    iterations = TIMEOUT_WAIT_FOR_AMPHORA_BOOT / SLEEP_WAIT_FOR_AMPHORA_BOOT
-
-    while iterations > 0:
-        amphorae = conn.load_balancer.amphorae(
-            loadbalancer_id=loadbalancer_id, status="BOOTING"
-        )
-        if not list(amphorae):
-            break
-        iterations -= 1
-        sleep(SLEEP_WAIT_FOR_AMPHORA_BOOT)
 
 
 def _reset_provisioning_status(database, loadbalancer_id, status="ACTIVE"):
@@ -327,7 +307,7 @@ class LoadbalancerReset(Command):
                 logger.info(f"Triggering failover for {lb.name}")
                 conn.load_balancer.failover_load_balancer(lb.id)
                 sleep(10)  # wait for the octavia API
-                _wait_for_amphora_boot(conn, lb.id)
+                wait_for_amphora_boot(conn, lb.id)
 
             logger.info(f"Successfully reset loadbalancer {lb.name}")
 
