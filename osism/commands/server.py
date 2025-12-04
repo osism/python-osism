@@ -316,3 +316,60 @@ class ServerList(Command):
                     tablefmt="psql",
                 )
             )
+
+
+class ServerClean(Command):
+    def get_parser(self, prog_name):
+        parser = super(ServerClean, self).get_parser(prog_name)
+        parser.add_argument(
+            "--yes",
+            default=False,
+            help="Always say yes",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--build-timeout",
+            default=7200,
+            type=int,
+            help="Timeout in seconds for servers stuck in BUILD status (default: 7200)",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        yes = parsed_args.yes
+        build_timeout = parsed_args.build_timeout
+
+        conn = get_cloud_connection()
+
+        # Handle servers stuck in BUILD status
+        for server in conn.compute.servers(all_projects=True, status="build"):
+            duration = datetime.now(timezone.utc) - dateutil.parser.parse(
+                server.created_at
+            )
+            if duration.total_seconds() > build_timeout:
+                logger.info(
+                    f"Server {server.id} ({server.name}) stuck in BUILD status "
+                    f"for more than {build_timeout // 3600} hours"
+                )
+
+                if yes:
+                    answer = "yes"
+                else:
+                    answer = prompt(f"Delete server {server.id} [yes/no]: ")
+
+                if answer in ["yes", "y"]:
+                    logger.info(f"Deleting server {server.id}")
+                    conn.compute.delete_server(server.id, force=True)
+
+        # Handle servers in ERROR status
+        for server in conn.compute.servers(all_projects=True, status="error"):
+            logger.info(f"Server {server.id} ({server.name}) is in ERROR status")
+
+            if yes:
+                answer = "yes"
+            else:
+                answer = prompt(f"Delete server {server.id} [yes/no]: ")
+
+            if answer in ["yes", "y"]:
+                logger.info(f"Deleting server {server.id}")
+                conn.compute.delete_server(server.id, force=True)
