@@ -6,15 +6,22 @@ import time
 from cliff.command import Command
 import dateutil
 from loguru import logger
-from tabulate import tabulate
+import openstack
 from prompt_toolkit import prompt
+from tabulate import tabulate
 
-from osism.commands import get_cloud_connection
+from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
 
 
 class ServerMigrate(Command):
     def get_parser(self, prog_name):
         parser = super(ServerMigrate, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "--yes",
             default=False,
@@ -48,46 +55,57 @@ class ServerMigrate(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         yes = parsed_args.yes
         instance = parsed_args.instance[0]
         target = parsed_args.target
         force = parsed_args.force
         no_wait = parsed_args.no_wait
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        result = conn.compute.get_server(instance)
-        server = [result.id, result.name, result.status]
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        if server[2] not in ["ACTIVE", "PAUSED"]:
-            logger.info(
-                f"{server[0]} ({server[1]}) in status {server[2]} cannot be live migrated"
-            )
-            return
+            result = conn.compute.get_server(instance)
+            server = [result.id, result.name, result.status]
 
-        if yes:
-            answer = "yes"
-        else:
-            answer = prompt(f"Live migrate server {server[0]} ({server[1]}) [yes/no]: ")
+            if server[2] not in ["ACTIVE", "PAUSED"]:
+                logger.info(
+                    f"{server[0]} ({server[1]}) in status {server[2]} cannot be live migrated"
+                )
+                return
 
-        if answer in ["yes", "y"]:
-            logger.info(f"Live migrating server {server[0]}")
-            conn.compute.live_migrate_server(
-                server[0], host=target, block_migration="auto", force=force
-            )
+            if yes:
+                answer = "yes"
+            else:
+                answer = prompt(
+                    f"Live migrate server {server[0]} ({server[1]}) [yes/no]: "
+                )
 
-            if not no_wait:
-                inner_wait = True
-                while inner_wait:
-                    time.sleep(2)
-                    s = conn.compute.get_server(server[0])
-                    if s.status in ["MIGRATING"]:
-                        logger.info(
-                            f"Live migration of {server[0]} ({server[1]}) is still in progress"
-                        )
-                        inner_wait = True
-                    else:
-                        inner_wait = False
+            if answer in ["yes", "y"]:
+                logger.info(f"Live migrating server {server[0]}")
+                conn.compute.live_migrate_server(
+                    server[0], host=target, block_migration="auto", force=force
+                )
+
+                if not no_wait:
+                    inner_wait = True
+                    while inner_wait:
+                        time.sleep(2)
+                        s = conn.compute.get_server(server[0])
+                        if s.status in ["MIGRATING"]:
+                            logger.info(
+                                f"Live migration of {server[0]} ({server[1]}) is still in progress"
+                            )
+                            inner_wait = True
+                        else:
+                            inner_wait = False
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ServerList(Command):
@@ -130,49 +148,108 @@ class ServerList(Command):
 
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
-        conn = get_cloud_connection(cloud)
         domain = parsed_args.domain
         project = parsed_args.project
         project_domain = parsed_args.project_domain
         user = parsed_args.user
         user_domain = parsed_args.user_domain
 
-        result = []
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        # Handle user lookup if --user is specified
-        user_id = None
-        if user:
-            user_query = {}
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-            if user_domain:
-                u_d = conn.identity.find_domain(user_domain, ignore_missing=True)
-                if u_d and "id" in u_d:
-                    user_query = dict(domain_id=u_d.id)
+            result = []
+
+            # Handle user lookup if --user is specified
+            user_id = None
+            if user:
+                user_query = {}
+
+                if user_domain:
+                    u_d = conn.identity.find_domain(user_domain, ignore_missing=True)
+                    if u_d and "id" in u_d:
+                        user_query = dict(domain_id=u_d.id)
+                    else:
+                        logger.error(f"No domain found for {user_domain}")
+                        return
+
+                u = conn.identity.find_user(user, ignore_missing=True, **user_query)
+                if u and "id" in u:
+                    user_id = u.id
                 else:
-                    logger.error(f"No domain found for {user_domain}")
+                    logger.error(f"No user found for {user}")
                     return
 
-            u = conn.identity.find_user(user, ignore_missing=True, **user_query)
-            if u and "id" in u:
-                user_id = u.id
-            else:
-                logger.error(f"No user found for {user}")
-                return
+            if domain:
+                _domain = conn.identity.find_domain(domain)
+                if not _domain:
+                    logger.error(f"Domain {domain} not found")
+                    return
+                projects = list(conn.identity.projects(domain_id=_domain.id))
 
-        if domain:
-            _domain = conn.identity.find_domain(domain)
-            if not _domain:
-                logger.error(f"Domain {domain} not found")
-                return
-            projects = list(conn.identity.projects(domain_id=_domain.id))
+                for project in projects:
+                    query = {"project_id": project.id}
+                    for server in conn.compute.servers(all_projects=True, **query):
+                        result.append(
+                            [
+                                project.name,
+                                project.id,
+                                server.user_id if hasattr(server, "user_id") else None,
+                                server.id,
+                                server.name,
+                                server.flavor["original_name"],
+                                server.status,
+                            ]
+                        )
 
-            for project in projects:
-                query = {"project_id": project.id}
+                print(
+                    tabulate(
+                        result,
+                        headers=[
+                            "Project",
+                            "Project ID",
+                            "User ID",
+                            "ID",
+                            "Name",
+                            "Flavor",
+                            "Status",
+                        ],
+                        tablefmt="psql",
+                    )
+                )
+
+            elif project:
+                if project_domain:
+                    _project_domain = conn.identity.find_domain(project_domain)
+                    if not _project_domain:
+                        logger.error(f"Project domain {project_domain} not found")
+                        return
+                    query = {"domain_id": _project_domain.id}
+                    _project = conn.identity.find_project(project, **query)
+                else:
+                    _project = conn.identity.find_project(project)
+                if not _project:
+                    logger.error(f"Project {project} not found")
+                    return
+                query = {"project_id": _project.id}
+
+                # Get domain name from project
+                domain_name = None
+                if hasattr(_project, "domain_id") and _project.domain_id:
+                    try:
+                        _domain = conn.identity.get_domain(_project.domain_id)
+                        domain_name = _domain.name if _domain else _project.domain_id
+                    except Exception:
+                        domain_name = _project.domain_id
+
                 for server in conn.compute.servers(all_projects=True, **query):
                     result.append(
                         [
-                            project.name,
-                            project.id,
+                            domain_name,
                             server.user_id if hasattr(server, "user_id") else None,
                             server.id,
                             server.name,
@@ -181,148 +258,116 @@ class ServerList(Command):
                         ]
                     )
 
-            print(
-                tabulate(
-                    result,
-                    headers=[
-                        "Project",
-                        "Project ID",
-                        "User ID",
-                        "ID",
-                        "Name",
-                        "Flavor",
-                        "Status",
-                    ],
-                    tablefmt="psql",
+                print(
+                    tabulate(
+                        result,
+                        headers=[
+                            "Domain",
+                            "User ID",
+                            "ID",
+                            "Name",
+                            "Flavor",
+                            "Status",
+                        ],
+                        tablefmt="psql",
+                    )
                 )
-            )
 
-        elif project:
-            if project_domain:
-                _project_domain = conn.identity.find_domain(project_domain)
-                if not _project_domain:
-                    logger.error(f"Project domain {project_domain} not found")
-                    return
-                query = {"domain_id": _project_domain.id}
-                _project = conn.identity.find_project(project, **query)
+            elif user_id:
+                query = {"user_id": user_id}
+
+                for server in conn.compute.servers(all_projects=True, **query):
+                    # Get domain name from project
+                    domain_name = None
+                    if hasattr(server, "project_id") and server.project_id:
+                        try:
+                            _project = conn.identity.get_project(server.project_id)
+                            if (
+                                _project
+                                and hasattr(_project, "domain_id")
+                                and _project.domain_id
+                            ):
+                                _domain = conn.identity.get_domain(_project.domain_id)
+                                domain_name = (
+                                    _domain.name if _domain else _project.domain_id
+                                )
+                        except Exception:
+                            domain_name = None
+
+                    result.append(
+                        [
+                            domain_name,
+                            (
+                                server.project_id
+                                if hasattr(server, "project_id")
+                                else None
+                            ),
+                            server.id,
+                            server.name,
+                            server.flavor["original_name"],
+                            server.status,
+                        ]
+                    )
+
+                print(
+                    tabulate(
+                        result,
+                        headers=[
+                            "Domain",
+                            "Project ID",
+                            "ID",
+                            "Name",
+                            "Flavor",
+                            "Status",
+                        ],
+                        tablefmt="psql",
+                    )
+                )
+
             else:
-                _project = conn.identity.find_project(project)
-            if not _project:
-                logger.error(f"Project {project} not found")
-                return
-            query = {"project_id": _project.id}
-
-            # Get domain name from project
-            domain_name = None
-            if hasattr(_project, "domain_id") and _project.domain_id:
-                try:
-                    _domain = conn.identity.get_domain(_project.domain_id)
-                    domain_name = _domain.name if _domain else _project.domain_id
-                except Exception:
-                    domain_name = _project.domain_id
-
-            for server in conn.compute.servers(all_projects=True, **query):
-                result.append(
-                    [
-                        domain_name,
-                        server.user_id if hasattr(server, "user_id") else None,
-                        server.id,
-                        server.name,
-                        server.flavor["original_name"],
-                        server.status,
-                    ]
-                )
-
-            print(
-                tabulate(
-                    result,
-                    headers=["Domain", "User ID", "ID", "Name", "Flavor", "Status"],
-                    tablefmt="psql",
-                )
-            )
-
-        elif user_id:
-            query = {"user_id": user_id}
-
-            for server in conn.compute.servers(all_projects=True, **query):
-                # Get domain name from project
-                domain_name = None
-                if hasattr(server, "project_id") and server.project_id:
-                    try:
-                        _project = conn.identity.get_project(server.project_id)
-                        if (
-                            _project
-                            and hasattr(_project, "domain_id")
-                            and _project.domain_id
-                        ):
-                            _domain = conn.identity.get_domain(_project.domain_id)
-                            domain_name = (
-                                _domain.name if _domain else _project.domain_id
-                            )
-                    except Exception:
-                        domain_name = None
-
-                result.append(
-                    [
-                        domain_name,
-                        server.project_id if hasattr(server, "project_id") else None,
-                        server.id,
-                        server.name,
-                        server.flavor["original_name"],
-                        server.status,
-                    ]
-                )
-
-            print(
-                tabulate(
-                    result,
-                    headers=["Domain", "Project ID", "ID", "Name", "Flavor", "Status"],
-                    tablefmt="psql",
-                )
-            )
-
-        else:
-            for server in conn.compute.servers(all_projects=True, status="build"):
-                duration = datetime.now(timezone.utc) - dateutil.parser.parse(
-                    server.created_at
-                )
-                if duration.total_seconds() > 7200:
-                    logger.info(
-                        f"Server {server.id} hangs in BUILD status for more than 2 hours"
+                for server in conn.compute.servers(all_projects=True, status="build"):
+                    duration = datetime.now(timezone.utc) - dateutil.parser.parse(
+                        server.created_at
                     )
-                    result.append(
-                        [
-                            server.id,
-                            server.name,
-                            server.flavor["original_name"],
-                            server.status,
-                        ]
-                    )
+                    if duration.total_seconds() > 7200:
+                        logger.info(
+                            f"Server {server.id} hangs in BUILD status for more than 2 hours"
+                        )
+                        result.append(
+                            [
+                                server.id,
+                                server.name,
+                                server.flavor["original_name"],
+                                server.status,
+                            ]
+                        )
 
-            for server in conn.compute.servers(all_projects=True, status="error"):
-                duration = datetime.now(timezone.utc) - dateutil.parser.parse(
-                    server.created_at
-                )
-                if duration.total_seconds() > 7200:
-                    logger.info(
-                        f"Server {server.id} hangs in ERRORstatus for more than 2 hours"
+                for server in conn.compute.servers(all_projects=True, status="error"):
+                    duration = datetime.now(timezone.utc) - dateutil.parser.parse(
+                        server.created_at
                     )
-                    result.append(
-                        [
-                            server.id,
-                            server.name,
-                            server.flavor["original_name"],
-                            server.status,
-                        ]
-                    )
+                    if duration.total_seconds() > 7200:
+                        logger.info(
+                            f"Server {server.id} hangs in ERRORstatus for more than 2 hours"
+                        )
+                        result.append(
+                            [
+                                server.id,
+                                server.name,
+                                server.flavor["original_name"],
+                                server.status,
+                            ]
+                        )
 
-            print(
-                tabulate(
-                    result,
-                    headers=["ID", "Name", "Flavor", "Status"],
-                    tablefmt="psql",
+                print(
+                    tabulate(
+                        result,
+                        headers=["ID", "Name", "Flavor", "Status"],
+                        tablefmt="psql",
+                    )
                 )
-            )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ServerClean(Command):
@@ -353,18 +398,37 @@ class ServerClean(Command):
         yes = parsed_args.yes
         build_timeout = parsed_args.build_timeout
 
-        conn = get_cloud_connection(cloud)
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        # Handle servers stuck in BUILD status
-        for server in conn.compute.servers(all_projects=True, status="build"):
-            duration = datetime.now(timezone.utc) - dateutil.parser.parse(
-                server.created_at
-            )
-            if duration.total_seconds() > build_timeout:
-                logger.info(
-                    f"Server {server.id} ({server.name}) stuck in BUILD status "
-                    f"for more than {build_timeout // 3600} hours"
+        try:
+            conn = openstack.connect(cloud=cloud)
+
+            # Handle servers stuck in BUILD status
+            for server in conn.compute.servers(all_projects=True, status="build"):
+                duration = datetime.now(timezone.utc) - dateutil.parser.parse(
+                    server.created_at
                 )
+                if duration.total_seconds() > build_timeout:
+                    logger.info(
+                        f"Server {server.id} ({server.name}) stuck in BUILD status "
+                        f"for more than {build_timeout // 3600} hours"
+                    )
+
+                    if yes:
+                        answer = "yes"
+                    else:
+                        answer = prompt(f"Delete server {server.id} [yes/no]: ")
+
+                    if answer in ["yes", "y"]:
+                        logger.info(f"Deleting server {server.id}")
+                        conn.compute.delete_server(server.id, force=True)
+
+            # Handle servers in ERROR status
+            for server in conn.compute.servers(all_projects=True, status="error"):
+                logger.info(f"Server {server.id} ({server.name}) is in ERROR status")
 
                 if yes:
                     answer = "yes"
@@ -374,16 +438,5 @@ class ServerClean(Command):
                 if answer in ["yes", "y"]:
                     logger.info(f"Deleting server {server.id}")
                     conn.compute.delete_server(server.id, force=True)
-
-        # Handle servers in ERROR status
-        for server in conn.compute.servers(all_projects=True, status="error"):
-            logger.info(f"Server {server.id} ({server.name}) is in ERROR status")
-
-            if yes:
-                answer = "yes"
-            else:
-                answer = prompt(f"Delete server {server.id} [yes/no]: ")
-
-            if answer in ["yes", "y"]:
-                logger.info(f"Deleting server {server.id}")
-                conn.compute.delete_server(server.id, force=True)
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
