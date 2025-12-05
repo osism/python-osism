@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20251205.0] - 2025-12-05
+
+### Added
+- `manage server clean` command for cleaning up problematic servers (stuck in BUILD status for more than 2 hours or in ERROR status)
+- `manage loadbalancer list` command to list loadbalancers with PENDING_CREATE, PENDING_UPDATE, ERROR provisioning status or ERROR operating status
+- `manage loadbalancer reset` command to reset loadbalancers stuck in PENDING_UPDATE or ERROR status and trigger failover
+- `manage loadbalancer delete` command to delete loadbalancers stuck in PENDING_CREATE status
+- `manage amphora restore` command to restore amphorae in ERROR state by triggering failover
+- `manage amphora rotate` command to rotate amphorae older than 30 days by triggering loadbalancer failover
+- `manage volume repair` command to repair volumes stuck in DETACHING, CREATING, ERROR_DELETING, or DELETING states
+- Magnum and Manila queue patterns to RabbitMQ 3 to 4 migration command (magnum-conductor, manila-data, manila-scheduler, manila-share)
+- `--cloud` parameter to `manage server list`, `manage server clean`, `manage server migrate`, and `manage volume list` commands for consistent OpenStack connection handling
+- Initial CHANGELOG.md with history of notable changes
+
+### Changed
+- Manage commands now use `setup_cloud_environment()` and `cleanup_cloud_environment()` for OpenStack connections, ensuring proper cloud configuration with secure credential handling from vault
+- SONiC port speed override now distinguishes between explicitly set NetBox speeds (always takes precedence) and derived speeds from port type (only used if port config has no speed)
+- NetBox speed values are now properly converted from kbps to Mbps for SONiC configuration
+- Migration check command now dynamically discovers all vhosts from queue data instead of hardcoding "/" and "/openstack"
+
+### Fixed
+- SONiC port speed override when explicitly set in NetBox was being ignored when port config file had a speed configured
+- Queue count display in migrate check showing incorrect counts when queues existed in vhosts other than "/" and "/openstack"
+
+### Removed
+- Changelog generation script moved to osism/release repository
+
+### Dependencies
+- celery 5.5.3 → 5.6.0
+- community.docker 5.0.2 → 5.0.3
+- fastapi 0.122.0 → 0.123.8
+- ghcr.io/astral-sh/uv 0.9.13 → 0.9.15
+- kombu 5.5.4 → 5.6.1
+- openstack-image-manager 0.20251128.0 → 0.20251201.0
+
 ## [v0.20251202.0] - 2025-12-02
 
 ### Added
