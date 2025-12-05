@@ -10,8 +10,10 @@ from prompt_toolkit import prompt
 from tabulate import tabulate
 import yaml
 
-from osism.commands import get_cloud_connection
+import openstack
+
 from osism.commands.octavia import wait_for_amphora_boot
+from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
 from osism.tasks.conductor.utils import get_vault
 
 
@@ -154,13 +156,35 @@ class LoadbalancerList(Command):
 
     def take_action(self, parsed_args):
         status_type = parsed_args.status_type
-        conn = get_cloud_connection(parsed_args.cloud)
+        cloud = parsed_args.cloud
 
-        result = []
-        if status_type == "provisioning_status":
-            # List loadbalancers with problematic provisioning status
-            for status in ["PENDING_CREATE", "PENDING_UPDATE", "ERROR"]:
-                for lb in conn.load_balancer.load_balancers(provisioning_status=status):
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
+
+        try:
+            conn = openstack.connect(cloud=cloud)
+
+            result = []
+            if status_type == "provisioning_status":
+                # List loadbalancers with problematic provisioning status
+                for status in ["PENDING_CREATE", "PENDING_UPDATE", "ERROR"]:
+                    for lb in conn.load_balancer.load_balancers(
+                        provisioning_status=status
+                    ):
+                        result.append(
+                            [
+                                lb.id,
+                                lb.name,
+                                lb.provisioning_status,
+                                lb.operating_status,
+                                lb.project_id,
+                            ]
+                        )
+            else:
+                # List loadbalancers with ERROR operating status
+                for lb in conn.load_balancer.load_balancers(operating_status="ERROR"):
                     result.append(
                         [
                             lb.id,
@@ -170,35 +194,25 @@ class LoadbalancerList(Command):
                             lb.project_id,
                         ]
                     )
-        else:
-            # List loadbalancers with ERROR operating status
-            for lb in conn.load_balancer.load_balancers(operating_status="ERROR"):
-                result.append(
-                    [
-                        lb.id,
-                        lb.name,
-                        lb.provisioning_status,
-                        lb.operating_status,
-                        lb.project_id,
-                    ]
-                )
 
-        if result:
-            print(
-                tabulate(
-                    result,
-                    headers=[
-                        "ID",
-                        "Name",
-                        "Provisioning Status",
-                        "Operating Status",
-                        "Project ID",
-                    ],
-                    tablefmt="psql",
+            if result:
+                print(
+                    tabulate(
+                        result,
+                        headers=[
+                            "ID",
+                            "Name",
+                            "Provisioning Status",
+                            "Operating Status",
+                            "Project ID",
+                        ],
+                        tablefmt="psql",
+                    )
                 )
-            )
-        else:
-            logger.info("No loadbalancers with problematic status found")
+            else:
+                logger.info("No loadbalancers with problematic status found")
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class LoadbalancerReset(Command):
@@ -243,76 +257,85 @@ class LoadbalancerReset(Command):
         status_type = parsed_args.status_type
         yes = parsed_args.yes
         no_failover = parsed_args.no_failover
+        cloud = parsed_args.cloud
 
-        conn = get_cloud_connection(parsed_args.cloud)
-
-        # Get loadbalancer details
-        try:
-            lb = conn.load_balancer.get_load_balancer(loadbalancer_id)
-        except Exception as exc:
-            logger.error(f"Failed to get loadbalancer {loadbalancer_id}: {exc}")
-            return 1
-
-        logger.info(
-            f"Loadbalancer {lb.name} ({lb.id}): "
-            f"provisioning_status={lb.provisioning_status}, "
-            f"operating_status={lb.operating_status}"
-        )
-
-        # Validate status
-        if status_type == "provisioning_status":
-            if lb.provisioning_status not in ["PENDING_UPDATE", "ERROR"]:
-                logger.error(
-                    f"Loadbalancer {loadbalancer_id} has provisioning_status "
-                    f"'{lb.provisioning_status}', expected PENDING_UPDATE or ERROR. "
-                    f"Use 'manage loadbalancer delete' for PENDING_CREATE status."
-                )
-                return 1
-        else:
-            if lb.operating_status != "ERROR":
-                logger.error(
-                    f"Loadbalancer {loadbalancer_id} has operating_status "
-                    f"'{lb.operating_status}', expected ERROR"
-                )
-                return 1
-            if lb.provisioning_status != "ACTIVE":
-                logger.error(
-                    f"Loadbalancer {loadbalancer_id} has provisioning_status "
-                    f"'{lb.provisioning_status}', expected ACTIVE for operating_status reset"
-                )
-                return 1
-
-        # Confirm action
-        if not yes:
-            answer = prompt(f"Reset loadbalancer {lb.name} ({lb.id}) [yes/no]: ")
-            if answer.lower() not in ["yes", "y"]:
-                logger.info("Aborted")
-                return 0
-
-        # Connect to database
-        database = _get_octavia_database_connection()
-        if database is None:
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            # Reset status in database
-            logger.info(f"Resetting {status_type} for {lb.name}")
+            conn = openstack.connect(cloud=cloud)
+
+            # Get loadbalancer details
+            try:
+                lb = conn.load_balancer.get_load_balancer(loadbalancer_id)
+            except Exception as exc:
+                logger.error(f"Failed to get loadbalancer {loadbalancer_id}: {exc}")
+                return 1
+
+            logger.info(
+                f"Loadbalancer {lb.name} ({lb.id}): "
+                f"provisioning_status={lb.provisioning_status}, "
+                f"operating_status={lb.operating_status}"
+            )
+
+            # Validate status
             if status_type == "provisioning_status":
-                _reset_provisioning_status(database, lb.id)
+                if lb.provisioning_status not in ["PENDING_UPDATE", "ERROR"]:
+                    logger.error(
+                        f"Loadbalancer {loadbalancer_id} has provisioning_status "
+                        f"'{lb.provisioning_status}', expected PENDING_UPDATE or ERROR. "
+                        f"Use 'manage loadbalancer delete' for PENDING_CREATE status."
+                    )
+                    return 1
             else:
-                _reset_operating_status(database, lb.id)
+                if lb.operating_status != "ERROR":
+                    logger.error(
+                        f"Loadbalancer {loadbalancer_id} has operating_status "
+                        f"'{lb.operating_status}', expected ERROR"
+                    )
+                    return 1
+                if lb.provisioning_status != "ACTIVE":
+                    logger.error(
+                        f"Loadbalancer {loadbalancer_id} has provisioning_status "
+                        f"'{lb.provisioning_status}', expected ACTIVE for operating_status reset"
+                    )
+                    return 1
 
-            # Trigger failover
-            if not no_failover:
-                logger.info(f"Triggering failover for {lb.name}")
-                conn.load_balancer.failover_load_balancer(lb.id)
-                sleep(10)  # wait for the octavia API
-                wait_for_amphora_boot(conn, lb.id)
+            # Confirm action
+            if not yes:
+                answer = prompt(f"Reset loadbalancer {lb.name} ({lb.id}) [yes/no]: ")
+                if answer.lower() not in ["yes", "y"]:
+                    logger.info("Aborted")
+                    return 0
 
-            logger.info(f"Successfully reset loadbalancer {lb.name}")
+            # Connect to database
+            database = _get_octavia_database_connection()
+            if database is None:
+                return 1
 
+            try:
+                # Reset status in database
+                logger.info(f"Resetting {status_type} for {lb.name}")
+                if status_type == "provisioning_status":
+                    _reset_provisioning_status(database, lb.id)
+                else:
+                    _reset_operating_status(database, lb.id)
+
+                # Trigger failover
+                if not no_failover:
+                    logger.info(f"Triggering failover for {lb.name}")
+                    conn.load_balancer.failover_load_balancer(lb.id)
+                    sleep(10)  # wait for the octavia API
+                    wait_for_amphora_boot(conn, lb.id)
+
+                logger.info(f"Successfully reset loadbalancer {lb.name}")
+
+            finally:
+                database.close()
         finally:
-            database.close()
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class LoadbalancerDelete(Command):
@@ -342,53 +365,62 @@ class LoadbalancerDelete(Command):
     def take_action(self, parsed_args):
         loadbalancer_id = parsed_args.loadbalancer
         yes = parsed_args.yes
+        cloud = parsed_args.cloud
 
-        conn = get_cloud_connection(parsed_args.cloud)
-
-        # Get loadbalancer details
-        try:
-            lb = conn.load_balancer.get_load_balancer(loadbalancer_id)
-        except Exception as exc:
-            logger.error(f"Failed to get loadbalancer {loadbalancer_id}: {exc}")
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
-        logger.info(
-            f"Loadbalancer {lb.name} ({lb.id}): "
-            f"provisioning_status={lb.provisioning_status}, "
-            f"operating_status={lb.operating_status}"
-        )
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        # Validate status
-        if lb.provisioning_status != "PENDING_CREATE":
-            logger.error(
-                f"Loadbalancer {loadbalancer_id} has provisioning_status "
-                f"'{lb.provisioning_status}', expected PENDING_CREATE. "
-                f"Use 'manage loadbalancer reset' for other status values."
+            # Get loadbalancer details
+            try:
+                lb = conn.load_balancer.get_load_balancer(loadbalancer_id)
+            except Exception as exc:
+                logger.error(f"Failed to get loadbalancer {loadbalancer_id}: {exc}")
+                return 1
+
+            logger.info(
+                f"Loadbalancer {lb.name} ({lb.id}): "
+                f"provisioning_status={lb.provisioning_status}, "
+                f"operating_status={lb.operating_status}"
             )
-            return 1
 
-        # Confirm action
-        if not yes:
-            answer = prompt(f"Delete loadbalancer {lb.name} ({lb.id}) [yes/no]: ")
-            if answer.lower() not in ["yes", "y"]:
-                logger.info("Aborted")
-                return 0
+            # Validate status
+            if lb.provisioning_status != "PENDING_CREATE":
+                logger.error(
+                    f"Loadbalancer {loadbalancer_id} has provisioning_status "
+                    f"'{lb.provisioning_status}', expected PENDING_CREATE. "
+                    f"Use 'manage loadbalancer reset' for other status values."
+                )
+                return 1
 
-        # Connect to database
-        database = _get_octavia_database_connection()
-        if database is None:
-            return 1
+            # Confirm action
+            if not yes:
+                answer = prompt(f"Delete loadbalancer {lb.name} ({lb.id}) [yes/no]: ")
+                if answer.lower() not in ["yes", "y"]:
+                    logger.info("Aborted")
+                    return 0
 
-        try:
-            # Set status to ERROR first so delete works
-            logger.info(f"Setting provisioning_status to ERROR for {lb.name}")
-            _reset_provisioning_status(database, lb.id, status="ERROR")
+            # Connect to database
+            database = _get_octavia_database_connection()
+            if database is None:
+                return 1
 
-            # Delete loadbalancer
-            logger.info(f"Deleting loadbalancer {lb.name}")
-            conn.load_balancer.delete_load_balancer(lb.id)
+            try:
+                # Set status to ERROR first so delete works
+                logger.info(f"Setting provisioning_status to ERROR for {lb.name}")
+                _reset_provisioning_status(database, lb.id, status="ERROR")
 
-            logger.info(f"Successfully deleted loadbalancer {lb.name}")
+                # Delete loadbalancer
+                logger.info(f"Deleting loadbalancer {lb.name}")
+                conn.load_balancer.delete_load_balancer(lb.id)
 
+                logger.info(f"Successfully deleted loadbalancer {lb.name}")
+
+            finally:
+                database.close()
         finally:
-            database.close()
+            cleanup_cloud_environment(temp_files, original_cwd)
