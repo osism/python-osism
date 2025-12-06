@@ -119,6 +119,8 @@ class ImageClusterapi(Command):
             cloud,
             "--filter",
             "ubuntu-capi-image",
+            "--stuck-retry",
+            "1",
         ]
         if tag is not None:
             args.extend(["--tag", tag])
@@ -233,6 +235,8 @@ class ImageClusterapiGardener(Command):
             cloud,
             "--filter",
             "ubuntu-capi-image-gardener",
+            "--stuck-retry",
+            "1",
         ]
         if tag is not None:
             args.extend(["--tag", tag])
@@ -338,6 +342,8 @@ class ImageGardenlinux(Command):
             cloud,
             "--filter",
             "garden-linux-image",
+            "--stuck-retry",
+            "1",
         ]
         if tag is not None:
             args.extend(["--tag", tag])
@@ -421,6 +427,8 @@ class ImageOctavia(Command):
             "--cloud",
             cloud,
             "--deactivate",
+            "--stuck-retry",
+            "1",
         ]
 
         task_signature = openstack.image_manager.si(
@@ -520,6 +528,9 @@ class Images(Command):
             arguments.append(parsed_args.images)
         else:
             arguments.append("/etc/images")
+
+        arguments.append("--stuck-retry")
+        arguments.append("1")
 
         task_signature = openstack.image_manager.si(*arguments, cloud=parsed_args.cloud)
         task = task_signature.apply_async()
