@@ -547,28 +547,51 @@ class Dump(Command):
             logger.error("NetBox integration not configured.")
             return
 
+        device = None
+
         # Search for device by name first
         devices = list(utils.nb.dcim.devices.filter(name=host))
+        if devices:
+            # Verify the device name matches exactly
+            for d in devices:
+                if d.name == host:
+                    device = d
+                    break
 
         # If not found by name, search by custom fields
-        if not devices:
+        if not device:
             # Search by alternative_name custom field
             devices = list(utils.nb.dcim.devices.filter(cf_alternative_name=host))
+            if devices:
+                for d in devices:
+                    cf = getattr(d, "custom_fields", {})
+                    if cf.get("alternative_name") == host:
+                        device = d
+                        break
 
-        if not devices:
+        if not device:
             # Search by inventory_hostname custom field
             devices = list(utils.nb.dcim.devices.filter(cf_inventory_hostname=host))
+            if devices:
+                for d in devices:
+                    cf = getattr(d, "custom_fields", {})
+                    if cf.get("inventory_hostname") == host:
+                        device = d
+                        break
 
-        if not devices:
+        if not device:
             # Search by external_hostname custom field
             devices = list(utils.nb.dcim.devices.filter(cf_external_hostname=host))
+            if devices:
+                for d in devices:
+                    cf = getattr(d, "custom_fields", {})
+                    if cf.get("external_hostname") == host:
+                        device = d
+                        break
 
-        if not devices:
+        if not device:
             logger.error(f"Device '{host}' not found in NetBox.")
             return
-
-        # Get the first matching device
-        device = devices[0]
 
         # Prepare table data for display
         table = []
