@@ -1795,6 +1795,12 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             config["VRF"][vrf_name] = {}
             logger.info(f"Added VRF {vrf_name}")
 
+        # Add BGP_GLOBALS for this VRF by copying from default VRF
+        default_bgp = config.get("BGP_GLOBALS", {}).get("default", {})
+        if default_bgp:
+            config["BGP_GLOBALS"][vrf_name] = copy.deepcopy(default_bgp)
+            logger.info(f"Added BGP_GLOBALS for VRF {vrf_name}")
+
     # Add VRF assignments to interfaces
     for sonic_interface, vrf_name in vrf_info["interface_vrf_mapping"].items():
         # Check if this is a regular interface
