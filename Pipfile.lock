@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "e5ac93190e1a2da15aa75ff5e035e23e841a9c4dd179cd8ab4449f6ee6033c3f"
+            "sha256": "8ece84b4d2911b60e3feb66a554e6985c8e76aa3d0b96b7a873aa4ec9c1cc9b5"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -553,12 +553,12 @@
         },
         "gitpython": {
             "hashes": [
-                "sha256:85b0ee964ceddf211c41b9f27a49086010a190fd8132a24e21f362a4b36a791c",
-                "sha256:8908cb2e02fb3b93b7eb0f2827125cb699869470432cc885f019b8fd0fccff77"
+                "sha256:400124c7d0ef4ea03f7310ac2fbf7151e09ff97f2a3288d64a440c584a29c37f",
+                "sha256:79812ed143d9d25b6d176a10bb511de0f9c67b1fa641d82097b0ab90398a2058"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.7'",
-            "version": "==3.1.45"
+            "version": "==3.1.46"
         },
         "google-auth": {
             "hashes": [
@@ -1382,11 +1382,11 @@
         },
         "prometheus-client": {
             "hashes": [
-                "sha256:6ae8f9081eaaaf153a2e959d2e6c4f4fb57b12ef76c8c7980202f1e57b48b2ce",
-                "sha256:dd1913e6e76b59cfe44e7a4b83e01afc9873c1bdfd2ed8739f1e76aeca115f99"
+                "sha256:4ab6d4fb5a1b25ad74b58e6271857e356fff3399473e599d227ab5d0ce6637f0",
+                "sha256:726b40c0d499f4904d4b5b7abe8d43e6aff090de0d468ae8f2226290b331c667"
             ],
             "markers": "python_version >= '3.9'",
-            "version": "==0.23.1"
+            "version": "==0.24.0"
         },
         "prompt-toolkit": {
             "hashes": [
