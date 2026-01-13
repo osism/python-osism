@@ -1694,11 +1694,12 @@ def _get_vrf_info(device):
         dict: Dictionary with VRF configuration:
             {
                 "vrfs": {
-                    "Vrf42": {"table_id": 42}
+                    "Vrf42": {"table_id": 42},
+                    "VrfStorage": {}
                 },
                 "interface_vrf_mapping": {
                     "Ethernet0": "Vrf42",
-                    "Ethernet4": "Vrf42"
+                    "Ethernet4": "VrfStorage"
                 }
             }
     """
@@ -1714,20 +1715,31 @@ def _get_vrf_info(device):
                 continue
 
             try:
-                # Extract VRF table ID from VRF name (e.g., "vrf42" -> 42)
                 vrf_name_str = str(interface.vrf.name)
+                sonic_vrf_name = None
+                vrf_table_id = None
+
+                # Try to extract VRF table ID from VRF name (e.g., "vrf42" -> 42)
                 match = re.match(r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE)
 
-                if not match:
-                    logger.warning(
-                        f"Interface {interface.name} on device {device.name} has VRF '{vrf_name_str}' "
-                        f"that doesn't match expected pattern 'vrf<number>'"
-                    )
-                    continue
-
-                # Extract table ID and create SONiC VRF name with capital V
-                vrf_table_id = int(match.group(1))
-                sonic_vrf_name = f"Vrf{vrf_table_id}"
+                if match:
+                    # Extract table ID and create SONiC VRF name with capital V
+                    vrf_table_id = int(match.group(1))
+                    sonic_vrf_name = f"Vrf{vrf_table_id}"
+                else:
+                    # Use VRF RD (Route Distinguisher) as SONiC VRF name if available
+                    vrf_rd = getattr(interface.vrf, "rd", None)
+                    if vrf_rd:
+                        sonic_vrf_name = str(vrf_rd)
+                        logger.debug(
+                            f"Using VRF RD '{sonic_vrf_name}' as SONiC VRF name for interface {interface.name}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Interface {interface.name} on device {device.name} has VRF '{vrf_name_str}' "
+                            f"that doesn't match pattern 'vrf<number>' and has no RD set"
+                        )
+                        continue
 
                 # Convert NetBox interface name to SONiC format
                 sonic_interface_name = convert_netbox_interface_to_sonic(
@@ -1736,10 +1748,16 @@ def _get_vrf_info(device):
 
                 # Add VRF definition if not already present
                 if sonic_vrf_name not in vrf_info["vrfs"]:
-                    vrf_info["vrfs"][sonic_vrf_name] = {"table_id": vrf_table_id}
-                    logger.debug(
-                        f"Added VRF definition: {sonic_vrf_name} with table ID {vrf_table_id}"
-                    )
+                    if vrf_table_id is not None:
+                        vrf_info["vrfs"][sonic_vrf_name] = {"table_id": vrf_table_id}
+                        logger.debug(
+                            f"Added VRF definition: {sonic_vrf_name} with table ID {vrf_table_id}"
+                        )
+                    else:
+                        vrf_info["vrfs"][sonic_vrf_name] = {}
+                        logger.debug(
+                            f"Added VRF definition: {sonic_vrf_name} (no table ID)"
+                        )
 
                 # Add interface to VRF mapping
                 vrf_info["interface_vrf_mapping"][sonic_interface_name] = sonic_vrf_name
@@ -1770,8 +1788,12 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
     """
     # Add VRF definitions to config
     for vrf_name, vrf_data in vrf_info["vrfs"].items():
-        config["VRF"][vrf_name] = {"vrf_table_id": vrf_data["table_id"]}
-        logger.info(f"Added VRF {vrf_name} with table ID {vrf_data['table_id']}")
+        if "table_id" in vrf_data:
+            config["VRF"][vrf_name] = {"vrf_table_id": vrf_data["table_id"]}
+            logger.info(f"Added VRF {vrf_name} with table ID {vrf_data['table_id']}")
+        else:
+            config["VRF"][vrf_name] = {}
+            logger.info(f"Added VRF {vrf_name}")
 
     # Add VRF assignments to interfaces
     for sonic_interface, vrf_name in vrf_info["interface_vrf_mapping"].items():
