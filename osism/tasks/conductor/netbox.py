@@ -17,7 +17,7 @@ def get_nb_device_query_list_ironic():
             "location",
             "rack",
             "tag",
-            "state",
+            "status",
         ]
         nb_device_query_list = yaml.safe_load(settings.NETBOX_FILTER_CONDUCTOR_IRONIC)
         if type(nb_device_query_list) is not list:
@@ -39,14 +39,14 @@ def get_nb_device_query_list_ironic():
                         nb_device_query.update({key + "_id": value_id})
                     else:
                         raise ValueError(f"Invalid name {value_name} for {key}")
-    except (yaml.YAMLError, TypeError):
+    except (yaml.YAMLError, TypeError) as exc:
         logger.error(
             f"Setting NETBOX_FILTER_CONDUCTOR_IRONIC needs to be an array of mappings containing supported NetBox device filters: {supported_nb_device_filters}"
         )
-        nb_device_query_list = []
+        raise exc
     except ValueError as exc:
-        logger.error(f"Unknown value in NETBOX_FILTER_CONDUCTOR_IRONIC: {exc}")
-        nb_device_query_list = []
+        logger.error("Unknown value in NETBOX_FILTER_CONDUCTOR_IRONIC")
+        raise exc
 
     return nb_device_query_list
 
@@ -60,7 +60,7 @@ def get_nb_device_query_list_sonic():
             "location",
             "rack",
             "tag",
-            "state",
+            "status",
         ]
         nb_device_query_list = yaml.safe_load(settings.NETBOX_FILTER_CONDUCTOR_SONIC)
         if type(nb_device_query_list) is not list:
@@ -82,14 +82,14 @@ def get_nb_device_query_list_sonic():
                         nb_device_query.update({key + "_id": value_id})
                     else:
                         raise ValueError(f"Invalid name {value_name} for {key}")
-    except (yaml.YAMLError, TypeError):
+    except (yaml.YAMLError, TypeError) as exc:
         logger.error(
             f"Setting NETBOX_FILTER_CONDUCTOR_SONIC needs to be an array of mappings containing supported NetBox device filters: {supported_nb_device_filters}"
         )
-        nb_device_query_list = []
+        raise exc
     except ValueError as exc:
-        logger.error(f"Unknown value in NETBOX_FILTER_CONDUCTOR_SONIC: {exc}")
-        nb_device_query_list = []
+        logger.error("Unknown value in NETBOX_FILTER_CONDUCTOR_SONIC")
+        raise exc
 
     return nb_device_query_list
 
