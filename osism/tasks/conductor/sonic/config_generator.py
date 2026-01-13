@@ -230,6 +230,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         transfer_ips,
         utils.nb,
         vlan_info,
+        vrf_info,
     )
 
     # Add NTP server configuration (device-specific)
@@ -901,6 +902,7 @@ def _add_bgp_configurations(
     transfer_ips=None,
     netbox=None,
     vlan_info=None,
+    vrf_info=None,
 ):
     """Add BGP configurations.
 
@@ -916,7 +918,15 @@ def _add_bgp_configurations(
         transfer_ips: Dict of IPv4 addresses from transfer role prefixes
         netbox: NetBox API client for querying connected interface IPs
         vlan_info: VLAN information dict for checking untagged VLAN membership
+        vrf_info: VRF information dict for interface VRF assignments
     """
+
+    # Helper to get VRF name for an interface (defaults to "default")
+    def get_vrf_for_interface(interface_name):
+        if vrf_info and "interface_vrf_mapping" in vrf_info:
+            return vrf_info["interface_vrf_mapping"].get(interface_name, "default")
+        return "default"
+
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
     for port_name in config["PORT"]:
         has_direct_ipv4 = _has_direct_ipv4_address(
@@ -951,13 +961,14 @@ def _add_bgp_configurations(
 
                 # For BGP_NEIGHBOR_AF, always use interface name like IPv6 does
                 neighbor_id = port_name
+                vrf_name = get_vrf_for_interface(port_name)
 
-                ipv4_key = f"default|{neighbor_id}|ipv4_unicast"
+                ipv4_key = f"{vrf_name}|{neighbor_id}|ipv4_unicast"
                 config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
 
                 # Only add ipv6_unicast if v6only would be true (no transfer role IPv4)
                 if not has_transfer_ipv4:
-                    ipv6_key = f"default|{neighbor_id}|ipv6_unicast"
+                    ipv6_key = f"{vrf_name}|{neighbor_id}|ipv6_unicast"
                     config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
                     logger.debug(
                         f"Added BGP_NEIGHBOR_AF with ipv4_unicast and ipv6_unicast for interface {port_name} (no direct IPv4)"
@@ -982,9 +993,10 @@ def _add_bgp_configurations(
 
         # For BGP_NEIGHBOR_AF, always use port channel name like interfaces
         neighbor_id = pc_name
+        vrf_name = get_vrf_for_interface(pc_name)
 
-        ipv4_key = f"default|{neighbor_id}|ipv4_unicast"
-        ipv6_key = f"default|{neighbor_id}|ipv6_unicast"
+        ipv4_key = f"{vrf_name}|{neighbor_id}|ipv4_unicast"
+        ipv6_key = f"{vrf_name}|{neighbor_id}|ipv6_unicast"
         config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
         config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
 
@@ -1020,14 +1032,17 @@ def _add_bgp_configurations(
                         device, port_name, netbox
                     )
 
+                # Get VRF for this interface
+                vrf_name = get_vrf_for_interface(port_name)
+
                 # Use the connected interface's IPv4 address if available, otherwise use interface name
                 if connected_ipv4:
-                    neighbor_key = f"default|{connected_ipv4}"
+                    neighbor_key = f"{vrf_name}|{connected_ipv4}"
                     logger.debug(
                         f"Using connected interface IPv4 address {connected_ipv4} for BGP neighbor on {port_name}"
                     )
                 else:
-                    neighbor_key = f"default|{port_name}"
+                    neighbor_key = f"{vrf_name}|{port_name}"
                     logger.debug(
                         f"No connected interface IPv4 found, using interface name {port_name} for BGP neighbor"
                     )
@@ -1045,10 +1060,14 @@ def _add_bgp_configurations(
                 # Set v6only based on whether interface has transfer role IPv4
                 # - Transfer role IPv4: v6only=false (dual-stack BGP)
                 # - No direct IPv4: v6only=true (IPv6-only BGP)
+                # - Non-default VRF: no v6only parameter
                 bgp_neighbor_config = {
                     "peer_type": peer_type,
-                    "v6only": "false" if has_transfer_ipv4 else "true",
                 }
+                if vrf_name == "default":
+                    bgp_neighbor_config["v6only"] = (
+                        "false" if has_transfer_ipv4 else "true"
+                    )
 
                 # If using IP address as key, also store the local address
                 if connected_ipv4:
@@ -1090,14 +1109,17 @@ def _add_bgp_configurations(
                 device, pc_name, netbox
             )
 
+        # Get VRF for this port channel
+        vrf_name = get_vrf_for_interface(pc_name)
+
         # Use the connected interface's IPv4 address if available, otherwise use port channel name
         if connected_ipv4:
-            neighbor_key = f"default|{connected_ipv4}"
+            neighbor_key = f"{vrf_name}|{connected_ipv4}"
             logger.debug(
                 f"Using connected interface IPv4 address {connected_ipv4} for BGP neighbor on {pc_name}"
             )
         else:
-            neighbor_key = f"default|{pc_name}"
+            neighbor_key = f"{vrf_name}|{pc_name}"
             logger.debug(
                 f"No connected interface IPv4 found, using port channel name {pc_name} for BGP neighbor"
             )
@@ -1112,8 +1134,9 @@ def _add_bgp_configurations(
 
         bgp_neighbor_config = {
             "peer_type": peer_type,
-            "v6only": "true",
         }
+        if vrf_name == "default":
+            bgp_neighbor_config["v6only"] = "true"
 
         # If using IP address as key, also store the local address
         if connected_ipv4:
@@ -1198,22 +1221,27 @@ def _add_bgp_configurations(
 
                     peer_ips_found.add(peer_ipv4)
 
+                    # Get VRF for the VLAN interface (e.g., Vlan100)
+                    vlan_interface_name = f"Vlan{vid}"
+                    vrf_name = get_vrf_for_interface(vlan_interface_name)
+
                     # Create BGP neighbor with peer IP address (FHRP VIP or direct IP)
-                    neighbor_key = f"default|{peer_ipv4}"
+                    neighbor_key = f"{vrf_name}|{peer_ipv4}"
 
                     # Determine peer_type - for VLAN interfaces, default to external
                     peer_type = "external"
 
-                    # Set v6only=false for IPv4 BGP neighbor
+                    # Set v6only=false for IPv4 BGP neighbor (only for default VRF)
                     bgp_neighbor_config = {
                         "peer_type": peer_type,
-                        "v6only": "false",
                     }
+                    if vrf_name == "default":
+                        bgp_neighbor_config["v6only"] = "false"
 
                     config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
 
                     # Add BGP_NEIGHBOR_AF for IPv4 unicast
-                    ipv4_af_key = f"default|{peer_ipv4}|ipv4_unicast"
+                    ipv4_af_key = f"{vrf_name}|{peer_ipv4}|ipv4_unicast"
                     config["BGP_NEIGHBOR_AF"][ipv4_af_key] = {"admin_status": "true"}
 
                     logger.info(
