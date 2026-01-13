@@ -24,6 +24,11 @@
             "ibgp_equal_cluster_length": "false",
             "max_ebgp_paths": "2",
             "max_ibgp_paths": "2"
+        },
+        "default|l2vpn_evpn": {
+            "advertise-all-vni": "true",
+            "advertise-svi-ip": "true",
+            "dad-enabled": "true"
         }
     },
     "BGP_GLOBALS_AF_NETWORK": {},
