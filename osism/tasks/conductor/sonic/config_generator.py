@@ -44,6 +44,9 @@ _metalbox_ip_cache: dict[int, Optional[str]] = {}
 # Global cache for all metalbox devices with their interfaces and IPs
 _metalbox_devices_cache: Optional[dict] = None
 
+# VXLAN VTEP name used for VXLAN tunnel configuration
+VXLAN_VTEP_NAME = "vtepServ"
+
 
 def natural_sort_key(port_name):
     """Extract numeric part from port name for natural sorting."""
@@ -1834,6 +1837,9 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
         vrf_info: VRF information dictionary from _get_vrf_info()
         netbox_interfaces: Dict mapping SONiC names to NetBox interface info
     """
+    # Track VRFs with VNI for VXLAN configuration
+    vrfs_with_vni = []
+
     # Add VRF definitions to config
     for vrf_name, vrf_data in vrf_info["vrfs"].items():
         if "vni" in vrf_data:
@@ -1844,6 +1850,9 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
                 "vni": str(vni),
             }
             logger.info(f"Added VRF {vrf_name} with VNI {vni}")
+
+            # Track for VXLAN configuration
+            vrfs_with_vni.append({"vrf_name": vrf_name, "vni": vni})
 
             # Create VLAN with the same ID as VNI
             vlan_name = f"Vlan{vni}"
@@ -1874,6 +1883,37 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
         if default_bgp:
             config["BGP_GLOBALS"][vrf_name] = copy.deepcopy(default_bgp)
             logger.info(f"Added BGP_GLOBALS for VRF {vrf_name}")
+
+    # Add VXLAN configuration if there are VRFs with VNI
+    if vrfs_with_vni:
+        # Get source IP from BGP_GLOBALS default router_id
+        src_ip = config.get("BGP_GLOBALS", {}).get("default", {}).get("router_id", "")
+
+        # Add VXLAN_TUNNEL
+        config["VXLAN_TUNNEL"][VXLAN_VTEP_NAME] = {
+            "dscp": "0",
+            "qos-mode": "pipe",
+            "src_intf": "Loopback0",
+            "src_ip": src_ip,
+        }
+        logger.info(f"Added VXLAN_TUNNEL {VXLAN_VTEP_NAME} with src_ip {src_ip}")
+
+        # Add VXLAN_EVPN_NVO
+        config["VXLAN_EVPN_NVO"]["nvo1"] = {
+            "source_vtep": VXLAN_VTEP_NAME,
+        }
+        logger.info(f"Added VXLAN_EVPN_NVO nvo1 with source_vtep {VXLAN_VTEP_NAME}")
+
+        # Add VXLAN_TUNNEL_MAP for each VRF with VNI
+        for vrf_entry in vrfs_with_vni:
+            vni = vrf_entry["vni"]
+            vlan_name = f"Vlan{vni}"
+            map_key = f"{VXLAN_VTEP_NAME}|map_{vni}_{vlan_name}"
+            config["VXLAN_TUNNEL_MAP"][map_key] = {
+                "vlan": vlan_name,
+                "vni": str(vni),
+            }
+            logger.info(f"Added VXLAN_TUNNEL_MAP {map_key}")
 
     # Add VRF assignments to interfaces
     for sonic_interface, vrf_name in vrf_info["interface_vrf_mapping"].items():
