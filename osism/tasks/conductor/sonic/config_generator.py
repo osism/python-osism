@@ -980,6 +980,14 @@ def _add_bgp_configurations(
                     logger.debug(
                         f"Added BGP_NEIGHBOR_AF with ipv4_unicast only for interface {port_name} (transfer role IPv4, v6only=false)"
                     )
+
+                # Add l2vpn_evpn for default VRF (switch-to-switch connections)
+                if vrf_name == "default":
+                    l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
+                    config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
+                    logger.debug(
+                        f"Added BGP_NEIGHBOR_AF l2vpn_evpn for interface {port_name}"
+                    )
             elif has_direct_ipv4 and not has_transfer_ipv4:
                 logger.info(
                     f"Excluding interface {port_name} from BGP detection (has direct IPv4 address, not transfer role)"
@@ -1002,6 +1010,12 @@ def _add_bgp_configurations(
         ipv6_key = f"{vrf_name}|{neighbor_id}|ipv6_unicast"
         config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
         config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+
+        # Add l2vpn_evpn for default VRF (switch-to-switch connections)
+        if vrf_name == "default":
+            l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
+            config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
+            logger.debug(f"Added BGP_NEIGHBOR_AF l2vpn_evpn for port channel {pc_name}")
 
     # Add BGP_NEIGHBOR configuration for connected interfaces
     for port_name in config["PORT"]:
