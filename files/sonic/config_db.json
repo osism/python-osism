@@ -32,6 +32,10 @@
         }
     },
     "BGP_GLOBALS_AF_NETWORK": {},
+    "BGP_GLOBALS_ROUTE_ADVERTISE": {
+        "default|L2VPN_EVPN|IPV4_UNICAST": {},
+        "default|L2VPN_EVPN|IPV6_UNICAST": {}
+    },
     "BGP_NEIGHBOR": {},
     "BGP_NEIGHBOR_AF": {},
     "BREAKOUT_CFG": {},
