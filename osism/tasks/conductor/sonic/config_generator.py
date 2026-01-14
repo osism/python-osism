@@ -1723,7 +1723,7 @@ def _get_vrf_info(device):
             {
                 "vrfs": {
                     "Vrf42": {"table_id": 42},
-                    "VrfStorage": {}
+                    "VrfStorage": {"vni": 2001}
                 },
                 "interface_vrf_mapping": {
                     "Ethernet0": "Vrf42",
@@ -1746,17 +1746,31 @@ def _get_vrf_info(device):
                 vrf_name_str = str(interface.vrf.name)
                 sonic_vrf_name = None
                 vrf_table_id = None
+                vrf_vni = None
 
                 # Try to extract VRF table ID from VRF name (e.g., "vrf42" -> 42)
                 match = re.match(r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE)
 
+                # Check if VRF has an RD (Route Distinguisher)
+                vrf_rd = getattr(interface.vrf, "rd", None)
+
                 if match:
-                    # Extract table ID and create SONiC VRF name with capital V
-                    vrf_table_id = int(match.group(1))
-                    sonic_vrf_name = f"Vrf{vrf_table_id}"
+                    # Extract the number from VRF name
+                    vrf_number = int(match.group(1))
+
+                    if vrf_rd:
+                        # VRF has RD: use RD as SONIC VRF name, number as VNI
+                        sonic_vrf_name = str(vrf_rd)
+                        vrf_vni = vrf_number
+                        logger.debug(
+                            f"VRF '{vrf_name_str}' has RD '{sonic_vrf_name}', using VNI {vrf_vni}"
+                        )
+                    else:
+                        # No RD: use Vrf<number> as SONIC VRF name, number as table_id
+                        sonic_vrf_name = f"Vrf{vrf_number}"
+                        vrf_table_id = vrf_number
                 else:
-                    # Use VRF RD (Route Distinguisher) as SONiC VRF name if available
-                    vrf_rd = getattr(interface.vrf, "rd", None)
+                    # VRF name doesn't match pattern, try to use RD
                     if vrf_rd:
                         sonic_vrf_name = str(vrf_rd)
                         logger.debug(
@@ -1776,16 +1790,22 @@ def _get_vrf_info(device):
 
                 # Add VRF definition if not already present
                 if sonic_vrf_name not in vrf_info["vrfs"]:
+                    vrf_data = {}
                     if vrf_table_id is not None:
-                        vrf_info["vrfs"][sonic_vrf_name] = {"table_id": vrf_table_id}
+                        vrf_data["table_id"] = vrf_table_id
                         logger.debug(
                             f"Added VRF definition: {sonic_vrf_name} with table ID {vrf_table_id}"
                         )
-                    else:
-                        vrf_info["vrfs"][sonic_vrf_name] = {}
+                    if vrf_vni is not None:
+                        vrf_data["vni"] = vrf_vni
                         logger.debug(
-                            f"Added VRF definition: {sonic_vrf_name} (no table ID)"
+                            f"Added VRF definition: {sonic_vrf_name} with VNI {vrf_vni}"
                         )
+                    if not vrf_data:
+                        logger.debug(
+                            f"Added VRF definition: {sonic_vrf_name} (no table ID or VNI)"
+                        )
+                    vrf_info["vrfs"][sonic_vrf_name] = vrf_data
 
                 # Add interface to VRF mapping
                 vrf_info["interface_vrf_mapping"][sonic_interface_name] = sonic_vrf_name
@@ -1816,10 +1836,36 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
     """
     # Add VRF definitions to config
     for vrf_name, vrf_data in vrf_info["vrfs"].items():
-        if "table_id" in vrf_data:
+        if "vni" in vrf_data:
+            # VRF with VNI (has RD set in NetBox)
+            vni = vrf_data["vni"]
+            config["VRF"][vrf_name] = {
+                "fallback": "false",
+                "vni": str(vni),
+            }
+            logger.info(f"Added VRF {vrf_name} with VNI {vni}")
+
+            # Create VLAN with the same ID as VNI
+            vlan_name = f"Vlan{vni}"
+            config["VLAN"][vlan_name] = {
+                "admin_status": "up",
+                "autostate": "enable",
+                "vlanid": str(vni),
+            }
+            logger.info(f"Added VLAN {vlan_name} for VRF {vrf_name}")
+
+            # Create VLAN_INTERFACE with VRF assignment
+            config["VLAN_INTERFACE"][vlan_name] = {
+                "vrf_name": vrf_name,
+            }
+            logger.info(f"Added VLAN_INTERFACE {vlan_name} with VRF {vrf_name}")
+
+        elif "table_id" in vrf_data:
+            # VRF with table_id (no RD set in NetBox)
             config["VRF"][vrf_name] = {"vrf_table_id": vrf_data["table_id"]}
             logger.info(f"Added VRF {vrf_name} with table ID {vrf_data['table_id']}")
         else:
+            # VRF without table_id or VNI
             config["VRF"][vrf_name] = {}
             logger.info(f"Added VRF {vrf_name}")
 
