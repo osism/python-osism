@@ -1883,6 +1883,29 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             }
             logger.info(f"Added VLAN_INTERFACE {vlan_name} with VRF {vrf_name}")
 
+            # Add BGP_GLOBALS_AF for this VRF
+            rt_value = f"{vni}:1"
+
+            # Add ipv4_unicast for VRF
+            ipv4_af_key = f"{vrf_name}|ipv4_unicast"
+            config["BGP_GLOBALS_AF"][ipv4_af_key] = {
+                "ibgp_equal_cluster_length": "false",
+                "max_ebgp_paths": "2",
+                "max_ibgp_paths": "1",
+                "route_flap_dampen": "false",
+            }
+            logger.info(f"Added BGP_GLOBALS_AF {ipv4_af_key}")
+
+            # Add l2vpn_evpn for VRF with route targets
+            l2vpn_af_key = f"{vrf_name}|l2vpn_evpn"
+            config["BGP_GLOBALS_AF"][l2vpn_af_key] = {
+                "dad-enabled": "true",
+                "export-rts": [rt_value],
+                "import-rts": [rt_value],
+                "route-distinguisher": rt_value,
+            }
+            logger.info(f"Added BGP_GLOBALS_AF {l2vpn_af_key} with RT {rt_value}")
+
         elif "table_id" in vrf_data:
             # VRF with table_id (no RD set in NetBox)
             config["VRF"][vrf_name] = {"vrf_table_id": vrf_data["table_id"]}
