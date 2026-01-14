@@ -451,6 +451,9 @@
             "enabled": "true"
         }
     },
+    "VXLAN_EVPN_NVO": {},
+    "VXLAN_TUNNEL": {},
+    "VXLAN_TUNNEL_MAP": {},
     "ZTP": {
         "config": {
             "admin-mode": "true"
