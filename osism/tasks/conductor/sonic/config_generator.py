@@ -1747,6 +1747,14 @@ def _get_vrf_info(device):
                     "Ethernet4": "VrfStorage"
                 }
             }
+
+    Supports two VRF naming conventions:
+        Option 1: Name: vrfStorage, RD: 2001
+            - RD is a pure number, use it as VNI
+            - VRF name is used as SONIC VRF name
+        Option 2: Name: vrf2001, RD: vrfStorage
+            - Name contains number, use it as VNI
+            - RD is used as SONIC VRF name
     """
     vrf_info = {"vrfs": {}, "interface_vrf_mapping": {}}
 
@@ -1765,40 +1773,62 @@ def _get_vrf_info(device):
                 vrf_table_id = None
                 vrf_vni = None
 
-                # Try to extract VRF table ID from VRF name (e.g., "vrf42" -> 42)
-                match = re.match(r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE)
-
                 # Check if VRF has an RD (Route Distinguisher)
                 vrf_rd = getattr(interface.vrf, "rd", None)
 
-                if match:
-                    # Extract the number from VRF name
-                    vrf_number = int(match.group(1))
+                # Check if RD is a pure number
+                rd_is_number = False
+                rd_number = None
+                if vrf_rd:
+                    try:
+                        rd_number = int(str(vrf_rd))
+                        rd_is_number = True
+                    except ValueError:
+                        rd_is_number = False
 
-                    if vrf_rd:
-                        # VRF has RD: use RD as SONIC VRF name, number as VNI
+                # Try to extract VRF number from VRF name (e.g., "vrf42" -> 42)
+                name_match = re.match(r"^vrf(\d+)$", vrf_name_str, re.IGNORECASE)
+
+                # Option 1: RD is a pure number (e.g., Name: vrfStorage, RD: 2001)
+                # Use RD as VNI, VRF name as SONIC VRF name
+                if rd_is_number and rd_number:
+                    sonic_vrf_name = vrf_name_str
+                    vrf_vni = rd_number
+                    logger.debug(
+                        f"VRF '{vrf_name_str}' has numeric RD {rd_number}, using as VNI"
+                    )
+
+                # Option 2: Name contains number and has non-numeric RD
+                # (e.g., Name: vrf2001, RD: vrfStorage)
+                # Use number from name as VNI, RD as SONIC VRF name
+                elif name_match:
+                    vrf_number = int(name_match.group(1))
+
+                    if vrf_rd and not rd_is_number:
+                        # RD is text, use as SONIC VRF name, number as VNI
                         sonic_vrf_name = str(vrf_rd)
                         vrf_vni = vrf_number
                         logger.debug(
-                            f"VRF '{vrf_name_str}' has RD '{sonic_vrf_name}', using VNI {vrf_vni}"
+                            f"VRF '{vrf_name_str}' has text RD '{sonic_vrf_name}', "
+                            f"using name number {vrf_number} as VNI"
                         )
-                    else:
+                    elif not vrf_rd:
                         # No RD: use Vrf<number> as SONIC VRF name, number as table_id
                         sonic_vrf_name = f"Vrf{vrf_number}"
                         vrf_table_id = vrf_number
+
+                # Fallback: VRF name doesn't match pattern, try to use RD as name
+                elif vrf_rd:
+                    sonic_vrf_name = str(vrf_rd)
+                    logger.debug(
+                        f"Using VRF RD '{sonic_vrf_name}' as SONiC VRF name for interface {interface.name}"
+                    )
                 else:
-                    # VRF name doesn't match pattern, try to use RD
-                    if vrf_rd:
-                        sonic_vrf_name = str(vrf_rd)
-                        logger.debug(
-                            f"Using VRF RD '{sonic_vrf_name}' as SONiC VRF name for interface {interface.name}"
-                        )
-                    else:
-                        logger.warning(
-                            f"Interface {interface.name} on device {device.name} has VRF '{vrf_name_str}' "
-                            f"that doesn't match pattern 'vrf<number>' and has no RD set"
-                        )
-                        continue
+                    logger.warning(
+                        f"Interface {interface.name} on device {device.name} has VRF '{vrf_name_str}' "
+                        f"that doesn't match pattern 'vrf<number>' and has no RD set"
+                    )
+                    continue
 
                 # Convert NetBox interface name to SONiC format
                 sonic_interface_name = convert_netbox_interface_to_sonic(
