@@ -1943,6 +1943,13 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             config["BGP_GLOBALS_ROUTE_ADVERTISE"][ipv6_adv_key] = {}
             logger.info(f"Added BGP_GLOBALS_ROUTE_ADVERTISE for VRF {vrf_name}")
 
+            # Add ROUTE_REDISTRIBUTE for VRF
+            if "ROUTE_REDISTRIBUTE" not in config:
+                config["ROUTE_REDISTRIBUTE"] = {}
+            route_redistribute_key = f"{vrf_name}|connected|bgp|ipv4"
+            config["ROUTE_REDISTRIBUTE"][route_redistribute_key] = {}
+            logger.info(f"Added ROUTE_REDISTRIBUTE {route_redistribute_key}")
+
         elif "table_id" in vrf_data:
             # VRF with table_id (no RD set in NetBox)
             config["VRF"][vrf_name] = {"vrf_table_id": vrf_data["table_id"]}
