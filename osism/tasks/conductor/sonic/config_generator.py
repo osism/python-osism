@@ -34,6 +34,7 @@ from .connections import (
     get_connected_interface_ipv4_address,
 )
 from .cache import get_cached_device_interfaces
+from .constants import DEFAULT_SONIC_ROLES
 
 # Global cache for NTP servers to avoid multiple queries
 _ntp_servers_cache = None
@@ -981,13 +982,32 @@ def _add_bgp_configurations(
                         f"Added BGP_NEIGHBOR_AF with ipv4_unicast only for interface {port_name} (transfer role IPv4, v6only=false)"
                     )
 
-                # Add l2vpn_evpn for default VRF (switch-to-switch connections)
+                # Add l2vpn_evpn only for switch-to-switch connections (default VRF)
                 if vrf_name == "default":
-                    l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
-                    config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
-                    logger.debug(
-                        f"Added BGP_NEIGHBOR_AF l2vpn_evpn for interface {port_name}"
+                    connected_device = get_connected_device_for_sonic_interface(
+                        device, port_name
                     )
+                    is_switch_connection = (
+                        connected_device
+                        and hasattr(connected_device, "role")
+                        and connected_device.role
+                        and connected_device.role.slug in DEFAULT_SONIC_ROLES
+                    )
+                    if is_switch_connection:
+                        l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
+                        config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
+                        logger.debug(
+                            f"Added BGP_NEIGHBOR_AF l2vpn_evpn for interface {port_name} "
+                            f"(connected to switch {connected_device.name})"
+                        )
+                    else:
+                        device_name = (
+                            connected_device.name if connected_device else "unknown"
+                        )
+                        logger.debug(
+                            f"Skipping l2vpn_evpn for interface {port_name} "
+                            f"(connected device {device_name} is not a switch)"
+                        )
             elif has_direct_ipv4 and not has_transfer_ipv4:
                 logger.info(
                     f"Excluding interface {port_name} from BGP detection (has direct IPv4 address, not transfer role)"
@@ -1011,11 +1031,28 @@ def _add_bgp_configurations(
         config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
         config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
 
-        # Add l2vpn_evpn for default VRF (switch-to-switch connections)
+        # Add l2vpn_evpn only for switch-to-switch connections (default VRF)
         if vrf_name == "default":
-            l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
-            config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
-            logger.debug(f"Added BGP_NEIGHBOR_AF l2vpn_evpn for port channel {pc_name}")
+            connected_device = get_connected_device_for_sonic_interface(device, pc_name)
+            is_switch_connection = (
+                connected_device
+                and hasattr(connected_device, "role")
+                and connected_device.role
+                and connected_device.role.slug in DEFAULT_SONIC_ROLES
+            )
+            if is_switch_connection:
+                l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
+                config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
+                logger.debug(
+                    f"Added BGP_NEIGHBOR_AF l2vpn_evpn for port channel {pc_name} "
+                    f"(connected to switch {connected_device.name})"
+                )
+            else:
+                device_name = connected_device.name if connected_device else "unknown"
+                logger.debug(
+                    f"Skipping l2vpn_evpn for port channel {pc_name} "
+                    f"(connected device {device_name} is not a switch)"
+                )
 
     # Add BGP_NEIGHBOR configuration for connected interfaces
     for port_name in config["PORT"]:
