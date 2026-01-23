@@ -387,6 +387,8 @@ class Run(Command):
             timeout,
             task_timeout,
         )
+        logger.info(f"Prepare task for execution of {role}.")
+
         task = t.apply_async()
 
         logger.info(f"Task {task.task_id} ({role}) was prepared for execution.")
