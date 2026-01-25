@@ -20,6 +20,7 @@ export default function RootLayout({
   const navigation = [
     { id: "dashboard", name: "Dashboard", href: "/" },
     { id: "nodes", name: "Nodes", href: "/nodes" },
+    { id: "inventory", name: "Inventory", href: "/inventory" },
     { id: "services", name: "Services", href: "/services" },
     { id: "events", name: "Events", href: "/events" },
   ];

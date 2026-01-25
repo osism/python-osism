@@ -1,5 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
-import { BaremetalNodesResponse, HealthCheckResponse } from './types';
+import {
+  BaremetalNodesResponse,
+  HealthCheckResponse,
+  HostsResponse,
+  HostvarsResponse,
+  HostvarSingleResponse,
+  FactsResponse,
+  FactSingleResponse,
+} from './types';
 
 const API_URL = 'http://api:8000'; // Default fallback
 let apiClient: AxiosInstance | null = null;
@@ -44,6 +52,43 @@ export const api = {
     getNodes: async (): Promise<BaremetalNodesResponse> => {
       const client = await getApiClient();
       const response = await client.get<BaremetalNodesResponse>('/v1/baremetal/nodes');
+      return response.data;
+    },
+  },
+
+  inventory: {
+    getHosts: async (limit?: string): Promise<HostsResponse> => {
+      const client = await getApiClient();
+      const params = limit ? { limit } : undefined;
+      const response = await client.get<HostsResponse>('/v1/inventory/hosts', { params });
+      return response.data;
+    },
+
+    getHostvars: async (host: string): Promise<HostvarsResponse> => {
+      const client = await getApiClient();
+      const response = await client.get<HostvarsResponse>(`/v1/inventory/hosts/${encodeURIComponent(host)}/hostvars`);
+      return response.data;
+    },
+
+    getHostvar: async (host: string, variable: string): Promise<HostvarSingleResponse> => {
+      const client = await getApiClient();
+      const response = await client.get<HostvarSingleResponse>(
+        `/v1/inventory/hosts/${encodeURIComponent(host)}/hostvars/${encodeURIComponent(variable)}`
+      );
+      return response.data;
+    },
+
+    getFacts: async (host: string): Promise<FactsResponse> => {
+      const client = await getApiClient();
+      const response = await client.get<FactsResponse>(`/v1/inventory/hosts/${encodeURIComponent(host)}/facts`);
+      return response.data;
+    },
+
+    getFact: async (host: string, fact: string): Promise<FactSingleResponse> => {
+      const client = await getApiClient();
+      const response = await client.get<FactSingleResponse>(
+        `/v1/inventory/hosts/${encodeURIComponent(host)}/facts/${encodeURIComponent(fact)}`
+      );
       return response.data;
     },
   },

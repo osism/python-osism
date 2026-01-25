@@ -70,3 +70,45 @@ export interface ConnectionStatus {
   lastConnected?: Date;
   error?: string;
 }
+
+// Inventory-related types
+export interface HostsResponse {
+  hosts: string[];
+  count: number;
+}
+
+export interface HostvarEntry {
+  name: string;
+  value: unknown;
+}
+
+export interface HostvarsResponse {
+  host: string;
+  variables: HostvarEntry[];
+  count: number;
+}
+
+export interface HostvarSingleResponse {
+  host: string;
+  name: string;
+  value: unknown;
+}
+
+export interface FactEntry {
+  name: string;
+  value: unknown;
+}
+
+export interface FactsResponse {
+  host: string;
+  facts: FactEntry[];
+  count: number;
+  from_cache: boolean;
+}
+
+export interface FactSingleResponse {
+  host: string;
+  name: string;
+  value: unknown;
+  from_cache: boolean;
+}
