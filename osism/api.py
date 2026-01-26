@@ -4,7 +4,8 @@ import datetime
 from logging.config import dictConfig
 import logging
 import json
-from typing import Optional, Dict, Any
+import subprocess
+from typing import Optional, Dict, Any, List, cast
 from uuid import UUID
 
 from fastapi import (
@@ -210,6 +211,49 @@ async def events_info() -> Dict[str, str]:
 
 class SinkResponse(BaseModel):
     result: str = Field(..., description="Operation result status")
+
+
+class HostsResponse(BaseModel):
+    hosts: List[str] = Field(
+        ..., description="List of host names from Ansible inventory"
+    )
+    count: int = Field(..., description="Total number of hosts")
+
+
+class HostvarEntry(BaseModel):
+    name: str = Field(..., description="Variable name")
+    value: Any = Field(..., description="Variable value")
+
+
+class HostvarsResponse(BaseModel):
+    host: str = Field(..., description="Host name")
+    variables: List[HostvarEntry] = Field(..., description="List of host variables")
+    count: int = Field(..., description="Total number of variables")
+
+
+class HostvarSingleResponse(BaseModel):
+    host: str = Field(..., description="Host name")
+    name: str = Field(..., description="Variable name")
+    value: Any = Field(..., description="Variable value")
+
+
+class FactEntry(BaseModel):
+    name: str = Field(..., description="Fact name")
+    value: Any = Field(..., description="Fact value")
+
+
+class FactsResponse(BaseModel):
+    host: str = Field(..., description="Host name")
+    facts: List[FactEntry] = Field(..., description="List of facts")
+    count: int = Field(..., description="Total number of facts")
+    from_cache: bool = Field(..., description="Whether facts were retrieved from cache")
+
+
+class FactSingleResponse(BaseModel):
+    host: str = Field(..., description="Host name")
+    name: str = Field(..., description="Fact name")
+    value: Any = Field(..., description="Fact value")
+    from_cache: bool = Field(..., description="Whether fact was retrieved from cache")
 
 
 @app.post("/v1/meters/sink", response_model=SinkResponse, tags=["telemetry"])
@@ -475,4 +519,269 @@ async def webhook(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process NetBox webhook",
+        )
+
+
+# ============================================================================
+# Inventory API Endpoints
+# ============================================================================
+
+
+@app.get("/v1/inventory/hosts", response_model=HostsResponse, tags=["inventory"])
+async def get_inventory_hosts(limit: Optional[str] = None) -> HostsResponse:
+    """Get list of all hosts from Ansible inventory.
+
+    Args:
+        limit: Optional pattern to limit hosts (e.g., 'compute*', 'control')
+    """
+    try:
+        command = ["ansible-inventory", "-i", "/ansible/inventory/hosts.yml", "--list"]
+        if limit:
+            command.extend(["--limit", limit])
+
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            logger.error(f"Error loading inventory: {result.stderr}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to load Ansible inventory",
+            )
+
+        data = json.loads(result.stdout)
+        hosts = list(data.get("_meta", {}).get("hostvars", {}).keys())
+        hosts.sort()
+
+        return HostsResponse(hosts=hosts, count=len(hosts))
+    except subprocess.TimeoutExpired:
+        logger.error("Timeout loading inventory")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Timeout loading Ansible inventory",
+        )
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing inventory JSON: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to parse Ansible inventory",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving hosts: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve hosts: {str(e)}",
+        )
+
+
+@app.get(
+    "/v1/inventory/hosts/{host}/hostvars",
+    response_model=HostvarsResponse,
+    tags=["inventory"],
+)
+async def get_host_hostvars(host: str) -> HostvarsResponse:
+    """Get all host variables for a specific host from Ansible inventory."""
+    try:
+        result = subprocess.run(
+            [
+                "ansible-inventory",
+                "-i",
+                "/ansible/inventory/hosts.yml",
+                "--host",
+                host,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            if "Unable to parse" in result.stderr or "Could not match" in result.stderr:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Host '{host}' not found in inventory",
+                )
+            logger.error(f"Error getting hostvars for {host}: {result.stderr}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to get host variables for {host}",
+            )
+
+        data = json.loads(result.stdout)
+        variables = [
+            HostvarEntry(name=name, value=value) for name, value in sorted(data.items())
+        ]
+
+        return HostvarsResponse(host=host, variables=variables, count=len(variables))
+    except subprocess.TimeoutExpired:
+        logger.error(f"Timeout getting hostvars for {host}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=f"Timeout getting host variables for {host}",
+        )
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing hostvars JSON for {host}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse host variables for {host}",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving hostvars for {host}: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve host variables: {str(e)}",
+        )
+
+
+@app.get(
+    "/v1/inventory/hosts/{host}/hostvars/{variable}",
+    response_model=HostvarSingleResponse,
+    tags=["inventory"],
+)
+async def get_host_hostvar(host: str, variable: str) -> HostvarSingleResponse:
+    """Get a specific host variable for a host from Ansible inventory."""
+    try:
+        result = subprocess.run(
+            [
+                "ansible-inventory",
+                "-i",
+                "/ansible/inventory/hosts.yml",
+                "--host",
+                host,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            if "Unable to parse" in result.stderr or "Could not match" in result.stderr:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Host '{host}' not found in inventory",
+                )
+            logger.error(f"Error getting hostvars for {host}: {result.stderr}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to get host variables for {host}",
+            )
+
+        data = json.loads(result.stdout)
+
+        if variable not in data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Variable '{variable}' not found for host '{host}'",
+            )
+
+        return HostvarSingleResponse(host=host, name=variable, value=data[variable])
+    except subprocess.TimeoutExpired:
+        logger.error(f"Timeout getting hostvar {variable} for {host}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=f"Timeout getting host variable for {host}",
+        )
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing hostvars JSON for {host}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse host variables for {host}",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving hostvar {variable} for {host}: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve host variable: {str(e)}",
+        )
+
+
+@app.get(
+    "/v1/inventory/hosts/{host}/facts",
+    response_model=FactsResponse,
+    tags=["inventory"],
+)
+async def get_host_facts(host: str) -> FactsResponse:
+    """Get all cached Ansible facts for a specific host."""
+    try:
+        data = cast(bytes | None, utils.redis.get(f"ansible_facts{host}"))
+
+        if not data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No facts found in cache for host '{host}'",
+            )
+
+        facts_data = json.loads(data)
+        facts = [
+            FactEntry(name=name, value=value)
+            for name, value in sorted(facts_data.items())
+        ]
+
+        return FactsResponse(host=host, facts=facts, count=len(facts), from_cache=True)
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing facts JSON for {host}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse facts for {host}",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving facts for {host}: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve facts: {str(e)}",
+        )
+
+
+@app.get(
+    "/v1/inventory/hosts/{host}/facts/{fact}",
+    response_model=FactSingleResponse,
+    tags=["inventory"],
+)
+async def get_host_fact(host: str, fact: str) -> FactSingleResponse:
+    """Get a specific cached Ansible fact for a host."""
+    try:
+        data = cast(bytes | None, utils.redis.get(f"ansible_facts{host}"))
+
+        if not data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No facts found in cache for host '{host}'",
+            )
+
+        facts_data = json.loads(data)
+
+        if fact not in facts_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Fact '{fact}' not found for host '{host}'",
+            )
+
+        return FactSingleResponse(
+            host=host, name=fact, value=facts_data[fact], from_cache=True
+        )
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing facts JSON for {host}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse facts for {host}",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving fact {fact} for {host}: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve fact: {str(e)}",
         )
