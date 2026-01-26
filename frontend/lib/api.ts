@@ -7,6 +7,7 @@ import {
   HostvarSingleResponse,
   FactsResponse,
   FactSingleResponse,
+  SearchResponse,
 } from './types';
 
 const API_URL = 'http://api:8000'; // Default fallback
@@ -89,6 +90,17 @@ export const api = {
       const response = await client.get<FactSingleResponse>(
         `/v1/inventory/hosts/${encodeURIComponent(host)}/facts/${encodeURIComponent(fact)}`
       );
+      return response.data;
+    },
+
+    search: async (params: {
+      name_pattern: string;
+      host_pattern?: string;
+      source?: 'hostvars' | 'facts';
+      limit?: number;
+    }): Promise<SearchResponse> => {
+      const client = await getApiClient();
+      const response = await client.get<SearchResponse>('/v1/inventory/search', { params });
       return response.data;
     },
   },

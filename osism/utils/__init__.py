@@ -264,8 +264,10 @@ atexit.register(cleanup_netbox_sessions)
 def get_openstack_connection():
     try:
         conn = openstack.connect()
-    except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions:
-        pass
+    except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions as e:
+        raise RuntimeError(
+            "OpenStack connection failed: missing required authentication options"
+        ) from e
 
     return conn
 
