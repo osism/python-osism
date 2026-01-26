@@ -4,6 +4,8 @@ import datetime
 from logging.config import dictConfig
 import logging
 import json
+import os
+import re
 import subprocess
 from typing import Optional, Dict, Any, List, cast
 from uuid import UUID
@@ -254,6 +256,22 @@ class FactSingleResponse(BaseModel):
     name: str = Field(..., description="Fact name")
     value: Any = Field(..., description="Fact value")
     from_cache: bool = Field(..., description="Whether fact was retrieved from cache")
+
+
+class SearchResultEntry(BaseModel):
+    host: str = Field(..., description="Host name")
+    name: str = Field(..., description="Variable or fact name")
+    value: Any = Field(..., description="Variable or fact value")
+    source: str = Field(..., description="Source: 'hostvars' or 'facts'")
+
+
+class SearchResponse(BaseModel):
+    results: List[SearchResultEntry] = Field(
+        ..., description="List of matching entries"
+    )
+    count: int = Field(..., description="Total number of matches")
+    hosts_searched: int = Field(..., description="Number of hosts searched")
+    query: Dict[str, Any] = Field(..., description="Query parameters used")
 
 
 @app.post("/v1/meters/sink", response_model=SinkResponse, tags=["telemetry"])
@@ -534,8 +552,17 @@ async def get_inventory_hosts(limit: Optional[str] = None) -> HostsResponse:
     Args:
         limit: Optional pattern to limit hosts (e.g., 'compute*', 'control')
     """
+    inventory_path = "/inventory/hosts.yml"
+
     try:
-        command = ["ansible-inventory", "-i", "/ansible/inventory/hosts.yml", "--list"]
+        if not os.path.exists(inventory_path):
+            logger.error(f"Inventory file not found: {inventory_path}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Inventory file not found: {inventory_path}",
+            )
+
+        command = ["ansible-inventory", "-i", inventory_path, "--list"]
         if limit:
             command.extend(["--limit", limit])
 
@@ -554,7 +581,9 @@ async def get_inventory_hosts(limit: Optional[str] = None) -> HostsResponse:
             )
 
         data = json.loads(result.stdout)
+        logger.debug(f"Inventory data keys: {list(data.keys())}")
         hosts = list(data.get("_meta", {}).get("hostvars", {}).keys())
+        logger.debug(f"Found {len(hosts)} hosts in inventory")
         hosts.sort()
 
         return HostsResponse(hosts=hosts, count=len(hosts))
@@ -592,7 +621,7 @@ async def get_host_hostvars(host: str) -> HostvarsResponse:
             [
                 "ansible-inventory",
                 "-i",
-                "/ansible/inventory/hosts.yml",
+                "/inventory/hosts.yml",
                 "--host",
                 host,
             ],
@@ -653,7 +682,7 @@ async def get_host_hostvar(host: str, variable: str) -> HostvarSingleResponse:
             [
                 "ansible-inventory",
                 "-i",
-                "/ansible/inventory/hosts.yml",
+                "/inventory/hosts.yml",
                 "--host",
                 host,
             ],
@@ -784,4 +813,157 @@ async def get_host_fact(host: str, fact: str) -> FactSingleResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve fact: {str(e)}",
+        )
+
+
+@app.get("/v1/inventory/search", response_model=SearchResponse, tags=["inventory"])
+async def search_inventory(
+    name_pattern: str,
+    host_pattern: Optional[str] = None,
+    source: Optional[str] = None,
+    limit: int = 100,
+) -> SearchResponse:
+    """Search for variables or facts across hosts using regex patterns.
+
+    Args:
+        name_pattern: Regex pattern to match variable/fact names (e.g., 'ansible_.*ipv4.*')
+        host_pattern: Optional regex pattern to filter hosts (e.g., 'testbed-node-.*')
+        source: Optional source filter: 'hostvars', 'facts', or None for both
+        limit: Maximum number of results to return (default: 100)
+    """
+    inventory_path = "/inventory/hosts.yml"
+    facts_cache_path = "/cache/facts"
+
+    try:
+        # Validate regex patterns
+        try:
+            name_regex = re.compile(name_pattern, re.IGNORECASE)
+        except re.error as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid name_pattern regex: {str(e)}",
+            )
+
+        host_regex = None
+        if host_pattern:
+            try:
+                host_regex = re.compile(host_pattern, re.IGNORECASE)
+            except re.error as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid host_pattern regex: {str(e)}",
+                )
+
+        # Validate source parameter
+        if source and source not in ("hostvars", "facts"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="source must be 'hostvars', 'facts', or omitted for both",
+            )
+
+        # Check inventory file exists
+        if not os.path.exists(inventory_path):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Inventory file not found: {inventory_path}",
+            )
+
+        # Get all hosts from inventory
+        result = subprocess.run(
+            ["ansible-inventory", "-i", inventory_path, "--list"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0:
+            logger.error(f"Error loading inventory: {result.stderr}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to load Ansible inventory",
+            )
+
+        inventory_data = json.loads(result.stdout)
+        all_hosts = list(inventory_data.get("_meta", {}).get("hostvars", {}).keys())
+
+        # Filter hosts by pattern
+        if host_regex:
+            hosts_to_search = [h for h in all_hosts if host_regex.search(h)]
+        else:
+            hosts_to_search = all_hosts
+
+        results: List[SearchResultEntry] = []
+        hosts_searched = len(hosts_to_search)
+
+        for host in hosts_to_search:
+            if len(results) >= limit:
+                break
+
+            # Search hostvars
+            if source in (None, "hostvars"):
+                try:
+                    hostvar_result = subprocess.run(
+                        ["ansible-inventory", "-i", inventory_path, "--host", host],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if hostvar_result.returncode == 0:
+                        hostvars = json.loads(hostvar_result.stdout)
+                        for var_name, var_value in hostvars.items():
+                            if len(results) >= limit:
+                                break
+                            if name_regex.search(var_name):
+                                results.append(
+                                    SearchResultEntry(
+                                        host=host,
+                                        name=var_name,
+                                        value=var_value,
+                                        source="hostvars",
+                                    )
+                                )
+                except (subprocess.TimeoutExpired, json.JSONDecodeError):
+                    logger.warning(f"Failed to get hostvars for {host}")
+
+            # Search facts
+            if source in (None, "facts"):
+                facts_file = os.path.join(facts_cache_path, host)
+                if os.path.exists(facts_file):
+                    try:
+                        with open(facts_file) as f:
+                            facts_data = json.load(f)
+                        for fact_name, fact_value in facts_data.items():
+                            if len(results) >= limit:
+                                break
+                            if name_regex.search(fact_name):
+                                results.append(
+                                    SearchResultEntry(
+                                        host=host,
+                                        name=fact_name,
+                                        value=fact_value,
+                                        source="facts",
+                                    )
+                                )
+                    except (json.JSONDecodeError, IOError):
+                        logger.warning(f"Failed to read facts cache for {host}")
+
+        return SearchResponse(
+            results=results,
+            count=len(results),
+            hosts_searched=hosts_searched,
+            query={
+                "name_pattern": name_pattern,
+                "host_pattern": host_pattern,
+                "source": source,
+                "limit": limit,
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error searching inventory: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search inventory: {str(e)}",
         )

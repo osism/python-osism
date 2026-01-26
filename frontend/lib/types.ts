@@ -112,3 +112,23 @@ export interface FactSingleResponse {
   value: unknown;
   from_cache: boolean;
 }
+
+// Search-related types
+export interface SearchResultEntry {
+  host: string;
+  name: string;
+  value: unknown;
+  source: 'hostvars' | 'facts';
+}
+
+export interface SearchResponse {
+  results: SearchResultEntry[];
+  count: number;
+  hosts_searched: number;
+  query: {
+    name_pattern: string;
+    host_pattern: string | null;
+    source: string | null;
+    limit: number;
+  };
+}
