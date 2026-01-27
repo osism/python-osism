@@ -35,4 +35,4 @@ transitions==0.9.3
 uvicorn[standard]==0.40.0
 validators==0.35.0
 watchdog==6.0.0
-websockets==15.0.1
+websockets==16.0
