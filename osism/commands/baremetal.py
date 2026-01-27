@@ -1142,6 +1142,12 @@ class BaremetalPowerOff(Command):
             type=str,
             help="Power off given baremetal node",
         )
+        parser.add_argument(
+            "--hard",
+            default=False,
+            help="Hard power off, without graceful shutdown",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -1157,8 +1163,12 @@ class BaremetalPowerOff(Command):
             logger.warning(f"Could not find node {name}")
             return
 
+        power_state = "power off"
+        if not parsed_args.hard:
+            power_state = "soft " + power_state
+
         try:
-            conn.baremetal.set_node_power_state(node.id, "power off")
+            conn.baremetal.set_node_power_state(node.id, power_state)
             logger.info(f"Successfully powered off node {node.name} ({node.id})")
         except Exception as exc:
             logger.error(f"Failed to power off node {node.name} ({node.id}): {exc}")
