@@ -1142,10 +1142,17 @@ class BaremetalPowerOff(Command):
             type=str,
             help="Power off given baremetal node",
         )
+        parser.add_argument(
+            "--soft",
+            default=False,
+            action="store_true",
+            help="Request graceful power-off",
+        )
         return parser
 
     def take_action(self, parsed_args):
         name = parsed_args.name
+        soft = parsed_args.soft
 
         if not name:
             logger.error("Please specify a node name")
@@ -1157,9 +1164,12 @@ class BaremetalPowerOff(Command):
             logger.warning(f"Could not find node {name}")
             return
 
+        target = "soft power off" if soft else "power off"
+
         try:
-            conn.baremetal.set_node_power_state(node.id, "power off")
-            logger.info(f"Successfully powered off node {node.name} ({node.id})")
+            conn.baremetal.set_node_power_state(node.id, target)
+            action = "soft powered off" if soft else "powered off"
+            logger.info(f"Successfully {action} node {node.name} ({node.id})")
         except Exception as exc:
             logger.error(f"Failed to power off node {node.name} ({node.id}): {exc}")
 
