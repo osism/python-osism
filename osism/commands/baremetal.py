@@ -14,7 +14,7 @@ import json
 import yaml
 from openstack.baremetal import configdrive as configdrive_builder
 
-from osism.commands import get_cloud_connection
+from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
 from osism import utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
 from osism.tasks import netbox
@@ -24,6 +24,12 @@ from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
 class BaremetalList(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalList, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "--provision-state",
             default=None,
@@ -40,73 +46,88 @@ class BaremetalList(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         provision_state = parsed_args.provision_state
         maintenance = parsed_args.maintenance
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        query = {}
-        if provision_state:
-            query.update(dict(provision_state=provision_state))
-        if maintenance:
-            query.update(dict(maintenance=maintenance))
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        baremetal = conn.baremetal.nodes(**query)
+            query = {}
+            if provision_state:
+                query.update(dict(provision_state=provision_state))
+            if maintenance:
+                query.update(dict(maintenance=maintenance))
 
-        result = []
-        for b in baremetal:
-            # Get device role from NetBox
-            device_role = "N/A"
-            if utils.nb:
-                try:
-                    # Try to find device by name first
-                    device = utils.nb.dcim.devices.get(name=b["name"])
+            baremetal = conn.baremetal.nodes(**query)
 
-                    # If not found by name, try by inventory_hostname custom field
-                    if not device:
-                        devices = utils.nb.dcim.devices.filter(
-                            cf_inventory_hostname=b["name"]
-                        )
-                        if devices:
-                            device = list(devices)[0]
+            result = []
+            for b in baremetal:
+                # Get device role from NetBox
+                device_role = "N/A"
+                if utils.nb:
+                    try:
+                        # Try to find device by name first
+                        device = utils.nb.dcim.devices.get(name=b["name"])
 
-                    # Get device role
-                    if device and device.role and hasattr(device.role, "name"):
-                        device_role = device.role.name
-                except Exception as e:
-                    logger.debug(f"Could not get device role for {b['name']}: {e}")
+                        # If not found by name, try by inventory_hostname custom field
+                        if not device:
+                            devices = utils.nb.dcim.devices.filter(
+                                cf_inventory_hostname=b["name"]
+                            )
+                            if devices:
+                                device = list(devices)[0]
 
-            result.append(
-                [
-                    b["name"],
-                    device_role,
-                    b["power_state"] if b["power_state"] is not None else "n/a",
-                    b["provision_state"],
-                    b["maintenance"],
-                ]
+                        # Get device role
+                        if device and device.role and hasattr(device.role, "name"):
+                            device_role = device.role.name
+                    except Exception as e:
+                        logger.debug(f"Could not get device role for {b['name']}: {e}")
+
+                result.append(
+                    [
+                        b["name"],
+                        device_role,
+                        b["power_state"] if b["power_state"] is not None else "n/a",
+                        b["provision_state"],
+                        b["maintenance"],
+                    ]
+                )
+
+            result.sort(key=lambda x: x[0])
+
+            print(
+                tabulate(
+                    result,
+                    headers=[
+                        "Name",
+                        "Device Role",
+                        "Power State",
+                        "Provision State",
+                        "Maintenance",
+                    ],
+                    tablefmt="psql",
+                )
             )
-
-        result.sort(key=lambda x: x[0])
-
-        print(
-            tabulate(
-                result,
-                headers=[
-                    "Name",
-                    "Device Role",
-                    "Power State",
-                    "Provision State",
-                    "Maintenance",
-                ],
-                tablefmt="psql",
-            )
-        )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalDeploy(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalDeploy, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -134,6 +155,7 @@ class BaremetalDeploy(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         all_nodes = parsed_args.all
         name = parsed_args.name
         rebuild = parsed_args.rebuild
@@ -149,169 +171,187 @@ class BaremetalDeploy(Command):
             )
             return
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        if all_nodes:
-            deploy_nodes = list(conn.baremetal.nodes(details=True))
-        else:
-            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-            if not node:
-                logger.warning(f"Could not find node {name}")
-                return
-            deploy_nodes = [node]
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        for node in deploy_nodes:
-            if not node:
-                continue
-
-            if (
-                node.provision_state in ["available", "deploy failed"]
-                and not node["maintenance"]
-            ):
-                provision_state = "active"
-            elif (
-                node.provision_state == "error"
-                or node.provision_state == "active"
-                and not node["maintenance"]
-                and rebuild
-            ):
-                provision_state = "rebuild"
+            if all_nodes:
+                deploy_nodes = list(conn.baremetal.nodes(details=True))
             else:
-                logger.warning(
-                    f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
-                )
-                continue
+                node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+                if not node:
+                    logger.warning(f"Could not find node {name}")
+                    return
+                deploy_nodes = [node]
 
-            # NOTE: Ironic removes "instance_info" on undeploy. It was saved to "extra" during sync and needs to be refreshed here.
-            if (
-                "instance_info" in node
-                and not node["instance_info"]
-                and "instance_info" in node["extra"]
-                and node["extra"]["instance_info"]
-            ):
-                node = conn.baremetal.update_node(
-                    node, instance_info=json.loads(node.extra["instance_info"])
-                )
+            for node in deploy_nodes:
+                if not node:
+                    continue
 
-            try:
-                conn.baremetal.validate_node(
-                    node.id, required=("boot", "deploy", "power")
-                )
-            except openstack.exceptions.ValidationException:
-                logger.warning(f"Node {node.name} ({node.id}) could not be validated")
-                continue
-            # NOTE: Prepare osism config drive
-            try:
-                # Get default vars from NetBox local_context_data if available
-                default_vars = {}
-                if utils.nb:
-                    try:
-                        # Try to find device by name first
-                        device = utils.nb.dcim.devices.get(name=node.name)
-
-                        # If not found by name, try by inventory_hostname custom field
-                        if not device:
-                            devices = utils.nb.dcim.devices.filter(
-                                cf_inventory_hostname=node.name
-                            )
-                            if devices:
-                                device = devices[0]
-
-                        # Extract local_context_data if device found and has the field
-                        if (
-                            device
-                            and hasattr(device, "local_context_data")
-                            and device.local_context_data
-                        ):
-                            default_vars = device.local_context_data
-                            logger.info(
-                                f"Using NetBox local_context_data for node {node.name}"
-                            )
-                        else:
-                            logger.debug(
-                                f"No local_context_data found for node {node.name} in NetBox"
-                            )
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to fetch NetBox data for node {node.name}: {e}"
-                        )
-
-                playbook = []
-                play = {
-                    "name": "Run bootstrap",
-                    "hosts": "localhost",
-                    "connection": "local",
-                    "gather_facts": True,
-                    "vars": default_vars.copy(),
-                    "roles": [
-                        "osism.commons.hostname",
-                        "osism.commons.hosts",
-                        "osism.commons.operator",
-                    ],
-                    "tasks": [
-                        {
-                            "name": "Restart rsyslog service after hostname change",
-                            "ansible.builtin.systemd": {
-                                "name": "rsyslog",
-                                "state": "restarted",
-                            },
-                        }
-                    ],
-                }
-                play["vars"].update(
-                    {"hostname_name": node.name, "hosts_type": "template"}
-                )
                 if (
-                    "netplan_parameters" in node.extra
-                    and node.extra["netplan_parameters"]
+                    node.provision_state in ["available", "deploy failed"]
+                    and not node["maintenance"]
                 ):
-                    play["vars"].update(
-                        {
-                            "network_allow_service_restart": True,
-                        }
+                    provision_state = "active"
+                elif (
+                    node.provision_state == "error"
+                    or node.provision_state == "active"
+                    and not node["maintenance"]
+                    and rebuild
+                ):
+                    provision_state = "rebuild"
+                else:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
                     )
-                    play["vars"].update(json.loads(node.extra["netplan_parameters"]))
-                    play["roles"].append("osism.commons.network")
-                if "frr_parameters" in node.extra and node.extra["frr_parameters"]:
-                    play["vars"].update(
-                        {
-                            "frr_dummy_interface": "loopback0",
-                        }
+                    continue
+
+                # NOTE: Ironic removes "instance_info" on undeploy. It was saved to "extra" during sync and needs to be refreshed here.
+                if (
+                    "instance_info" in node
+                    and not node["instance_info"]
+                    and "instance_info" in node["extra"]
+                    and node["extra"]["instance_info"]
+                ):
+                    node = conn.baremetal.update_node(
+                        node, instance_info=json.loads(node.extra["instance_info"])
                     )
-                    play["vars"].update(json.loads(node.extra["frr_parameters"]))
-                    play["roles"].append("osism.services.frr")
-                playbook.append(play)
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    with open(os.path.join(tmp_dir, "playbook.yml"), "w") as file:
-                        yaml.dump(
-                            playbook,
-                            file,
-                            default_flow_style=False,
-                            explicit_start=True,
-                            indent=2,
-                            sort_keys=False,
+
+                try:
+                    conn.baremetal.validate_node(
+                        node.id, required=("boot", "deploy", "power")
+                    )
+                except openstack.exceptions.ValidationException:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) could not be validated"
+                    )
+                    continue
+                # NOTE: Prepare osism config drive
+                try:
+                    # Get default vars from NetBox local_context_data if available
+                    default_vars = {}
+                    if utils.nb:
+                        try:
+                            # Try to find device by name first
+                            device = utils.nb.dcim.devices.get(name=node.name)
+
+                            # If not found by name, try by inventory_hostname custom field
+                            if not device:
+                                devices = utils.nb.dcim.devices.filter(
+                                    cf_inventory_hostname=node.name
+                                )
+                                if devices:
+                                    device = devices[0]
+
+                            # Extract local_context_data if device found and has the field
+                            if (
+                                device
+                                and hasattr(device, "local_context_data")
+                                and device.local_context_data
+                            ):
+                                default_vars = device.local_context_data
+                                logger.info(
+                                    f"Using NetBox local_context_data for node {node.name}"
+                                )
+                            else:
+                                logger.debug(
+                                    f"No local_context_data found for node {node.name} in NetBox"
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to fetch NetBox data for node {node.name}: {e}"
+                            )
+
+                    playbook = []
+                    play = {
+                        "name": "Run bootstrap",
+                        "hosts": "localhost",
+                        "connection": "local",
+                        "gather_facts": True,
+                        "vars": default_vars.copy(),
+                        "roles": [
+                            "osism.commons.hostname",
+                            "osism.commons.hosts",
+                            "osism.commons.operator",
+                        ],
+                        "tasks": [
+                            {
+                                "name": "Restart rsyslog service after hostname change",
+                                "ansible.builtin.systemd": {
+                                    "name": "rsyslog",
+                                    "state": "restarted",
+                                },
+                            }
+                        ],
+                    }
+                    play["vars"].update(
+                        {"hostname_name": node.name, "hosts_type": "template"}
+                    )
+                    if (
+                        "netplan_parameters" in node.extra
+                        and node.extra["netplan_parameters"]
+                    ):
+                        play["vars"].update(
+                            {
+                                "network_allow_service_restart": True,
+                            }
                         )
-                    config_drive = configdrive_builder.pack(tmp_dir)
-            except Exception as exc:
-                logger.warning(
-                    f"Failed to build config drive for {node.name} ({node.id}): {exc}"
-                )
-                continue
-            try:
-                conn.baremetal.set_node_provision_state(
-                    node.id, provision_state, config_drive=config_drive
-                )
-            except Exception as exc:
-                logger.warning(
-                    f"Node {node.name} ({node.id}) could not be moved to active state: {exc}"
-                )
-                continue
+                        play["vars"].update(
+                            json.loads(node.extra["netplan_parameters"])
+                        )
+                        play["roles"].append("osism.commons.network")
+                    if "frr_parameters" in node.extra and node.extra["frr_parameters"]:
+                        play["vars"].update(
+                            {
+                                "frr_dummy_interface": "loopback0",
+                            }
+                        )
+                        play["vars"].update(json.loads(node.extra["frr_parameters"]))
+                        play["roles"].append("osism.services.frr")
+                    playbook.append(play)
+                    with tempfile.TemporaryDirectory() as tmp_dir:
+                        with open(os.path.join(tmp_dir, "playbook.yml"), "w") as file:
+                            yaml.dump(
+                                playbook,
+                                file,
+                                default_flow_style=False,
+                                explicit_start=True,
+                                indent=2,
+                                sort_keys=False,
+                            )
+                        config_drive = configdrive_builder.pack(tmp_dir)
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to build config drive for {node.name} ({node.id}): {exc}"
+                    )
+                    continue
+                try:
+                    conn.baremetal.set_node_provision_state(
+                        node.id, provision_state, config_drive=config_drive
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) could not be moved to active state: {exc}"
+                    )
+                    continue
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalDump(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalDump, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             type=str,
@@ -326,13 +366,19 @@ class BaremetalDump(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         name = parsed_args.name
         use_ironic = parsed_args.ironic
 
-        try:
-            if use_ironic:
-                # Fetch data from Ironic (shows actual deployment state)
-                conn = get_cloud_connection()
+        if use_ironic:
+            # Fetch data from Ironic (shows actual deployment state)
+            temp_files, original_cwd, success = setup_cloud_environment(cloud)
+            if not success:
+                logger.error(f"Failed to setup cloud environment for '{cloud}'")
+                return 1
+
+            try:
+                conn = openstack.connect(cloud=cloud)
                 node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
 
                 if not node:
@@ -434,13 +480,18 @@ class BaremetalDump(Command):
                         sort_keys=False,
                     )
                 )
-            else:
-                # Fetch data from NetBox (default behavior, may show newer data)
-                # Check if NetBox connection is available
-                if not utils.nb:
-                    logger.error("NetBox connection not available")
-                    return
+            except Exception as exc:
+                logger.error(f"Failed to generate playbook for {name}: {exc}")
+            finally:
+                cleanup_cloud_environment(temp_files, original_cwd)
+        else:
+            # Fetch data from NetBox (default behavior, may show newer data)
+            # Check if NetBox connection is available
+            if not utils.nb:
+                logger.error("NetBox connection not available")
+                return
 
+            try:
                 # Try to find device by name first
                 device = utils.nb.dcim.devices.get(name=name)
 
@@ -531,14 +582,20 @@ class BaremetalDump(Command):
                         sort_keys=False,
                     )
                 )
-        except Exception as exc:
-            logger.error(f"Failed to generate playbook for {name}: {exc}")
+            except Exception as exc:
+                logger.error(f"Failed to generate playbook for {name}: {exc}")
 
 
 class BaremetalUndeploy(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalUndeploy, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -560,6 +617,7 @@ class BaremetalUndeploy(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         all_nodes = parsed_args.all
         name = parsed_args.name
         yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
@@ -574,59 +632,79 @@ class BaremetalUndeploy(Command):
             )
             return
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        if all_nodes:
-            deploy_nodes = list(conn.baremetal.nodes())
-        else:
-            node = conn.baremetal.find_node(name, ignore_missing=True, details=False)
-            if not node:
-                logger.warning(f"Could not find node {name}")
-                return
-            deploy_nodes = [node]
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        for node in deploy_nodes:
-            if not node:
-                continue
-
-            if node.provision_state in [
-                "active",
-                "wait call-back",
-                "deploy failed",
-                "error",
-            ]:
-                try:
-                    node = conn.baremetal.set_node_provision_state(node.id, "undeploy")
-                    logger.info(
-                        f"Successfully initiated undeploy for node {node.name} ({node.id})"
-                    )
-
-                    # Clean up SSH known_hosts entries for the undeployed node
-                    logger.info(f"Cleaning up SSH known_hosts entries for {node.name}")
-                    result = cleanup_ssh_known_hosts_for_node(node.name)
-                    if result:
-                        logger.info(
-                            f"SSH known_hosts cleanup completed successfully for {node.name}"
-                        )
-                    else:
-                        logger.warning(
-                            f"SSH known_hosts cleanup completed with warnings for {node.name}"
-                        )
-
-                except Exception as exc:
-                    logger.warning(
-                        f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
-                    )
-                    continue
+            if all_nodes:
+                deploy_nodes = list(conn.baremetal.nodes())
             else:
-                logger.warning(
-                    f"Node {node.name} ({node.id}) not in supported provision state"
+                node = conn.baremetal.find_node(
+                    name, ignore_missing=True, details=False
                 )
+                if not node:
+                    logger.warning(f"Could not find node {name}")
+                    return
+                deploy_nodes = [node]
+
+            for node in deploy_nodes:
+                if not node:
+                    continue
+
+                if node.provision_state in [
+                    "active",
+                    "wait call-back",
+                    "deploy failed",
+                    "error",
+                ]:
+                    try:
+                        node = conn.baremetal.set_node_provision_state(
+                            node.id, "undeploy"
+                        )
+                        logger.info(
+                            f"Successfully initiated undeploy for node {node.name} ({node.id})"
+                        )
+
+                        # Clean up SSH known_hosts entries for the undeployed node
+                        logger.info(
+                            f"Cleaning up SSH known_hosts entries for {node.name}"
+                        )
+                        result = cleanup_ssh_known_hosts_for_node(node.name)
+                        if result:
+                            logger.info(
+                                f"SSH known_hosts cleanup completed successfully for {node.name}"
+                            )
+                        else:
+                            logger.warning(
+                                f"SSH known_hosts cleanup completed with warnings for {node.name}"
+                            )
+
+                    except Exception as exc:
+                        logger.warning(
+                            f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
+                        )
+                        continue
+                else:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) not in supported provision state"
+                    )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalPing(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalPing, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -690,8 +768,6 @@ class BaremetalPing(Command):
         if not utils.nb:
             logger.error("NetBox connection not available")
             return
-
-        conn = get_cloud_connection()
 
         try:
             if name:
@@ -792,6 +868,12 @@ class BaremetalBurnIn(Command):
         parser = super(BaremetalBurnIn, self).get_parser(prog_name)
 
         parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
+        parser.add_argument(
             "name",
             nargs="?",
             type=str,
@@ -824,6 +906,7 @@ class BaremetalBurnIn(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         all_nodes = parsed_args.all
         name = parsed_args.name
 
@@ -846,55 +929,71 @@ class BaremetalBurnIn(Command):
             )
             return
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        if all_nodes:
-            burn_in_nodes = list(conn.baremetal.nodes(details=True))
-        else:
-            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-            if not node:
-                logger.warning(f"Could not find node {name}")
-                return
-            burn_in_nodes = [node]
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        for node in burn_in_nodes:
-            if not node:
-                continue
-
-            if node.provision_state in ["available"]:
-                # NOTE: Burn-In is available in the "manageable" provision state, so we move the node into this state
-                try:
-                    node = conn.baremetal.set_node_provision_state(node.id, "manage")
-                    node = conn.baremetal.wait_for_nodes_provision_state(
-                        [node.id], "manageable"
-                    )[0]
-                except Exception as exc:
-                    logger.warning(
-                        f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
-                    )
-                    continue
-
-            if node.provision_state in ["manageable"]:
-                try:
-                    conn.baremetal.set_node_provision_state(
-                        node.id, "clean", clean_steps=clean_steps
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        f"Burn-In of node {node.name} ({node.id}) failed: {exc}"
-                    )
-                    continue
+            if all_nodes:
+                burn_in_nodes = list(conn.baremetal.nodes(details=True))
             else:
-                logger.warning(
-                    f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
-                )
-                continue
+                node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+                if not node:
+                    logger.warning(f"Could not find node {name}")
+                    return
+                burn_in_nodes = [node]
+
+            for node in burn_in_nodes:
+                if not node:
+                    continue
+
+                if node.provision_state in ["available"]:
+                    # NOTE: Burn-In is available in the "manageable" provision state, so we move the node into this state
+                    try:
+                        node = conn.baremetal.set_node_provision_state(
+                            node.id, "manage"
+                        )
+                        node = conn.baremetal.wait_for_nodes_provision_state(
+                            [node.id], "manageable"
+                        )[0]
+                    except Exception as exc:
+                        logger.warning(
+                            f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
+                        )
+                        continue
+
+                if node.provision_state in ["manageable"]:
+                    try:
+                        conn.baremetal.set_node_provision_state(
+                            node.id, "clean", clean_steps=clean_steps
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Burn-In of node {node.name} ({node.id}) failed: {exc}"
+                        )
+                        continue
+                else:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
+                    )
+                    continue
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalClean(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalClean, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -916,6 +1015,7 @@ class BaremetalClean(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         all_nodes = parsed_args.all
         name = parsed_args.name
         yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
@@ -932,57 +1032,73 @@ class BaremetalClean(Command):
 
         clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        if all_nodes:
-            clean_nodes = list(conn.baremetal.nodes(details=True))
-        else:
-            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-            if not node:
-                logger.warning(f"Could not find node {name}")
-                return
-            clean_nodes = [node]
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        for node in clean_nodes:
-            if not node:
-                continue
-
-            if node.provision_state in ["available"]:
-                # NOTE: Clean is available in the "manageable" provision state, so we move the node into this state
-                try:
-                    node = conn.baremetal.set_node_provision_state(node.id, "manage")
-                    node = conn.baremetal.wait_for_nodes_provision_state(
-                        [node.id], "manageable"
-                    )[0]
-                except Exception as exc:
-                    logger.warning(
-                        f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
-                    )
-                    continue
-
-            if node.provision_state in ["manageable"]:
-                try:
-                    conn.baremetal.set_node_provision_state(
-                        node.id, "clean", clean_steps=clean_steps
-                    )
-                    logger.info(
-                        f"Successfully initiated clean for node {node.name} ({node.id})"
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        f"Clean of node {node.name} ({node.id}) failed: {exc}"
-                    )
-                    continue
+            if all_nodes:
+                clean_nodes = list(conn.baremetal.nodes(details=True))
             else:
-                logger.warning(
-                    f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
-                )
+                node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+                if not node:
+                    logger.warning(f"Could not find node {name}")
+                    return
+                clean_nodes = [node]
+
+            for node in clean_nodes:
+                if not node:
+                    continue
+
+                if node.provision_state in ["available"]:
+                    # NOTE: Clean is available in the "manageable" provision state, so we move the node into this state
+                    try:
+                        node = conn.baremetal.set_node_provision_state(
+                            node.id, "manage"
+                        )
+                        node = conn.baremetal.wait_for_nodes_provision_state(
+                            [node.id], "manageable"
+                        )[0]
+                    except Exception as exc:
+                        logger.warning(
+                            f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
+                        )
+                        continue
+
+                if node.provision_state in ["manageable"]:
+                    try:
+                        conn.baremetal.set_node_provision_state(
+                            node.id, "clean", clean_steps=clean_steps
+                        )
+                        logger.info(
+                            f"Successfully initiated clean for node {node.name} ({node.id})"
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Clean of node {node.name} ({node.id}) failed: {exc}"
+                        )
+                        continue
+                else:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
+                    )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalProvide(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalProvide, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -998,6 +1114,7 @@ class BaremetalProvide(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         all_nodes = parsed_args.all
         name = parsed_args.name
 
@@ -1005,42 +1122,56 @@ class BaremetalProvide(Command):
             logger.error("Please specify a node name or use --all")
             return
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        if all_nodes:
-            provide_nodes = list(conn.baremetal.nodes(details=True))
-        else:
-            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-            if not node:
-                logger.warning(f"Could not find node {name}")
-                return
-            provide_nodes = [node]
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        for node in provide_nodes:
-            if not node:
-                continue
-
-            if node.provision_state == "manageable" and not node["maintenance"]:
-                try:
-                    conn.baremetal.set_node_provision_state(node.id, "provide")
-                    logger.info(
-                        f"Successfully initiated provide for node {node.name} ({node.id})"
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
-                    )
-                    continue
+            if all_nodes:
+                provide_nodes = list(conn.baremetal.nodes(details=True))
             else:
-                logger.warning(
-                    f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
-                )
+                node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+                if not node:
+                    logger.warning(f"Could not find node {name}")
+                    return
+                provide_nodes = [node]
+
+            for node in provide_nodes:
+                if not node:
+                    continue
+
+                if node.provision_state == "manageable" and not node["maintenance"]:
+                    try:
+                        conn.baremetal.set_node_provision_state(node.id, "provide")
+                        logger.info(
+                            f"Successfully initiated provide for node {node.name} ({node.id})"
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
+                        )
+                        continue
+                else:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
+                    )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalMaintenanceSet(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalMaintenanceSet, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -1056,26 +1187,41 @@ class BaremetalMaintenanceSet(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         name = parsed_args.name
         reason = parsed_args.reason
 
-        conn = get_cloud_connection()
-        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-        if not node:
-            logger.warning(f"Could not find node {name}")
-            return
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
+
         try:
-            conn.baremetal.set_node_maintenance(node, reason=reason)
-        except Exception as exc:
-            logger.error(
-                f"Setting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
-            )
+            conn = openstack.connect(cloud=cloud)
+            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+            if not node:
+                logger.warning(f"Could not find node {name}")
+                return
+            try:
+                conn.baremetal.set_node_maintenance(node, reason=reason)
+            except Exception as exc:
+                logger.error(
+                    f"Setting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
+                )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalMaintenanceUnset(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalMaintenanceUnset, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -1085,25 +1231,40 @@ class BaremetalMaintenanceUnset(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         name = parsed_args.name
 
-        conn = get_cloud_connection()
-        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-        if not node:
-            logger.warning(f"Could not find node {name}")
-            return
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
+
         try:
-            conn.baremetal.unset_node_maintenance(node)
-        except Exception as exc:
-            logger.error(
-                f"Unsetting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
-            )
+            conn = openstack.connect(cloud=cloud)
+            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+            if not node:
+                logger.warning(f"Could not find node {name}")
+                return
+            try:
+                conn.baremetal.unset_node_maintenance(node)
+            except Exception as exc:
+                logger.error(
+                    f"Unsetting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
+                )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalPowerOn(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalPowerOn, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -1113,29 +1274,44 @@ class BaremetalPowerOn(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         name = parsed_args.name
 
         if not name:
             logger.error("Please specify a node name")
             return
 
-        conn = get_cloud_connection()
-        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-        if not node:
-            logger.warning(f"Could not find node {name}")
-            return
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
         try:
-            conn.baremetal.set_node_power_state(node.id, "power on")
-            logger.info(f"Successfully powered on node {node.name} ({node.id})")
-        except Exception as exc:
-            logger.error(f"Failed to power on node {node.name} ({node.id}): {exc}")
+            conn = openstack.connect(cloud=cloud)
+            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+            if not node:
+                logger.warning(f"Could not find node {name}")
+                return
+
+            try:
+                conn.baremetal.set_node_power_state(node.id, "power on")
+                logger.info(f"Successfully powered on node {node.name} ({node.id})")
+            except Exception as exc:
+                logger.error(f"Failed to power on node {node.name} ({node.id}): {exc}")
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalPowerOff(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalPowerOff, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -1151,6 +1327,7 @@ class BaremetalPowerOff(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         name = parsed_args.name
         soft = parsed_args.soft
 
@@ -1158,26 +1335,40 @@ class BaremetalPowerOff(Command):
             logger.error("Please specify a node name")
             return
 
-        conn = get_cloud_connection()
-        node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
-        if not node:
-            logger.warning(f"Could not find node {name}")
-            return
-
-        target = "soft power off" if soft else "power off"
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
         try:
-            conn.baremetal.set_node_power_state(node.id, target)
-            action = "soft powered off" if soft else "powered off"
-            logger.info(f"Successfully {action} node {node.name} ({node.id})")
-        except Exception as exc:
-            logger.error(f"Failed to power off node {node.name} ({node.id}): {exc}")
+            conn = openstack.connect(cloud=cloud)
+            node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
+            if not node:
+                logger.warning(f"Could not find node {name}")
+                return
+
+            target = "soft power off" if soft else "power off"
+
+            try:
+                conn.baremetal.set_node_power_state(node.id, target)
+                action = "soft powered off" if soft else "powered off"
+                logger.info(f"Successfully {action} node {node.name} ({node.id})")
+            except Exception as exc:
+                logger.error(f"Failed to power off node {node.name} ({node.id}): {exc}")
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class BaremetalDelete(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalDelete, self).get_parser(prog_name)
 
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "name",
             nargs="?",
@@ -1199,6 +1390,7 @@ class BaremetalDelete(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         all_nodes = parsed_args.all
         name = parsed_args.name
         yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
@@ -1213,89 +1405,101 @@ class BaremetalDelete(Command):
             )
             return
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        if all_nodes:
-            delete_nodes = list(conn.baremetal.nodes())
-        else:
-            node = conn.baremetal.find_node(name, ignore_missing=True, details=False)
-            if not node:
-                logger.warning(f"Could not find node {name}")
-                return
-            delete_nodes = [node]
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        for node in delete_nodes:
-            if not node:
-                continue
-
-            try:
-                # Delete ports first (safe deletion pattern)
-                logger.info(f"Deleting ports for node {node.name} ({node.id})")
-                ports = conn.baremetal.ports(node_uuid=node.id)
-                for port in ports:
-                    try:
-                        conn.baremetal.delete_port(port.id, ignore_missing=True)
-                        logger.debug(f"Deleted port {port.id} for node {node.name}")
-                    except Exception as exc:
-                        logger.warning(
-                            f"Failed to delete port {port.id} for node {node.name}: {exc}"
-                        )
-
-                # Delete the node from Ironic
-                logger.info(f"Deleting node {node.name} ({node.id}) from Ironic")
-                conn.baremetal.delete_node(node.id, ignore_missing=True)
-                logger.info(
-                    f"Successfully deleted node {node.name} ({node.id}) from Ironic"
+            if all_nodes:
+                delete_nodes = list(conn.baremetal.nodes())
+            else:
+                node = conn.baremetal.find_node(
+                    name, ignore_missing=True, details=False
                 )
+                if not node:
+                    logger.warning(f"Could not find node {name}")
+                    return
+                delete_nodes = [node]
 
-                # Clear NetBox states after successful Ironic deletion
-                if utils.nb:
-                    logger.info(
-                        f"Clearing NetBox states for node {node.name} on primary NetBox"
-                    )
-                    try:
-                        device = utils.nb.dcim.devices.get(name=node.name)
-                        if device:
-                            device.custom_fields.update(
-                                {"provision_state": None, "power_state": None}
-                            )
-                            device.save()
-                            logger.info(
-                                f"Successfully cleared NetBox states for {node.name}"
-                            )
-                        else:
+            for node in delete_nodes:
+                if not node:
+                    continue
+
+                try:
+                    # Delete ports first (safe deletion pattern)
+                    logger.info(f"Deleting ports for node {node.name} ({node.id})")
+                    ports = conn.baremetal.ports(node_uuid=node.id)
+                    for port in ports:
+                        try:
+                            conn.baremetal.delete_port(port.id, ignore_missing=True)
+                            logger.debug(f"Deleted port {port.id} for node {node.name}")
+                        except Exception as exc:
                             logger.warning(
-                                f"Device {node.name} not found in primary NetBox"
+                                f"Failed to delete port {port.id} for node {node.name}: {exc}"
                             )
-                    except Exception as exc:
-                        logger.warning(
-                            f"Failed to clear NetBox states for {node.name} on primary NetBox: {exc}"
-                        )
 
-                # Clear NetBox states on secondary instances
-                for secondary_nb in utils.secondary_nb_list:
+                    # Delete the node from Ironic
+                    logger.info(f"Deleting node {node.name} ({node.id}) from Ironic")
+                    conn.baremetal.delete_node(node.id, ignore_missing=True)
                     logger.info(
-                        f"Clearing NetBox states for node {node.name} on secondary NetBox {secondary_nb.base_url}"
+                        f"Successfully deleted node {node.name} ({node.id}) from Ironic"
                     )
-                    try:
-                        device = secondary_nb.dcim.devices.get(name=node.name)
-                        if device:
-                            device.custom_fields.update(
-                                {"provision_state": None, "power_state": None}
-                            )
-                            device.save()
-                            logger.info(
-                                f"Successfully cleared NetBox states for {node.name} on {secondary_nb.base_url}"
-                            )
-                        else:
-                            logger.warning(
-                                f"Device {node.name} not found in secondary NetBox {secondary_nb.base_url}"
-                            )
-                    except Exception as exc:
-                        logger.warning(
-                            f"Failed to clear NetBox states for {node.name} on {secondary_nb.base_url}: {exc}"
-                        )
 
-            except Exception as exc:
-                logger.error(f"Failed to delete node {node.name} ({node.id}): {exc}")
-                continue
+                    # Clear NetBox states after successful Ironic deletion
+                    if utils.nb:
+                        logger.info(
+                            f"Clearing NetBox states for node {node.name} on primary NetBox"
+                        )
+                        try:
+                            device = utils.nb.dcim.devices.get(name=node.name)
+                            if device:
+                                device.custom_fields.update(
+                                    {"provision_state": None, "power_state": None}
+                                )
+                                device.save()
+                                logger.info(
+                                    f"Successfully cleared NetBox states for {node.name}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"Device {node.name} not found in primary NetBox"
+                                )
+                        except Exception as exc:
+                            logger.warning(
+                                f"Failed to clear NetBox states for {node.name} on primary NetBox: {exc}"
+                            )
+
+                    # Clear NetBox states on secondary instances
+                    for secondary_nb in utils.secondary_nb_list:
+                        logger.info(
+                            f"Clearing NetBox states for node {node.name} on secondary NetBox {secondary_nb.base_url}"
+                        )
+                        try:
+                            device = secondary_nb.dcim.devices.get(name=node.name)
+                            if device:
+                                device.custom_fields.update(
+                                    {"provision_state": None, "power_state": None}
+                                )
+                                device.save()
+                                logger.info(
+                                    f"Successfully cleared NetBox states for {node.name} on {secondary_nb.base_url}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"Device {node.name} not found in secondary NetBox {secondary_nb.base_url}"
+                                )
+                        except Exception as exc:
+                            logger.warning(
+                                f"Failed to clear NetBox states for {node.name} on {secondary_nb.base_url}: {exc}"
+                            )
+
+                except Exception as exc:
+                    logger.error(
+                        f"Failed to delete node {node.name} ({node.id}): {exc}"
+                    )
+                    continue
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)

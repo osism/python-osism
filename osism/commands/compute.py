@@ -10,12 +10,18 @@ import openstack
 from tabulate import tabulate
 from prompt_toolkit import prompt
 
-from osism.commands import get_cloud_connection, get_cloud_project
+from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
 
 
 class ComputeEnable(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeEnable, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "host",
             nargs=1,
@@ -25,41 +31,60 @@ class ComputeEnable(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         host = parsed_args.host[0]
-        conn = get_cloud_connection()
 
-        services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
-        service = next(services)
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        if service["forced_down"]:
-            logger.info(
-                f"Remove force down from nova-compute binary @ {host} ({service.id})"
+        try:
+            conn = openstack.connect(cloud=cloud)
+
+            services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
+            service = next(services)
+
+            if service["forced_down"]:
+                logger.info(
+                    f"Remove force down from nova-compute binary @ {host} ({service.id})"
+                )
+
+                try:
+                    conn.compute.update_service_forced_down(
+                        service=service.id,
+                        host=host,
+                        binary="nova-compute",
+                        forced=False,
+                    )
+                except openstack.exceptions.BadRequestException:
+                    logger.error(
+                        f"Unable to force up host {host} as `done` evacuation migration "
+                        "records remain associated with the host. Ensure the compute service "
+                        "has been restarted, allowing these records to move to `completed` "
+                        "before retrying this request."
+                    )
+                    return
+
+            logger.info(f"Enabling nova-compute binary @ {host} ({service.id})")
+            conn.compute.enable_service(
+                service=service.id,
+                host=host,
+                binary="nova-compute",
             )
-
-            try:
-                conn.compute.update_service_forced_down(
-                    service=service.id, host=host, binary="nova-compute", forced=False
-                )
-            except openstack.exceptions.BadRequestException:
-                logger.error(
-                    f"Unable to force up host {host} as `done` evacuation migration "
-                    "records remain associated with the host. Ensure the compute service "
-                    "has been restarted, allowing these records to move to `completed` "
-                    "before retrying this request."
-                )
-                return
-
-        logger.info(f"Enabling nova-compute binary @ {host} ({service.id})")
-        conn.compute.enable_service(
-            service=service.id,
-            host=host,
-            binary="nova-compute",
-        )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ComputeDisable(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeDisable, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "host",
             nargs=1,
@@ -69,23 +94,39 @@ class ComputeDisable(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         host = parsed_args.host[0]
-        conn = get_cloud_connection()
 
-        services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
-        service = next(services)
-        logger.info(f"Disabling nova-compute binary @ {host} ({service.id})")
-        conn.compute.disable_service(
-            service=service.id,
-            host=host,
-            binary="nova-compute",
-            disabled_reason="MAINTENANCE",
-        )
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
+
+        try:
+            conn = openstack.connect(cloud=cloud)
+
+            services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
+            service = next(services)
+            logger.info(f"Disabling nova-compute binary @ {host} ({service.id})")
+            conn.compute.disable_service(
+                service=service.id,
+                host=host,
+                binary="nova-compute",
+                disabled_reason="MAINTENANCE",
+            )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ComputeList(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeList, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "--project",
             default=None,
@@ -114,104 +155,120 @@ class ComputeList(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         host = parsed_args.host
-        conn = get_cloud_connection()
         domain = parsed_args.domain
         project = parsed_args.project
         details = parsed_args.details
 
-        result = []
-        if host:
-            for server in conn.compute.servers(all_projects=True, node=host):
-                if project and server.project_id == project:
-                    result.append([server.id, server.name, server.status])
-                elif domain:
-                    server_project = get_cloud_project(server.project_id)
-                    if server_project.domain_id == domain:
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
+
+        try:
+            conn = openstack.connect(cloud=cloud)
+
+            result = []
+            if host:
+                for server in conn.compute.servers(all_projects=True, node=host):
+                    if project and server.project_id == project:
                         result.append([server.id, server.name, server.status])
-                else:
-                    result.append([server.id, server.name, server.status])
-
-            print(
-                tabulate(
-                    result,
-                    headers=["ID", "Name", "Status"],
-                    tablefmt="psql",
-                )
-            )
-
-        else:
-            hypervisors = conn.compute.hypervisors(details=True)
-            if details:
-                for hypervisor in hypervisors:
-                    if hypervisor.get("uptime"):
-                        try:
-                            uptime = parse("uptime", hypervisor.get("uptime"))
-                        except:
-                            uptime = None
+                    elif domain:
+                        server_project = conn.identity.get_project(server.project_id)
+                        if server_project.domain_id == domain:
+                            result.append([server.id, server.name, server.status])
                     else:
-                        uptime = None
-
-                    if not uptime:
-                        uptime = {
-                            "uptime": "-",
-                            "load_1m": "-",
-                            "load_5m": "-",
-                            "load_15m": "-",
-                        }
-
-                    result.append(
-                        [
-                            hypervisor.get("id"),
-                            hypervisor.name,
-                            hypervisor.get("status"),
-                            hypervisor.get("state"),
-                            uptime["uptime"],
-                            uptime["load_1m"],
-                            uptime["load_5m"],
-                            uptime["load_15m"],
-                        ]
-                    )
+                        result.append([server.id, server.name, server.status])
 
                 print(
                     tabulate(
                         result,
-                        headers=[
-                            "ID",
-                            "Host",
-                            "Status",
-                            "State",
-                            "Uptime",
-                            "Load 1",
-                            "Load 5",
-                            "Load 15",
-                        ],
+                        headers=["ID", "Name", "Status"],
                         tablefmt="psql",
                     )
                 )
+
             else:
-                for hypervisor in hypervisors:
-                    result.append(
-                        [
-                            hypervisor.get("id"),
-                            hypervisor.name,
-                            hypervisor.get("status"),
-                            hypervisor.get("state"),
-                        ]
-                    )
+                hypervisors = conn.compute.hypervisors(details=True)
+                if details:
+                    for hypervisor in hypervisors:
+                        if hypervisor.get("uptime"):
+                            try:
+                                uptime = parse("uptime", hypervisor.get("uptime"))
+                            except:
+                                uptime = None
+                        else:
+                            uptime = None
 
-                print(
-                    tabulate(
-                        result,
-                        headers=["ID", "Host", "Status", "State"],
-                        tablefmt="psql",
+                        if not uptime:
+                            uptime = {
+                                "uptime": "-",
+                                "load_1m": "-",
+                                "load_5m": "-",
+                                "load_15m": "-",
+                            }
+
+                        result.append(
+                            [
+                                hypervisor.get("id"),
+                                hypervisor.name,
+                                hypervisor.get("status"),
+                                hypervisor.get("state"),
+                                uptime["uptime"],
+                                uptime["load_1m"],
+                                uptime["load_5m"],
+                                uptime["load_15m"],
+                            ]
+                        )
+
+                    print(
+                        tabulate(
+                            result,
+                            headers=[
+                                "ID",
+                                "Host",
+                                "Status",
+                                "State",
+                                "Uptime",
+                                "Load 1",
+                                "Load 5",
+                                "Load 15",
+                            ],
+                            tablefmt="psql",
+                        )
                     )
-                )
+                else:
+                    for hypervisor in hypervisors:
+                        result.append(
+                            [
+                                hypervisor.get("id"),
+                                hypervisor.name,
+                                hypervisor.get("status"),
+                                hypervisor.get("state"),
+                            ]
+                        )
+
+                    print(
+                        tabulate(
+                            result,
+                            headers=["ID", "Host", "Status", "State"],
+                            tablefmt="psql",
+                        )
+                    )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ComputeEvacuate(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeEvacuate, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "--yes",
             default=False,
@@ -233,87 +290,105 @@ class ComputeEvacuate(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         host = parsed_args.host[0]
         target = parsed_args.target
         yes = parsed_args.yes
-        conn = get_cloud_connection()
 
-        result = []
-        for server in conn.compute.servers(all_projects=True, node=host):
-            result.append([server.id, server.name, server.status])
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        if yes:
-            answer = "yes"
-        else:
-            answer = prompt(f"Evacuate all servers on host {host} [yes/no]: ")
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-        start = []
-        if answer in ["yes", "y"]:
-            for server in result:
-                if server[2] not in ["ACTIVE", "SHUTOFF"]:
-                    logger.info(
-                        f"{server[0]} ({server[1]}) in status {server[2]} cannot be evacuated"
-                    )
-                    continue
-                if server[2] in ["ACTIVE"]:
-                    logger.info(f"Stopping server {server[0]}")
-                    start.append(str(server[0]))
-                    conn.compute.stop_server(server[0])
+            result = []
+            for server in conn.compute.servers(all_projects=True, node=host):
+                result.append([server.id, server.name, server.status])
+
+            if yes:
+                answer = "yes"
+            else:
+                answer = prompt(f"Evacuate all servers on host {host} [yes/no]: ")
+
+            start = []
+            if answer in ["yes", "y"]:
+                for server in result:
+                    if server[2] not in ["ACTIVE", "SHUTOFF"]:
+                        logger.info(
+                            f"{server[0]} ({server[1]}) in status {server[2]} cannot be evacuated"
+                        )
+                        continue
+                    if server[2] in ["ACTIVE"]:
+                        logger.info(f"Stopping server {server[0]}")
+                        start.append(str(server[0]))
+                        conn.compute.stop_server(server[0])
+                        inner_wait = True
+                        while inner_wait:
+                            time.sleep(2)
+                            s = conn.compute.get_server(server[0])
+                            if s.status not in ["SHUTOFF"]:
+                                logger.info(
+                                    f"Stopping of {server[0]} ({server[1]}) is still in progress"
+                                )
+                                inner_wait = True
+                            else:
+                                inner_wait = False
+
+                services = conn.compute.services(
+                    **{"host": host, "binary": "nova-compute"}
+                )
+                service = next(services)
+                logger.info(f"Forcing down nova-compute binary @ {host} ({service.id})")
+                conn.compute.update_service_forced_down(
+                    service=service.id, host=host, binary="nova-compute", forced=True
+                )
+
+                for server in result:
+                    if server[2] in ["ACTIVE", "SHUTOFF"]:
+                        logger.info(f"Evacuating server {server[0]}")
+                        conn.compute.evacuate_server(server[0], host=target)
+
+                if result:
+                    logger.info("Waiting 30 seconds")
+                    time.sleep(30)
+
+                for server in start:
+                    logger.info(f"Starting server {server}")
+                    conn.compute.start_server(server)
                     inner_wait = True
                     while inner_wait:
                         time.sleep(2)
-                        s = conn.compute.get_server(server[0])
-                        if s.status not in ["SHUTOFF"]:
+                        s = conn.compute.get_server(server)
+                        if s.status not in ["ACTIVE"]:
                             logger.info(
-                                f"Stopping of {server[0]} ({server[1]}) is still in progress"
+                                f"Starting of {s.id} ({s.name}) is still in progress"
                             )
                             inner_wait = True
                         else:
                             inner_wait = False
 
-            services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
-            service = next(services)
-            logger.info(f"Forcing down nova-compute binary @ {host} ({service.id})")
-            conn.compute.update_service_forced_down(
-                service=service.id, host=host, binary="nova-compute", forced=True
-            )
-
-            for server in result:
-                if server[2] in ["ACTIVE", "SHUTOFF"]:
-                    logger.info(f"Evacuating server {server[0]}")
-                    conn.compute.evacuate_server(server[0], host=target)
-
-            if result:
-                logger.info("Waiting 30 seconds")
-                time.sleep(30)
-
-            for server in start:
-                logger.info(f"Starting server {server}")
-                conn.compute.start_server(server)
-                inner_wait = True
-                while inner_wait:
-                    time.sleep(2)
-                    s = conn.compute.get_server(server)
-                    if s.status not in ["ACTIVE"]:
-                        logger.info(
-                            f"Starting of {s.id} ({s.name}) is still in progress"
-                        )
-                        inner_wait = True
-                    else:
-                        inner_wait = False
-
-            logger.info(f"Disabling nova-compute binary @ {host} ({service.id})")
-            conn.compute.disable_service(
-                service=service.id,
-                host=host,
-                binary="nova-compute",
-                disabled_reason="EVACUATE",
-            )
+                logger.info(f"Disabling nova-compute binary @ {host} ({service.id})")
+                conn.compute.disable_service(
+                    service=service.id,
+                    host=host,
+                    binary="nova-compute",
+                    disabled_reason="EVACUATE",
+                )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ComputeMigrate(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeMigrate, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "--yes",
             default=False,
@@ -371,6 +446,7 @@ class ComputeMigrate(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         host = parsed_args.host[0]
         target = parsed_args.target
         force = parsed_args.force
@@ -381,92 +457,108 @@ class ComputeMigrate(Command):
         project = parsed_args.project
         xfilter = parsed_args.filter
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        result = []
-        for server in conn.compute.servers(all_projects=True, node=host):
-            if project and server.project_id == project:
-                result.append([server.id, server.name, server.status])
-            elif domain:
-                server_project = get_cloud_project(server.project_id)
-                if server_project.domain_id == domain:
+        try:
+            conn = openstack.connect(cloud=cloud)
+
+            result = []
+            for server in conn.compute.servers(all_projects=True, node=host):
+                if project and server.project_id == project:
                     result.append([server.id, server.name, server.status])
-            elif xfilter:
-                if xfilter in server.name:
+                elif domain:
+                    server_project = conn.identity.get_project(server.project_id)
+                    if server_project.domain_id == domain:
+                        result.append([server.id, server.name, server.status])
+                elif xfilter:
+                    if xfilter in server.name:
+                        result.append([server.id, server.name, server.status])
+                else:
                     result.append([server.id, server.name, server.status])
-            else:
-                result.append([server.id, server.name, server.status])
 
-        if not result:
-            logger.info(f"No migratable instances found on node {host}")
+            if not result:
+                logger.info(f"No migratable instances found on node {host}")
 
-        for server in result:
-            if server[2] in ["ACTIVE", "PAUSED"]:
-                migration_type = "live"
-            elif server[2] in ["SHUTOFF"] and not no_cold_migration:
-                migration_type = "cold"
-            else:
-                logger.info(
-                    f"{server[0]} ({server[1]}) in status {server[2]} cannot be migrated"
-                )
-                continue
-
-            if yes:
-                answer = "yes"
-            else:
-                answer = prompt(
-                    f"{migration_type.capitalize()} migrate server {server[0]} ({server[1]}) [yes/no]: "
-                )
-
-            if answer in ["yes", "y"]:
-                logger.info(
-                    f"{migration_type.capitalize()} migrating server {server[0]}"
-                )
-                if migration_type == "live":
-                    conn.compute.live_migrate_server(
-                        server[0], host=target, block_migration="auto", force=force
+            for server in result:
+                if server[2] in ["ACTIVE", "PAUSED"]:
+                    migration_type = "live"
+                elif server[2] in ["SHUTOFF"] and not no_cold_migration:
+                    migration_type = "cold"
+                else:
+                    logger.info(
+                        f"{server[0]} ({server[1]}) in status {server[2]} cannot be migrated"
                     )
-                elif migration_type == "cold":
-                    conn.compute.migrate_server(server[0], host=target)
+                    continue
 
-                if not no_wait:
-                    while True:
-                        time.sleep(2)
-                        s = conn.compute.get_server(server[0])
-                        if (
-                            migration_type == "live"
-                            and s.status in ["MIGRATING"]
-                            or migration_type == "cold"
-                            and s.status in ["RESIZE"]
-                        ):
-                            logger.info(
-                                f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) is still in progress"
-                            )
-                        elif migration_type == "cold" and s.status in ["VERIFY_RESIZE"]:
-                            try:
-                                conn.compute.confirm_server_resize(s)
+                if yes:
+                    answer = "yes"
+                else:
+                    answer = prompt(
+                        f"{migration_type.capitalize()} migrate server {server[0]} ({server[1]}) [yes/no]: "
+                    )
+
+                if answer in ["yes", "y"]:
+                    logger.info(
+                        f"{migration_type.capitalize()} migrating server {server[0]}"
+                    )
+                    if migration_type == "live":
+                        conn.compute.live_migrate_server(
+                            server[0], host=target, block_migration="auto", force=force
+                        )
+                    elif migration_type == "cold":
+                        conn.compute.migrate_server(server[0], host=target)
+
+                    if not no_wait:
+                        while True:
+                            time.sleep(2)
+                            s = conn.compute.get_server(server[0])
+                            if (
+                                migration_type == "live"
+                                and s.status in ["MIGRATING"]
+                                or migration_type == "cold"
+                                and s.status in ["RESIZE"]
+                            ):
                                 logger.info(
-                                    f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) confirmed"
+                                    f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) is still in progress"
                                 )
-                            except Exception as exc:
-                                logger.error(
-                                    f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) could not be confirmed"
+                            elif migration_type == "cold" and s.status in [
+                                "VERIFY_RESIZE"
+                            ]:
+                                try:
+                                    conn.compute.confirm_server_resize(s)
+                                    logger.info(
+                                        f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) confirmed"
+                                    )
+                                except Exception as exc:
+                                    logger.error(
+                                        f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) could not be confirmed"
+                                    )
+                                    raise exc
+                                # NOTE: There seems to be no simple way to check whether the resize
+                                # has been confirmed. The state is still "VERIFY_RESIZE" afterwards.
+                                # Therefore we drop out without waiting for the "SHUTOFF" state
+                                break
+                            else:
+                                logger.info(
+                                    f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) completed with status {s.status}"
                                 )
-                                raise exc
-                            # NOTE: There seems to be no simple way to check whether the resize
-                            # has been confirmed. The state is still "VERIFY_RESIZE" afterwards.
-                            # Therefore we drop out without waiting for the "SHUTOFF" state
-                            break
-                        else:
-                            logger.info(
-                                f"{migration_type.capitalize()} migration of {server[0]} ({server[1]}) completed with status {s.status}"
-                            )
-                            break
+                                break
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ComputeMigrationList(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeMigrationList, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "--host",
             default=None,
@@ -531,6 +623,7 @@ class ComputeMigrationList(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         host = parsed_args.host
         server = parsed_args.server
         user = parsed_args.user
@@ -549,119 +642,133 @@ class ComputeMigrationList(Command):
                 )
                 return
 
-        conn = get_cloud_connection()
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        user_id = None
-        if user:
-            user_query = {}
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-            if user_domain:
-                u_d = conn.identity.find_domain(user_domain, ignore_missing=True)
-                if u_d and "id" in u_d:
-                    user_query = dict(domain_id=u_d.id)
+            user_id = None
+            if user:
+                user_query = {}
+
+                if user_domain:
+                    u_d = conn.identity.find_domain(user_domain, ignore_missing=True)
+                    if u_d and "id" in u_d:
+                        user_query = dict(domain_id=u_d.id)
+                    else:
+                        logger.error(f"No domain found for {user_domain}")
+                        return
+
+                u = conn.identity.find_user(user, ignore_missing=True, **user_query)
+                if u and "id" in u:
+                    user_id = u.id
                 else:
-                    logger.error(f"No domain found for {user_domain}")
+                    logger.error(f"No user found for {user}")
                     return
 
-            u = conn.identity.find_user(user, ignore_missing=True, **user_query)
-            if u and "id" in u:
-                user_id = u.id
-            else:
-                logger.error(f"No user found for {user}")
-                return
+            project_id = None
+            if project:
+                project_query = {}
 
-        project_id = None
-        if project:
-            project_query = {}
+                if project_domain:
+                    p_d = conn.identity.find_domain(project_domain, ignore_missing=True)
+                    if p_d and "id" in p_d:
+                        project_query = dict(domain_id=p_d.id)
+                    else:
+                        logger.error(f"No domain found for {project_domain}")
+                        return
 
-            if project_domain:
-                p_d = conn.identity.find_domain(project_domain, ignore_missing=True)
-                if p_d and "id" in p_d:
-                    project_query = dict(domain_id=p_d.id)
-                else:
-                    logger.error(f"No domain found for {project_domain}")
-                    return
-
-            p = conn.identity.find_project(
-                project, ignore_missing=True, **project_query
-            )
-            if p and "id" in p:
-                project_id = p.id
-            else:
-                logger.error(f"No project found for {project}")
-                return
-
-        instance_uuid = None
-        if server:
-            try:
-                s = conn.compute.find_server(
-                    server, details=False, ignore_missing=False, all_projects=True
+                p = conn.identity.find_project(
+                    project, ignore_missing=True, **project_query
                 )
-                if s and "id" in s:
-                    instance_uuid = s.id
+                if p and "id" in p:
+                    project_id = p.id
                 else:
-                    raise openstack.exceptions.NotFoundException
-            except openstack.exceptions.DuplicateResource:
-                logger.error(f"Multiple servers where found for {server}")
-                return
-            except openstack.exceptions.NotFoundException:
-                logger.error(f"No server found for {server}")
-                return
+                    logger.error(f"No project found for {project}")
+                    return
 
-        query = {}
-        if host:
-            query.update(dict(host=host))
-        if instance_uuid:
-            query.update(dict(instance_uuid=instance_uuid))
-        if status:
-            query.update(dict(status=status))
-        if migration_type:
-            query.update(dict(migration_type=migration_type))
-        if user_id:
-            query.update(dict(user_id=user_id))
-        if project_id:
-            query.update(dict(project_id=project_id))
-        if changes_since:
-            query.update(dict(changes_since=changes_since))
-        if changes_before:
-            query.update(dict(changes_before=changes_before))
+            instance_uuid = None
+            if server:
+                try:
+                    s = conn.compute.find_server(
+                        server, details=False, ignore_missing=False, all_projects=True
+                    )
+                    if s and "id" in s:
+                        instance_uuid = s.id
+                    else:
+                        raise openstack.exceptions.NotFoundException
+                except openstack.exceptions.DuplicateResource:
+                    logger.error(f"Multiple servers where found for {server}")
+                    return
+                except openstack.exceptions.NotFoundException:
+                    logger.error(f"No server found for {server}")
+                    return
 
-        migrations = conn.compute.migrations(**query)
-        result = [
-            [
-                m.source_compute,
-                m.dest_compute,
-                m.status,
-                m.migration_type,
-                m["instance_uuid"],
-                m.user_id,
-                m.created_at,
-                m.updated_at,
+            query = {}
+            if host:
+                query.update(dict(host=host))
+            if instance_uuid:
+                query.update(dict(instance_uuid=instance_uuid))
+            if status:
+                query.update(dict(status=status))
+            if migration_type:
+                query.update(dict(migration_type=migration_type))
+            if user_id:
+                query.update(dict(user_id=user_id))
+            if project_id:
+                query.update(dict(project_id=project_id))
+            if changes_since:
+                query.update(dict(changes_since=changes_since))
+            if changes_before:
+                query.update(dict(changes_before=changes_before))
+
+            migrations = conn.compute.migrations(**query)
+            result = [
+                [
+                    m.source_compute,
+                    m.dest_compute,
+                    m.status,
+                    m.migration_type,
+                    m["instance_uuid"],
+                    m.user_id,
+                    m.created_at,
+                    m.updated_at,
+                ]
+                for m in migrations
             ]
-            for m in migrations
-        ]
 
-        print(
-            tabulate(
-                result,
-                headers=[
-                    "Source",
-                    "Destintion",
-                    "Status",
-                    "Type",
-                    "Server UUID",
-                    "User",
-                    "Created At",
-                    "Updated At",
-                ],
-                tablefmt="psql",
+            print(
+                tabulate(
+                    result,
+                    headers=[
+                        "Source",
+                        "Destintion",
+                        "Status",
+                        "Type",
+                        "Server UUID",
+                        "User",
+                        "Created At",
+                        "Updated At",
+                    ],
+                    tablefmt="psql",
+                )
             )
-        )
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ComputeStart(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeStart, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "--yes",
             default=False,
@@ -677,34 +784,52 @@ class ComputeStart(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         yes = parsed_args.yes
         host = parsed_args.host[0]
-        conn = get_cloud_connection()
 
-        result = []
-        for server in conn.compute.servers(all_projects=True, node=host):
-            result.append([server.id, server.name, server.status])
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        for server in result:
-            if server[2] not in ["SHUTOFF"]:
-                logger.info(
-                    f"{server[0]} ({server[1]}) in status {server[2]} cannot be started"
-                )
-                continue
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-            if yes:
-                answer = "yes"
-            else:
-                answer = prompt(f"Start server {server[0]} ({server[1]}) [yes/no]: ")
+            result = []
+            for server in conn.compute.servers(all_projects=True, node=host):
+                result.append([server.id, server.name, server.status])
 
-            if answer in ["yes", "y"]:
-                logger.info(f"Starting server {server[0]}")
-                conn.compute.start_server(server[0])
+            for server in result:
+                if server[2] not in ["SHUTOFF"]:
+                    logger.info(
+                        f"{server[0]} ({server[1]}) in status {server[2]} cannot be started"
+                    )
+                    continue
+
+                if yes:
+                    answer = "yes"
+                else:
+                    answer = prompt(
+                        f"Start server {server[0]} ({server[1]}) [yes/no]: "
+                    )
+
+                if answer in ["yes", "y"]:
+                    logger.info(f"Starting server {server[0]}")
+                    conn.compute.start_server(server[0])
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
 
 
 class ComputeStop(Command):
     def get_parser(self, prog_name):
         parser = super(ComputeStop, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            type=str,
+            help="Cloud name in clouds.yaml",
+            default="admin",
+        )
         parser.add_argument(
             "--yes",
             default=False,
@@ -720,26 +845,36 @@ class ComputeStop(Command):
         return parser
 
     def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
         yes = parsed_args.yes
         host = parsed_args.host[0]
-        conn = get_cloud_connection()
 
-        result = []
-        for server in conn.compute.servers(all_projects=True, node=host):
-            result.append([server.id, server.name, server.status])
+        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            logger.error(f"Failed to setup cloud environment for '{cloud}'")
+            return 1
 
-        for server in result:
-            if server[2] not in ["ACTIVE", "PAUSED"]:
-                logger.info(
-                    f"{server[0]} ({server[1]}) in status {server[2]} cannot be stopped"
-                )
-                continue
+        try:
+            conn = openstack.connect(cloud=cloud)
 
-            if yes:
-                answer = "yes"
-            else:
-                answer = prompt(f"Stop server {server[0]} ({server[1]}) [yes/no]: ")
+            result = []
+            for server in conn.compute.servers(all_projects=True, node=host):
+                result.append([server.id, server.name, server.status])
 
-            if answer in ["yes", "y"]:
-                logger.info(f"Stopping server {server[0]}")
-                conn.compute.stop_server(server[0])
+            for server in result:
+                if server[2] not in ["ACTIVE", "PAUSED"]:
+                    logger.info(
+                        f"{server[0]} ({server[1]}) in status {server[2]} cannot be stopped"
+                    )
+                    continue
+
+                if yes:
+                    answer = "yes"
+                else:
+                    answer = prompt(f"Stop server {server[0]} ({server[1]}) [yes/no]: ")
+
+                if answer in ["yes", "y"]:
+                    logger.info(f"Stopping server {server[0]}")
+                    conn.compute.stop_server(server[0])
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
