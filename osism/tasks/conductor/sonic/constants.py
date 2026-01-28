@@ -72,6 +72,7 @@ PORT_CONFIG_PATH = "/etc/sonic/port_config"
 # List of supported HWSKUs
 SUPPORTED_HWSKUS = [
     "Accton-AS4625-54T",
+    "Accton-AS4630-54TE",
     "Accton-AS5835-54T",
     "Accton-AS5835-54X",
     "Accton-AS7326-56X",
