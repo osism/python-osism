@@ -10,8 +10,6 @@ from prompt_toolkit import prompt
 from tabulate import tabulate
 import yaml
 
-import openstack
-
 from osism.commands.octavia import wait_for_amphora_boot
 from osism.tasks.openstack import (
     cleanup_cloud_environment,

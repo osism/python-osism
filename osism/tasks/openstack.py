@@ -377,6 +377,13 @@ def setup_cloud_environment(cloud):
             yaml.dump(clouds_config, f)
         temp_files_to_cleanup.append(dst_clouds)
 
+        # Create an empty secure.yml in /tmp to prevent SDK from reading
+        # /etc/openstack/secure.yml which might have a different (wrong) password
+        dst_secure = "/tmp/secure.yml"
+        with open(dst_secure, "w") as f:
+            yaml.dump({}, f)
+        temp_files_to_cleanup.append(dst_secure)
+
         # Change working directory to /tmp so subprocesses find the config
         os.chdir("/tmp")
 
