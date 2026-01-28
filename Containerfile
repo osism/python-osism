@@ -43,6 +43,7 @@ apk add --no-cache --virtual .build-deps \
   openldap-dev
 apk add --no-cache \
   cdrkit \
+  coreutils \
   git \
   less \
   libyang \
