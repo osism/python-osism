@@ -14,7 +14,11 @@ import json
 import yaml
 from openstack.baremetal import configdrive as configdrive_builder
 
-from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
+from osism.tasks.openstack import (
+    cleanup_cloud_environment,
+    get_openstack_connection,
+    setup_cloud_environment,
+)
 from osism import utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
 from osism.tasks import netbox
@@ -50,13 +54,12 @@ class BaremetalList(Command):
         provision_state = parsed_args.provision_state
         maintenance = parsed_args.maintenance
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             query = {}
             if provision_state:
@@ -171,13 +174,12 @@ class BaremetalDeploy(Command):
             )
             return
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             if all_nodes:
                 deploy_nodes = list(conn.baremetal.nodes(details=True))
@@ -372,13 +374,12 @@ class BaremetalDump(Command):
 
         if use_ironic:
             # Fetch data from Ironic (shows actual deployment state)
-            temp_files, original_cwd, success = setup_cloud_environment(cloud)
+            password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
             if not success:
-                logger.error(f"Failed to setup cloud environment for '{cloud}'")
                 return 1
 
             try:
-                conn = openstack.connect(cloud=cloud)
+                conn = get_openstack_connection(cloud, password)
                 node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
 
                 if not node:
@@ -632,13 +633,12 @@ class BaremetalUndeploy(Command):
             )
             return
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             if all_nodes:
                 deploy_nodes = list(conn.baremetal.nodes())
@@ -929,13 +929,12 @@ class BaremetalBurnIn(Command):
             )
             return
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             if all_nodes:
                 burn_in_nodes = list(conn.baremetal.nodes(details=True))
@@ -1032,13 +1031,12 @@ class BaremetalClean(Command):
 
         clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             if all_nodes:
                 clean_nodes = list(conn.baremetal.nodes(details=True))
@@ -1122,13 +1120,12 @@ class BaremetalProvide(Command):
             logger.error("Please specify a node name or use --all")
             return
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             if all_nodes:
                 provide_nodes = list(conn.baremetal.nodes(details=True))
@@ -1191,13 +1188,12 @@ class BaremetalMaintenanceSet(Command):
         name = parsed_args.name
         reason = parsed_args.reason
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
             node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
             if not node:
                 logger.warning(f"Could not find node {name}")
@@ -1234,13 +1230,12 @@ class BaremetalMaintenanceUnset(Command):
         cloud = parsed_args.cloud
         name = parsed_args.name
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
             node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
             if not node:
                 logger.warning(f"Could not find node {name}")
@@ -1281,13 +1276,12 @@ class BaremetalPowerOn(Command):
             logger.error("Please specify a node name")
             return
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
             node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
             if not node:
                 logger.warning(f"Could not find node {name}")
@@ -1335,13 +1329,12 @@ class BaremetalPowerOff(Command):
             logger.error("Please specify a node name")
             return
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
             node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
             if not node:
                 logger.warning(f"Could not find node {name}")
@@ -1405,13 +1398,12 @@ class BaremetalDelete(Command):
             )
             return
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             if all_nodes:
                 delete_nodes = list(conn.baremetal.nodes())

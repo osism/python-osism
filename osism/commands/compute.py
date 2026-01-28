@@ -10,7 +10,11 @@ import openstack
 from tabulate import tabulate
 from prompt_toolkit import prompt
 
-from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
+from osism.tasks.openstack import (
+    cleanup_cloud_environment,
+    get_openstack_connection,
+    setup_cloud_environment,
+)
 
 
 class ComputeEnable(Command):
@@ -34,13 +38,12 @@ class ComputeEnable(Command):
         cloud = parsed_args.cloud
         host = parsed_args.host[0]
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
             service = next(services)
@@ -97,13 +100,12 @@ class ComputeDisable(Command):
         cloud = parsed_args.cloud
         host = parsed_args.host[0]
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             services = conn.compute.services(**{"host": host, "binary": "nova-compute"})
             service = next(services)
@@ -161,13 +163,12 @@ class ComputeList(Command):
         project = parsed_args.project
         details = parsed_args.details
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = []
             if host:
@@ -295,13 +296,12 @@ class ComputeEvacuate(Command):
         target = parsed_args.target
         yes = parsed_args.yes
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = []
             for server in conn.compute.servers(all_projects=True, node=host):
@@ -457,13 +457,12 @@ class ComputeMigrate(Command):
         project = parsed_args.project
         xfilter = parsed_args.filter
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = []
             for server in conn.compute.servers(all_projects=True, node=host):
@@ -642,13 +641,12 @@ class ComputeMigrationList(Command):
                 )
                 return
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             user_id = None
             if user:
@@ -788,13 +786,12 @@ class ComputeStart(Command):
         yes = parsed_args.yes
         host = parsed_args.host[0]
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = []
             for server in conn.compute.servers(all_projects=True, node=host):
@@ -849,13 +846,12 @@ class ComputeStop(Command):
         yes = parsed_args.yes
         host = parsed_args.host[0]
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = []
             for server in conn.compute.servers(all_projects=True, node=host):

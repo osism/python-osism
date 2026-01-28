@@ -10,7 +10,11 @@ import openstack
 from prompt_toolkit import prompt
 from tabulate import tabulate
 
-from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
+from osism.tasks.openstack import (
+    cleanup_cloud_environment,
+    get_openstack_connection,
+    setup_cloud_environment,
+)
 
 
 class ServerMigrate(Command):
@@ -62,13 +66,12 @@ class ServerMigrate(Command):
         force = parsed_args.force
         no_wait = parsed_args.no_wait
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = conn.compute.get_server(instance)
             server = [result.id, result.name, result.status]
@@ -154,13 +157,12 @@ class ServerList(Command):
         user = parsed_args.user
         user_domain = parsed_args.user_domain
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = []
 
@@ -398,13 +400,12 @@ class ServerClean(Command):
         yes = parsed_args.yes
         build_timeout = parsed_args.build_timeout
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             # Handle servers stuck in BUILD status
             for server in conn.compute.servers(all_projects=True, status="build"):

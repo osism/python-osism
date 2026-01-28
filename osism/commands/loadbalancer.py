@@ -13,7 +13,11 @@ import yaml
 import openstack
 
 from osism.commands.octavia import wait_for_amphora_boot
-from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
+from osism.tasks.openstack import (
+    cleanup_cloud_environment,
+    get_openstack_connection,
+    setup_cloud_environment,
+)
 from osism.tasks.conductor.utils import get_vault
 
 
@@ -158,13 +162,12 @@ class LoadbalancerList(Command):
         status_type = parsed_args.status_type
         cloud = parsed_args.cloud
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = []
             if status_type == "provisioning_status":
@@ -259,13 +262,12 @@ class LoadbalancerReset(Command):
         no_failover = parsed_args.no_failover
         cloud = parsed_args.cloud
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             # Get loadbalancer details
             try:
@@ -367,13 +369,12 @@ class LoadbalancerDelete(Command):
         yes = parsed_args.yes
         cloud = parsed_args.cloud
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             # Get loadbalancer details
             try:

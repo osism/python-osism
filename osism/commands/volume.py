@@ -11,7 +11,11 @@ from prompt_toolkit import prompt
 import pytz
 from tabulate import tabulate
 
-from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
+from osism.tasks.openstack import (
+    cleanup_cloud_environment,
+    get_openstack_connection,
+    setup_cloud_environment,
+)
 
 # Time threshold for stuck volumes (2 hours in seconds)
 STUCK_VOLUME_THRESHOLD_SECONDS = 7200
@@ -52,13 +56,12 @@ class VolumeList(Command):
         project = parsed_args.project
         project_domain = parsed_args.project_domain
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             result = []
             if domain:
@@ -249,13 +252,12 @@ class VolumeRepair(Command):
         cloud = parsed_args.cloud
         auto_confirm = parsed_args.yes
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             # Handle volumes stuck in DETACHING state
             for volume in conn.block_storage.volumes(
