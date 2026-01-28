@@ -171,6 +171,10 @@ def run_ansible_in_environment(
     env["ANSIBLE_FORCE_COLOR"] = "1"
     env["PY_COLORS"] = "1"
 
+    # Disable Python output buffering for immediate line-by-line output
+    # This ensures Ansible's Python process flushes stdout immediately
+    env["PYTHONUNBUFFERED"] = "1"
+
     # handle sub environments
     if "." in environment:
         sub_name = environment.split(".")[1]
@@ -211,6 +215,10 @@ def run_ansible_in_environment(
     # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
     #       not working out of the box
 
+    # Use stdbuf for line-buffered output to ensure immediate streaming
+    # stdbuf -oL sets stdout to line-buffered mode at the OS level
+    stdbuf_prefix = "stdbuf -oL "
+
     # execute roles from kolla-ansible
     if worker == "kolla-ansible":
         if locking:
@@ -228,7 +236,7 @@ def run_ansible_in_environment(
         else:
             action = "deploy"
 
-        command = f"/run.sh {action} {role} {joined_arguments}"
+        command = f"{stdbuf_prefix}/run.sh {action} {role} {joined_arguments}"
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
@@ -243,7 +251,7 @@ def run_ansible_in_environment(
         if locking:
             lock.acquire()
 
-        command = f"/run.sh {role} {joined_arguments}"
+        command = f"{stdbuf_prefix}/run.sh {role} {joined_arguments}"
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
@@ -258,7 +266,7 @@ def run_ansible_in_environment(
         if locking:
             lock.acquire()
 
-        command = f"/run.sh {role} {joined_arguments}"
+        command = f"{stdbuf_prefix}/run.sh {role} {joined_arguments}"
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
@@ -273,7 +281,7 @@ def run_ansible_in_environment(
         if locking:
             lock.acquire()
 
-        command = f"/run-{environment}.sh {role} {joined_arguments}"
+        command = f"{stdbuf_prefix}/run-{environment}.sh {role} {joined_arguments}"
         logger.info(f"RUN {command}")
         p = subprocess.Popen(
             command,
