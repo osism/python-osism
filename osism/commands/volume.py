@@ -6,7 +6,6 @@ from time import sleep
 from cliff.command import Command
 import dateutil
 from loguru import logger
-import openstack
 from prompt_toolkit import prompt
 import pytz
 from tabulate import tabulate

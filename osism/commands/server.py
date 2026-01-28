@@ -6,7 +6,6 @@ import time
 from cliff.command import Command
 import dateutil
 from loguru import logger
-import openstack
 from prompt_toolkit import prompt
 from tabulate import tabulate
 
