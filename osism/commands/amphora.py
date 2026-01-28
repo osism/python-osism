@@ -9,7 +9,11 @@ from loguru import logger
 import openstack
 
 from osism.commands.octavia import wait_for_amphora_boot, wait_for_amphora_delete
-from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
+from osism.tasks.openstack import (
+    cleanup_cloud_environment,
+    get_openstack_connection,
+    setup_cloud_environment,
+)
 
 # Default age threshold for rotation (30 days in seconds)
 DEFAULT_ROTATION_AGE_SECONDS = 2592000
@@ -38,13 +42,12 @@ class AmphoraRestore(Command):
         cloud = parsed_args.cloud
         loadbalancer_id = parsed_args.loadbalancer
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             if loadbalancer_id:
                 amphorae = conn.load_balancer.amphorae(
@@ -96,13 +99,12 @@ class AmphoraRotate(Command):
         loadbalancer_id = parsed_args.loadbalancer
         force = parsed_args.force
 
-        temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
-            logger.error(f"Failed to setup cloud environment for '{cloud}'")
             return 1
 
         try:
-            conn = openstack.connect(cloud=cloud)
+            conn = get_openstack_connection(cloud, password)
 
             done = []
 

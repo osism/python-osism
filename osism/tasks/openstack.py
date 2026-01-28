@@ -210,7 +210,7 @@ def get_cloud_password(cloud):
             else:
                 # File is not encrypted, use as-is
                 decrypted_data = file_data.decode()
-                logger.info(
+                logger.debug(
                     f"Secrets file is not encrypted (development mode): {secrets_path}"
                 )
 
@@ -231,7 +231,7 @@ def get_cloud_password(cloud):
             try:
                 with open(secrets_path, "r") as f:
                     decrypted_secrets = yaml.safe_load(f)
-                logger.info(
+                logger.debug(
                     f"Successfully loaded unencrypted secrets file (development mode): {secrets_path}"
                 )
             except Exception as plain_exc:
@@ -257,7 +257,7 @@ def get_cloud_password(cloud):
             # Convert password to string and strip whitespace
             password_str = str(password).strip()
             if password_str:
-                logger.info(f"Successfully loaded password for cloud '{cloud}'")
+                logger.debug(f"Successfully loaded password for cloud '{cloud}'")
                 return password_str
             else:
                 logger.warning(
@@ -265,7 +265,7 @@ def get_cloud_password(cloud):
                 )
                 return None
         else:
-            logger.warning(f"Password key '{password_key}' not found in secrets file")
+            logger.debug(f"Password key '{password_key}' not found in {secrets_path}")
             return None
 
     except Exception as exc:
@@ -277,57 +277,115 @@ def setup_cloud_environment(cloud):
     """
     Set up cloud configuration environment for OpenStack commands.
 
-    Creates secure.yml with cloud password and copies clouds.yaml to /tmp,
-    then changes working directory to /tmp.
+    Loads the password for the specified cloud profile. First tries to load
+    from secrets.yml using os_password_<cloud> pattern. Falls back to using
+    /etc/openstack/secure.yml if it exists (backward compatibility).
 
     Args:
         cloud (str): The cloud profile name
 
     Returns:
-        tuple: (temp_files_to_cleanup, original_cwd, success)
+        tuple: (password, temp_files_to_cleanup, original_cwd, success)
+               - password: for direct SDK usage, or None if using secure.yml fallback
+               - temp_files_to_cleanup: list of temp files to clean up
+               - original_cwd: original working directory
+               - success: whether setup succeeded
     """
     temp_files_to_cleanup = []
     original_cwd = os.getcwd()
 
     if not cloud:
         logger.warning("No cloud parameter provided, skipping cloud configuration")
-        return temp_files_to_cleanup, original_cwd, False
+        return None, temp_files_to_cleanup, original_cwd, False
 
+    # Try new approach: load password from secrets.yml
     password = get_cloud_password(cloud)
+
+    # Fallback: check if /etc/openstack/secure.yml exists (backward compatibility)
     if not password:
-        logger.warning(
-            f"Could not load password for cloud '{cloud}', skipping cloud configuration"
-        )
-        return temp_files_to_cleanup, original_cwd, False
-
-    try:
-        # Create secure.yml in /tmp
-        secure_yml_path = "/tmp/secure.yml"
-        secure_yml_content = {"clouds": {cloud: {"auth": {"password": password}}}}
-
-        with open(secure_yml_path, "w") as f:
-            yaml.dump(secure_yml_content, f)
-        temp_files_to_cleanup.append(secure_yml_path)
-
-        # Try both .yaml and .yml extensions
-        if os.path.exists("/etc/openstack/clouds.yaml"):
-            shutil.copy2("/etc/openstack/clouds.yaml", "/tmp/clouds.yaml")
-            temp_files_to_cleanup.append("/tmp/clouds.yaml")
-        elif os.path.exists("/etc/openstack/clouds.yml"):
-            shutil.copy2("/etc/openstack/clouds.yml", "/tmp/clouds.yml")
-            temp_files_to_cleanup.append("/tmp/clouds.yml")
+        # Check for secure.yml
+        if os.path.exists("/etc/openstack/secure.yml"):
+            src_secure = "/etc/openstack/secure.yml"
+            dst_secure = "/tmp/secure.yml"
+        elif os.path.exists("/etc/openstack/secure.yaml"):
+            src_secure = "/etc/openstack/secure.yaml"
+            dst_secure = "/tmp/secure.yaml"
         else:
-            logger.warning("Could not find /etc/openstack/clouds.yaml or clouds.yml")
+            cloud_normalized = cloud.replace("-", "_")
+            logger.error(
+                f"No credentials found for cloud '{cloud}'. "
+                f"Set 'os_password_{cloud_normalized}' in "
+                "/opt/configuration/environments/openstack/secrets.yml"
+            )
+            return None, temp_files_to_cleanup, original_cwd, False
 
-        # Change working directory to /tmp
+        logger.debug(
+            f"Using /opt/configuration/environments/openstack/secure.yml for cloud '{cloud}'"
+        )
+
+        # Copy clouds.yaml and secure.yml to /tmp for subprocess-based commands
+        try:
+            # Copy clouds.yaml
+            if os.path.exists("/etc/openstack/clouds.yaml"):
+                shutil.copy2("/etc/openstack/clouds.yaml", "/tmp/clouds.yaml")
+                temp_files_to_cleanup.append("/tmp/clouds.yaml")
+            elif os.path.exists("/etc/openstack/clouds.yml"):
+                shutil.copy2("/etc/openstack/clouds.yml", "/tmp/clouds.yml")
+                temp_files_to_cleanup.append("/tmp/clouds.yml")
+
+            # Copy secure.yml
+            shutil.copy2(src_secure, dst_secure)
+            temp_files_to_cleanup.append(dst_secure)
+
+            # Change working directory to /tmp so subprocesses find the config
+            os.chdir("/tmp")
+
+            return None, temp_files_to_cleanup, original_cwd, True
+        except Exception as exc:
+            logger.error(f"Failed to copy config files to /tmp: {exc}")
+            return None, temp_files_to_cleanup, original_cwd, False
+
+    # Password found - create temp config for subprocess-based commands
+    try:
+        # Determine the clouds config file
+        if os.path.exists("/etc/openstack/clouds.yaml"):
+            src_clouds = "/etc/openstack/clouds.yaml"
+            dst_clouds = "/tmp/clouds.yaml"
+        elif os.path.exists("/etc/openstack/clouds.yml"):
+            src_clouds = "/etc/openstack/clouds.yml"
+            dst_clouds = "/tmp/clouds.yml"
+        else:
+            # No clouds.yaml found - still return password for direct SDK usage
+            logger.debug(f"No clouds.yaml found, but password loaded for '{cloud}'")
+            return password, temp_files_to_cleanup, original_cwd, True
+
+        # Load the clouds config
+        with open(src_clouds, "r") as f:
+            clouds_config = yaml.safe_load(f)
+
+        # Inject the password into the cloud profile
+        if "clouds" in clouds_config and cloud in clouds_config["clouds"]:
+            if "auth" not in clouds_config["clouds"][cloud]:
+                clouds_config["clouds"][cloud]["auth"] = {}
+            clouds_config["clouds"][cloud]["auth"]["password"] = password
+        else:
+            logger.warning(f"Cloud profile '{cloud}' not found in clouds config")
+            return None, temp_files_to_cleanup, original_cwd, False
+
+        # Write the combined config to /tmp for subprocess-based commands
+        with open(dst_clouds, "w") as f:
+            yaml.dump(clouds_config, f)
+        temp_files_to_cleanup.append(dst_clouds)
+
+        # Change working directory to /tmp so subprocesses find the config
         os.chdir("/tmp")
 
         logger.debug(f"Successfully set up cloud environment for '{cloud}'")
-        return temp_files_to_cleanup, original_cwd, True
+        return password, temp_files_to_cleanup, original_cwd, True
 
     except Exception as exc:
         logger.error(f"Failed to set up cloud environment for '{cloud}': {exc}")
-        return temp_files_to_cleanup, original_cwd, False
+        return None, temp_files_to_cleanup, original_cwd, False
 
 
 def cleanup_cloud_environment(temp_files_to_cleanup, original_cwd):
@@ -354,6 +412,96 @@ def cleanup_cloud_environment(temp_files_to_cleanup, original_cwd):
             logger.warning(f"Could not remove temporary file {temp_file}: {exc}")
 
 
+def get_openstack_connection(cloud, password=None):
+    """
+    Create an OpenStack connection with proper error handling.
+
+    Tries to connect with the provided password first. If authentication fails
+    and a secure.yml exists, falls back to using credentials from secure.yml.
+
+    Args:
+        cloud (str): The cloud profile name
+        password (str): Optional password to use for authentication
+
+    Returns:
+        openstack.Connection: The connection object
+
+    Raises:
+        SystemExit: On authentication or configuration errors
+    """
+    import openstack
+    import keystoneauth1.exceptions
+
+    secure_yml_exists = os.path.exists("/etc/openstack/secure.yml") or os.path.exists(
+        "/etc/openstack/secure.yaml"
+    )
+
+    def try_connect(use_password):
+        if use_password:
+            return openstack.connect(cloud=cloud, auth={"password": use_password})
+        else:
+            return openstack.connect(cloud=cloud)
+
+    def test_connection(conn):
+        # Test the connection by getting the current project
+        conn.current_project
+        return conn
+
+    # First attempt: use provided password if available
+    if password:
+        try:
+            conn = try_connect(password)
+            return test_connection(conn)
+        except keystoneauth1.exceptions.http.Unauthorized:
+            if secure_yml_exists:
+                logger.debug(
+                    f"Password from secrets.yml failed for cloud '{cloud}', "
+                    "trying secure.yml fallback"
+                )
+            else:
+                cloud_normalized = cloud.replace("-", "_")
+                logger.error(
+                    f"Authentication failed for cloud '{cloud}'. "
+                    f"Check 'os_password_{cloud_normalized}' in "
+                    "/opt/configuration/environments/openstack/secrets.yml"
+                )
+                raise SystemExit(1)
+        except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions as exc:
+            logger.error(f"Missing configuration for cloud '{cloud}': {exc}")
+            raise SystemExit(1)
+        except openstack.exceptions.SDKException as exc:
+            logger.error(f"OpenStack SDK error for cloud '{cloud}': {exc}")
+            raise SystemExit(1)
+
+    # Second attempt (or first if no password): use secure.yml
+    try:
+        conn = try_connect(None)
+        return test_connection(conn)
+    except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions as exc:
+        missing = str(exc)
+        cloud_normalized = cloud.replace("-", "_")
+        if "password" in missing.lower():
+            logger.error(
+                f"No password configured for cloud '{cloud}'. "
+                f"Set 'os_password_{cloud_normalized}' in "
+                "/opt/configuration/environments/openstack/secrets.yml"
+            )
+        else:
+            logger.error(f"Missing configuration for cloud '{cloud}': {exc}")
+        raise SystemExit(1)
+    except keystoneauth1.exceptions.http.Unauthorized:
+        cloud_normalized = cloud.replace("-", "_")
+        logger.error(
+            f"Authentication failed for cloud '{cloud}'. "
+            f"Check 'os_password_{cloud_normalized}' in "
+            "/opt/configuration/environments/openstack/secrets.yml"
+        )
+        raise SystemExit(1)
+    except openstack.exceptions.SDKException as exc:
+        logger.error(f"OpenStack SDK error for cloud '{cloud}': {exc}")
+        raise SystemExit(1)
+
+
 def run_openstack_command_with_cloud(
     request_id,
     command,
@@ -376,8 +524,8 @@ def run_openstack_command_with_cloud(
     Returns:
         int: Command return code
     """
-    temp_files_to_cleanup, original_cwd, cloud_setup_success = setup_cloud_environment(
-        cloud
+    password, temp_files_to_cleanup, original_cwd, cloud_setup_success = (
+        setup_cloud_environment(cloud)
     )
 
     try:
@@ -412,7 +560,7 @@ def image_manager(
 
     if configs:
         # For configs case, we need to handle image directory setup and cloud configuration
-        temp_files_to_cleanup, original_cwd, cloud_setup_success = (
+        password, temp_files_to_cleanup, original_cwd, cloud_setup_success = (
             setup_cloud_environment(cloud)
         )
 
@@ -503,8 +651,8 @@ def project_manager(
     full_arguments = [script_path] + list(arguments)
 
     # Setup cloud environment (changes to /tmp)
-    temp_files_to_cleanup, original_cwd, cloud_setup_success = setup_cloud_environment(
-        cloud
+    password, temp_files_to_cleanup, original_cwd, cloud_setup_success = (
+        setup_cloud_environment(cloud)
     )
 
     try:
@@ -543,8 +691,8 @@ def project_manager_sync(
     full_arguments = [script_path] + list(arguments)
 
     # Setup cloud environment (changes to /tmp)
-    temp_files_to_cleanup, original_cwd, cloud_setup_success = setup_cloud_environment(
-        cloud
+    password, temp_files_to_cleanup, original_cwd, cloud_setup_success = (
+        setup_cloud_environment(cloud)
     )
 
     try:
