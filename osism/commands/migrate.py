@@ -128,7 +128,14 @@ SERVICE_QUEUE_PATTERNS = {
 
 
 # Special commands that are not service names
-SPECIAL_COMMANDS = ["list", "delete", "prepare", "check"]
+SPECIAL_COMMANDS = [
+    "list",
+    "delete",
+    "prepare",
+    "check",
+    "list-exchanges",
+    "delete-exchanges",
+]
 
 
 class Rabbitmq3to4(Command):
@@ -141,7 +148,7 @@ class Rabbitmq3to4(Command):
             nargs="?",
             default=None,
             choices=SPECIAL_COMMANDS,
-            help="Command: 'list' (show queues), 'delete' (remove queues), 'prepare' (create vhost), 'check' (check if migration needed)",
+            help="Command: 'list' (show queues), 'delete' (remove queues), 'prepare' (create vhost), 'check' (check if migration needed), 'list-exchanges' (show exchanges in / and openstack), 'delete-exchanges' (remove exchanges in /)",
         )
         parser.add_argument(
             "service",
@@ -158,7 +165,7 @@ class Rabbitmq3to4(Command):
         parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Show which queues would be deleted without actually deleting them",
+            help="Show which queues/exchanges would be deleted without actually deleting them",
         )
         parser.add_argument(
             "--no-close-connections",
@@ -516,6 +523,78 @@ class Rabbitmq3to4(Command):
             logger.error(f"Failed to delete queue '{queue_name}': {exc}")
             return False
 
+    def _get_all_exchanges(self, base_url, auth, vhost=None):
+        """Get all exchanges from RabbitMQ API.
+
+        Args:
+            base_url: RabbitMQ API base URL.
+            auth: Authentication tuple (username, password).
+            vhost: Optional vhost to filter by.
+
+        Returns:
+            list: List of exchange dictionaries, or None on error.
+        """
+        try:
+            if vhost:
+                encoded_vhost = urllib.parse.quote(vhost, safe="")
+                response = requests.get(
+                    f"{base_url}/exchanges/{encoded_vhost}", auth=auth, timeout=30
+                )
+            else:
+                response = requests.get(f"{base_url}/exchanges", auth=auth, timeout=30)
+            response.raise_for_status()
+            exchanges = response.json()
+            # Filter out default exchanges (those with empty names or starting with 'amq.')
+            return [
+                e
+                for e in exchanges
+                if e.get("name") and not e.get("name", "").startswith("amq.")
+            ]
+        except requests.exceptions.RequestException as exc:
+            logger.error(f"Failed to get exchanges: {exc}")
+            return None
+
+    def _delete_exchange(self, base_url, auth, vhost, exchange_name, dry_run=False):
+        """Delete an exchange from RabbitMQ.
+
+        Args:
+            base_url: RabbitMQ API base URL.
+            auth: Authentication tuple (username, password).
+            vhost: Virtual host name.
+            exchange_name: Name of the exchange to delete.
+            dry_run: If True, don't actually delete.
+
+        Returns:
+            bool: True if successful (or dry run or already deleted), False on error.
+        """
+        if dry_run:
+            logger.info(f"[DRY-RUN] Would delete exchange: {exchange_name}")
+            return True
+
+        try:
+            encoded_vhost = urllib.parse.quote(vhost, safe="")
+            encoded_exchange = urllib.parse.quote(exchange_name, safe="")
+
+            response = requests.delete(
+                f"{base_url}/exchanges/{encoded_vhost}/{encoded_exchange}",
+                auth=auth,
+                timeout=30,
+            )
+            response.raise_for_status()
+            logger.info(f"Deleted exchange: {exchange_name}")
+            return True
+        except requests.exceptions.HTTPError as exc:
+            if exc.response.status_code == 404:
+                logger.warning(
+                    f"Exchange '{exchange_name}' not found (already deleted)"
+                )
+                return True
+            logger.error(f"Failed to delete exchange '{exchange_name}': {exc}")
+            return False
+        except requests.exceptions.RequestException as exc:
+            logger.error(f"Failed to delete exchange '{exchange_name}': {exc}")
+            return False
+
     def take_action(self, parsed_args):
         command = parsed_args.command
         service = parsed_args.service
@@ -530,10 +609,14 @@ class Rabbitmq3to4(Command):
         is_delete = command == "delete"
         is_prepare = command == "prepare"
         is_check = command == "check"
+        is_list_exchanges = command == "list-exchanges"
+        is_delete_exchanges = command == "delete-exchanges"
 
         # Validate arguments
         if not command:
-            logger.error("A command (list, delete, prepare, check) must be specified")
+            logger.error(
+                "A command (list, delete, prepare, check, list-exchanges, delete-exchanges) must be specified"
+            )
             return 1
 
         # Get RabbitMQ node addresses from inventory
@@ -581,6 +664,80 @@ class Rabbitmq3to4(Command):
             if self._prepare_vhost(base_url, auth, dry_run):
                 return 0
             return 1
+
+        # Handle 'list-exchanges' command
+        if is_list_exchanges:
+            # Get exchanges for both vhosts
+            exchanges_root = self._get_all_exchanges(base_url, auth, "/")
+            exchanges_openstack = self._get_all_exchanges(base_url, auth, "openstack")
+
+            if exchanges_root is None or exchanges_openstack is None:
+                return 1
+
+            total_count = len(exchanges_root) + len(exchanges_openstack)
+            if total_count == 0:
+                logger.info("No exchanges found in vhosts '/' and 'openstack'")
+                return 0
+
+            logger.info(
+                f"Found {total_count} exchange(s) in vhosts '/' and 'openstack':"
+            )
+
+            if exchanges_root:
+                logger.info(f"\nVhost '/' ({len(exchanges_root)} exchange(s)):")
+                for exchange in sorted(exchanges_root, key=lambda e: e.get("name", "")):
+                    name = exchange.get("name", "")
+                    etype = exchange.get("type", "unknown")
+                    durable = "durable" if exchange.get("durable") else "transient"
+                    logger.info(f"  - {name} (type: {etype}, {durable})")
+
+            if exchanges_openstack:
+                logger.info(
+                    f"\nVhost 'openstack' ({len(exchanges_openstack)} exchange(s)):"
+                )
+                for exchange in sorted(
+                    exchanges_openstack, key=lambda e: e.get("name", "")
+                ):
+                    name = exchange.get("name", "")
+                    etype = exchange.get("type", "unknown")
+                    durable = "durable" if exchange.get("durable") else "transient"
+                    logger.info(f"  - {name} (type: {etype}, {durable})")
+
+            return 0
+
+        # Handle 'delete-exchanges' command
+        if is_delete_exchanges:
+            # Only delete exchanges in vhost '/'
+            exchanges_root = self._get_all_exchanges(base_url, auth, "/")
+
+            if exchanges_root is None:
+                return 1
+
+            if not exchanges_root:
+                logger.info("No exchanges found in vhost '/'")
+                return 0
+
+            logger.info(f"Found {len(exchanges_root)} exchange(s) in vhost '/'")
+
+            failed_count = 0
+            for exchange in sorted(exchanges_root, key=lambda e: e.get("name", "")):
+                name = exchange.get("name", "")
+                if not self._delete_exchange(base_url, auth, "/", name, dry_run):
+                    failed_count += 1
+
+            if failed_count > 0:
+                logger.error(f"Failed to delete {failed_count} exchange(s)")
+                return 1
+
+            if dry_run:
+                logger.info(
+                    f"[DRY-RUN] Would delete {len(exchanges_root)} exchange(s) in vhost '/'"
+                )
+            else:
+                logger.info(
+                    f"Successfully deleted {len(exchanges_root)} exchange(s) in vhost '/'"
+                )
+            return 0
 
         # Get all queues
         queues = self._get_all_queues(base_url, auth)
