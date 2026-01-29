@@ -148,7 +148,11 @@ class Rabbitmq3to4(Command):
             nargs="?",
             default=None,
             choices=SPECIAL_COMMANDS,
-            help="Command: 'list' (show queues), 'delete' (remove queues), 'prepare' (create vhost), 'check' (check if migration needed), 'list-exchanges' (show exchanges in / and openstack), 'delete-exchanges' (remove exchanges in /)",
+            help=(
+                "Command: 'list' (show queues), 'delete' (remove queues), "
+                "'prepare' (create vhost), 'check' (check if migration needed), "
+                "'list-exchanges' (show exchanges), 'delete-exchanges' (remove exchanges in /)"
+            ),
         )
         parser.add_argument(
             "service",
@@ -180,7 +184,7 @@ class Rabbitmq3to4(Command):
         parser.add_argument(
             "--vhost",
             default="/",
-            help="Virtual host to filter queues (default: /). Used with 'list' and 'delete' commands",
+            help="Virtual host to filter queues/exchanges (default: /). Used with 'list', 'delete', and 'list-exchanges' commands",
         )
         return parser
 
@@ -667,41 +671,23 @@ class Rabbitmq3to4(Command):
 
         # Handle 'list-exchanges' command
         if is_list_exchanges:
-            # Get exchanges for both vhosts
-            exchanges_root = self._get_all_exchanges(base_url, auth, "/")
-            exchanges_openstack = self._get_all_exchanges(base_url, auth, "openstack")
+            exchanges = self._get_all_exchanges(base_url, auth, vhost_filter)
 
-            if exchanges_root is None or exchanges_openstack is None:
+            if exchanges is None:
                 return 1
 
-            total_count = len(exchanges_root) + len(exchanges_openstack)
-            if total_count == 0:
-                logger.info("No exchanges found in vhosts '/' and 'openstack'")
+            if not exchanges:
+                logger.info(f"No exchanges found in vhost '{vhost_filter}'")
                 return 0
 
             logger.info(
-                f"Found {total_count} exchange(s) in vhosts '/' and 'openstack':"
+                f"Found {len(exchanges)} exchange(s) in vhost '{vhost_filter}':"
             )
-
-            if exchanges_root:
-                logger.info(f"\nVhost '/' ({len(exchanges_root)} exchange(s)):")
-                for exchange in sorted(exchanges_root, key=lambda e: e.get("name", "")):
-                    name = exchange.get("name", "")
-                    etype = exchange.get("type", "unknown")
-                    durable = "durable" if exchange.get("durable") else "transient"
-                    logger.info(f"  - {name} (type: {etype}, {durable})")
-
-            if exchanges_openstack:
-                logger.info(
-                    f"\nVhost 'openstack' ({len(exchanges_openstack)} exchange(s)):"
-                )
-                for exchange in sorted(
-                    exchanges_openstack, key=lambda e: e.get("name", "")
-                ):
-                    name = exchange.get("name", "")
-                    etype = exchange.get("type", "unknown")
-                    durable = "durable" if exchange.get("durable") else "transient"
-                    logger.info(f"  - {name} (type: {etype}, {durable})")
+            for exchange in sorted(exchanges, key=lambda e: e.get("name", "")):
+                name = exchange.get("name", "")
+                etype = exchange.get("type", "unknown")
+                durable = "durable" if exchange.get("durable") else "transient"
+                logger.info(f"  - {name} (type: {etype}, {durable})")
 
             return 0
 
