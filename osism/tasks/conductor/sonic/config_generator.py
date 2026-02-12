@@ -34,7 +34,7 @@ from .connections import (
     get_connected_interface_ipv4_address,
 )
 from .cache import get_cached_device_interfaces
-from .constants import DEFAULT_SONIC_ROLES
+from .constants import BGP_AF_L2VPN_EVPN_TAG, DEFAULT_SONIC_ROLES
 
 # Global cache for NTP servers to avoid multiple queries
 _ntp_servers_cache = None
@@ -115,6 +115,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
             netbox_interfaces[sonic_name] = {
                 "speed": interface_speed,
                 "speed_explicit": speed_explicit,
+                "tags": getattr(interface, "tags"),
                 "type": (
                     getattr(interface.type, "value", None)
                     if hasattr(interface, "type") and interface.type
@@ -990,12 +991,19 @@ def _add_bgp_configurations(
                         and connected_device.role
                         and connected_device.role.slug in DEFAULT_SONIC_ROLES
                     )
-                    if is_switch_connection:
+
+                    # Check if interface has the required tag
+                    tags = netbox_interfaces[port_name]["tags"]
+                    has_l2vpn_tag = any(
+                        tag.slug == BGP_AF_L2VPN_EVPN_TAG for tag in tags
+                    )
+
+                    if is_switch_connection or has_l2vpn_tag:
                         l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
                         config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
                         logger.debug(
                             f"Added BGP_NEIGHBOR_AF l2vpn_evpn for interface {port_name} "
-                            f"(connected to switch {connected_device.name})"
+                            f"(connected to {connected_device.name})"
                         )
                     else:
                         device_name = (
@@ -1003,7 +1011,7 @@ def _add_bgp_configurations(
                         )
                         logger.debug(
                             f"Skipping l2vpn_evpn for interface {port_name} "
-                            f"(connected device {device_name} is not a switch)"
+                            f"(connected device {device_name} is not a switch and no tag set)"
                         )
             elif has_direct_ipv4 and not has_transfer_ipv4:
                 logger.info(
