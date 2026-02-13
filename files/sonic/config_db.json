@@ -442,7 +442,7 @@
     "TELEMETRY": {
         "gnmi": {}
     },
-    "VERSION": {
+    "VERSIONS": {
         "DATABASE": {
             "VERSION": "version_4_0_1"
         }
