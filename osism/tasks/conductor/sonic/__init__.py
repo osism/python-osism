@@ -5,6 +5,7 @@
 from .config_generator import generate_sonic_config
 from .exporter import save_config_to_netbox, export_config_to_file
 from .sync import sync_sonic
+from .device import get_devices
 from .connections import (
     get_connected_interfaces,
     get_connected_device_for_sonic_interface,
@@ -23,4 +24,5 @@ __all__ = [
     "get_connected_device_via_interface",
     "find_interconnected_devices",
     "get_device_bgp_neighbors_via_loopback",
+    "get_devices",
 ]

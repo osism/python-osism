@@ -10,6 +10,7 @@ from osism.tasks.conductor.config import get_configuration
 from osism.tasks.conductor.ironic import sync_ironic as _sync_ironic
 from osism.tasks.conductor.redfish import get_resources as _get_redfish_resources
 from osism.tasks.conductor.sonic import sync_sonic as _sync_sonic
+from osism.tasks.conductor.sonic import get_devices as _get_sonic_devices
 
 
 # App configuration
@@ -69,10 +70,16 @@ def get_redfish_resources(self, hostname, resource_type):
     return _get_redfish_resources(hostname, resource_type)
 
 
+@app.task(bind=True, name="osism.tasks.conductor.get_sonic_devices")
+def get_sonic_devices(self, device_name=None):
+    return _get_sonic_devices(device_name)
+
+
 __all__ = [
     "app",
     "get_ironic_parameters",
     "get_redfish_resources",
+    "get_sonic_devices",
     "sync_netbox",
     "sync_ironic",
     "sync_sonic",
