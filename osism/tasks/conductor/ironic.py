@@ -263,6 +263,11 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
                     osism_utils.push_task_output(
                         request_id, f"Creating baremetal node for {device.name}\n"
                     )
+                    # NOTE: Create node without automated_clean, so it can be
+                    # transitioned fast from managable to available later. It
+                    # is also safer to not clean during sync, so that nodes may
+                    # later be adopted with their provisioned data.
+                    node_attributes.update(dict(automated_clean=False))
                     node = openstack.baremetal_node_create(device.name, node_attributes)
                 else:
                     # NOTE: Check whether the baremetal node needs to be updated
@@ -345,6 +350,11 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
                                 request_id,
                                 f"Transitioning baremetal node to available state for {device.name}\n",
                             )
+                            if node["automated_clean"]:
+                                # NOTE: Skip automated cleaning on transition from managable to available. We are waiting for the transition and do not want to wait on cleaning at this point
+                                node = openstack.baremetal_node_update(
+                                    node["uuid"], dict(automated_clean=False)
+                                )
                             node = openstack.baremetal_node_set_provision_state(
                                 node["uuid"], "provide"
                             )
@@ -353,6 +363,11 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
                                     node["uuid"], "available"
                                 )
                             )
+                            if not node["automated_clean"]:
+                                # NOTE: Activate automated cleaning, so that future actions will trigger it
+                                node = openstack.baremetal_node_update(
+                                    node["uuid"], dict(automated_clean=True)
+                                )
                             osism_utils.push_task_output(
                                 request_id,
                                 f"Baremetal node for {device.name} is available\n",
@@ -380,6 +395,11 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
                                 request_id,
                                 f"Baremetal node for {device.name} is manageable\n",
                             )
+                            if node["automated_clean"]:
+                                # NOTE: Skip automated cleaning, we do not want to accidentaly clean at this point
+                                node = openstack.baremetal_node_update(
+                                    node["uuid"], dict(automated_clean=False)
+                                )
                 else:
                     osism_utils.push_task_output(
                         request_id,
