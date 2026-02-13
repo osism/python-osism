@@ -269,10 +269,10 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     _add_vrf_configuration(config, vrf_info, netbox_interfaces)
 
     # Set DATABASE VERSION from config_version parameter or default
-    if "VERSION" not in config:
-        config["VERSION"] = {}
-    if "DATABASE" not in config["VERSION"]:
-        config["VERSION"]["DATABASE"] = {}
+    if "VERSIONS" not in config:
+        config["VERSIONS"] = {}
+    if "DATABASE" not in config["VERSIONS"]:
+        config["VERSIONS"]["DATABASE"] = {}
 
     if config_version:
         # Normalize config_version: add "version_" prefix if not present
@@ -283,12 +283,12 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
                 f"Normalized config_version from '{config_version}' to '{normalized_version}' for device {device.name}"
             )
 
-        config["VERSION"]["DATABASE"]["VERSION"] = normalized_version
+        config["VERSIONS"]["DATABASE"]["VERSION"] = normalized_version
         logger.info(
             f"Using custom config_version '{normalized_version}' for device {device.name}"
         )
-    elif "VERSION" not in config.get("VERSION", {}).get("DATABASE", {}):
-        config["VERSION"]["DATABASE"]["VERSION"] = "version_4_0_1"
+    elif "VERSION" not in config.get("VERSIONS", {}).get("DATABASE", {}):
+        config["VERSIONS"]["DATABASE"]["VERSION"] = "version_4_0_1"
         logger.debug(
             f"Using default config_version 'version_4_0_1' for device {device.name}"
         )
