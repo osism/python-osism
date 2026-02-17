@@ -5,6 +5,8 @@
 from loguru import logger
 
 from osism import utils
+from osism.tasks.conductor.netbox import get_nb_device_query_list_sonic
+from osism.tasks.conductor.sonic.constants import DEFAULT_SONIC_ROLES
 
 
 def get_device_platform(device, hwsku):
@@ -80,3 +82,51 @@ def get_device_mac_address(device):
         logger.warning(f"Could not get MAC address for device {device.name}: {e}")
 
     return mac_address
+
+
+def get_devices(self, device_name=None):
+    try:
+        devices = []
+
+        if device_name:
+            # When specific device is requested, fetch it directly
+            try:
+                device = utils.nb.dcim.devices.get(name=device_name)
+                if device:
+                    # Check if device role matches allowed roles
+                    if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
+                        devices.append(device)
+                        logger.debug(
+                            f"Found device: {device.name} with role: {device.role.slug}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Device {device_name} has role '{device.role.slug if device.role else 'None'}' "
+                            f"which is not in allowed SONiC roles: {', '.join(DEFAULT_SONIC_ROLES)}"
+                        )
+                        return 1
+                else:
+                    logger.error(f"Device {device_name} not found in NetBox")
+                    return 1
+            except Exception as e:
+                logger.error(f"Error fetching device {device_name}: {e}")
+                return 1
+        else:
+            # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
+            nb_device_query_list = get_nb_device_query_list_sonic()
+
+            for nb_device_query in nb_device_query_list:
+                # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
+                for device in utils.nb.dcim.devices.filter(**nb_device_query):
+                    # Check if device role matches allowed roles
+                    if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
+                        devices.append(device)
+                        logger.debug(
+                            f"Found device: {device.name} with role: {device.role.slug}"
+                        )
+
+    except Exception as e:
+        logger.error(f"Error retrieving SONiC devices from NetBox: {e}")
+        return None
+
+    return devices

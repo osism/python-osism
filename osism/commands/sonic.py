@@ -12,12 +12,11 @@ from prompt_toolkit import prompt
 from tabulate import tabulate
 
 from osism import utils
-from osism.tasks import netbox
+from osism.tasks import netbox, conductor
 from osism.tasks.conductor.netbox import (
-    get_nb_device_query_list_sonic,
     get_device_oob_ip,
 )
-from osism.tasks.conductor.sonic.constants import DEFAULT_SONIC_ROLES, SUPPORTED_HWSKUS
+from osism.tasks.conductor.sonic.constants import SUPPORTED_HWSKUS
 from osism.utils.ssh import (
     cleanup_ssh_known_hosts_for_node,
     ensure_known_hosts_file,
@@ -1068,6 +1067,7 @@ class List(Command):
         parser.add_argument(
             "device",
             nargs="?",
+            default=None,
             type=str,
             help="Optional device name to filter by (same as sonic sync parameter)",
         )
@@ -1077,44 +1077,13 @@ class List(Command):
         device_name = parsed_args.device
 
         try:
-            devices = []
-
-            if device_name:
-                # When specific device is requested, fetch it directly
-                try:
-                    device = utils.nb.dcim.devices.get(name=device_name)
-                    if device:
-                        # Check if device role matches allowed roles
-                        if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
-                            devices.append(device)
-                            logger.debug(
-                                f"Found device: {device.name} with role: {device.role.slug}"
-                            )
-                        else:
-                            logger.warning(
-                                f"Device {device_name} has role '{device.role.slug if device.role else 'None'}' "
-                                f"which is not in allowed SONiC roles: {', '.join(DEFAULT_SONIC_ROLES)}"
-                            )
-                            return 1
-                    else:
-                        logger.error(f"Device {device_name} not found in NetBox")
-                        return 1
-                except Exception as e:
-                    logger.error(f"Error fetching device {device_name}: {e}")
-                    return 1
-            else:
-                # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
-                nb_device_query_list = get_nb_device_query_list_sonic()
-
-                for nb_device_query in nb_device_query_list:
-                    # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
-                    for device in utils.nb.dcim.devices.filter(**nb_device_query):
-                        # Check if device role matches allowed roles
-                        if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
-                            devices.append(device)
-                            logger.debug(
-                                f"Found device: {device.name} with role: {device.role.slug}"
-                            )
+            task = conductor.get_sonic_devices.delay(device_name=device_name)
+            devices = task.wait()
+            if isinstance(devices, type(None)):
+                logger.error(
+                    "Error listing SONiC devices. Check the conductor log for details"
+                )
+                return 1
 
             logger.info(f"Found {len(devices)} devices matching criteria")
 
