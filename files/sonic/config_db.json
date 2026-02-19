@@ -423,6 +423,7 @@
             "TYPE": "RO"
         }
     },
+    "STATIC_ROUTE": {},
     "SSHD_COMMON": {
         "GLOBAL": {
             "ciphers": "aes128-ctr,aes192-ctr,aes256-ctr,chacha20-poly1305@openssh.com,aes128-gcm@openssh.com,aes256-gcm@openssh.com",
@@ -442,7 +443,7 @@
     "TELEMETRY": {
         "gnmi": {}
     },
-    "VERSION": {
+    "VERSIONS": {
         "DATABASE": {
             "VERSION": "version_4_0_1"
         }
