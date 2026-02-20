@@ -8,7 +8,7 @@ from cliff.command import Command
 from loguru import logger
 from prompt_toolkit import prompt
 
-from osism import utils
+from osism import settings, utils
 from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
@@ -142,7 +142,7 @@ class Run(Command):
             subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
         elif type_console == "clush":
             subprocess.call(
-                f"/usr/local/bin/clush -l dragon -g {host}",
+                f"/usr/local/bin/clush -l {settings.OPERATOR_USER} -g {host}",
                 shell=True,
             )
         elif type_console == "ssh":
@@ -150,7 +150,7 @@ class Run(Command):
             resolved_host = resolve_host_with_fallback(host)
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{resolved_host}",
+                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{resolved_host}",
                 shell=True,
             )
         elif type_console == "container_prompt":
@@ -164,7 +164,7 @@ class Run(Command):
                 resolved_host = resolve_host_with_fallback(host[:-1])
                 # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
                 subprocess.call(
-                    f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{resolved_host} {ssh_command}",
+                    f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{resolved_host} {ssh_command}",
                     shell=True,
                 )
         elif type_console == "container":
@@ -179,6 +179,6 @@ class Run(Command):
             resolved_target_host = resolve_host_with_fallback(target_host)
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{resolved_target_host} {ssh_command}",
+                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{resolved_target_host} {ssh_command}",
                 shell=True,
             )

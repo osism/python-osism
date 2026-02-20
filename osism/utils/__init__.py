@@ -462,7 +462,7 @@ def set_task_lock(user=None, reason=None):
         lock_data = {
             "locked": True,
             "timestamp": datetime.now().isoformat(),
-            "user": user or "dragon",
+            "user": user or settings.OPERATOR_USER,
             "reason": reason,
         }
 

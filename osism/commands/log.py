@@ -64,7 +64,7 @@ class Container(Command):
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
         subprocess.call(
-            f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
+            f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{host} {ssh_command}",
             shell=True,
         )
 
