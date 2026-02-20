@@ -19,7 +19,7 @@ from osism.tasks.openstack import (
     get_openstack_connection,
     setup_cloud_environment,
 )
-from osism import utils
+from osism import settings, utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
 from osism.tasks import netbox
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
@@ -309,7 +309,7 @@ class BaremetalDeploy(Command):
                     if "frr_parameters" in node.extra and node.extra["frr_parameters"]:
                         play["vars"].update(
                             {
-                                "frr_dummy_interface": "loopback0",
+                                "frr_dummy_interface": settings.FRR_DUMMY_INTERFACE,
                             }
                         )
                         play["vars"].update(json.loads(node.extra["frr_parameters"]))
@@ -463,7 +463,7 @@ class BaremetalDump(Command):
                 if "frr_parameters" in node.extra and node.extra["frr_parameters"]:
                     play["vars"].update(
                         {
-                            "frr_dummy_interface": "loopback0",
+                            "frr_dummy_interface": settings.FRR_DUMMY_INTERFACE,
                         }
                     )
                     play["vars"].update(json.loads(node.extra["frr_parameters"]))
@@ -565,7 +565,7 @@ class BaremetalDump(Command):
                 ):
                     play["vars"].update(
                         {
-                            "frr_dummy_interface": "loopback0",
+                            "frr_dummy_interface": settings.FRR_DUMMY_INTERFACE,
                         }
                     )
                     play["vars"].update(device.custom_fields["frr_parameters"])
