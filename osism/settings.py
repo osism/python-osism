@@ -39,6 +39,8 @@ OSISM_API_URL = os.getenv("OSISM_API_URL", None)
 
 OPERATOR_USER = os.getenv("OSISM_OPERATOR_USER", "dragon")
 
+FRR_DUMMY_INTERFACE = os.getenv("OSISM_FRR_DUMMY_INTERFACE", "loopback0")
+
 NETBOX_FILTER_CONDUCTOR_IRONIC = os.getenv(
     "NETBOX_FILTER_CONDUCTOR_IRONIC",
     "[{'state': 'active', 'tag': ['managed-by-ironic']}]",
