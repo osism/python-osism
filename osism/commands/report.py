@@ -8,6 +8,7 @@ from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
 
+from osism import settings
 from osism.commands.console import resolve_host_with_fallback
 from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
@@ -88,7 +89,11 @@ class Memory(Command):
 
             try:
                 memory_result = subprocess.run(
-                    [*ssh_base, f"dragon@{resolved_host}", dmidecode_command],
+                    [
+                        *ssh_base,
+                        f"{settings.OPERATOR_USER}@{resolved_host}",
+                        dmidecode_command,
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -102,7 +107,11 @@ class Memory(Command):
                     continue
 
                 uuid_result = subprocess.run(
-                    [*ssh_base, f"dragon@{resolved_host}", uuid_command],
+                    [
+                        *ssh_base,
+                        f"{settings.OPERATOR_USER}@{resolved_host}",
+                        uuid_command,
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=30,

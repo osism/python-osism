@@ -37,6 +37,8 @@ INVENTORY_RECONCILER_SCHEDULE = float(
 
 OSISM_API_URL = os.getenv("OSISM_API_URL", None)
 
+OPERATOR_USER = os.getenv("OSISM_OPERATOR_USER", "dragon")
+
 NETBOX_FILTER_CONDUCTOR_IRONIC = os.getenv(
     "NETBOX_FILTER_CONDUCTOR_IRONIC",
     "[{'state': 'active', 'tag': ['managed-by-ironic']}]",

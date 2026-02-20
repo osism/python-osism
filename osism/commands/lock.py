@@ -3,7 +3,7 @@
 from cliff.command import Command
 from loguru import logger
 
-from osism import utils
+from osism import settings, utils
 
 
 class Lock(Command):
@@ -13,13 +13,13 @@ class Lock(Command):
         parser = super(Lock, self).get_parser(prog_name)
         parser.add_argument(
             "--user",
-            help="User name to associate with the lock (defaults to dragon)",
+            help=f"User name to associate with the lock (defaults to {settings.OPERATOR_USER})",
         )
         parser.add_argument("--reason", help="Reason for locking tasks")
         return parser
 
     def take_action(self, parsed_args):
-        user = parsed_args.user or "dragon"
+        user = parsed_args.user or settings.OPERATOR_USER
         reason = parsed_args.reason
 
         # Check if already locked

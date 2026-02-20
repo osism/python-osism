@@ -11,6 +11,8 @@ from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
 
+from osism import settings
+
 try:
     import docker
 
@@ -270,11 +272,12 @@ class Mount(Command):
         max_files: int,
     ) -> str:
         """Run a fresh container to collect file info from the mount."""
-        # Script to collect file info - create user dragon:dragon (UID/GID 45000) first
+        # Script to collect file info - create operator user (UID/GID 45000) first
         # Write inner script to file to avoid quote escaping issues
+        operator_user = settings.OPERATOR_USER
         script = f"""#!/bin/sh
-addgroup -g 45000 dragon 2>/dev/null
-adduser -D -u 45000 -G dragon dragon 2>/dev/null
+addgroup -g 45000 {operator_user} 2>/dev/null
+adduser -D -u 45000 -G {operator_user} {operator_user} 2>/dev/null
 
 cat > /tmp/scan.sh << 'SCANEOF'
 cd "{mount_path}"
@@ -313,7 +316,7 @@ done
 SCANEOF
 
 chmod +x /tmp/scan.sh
-su dragon -c "/bin/sh /tmp/scan.sh"
+su {operator_user} -c "/bin/sh /tmp/scan.sh"
 """
 
         try:

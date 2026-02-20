@@ -7,6 +7,7 @@ from cliff.command import Command
 from loguru import logger
 from prompt_toolkit import prompt
 
+from osism import settings
 from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
@@ -43,7 +44,7 @@ class Run(Command):
                 ssh_command = f"docker {command}"
                 # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
                 subprocess.call(
-                    f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
+                    f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{host} {ssh_command}",
                     shell=True,
                 )
         else:
@@ -51,6 +52,6 @@ class Run(Command):
 
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} dragon@{host} {ssh_command}",
+                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{host} {ssh_command}",
                 shell=True,
             )
