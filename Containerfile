@@ -93,6 +93,11 @@ rm -rf /openstack-resource-manager/.git
 git clone --depth 1 https://github.com/osism/tests.git /tests
 rm -rf /tests/.git
 
+# install SCS compliance check tests (only Tests/ directory)
+git clone --depth 1 https://github.com/SovereignCloudStack/standards.git /tmp/scs-standards
+cp -r /tmp/scs-standards/Tests /scs-tests
+rm -rf /tmp/scs-standards
+
 # prepare use of clustershell
 ln -s /ansible/inventory/clustershell /etc/clustershell/groups.d
 
