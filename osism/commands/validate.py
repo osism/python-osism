@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import os
+import subprocess
 
 from cliff.command import Command
 from loguru import logger
 
 from osism.data.enums import VALIDATE_PLAYBOOKS
 from osism.tasks import ansible, ceph, kolla
+from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
 from osism import utils
 
 
@@ -103,3 +106,106 @@ class Run(Command):
         rc = self._handle_task(t, wait, format, timeout, playbook)
 
         return rc
+
+
+class Scs(Command):
+    def get_parser(self, prog_name):
+        parser = super(Scs, self).get_parser(prog_name)
+        parser.add_argument(
+            "--cloud",
+            default="admin",
+            type=str,
+            help="Cloud name in clouds.yaml (default: %(default)s)",
+        )
+        parser.add_argument(
+            "--version",
+            default="v5.1",
+            type=str,
+            help="SCS version to check against (default: %(default)s)",
+        )
+        parser.add_argument(
+            "--tests",
+            default=None,
+            type=str,
+            help="Regex filter for test IDs (e.g. 'scs-0100|scs-0103')",
+        )
+        parser.add_argument(
+            "--output",
+            default=None,
+            type=str,
+            help="Path for YAML report output",
+        )
+        parser.add_argument(
+            "--verbose",
+            default=False,
+            action="store_true",
+            help="Verbose output",
+        )
+        parser.add_argument(
+            "--debug",
+            default=False,
+            action="store_true",
+            help="Debug logging",
+        )
+        parser.add_argument(
+            "--sections",
+            default=None,
+            type=str,
+            help="Comma-separated list of sections to check",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        cloud = parsed_args.cloud
+
+        password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
+        if not success:
+            return 1
+
+        try:
+            command = [
+                "python3",
+                "/scs-tests/scs-compliance-check.py",
+                "-s",
+                cloud,
+                "-a",
+                f"os_cloud={cloud}",
+                "-V",
+                parsed_args.version,
+            ]
+
+            if parsed_args.verbose:
+                command.append("-v")
+            if parsed_args.debug:
+                command.append("--debug")
+            if parsed_args.tests:
+                command.extend(["-t", parsed_args.tests])
+            if parsed_args.output:
+                command.extend(["-o", parsed_args.output])
+            if parsed_args.sections:
+                command.extend(["-S", parsed_args.sections])
+
+            command.append("scs-compatible-iaas.yaml")
+
+            env = os.environ.copy()
+            env["OS_CLIENT_CONFIG_FILE"] = "/tmp/clouds.yaml"
+
+            logger.debug(
+                f"Executing SCS compliance check with command: {' '.join(command)}"
+            )
+
+            try:
+                result = subprocess.run(
+                    command, cwd="/scs-tests/", env=env, check=False
+                )
+                return result.returncode
+            except FileNotFoundError:
+                logger.error(
+                    "SCS compliance check tool not found at /scs-tests/scs-compliance-check.py"
+                )
+                return 1
+            except Exception as e:
+                logger.error(f"Error executing SCS compliance check: {e}")
+                return 1
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
