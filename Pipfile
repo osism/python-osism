@@ -10,7 +10,7 @@ Jinja2 = "==3.1.6"
 PyMySQL = "==1.1.2"
 PyYAML = "==6.0.3"
 ansible-runner = "==2.4.2"
-ara = "==1.7.3"
+ara = "==1.7.4"
 celery = {version = "==5.6.2", extras = ["redis"]}
 cliff = "==4.13.2"
 deepdiff = "==8.6.1"
