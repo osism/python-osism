@@ -250,6 +250,12 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     # Add Loopback configuration
     _add_loopback_configuration(config, loopback_info)
 
+    # Add log-server configuration
+    _add_log_server_configuration(config, device)
+
+    # Add SNMP configuration
+    _add_snmp_configuration(config, device)
+
     # Add management interface configuration
     if oob_ip_result:
         oob_ip, prefix_len = oob_ip_result
@@ -2083,4 +2089,28 @@ def _add_portchannel_configuration(config, portchannel_info):
 
             logger.debug(
                 f"Added port channel {pc_name} with {len(pc_data['members'])} members"
+            )
+
+def _add_log_server_configuration(config, device):
+    """Add SYSLOG_SERVER configuration to device config.
+
+    The configuration is taken from multiple _segment_log_server_* variables
+    in the config_context of the device.
+    """
+    hosts = device.config_context.get("_segment_log_server_hosts", [])
+    if hosts:
+        proto = device.config_context.get("_segment_log_server_proto", "udp")
+        severity = device.config_context.get("_segment_log_server_severity", "info")
+        vrf = device.config_context.get("_segment_log_server_vrf", "mgmt")
+        config["SYSLOG_SERVER"] = {}
+        for host in hosts:
+            config["SYSLOG_SERVER"][host] = {}
+            config["SYSLOG_SERVER"][host]["message-type"] = "log"
+            config["SYSLOG_SERVER"][host]["protocol"] = proto.upper()
+            config["SYSLOG_SERVER"][host]["remote-port"] = "514"
+            config["SYSLOG_SERVER"][host]["severity"] = severity
+            config["SYSLOG_SERVER"][host]["vrf_name"] = vrf
+
+            logger.debug(
+                f"Added syslog_server {host}"
             )
