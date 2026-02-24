@@ -253,9 +253,6 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     # Add log-server configuration
     _add_log_server_configuration(config, device)
 
-    # Add SNMP configuration
-    _add_snmp_configuration(config, device)
-
     # Add management interface configuration
     if oob_ip_result:
         oob_ip, prefix_len = oob_ip_result
@@ -264,6 +261,11 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         metalbox_ip = _get_metalbox_ip_for_device(device)
         config["STATIC_ROUTE"] = {}
         config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] = {"nexthop": metalbox_ip}
+    else:
+        oob_ip = None
+
+    # Add SNMP configuration
+    _add_snmp_configuration(config, device, oob_ip)
 
     # Add breakout configuration
     if breakout_info["breakout_cfgs"]:
@@ -2091,6 +2093,7 @@ def _add_portchannel_configuration(config, portchannel_info):
                 f"Added port channel {pc_name} with {len(pc_data['members'])} members"
             )
 
+
 def _add_log_server_configuration(config, device):
     """Add SYSLOG_SERVER configuration to device config.
 
@@ -2111,6 +2114,68 @@ def _add_log_server_configuration(config, device):
             config["SYSLOG_SERVER"][host]["severity"] = severity
             config["SYSLOG_SERVER"][host]["vrf_name"] = vrf
 
-            logger.debug(
-                f"Added syslog_server {host}"
-            )
+            logger.debug(f"Added syslog_server {host}")
+
+
+def _add_snmp_configuration(config, device, oob_ip):
+    """Add Snmp configuration to device config.
+
+    The configuration is taken from multiple _segment_snmp_server_* variables
+    in the config_context of the device.
+    """
+
+    location = device.config_context.get("_segment_snmp_server_location", "Data Center")
+    contact = device.config_context.get(
+        "_segment_snmp_server_contact", "info@example.com"
+    )
+    config["SNMP_SERVER"] = {"SYSTEM": {"sysContact": contact, "sysLocation": location}}
+
+    traps = device.config_context.get("_segment_snmp_server_traps", True)
+    if traps:
+        config["SNMP_SERVER"]["SYSTEM"]["traps"] = "enable"
+
+    if oob_ip:
+        config["SNMP_AGENT_ADDRESS_CONFIG"] = {
+            f"{oob_ip}|161|mgmt": {"name": "agentEntry1"}
+        }
+
+    username = device.config_context.get("_segment_snmp_server_username", None)
+    if username:
+        userauthpass = device.config_context.get(
+            "_segment_snmp_server_userauthpass", "OBFUSCATEDSECRET1"
+        )
+        userprivpass = device.config_context.get(
+            "_segment_snmp_server_userprivpass", "OBFUSCATEDSECRET2"
+        )
+        config["SNMP_SERVER_GROUP_MEMBER"] = {}
+        config["SNMP_SERVER_USER"] = {}
+        config["SNMP_SERVER_GROUP_MEMBER"][f"monitoring|{username}"] = {
+            "securityModel": ["usm"]
+        }
+        config["SNMP_SERVER_USER"][f"{username}"] = {
+            "shaKey": userauthpass,
+            "aesKey": userprivpass,
+        }
+        logger.debug(f"Added snmp_server_user {username}")
+
+        hosts = device.config_context.get("_segment_snmp_server_hosts", [])
+        if hosts:
+            config["SNMP_SERVER_PARAMS"] = {}
+            config["SNMP_SERVER_TARGET"] = {}
+            counter = 1
+            for host in hosts:
+                config["SNMP_SERVER_PARAMS"][f"targetEntry{counter}"] = {
+                    "security-level": "auth-priv",
+                    "user": username,
+                }
+                config["SNMP_SERVER_TARGET"][f"targetEntry{counter}"] = {
+                    "ip": host,
+                    "port": "162",
+                    "retries": "3",
+                    "tag": ["trapNotify", "mgmt"],
+                    "targetParams": f"targetEntry{counter}",
+                    "timeout": "1500",
+                }
+                counter += 1
+
+                logger.debug(f"Added snmp_server_target {host}")
