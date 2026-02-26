@@ -51,11 +51,11 @@ class Ironic(Command):
         if wait:
             if node_name:
                 logger.info(
-                    f"Task {task.task_id} (sync ironic for node {node_name}) is running in background. Output comming soon."
+                    f"Task {task.task_id} (sync ironic for node {node_name}) is running in background. Output coming soon."
                 )
             else:
                 logger.info(
-                    f"Task {task.task_id} (sync ironic) is running in background. Output comming soon."
+                    f"Task {task.task_id} (sync ironic) is running in background. Output coming soon."
                 )
             try:
                 return utils.fetch_task_output(task.id, timeout=task_timeout)
@@ -323,11 +323,11 @@ class Sync(Command):
         if wait:
             if node_name:
                 logger.info(
-                    f"Task {task.task_id} (sync netbox for node {node_name}) is running in background. Output comming soon."
+                    f"Task {task.task_id} (sync netbox for node {node_name}) is running in background. Output coming soon."
                 )
             else:
                 logger.info(
-                    f"Task {task.task_id} (sync netbox) is running in background. Output comming soon."
+                    f"Task {task.task_id} (sync netbox) is running in background. Output coming soon."
                 )
             try:
                 return utils.fetch_task_output(task.id, timeout=task_timeout)
