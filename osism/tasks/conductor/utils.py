@@ -242,3 +242,30 @@ def check_task_lock_and_exit():
     This is a convenience wrapper around the main utils function.
     """
     return utils.check_task_lock_and_exit()
+
+
+def mask_secrets(obj, mask="xxx"):
+    """Return a deep copy of obj with secret values masked.
+
+    Recursively masks all dict values whose key contains
+    'password' or 'secret' (case-insensitive).
+    """
+    import copy
+
+    result = copy.deepcopy(obj)
+    _mask_secrets_inplace(result, mask)
+    return result
+
+
+def _mask_secrets_inplace(obj, mask):
+    if isinstance(obj, dict):
+        for key in obj:
+            if isinstance(key, str) and (
+                "password" in key.lower() or "secret" in key.lower()
+            ):
+                obj[key] = mask
+            else:
+                _mask_secrets_inplace(obj[key], mask)
+    elif isinstance(obj, list):
+        for item in obj:
+            _mask_secrets_inplace(item, mask)
