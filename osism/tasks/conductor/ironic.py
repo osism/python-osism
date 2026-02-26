@@ -171,7 +171,26 @@ def _prepare_node_attributes(device, get_ironic_parameters):
             {"frr_parameters": json.dumps(device.custom_fields["frr_parameters"])}
         )
 
-    return node_attributes
+    return node_attributes, template_vars
+
+
+def _prettify_for_display(obj):
+    """Parse JSON strings in 'extra' back to dicts for readable display."""
+    import copy
+
+    result = copy.deepcopy(obj)
+    if (
+        isinstance(result, dict)
+        and "extra" in result
+        and isinstance(result["extra"], dict)
+    ):
+        for key, value in result["extra"].items():
+            if isinstance(value, str):
+                try:
+                    result["extra"][key] = json.loads(value)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+    return result
 
 
 def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, force):
@@ -316,9 +335,10 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
 
 
 def _sync_ironic_device_dry_run(
-    request_id, device, node_attributes, ports_attributes, force
+    request_id, device, node_attributes, ports_attributes, force, template_vars
 ):
-    masked_attributes = mask_secrets(node_attributes)
+    masked_attributes = _prettify_for_display(mask_secrets(node_attributes))
+    masked_template_vars = mask_secrets(template_vars)
 
     osism_utils.push_task_output(request_id, f"Processing device {device.name}\n")
     node = openstack.baremetal_node_show(device.name, ignore_missing=True)
@@ -327,7 +347,9 @@ def _sync_ironic_device_dry_run(
             request_id,
             f"[DRY RUN] Would CREATE baremetal node for {device.name}\n"
             f"  Computed node attributes:\n"
-            f"{json.dumps(masked_attributes, indent=2)}\n",
+            f"{json.dumps(masked_attributes, indent=2)}\n"
+            f"  Template variables used:\n"
+            f"{json.dumps(masked_template_vars, indent=2)}\n",
         )
         for port_attributes in ports_attributes:
             osism_utils.push_task_output(
@@ -345,14 +367,16 @@ def _sync_ironic_device_dry_run(
                 if not node_updates["driver_info"]:
                     node_updates.pop("driver_info", None)
         if node_updates or force:
-            masked_updates = mask_secrets(node_updates)
+            masked_updates = _prettify_for_display(mask_secrets(node_updates))
             osism_utils.push_task_output(
                 request_id,
                 f"[DRY RUN] Would UPDATE baremetal node for {device.name}\n"
                 f"  Changes:\n"
                 f"{json.dumps(masked_updates, indent=2)}\n"
                 f"  Full computed node attributes:\n"
-                f"{json.dumps(masked_attributes, indent=2)}\n",
+                f"{json.dumps(masked_attributes, indent=2)}\n"
+                f"  Template variables used:\n"
+                f"{json.dumps(masked_template_vars, indent=2)}\n",
             )
         else:
             osism_utils.push_task_output(
@@ -508,7 +532,9 @@ def sync_ironic(
 
         node_interfaces = list(netbox.get_interfaces_by_device(device.name))
 
-        node_attributes = _prepare_node_attributes(device, get_ironic_parameters)
+        node_attributes, template_vars = _prepare_node_attributes(
+            device, get_ironic_parameters
+        )
         ports_attributes = [
             dict(address=interface.mac_address)
             for interface in node_interfaces
@@ -518,7 +544,12 @@ def sync_ironic(
         if dry_run:
             # In dry-run mode, skip locking entirely
             _sync_ironic_device_dry_run(
-                request_id, device, node_attributes, ports_attributes, force
+                request_id,
+                device,
+                node_attributes,
+                ports_attributes,
+                force,
+                template_vars,
             )
         else:
             lock = osism_utils.create_redlock(
