@@ -41,13 +41,14 @@ def _prepare_node_attributes(device, get_ironic_parameters):
     # Create vault instance for Custom Field decryption
     vault = get_vault()
 
-    # Merge ironic_parameters from Config Context if present
+    # Decrypt and merge ironic_parameters from Config Context if present
     if (
         hasattr(device, "config_context")
         and device.config_context
         and "ironic_parameters" in device.config_context
     ):
         config_context_ironic = device.config_context["ironic_parameters"]
+        deep_decrypt(config_context_ironic, vault)
         deep_merge(node_attributes, config_context_ironic)
 
     # Decrypt and merge ironic_parameters Custom Field if present
