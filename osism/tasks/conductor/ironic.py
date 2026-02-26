@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import re
 
 import jinja2
 
@@ -18,6 +19,13 @@ from osism.tasks.conductor.utils import (
     get_vault,
 )
 
+
+SUPPORTED_IPA_TYPES = {
+    "yrzn001": {
+        "osism_as": "frr_local_as",
+        "osism_ipv4": "frr_loopback_v4",
+    },
+}
 
 driver_params = {
     "ipmi": {
@@ -130,6 +138,16 @@ def _prepare_node_attributes(device, get_ironic_parameters):
     if "extra" not in node_attributes:
         node_attributes["extra"] = {}
     if "instance_info" in node_attributes and node_attributes["instance_info"]:
+        kap = node_attributes["instance_info"].get("kernel_append_parameters", "")
+        if kap:
+            match = re.search(r"osism-ipa-type=(\S+)", kap)
+            if match and match.group(1) in SUPPORTED_IPA_TYPES:
+                frr = device.custom_fields.get("frr_parameters") or {}
+                for kap_name, frr_key in SUPPORTED_IPA_TYPES[match.group(1)].items():
+                    if frr_key in frr:
+                        kap += f" {kap_name}={frr[frr_key]}"
+                node_attributes["instance_info"]["kernel_append_parameters"] = kap
+
         node_attributes["extra"].update(
             {"instance_info": json.dumps(node_attributes["instance_info"])}
         )
