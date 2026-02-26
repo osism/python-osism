@@ -244,28 +244,42 @@ def check_task_lock_and_exit():
     return utils.check_task_lock_and_exit()
 
 
-def mask_secrets(obj, mask="xxx"):
+def _is_secret_key(key):
+    if not isinstance(key, str):
+        return False
+    lower = key.lower()
+    return "password" in lower or "secret" in lower or lower.startswith("ironic_osism_")
+
+
+def mask_secrets(obj, mask="xxx", secret_values=None):
     """Return a deep copy of obj with secret values masked.
 
     Recursively masks all dict values whose key contains
-    'password' or 'secret' (case-insensitive).
+    'password' or 'secret' (case-insensitive) or starts with
+    'ironic_osism_'. If secret_values is provided, also replaces
+    those literal strings within all string values.
     """
     import copy
 
     result = copy.deepcopy(obj)
-    _mask_secrets_inplace(result, mask)
+    _mask_secrets_inplace(result, mask, secret_values or set())
     return result
 
 
-def _mask_secrets_inplace(obj, mask):
+def _mask_secrets_inplace(obj, mask, secret_values):
     if isinstance(obj, dict):
-        for key in obj:
-            if isinstance(key, str) and (
-                "password" in key.lower() or "secret" in key.lower()
-            ):
+        for key in list(obj.keys()):
+            if _is_secret_key(key):
                 obj[key] = mask
+            elif isinstance(obj[key], str):
+                for sv in secret_values:
+                    obj[key] = obj[key].replace(sv, mask)
             else:
-                _mask_secrets_inplace(obj[key], mask)
+                _mask_secrets_inplace(obj[key], mask, secret_values)
     elif isinstance(obj, list):
-        for item in obj:
-            _mask_secrets_inplace(item, mask)
+        for i in range(len(obj)):
+            if isinstance(obj[i], str):
+                for sv in secret_values:
+                    obj[i] = obj[i].replace(sv, mask)
+            else:
+                _mask_secrets_inplace(obj[i], mask, secret_values)
