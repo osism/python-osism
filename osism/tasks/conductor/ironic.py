@@ -34,6 +34,29 @@ driver_params = {
 }
 
 
+def _render_templates(obj, template_vars):
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            if isinstance(value, str) and "{{" in value:
+                obj[key] = (
+                    jinja2.Environment(loader=jinja2.BaseLoader())
+                    .from_string(value)
+                    .render(**template_vars)
+                )
+            elif isinstance(value, (dict, list)):
+                _render_templates(value, template_vars)
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            if isinstance(item, str) and "{{" in item:
+                obj[i] = (
+                    jinja2.Environment(loader=jinja2.BaseLoader())
+                    .from_string(item)
+                    .render(**template_vars)
+                )
+            elif isinstance(item, (dict, list)):
+                _render_templates(item, template_vars)
+
+
 def _prepare_node_attributes(device, get_ironic_parameters):
     # Get base node attributes (no decryption needed)
     node_attributes = get_ironic_parameters()
@@ -81,40 +104,28 @@ def _prepare_node_attributes(device, get_ironic_parameters):
                     if key.startswith(driver + "_"):
                         node_attributes["driver_info"].pop(key, None)
 
-            username_key = driver_params[node_attributes["driver"]]["username"]
-            if username_key in node_attributes["driver_info"]:
-                node_attributes["driver_info"][username_key] = (
-                    jinja2.Environment(loader=jinja2.BaseLoader())
-                    .from_string(node_attributes["driver_info"][username_key])
-                    .render(
-                        remote_board_username=str(
-                            node_secrets.get("remote_board_username", "admin")
-                        )
-                    )
-                )
+    # Build template variables for Jinja2 rendering
+    template_vars = {}
 
-            password_key = driver_params[node_attributes["driver"]]["password"]
-            if password_key in node_attributes["driver_info"]:
-                node_attributes["driver_info"][password_key] = (
-                    jinja2.Environment(loader=jinja2.BaseLoader())
-                    .from_string(node_attributes["driver_info"][password_key])
-                    .render(
-                        remote_board_password=str(
-                            node_secrets.get("remote_board_password", "password")
-                        )
-                    )
-                )
+    template_vars["remote_board_username"] = str(
+        node_secrets.get("remote_board_username", "admin")
+    )
+    template_vars["remote_board_password"] = str(
+        node_secrets.get("remote_board_password", "password")
+    )
 
-            address_key = driver_params[node_attributes["driver"]]["address"]
-            if address_key in node_attributes["driver_info"]:
-                oob_ip_result = get_device_oob_ip(device)
-                if oob_ip_result:
-                    oob_ip, _ = oob_ip_result
-                    node_attributes["driver_info"][address_key] = (
-                        jinja2.Environment(loader=jinja2.BaseLoader())
-                        .from_string(node_attributes["driver_info"][address_key])
-                        .render(remote_board_address=oob_ip)
-                    )
+    oob_ip_result = get_device_oob_ip(device)
+    if oob_ip_result:
+        oob_ip, _ = oob_ip_result
+        template_vars["remote_board_address"] = oob_ip
+
+    for key, value in node_secrets.items():
+        if key.startswith("ironic_osism_"):
+            template_vars[key] = str(value)
+
+    # Render Jinja2 templates in all string values
+    _render_templates(node_attributes, template_vars)
+
     node_attributes.update({"resource_class": device.name})
     if "extra" not in node_attributes:
         node_attributes["extra"] = {}
