@@ -140,7 +140,7 @@ def _prepare_node_attributes(device, get_ironic_parameters):
     if "extra" not in node_attributes:
         node_attributes["extra"] = {}
     if "instance_info" in node_attributes and node_attributes["instance_info"]:
-        kap = node_attributes["instance_info"].get("kernel_append_parameters", "")
+        kap = node_attributes["instance_info"].get("kernel_append_params", "")
         if kap:
             match = re.search(r"osism-ipa-type=(\S+)", kap)
             if match and match.group(1) in SUPPORTED_IPA_TYPES:
@@ -148,7 +148,7 @@ def _prepare_node_attributes(device, get_ironic_parameters):
                 for kap_name, frr_key in SUPPORTED_IPA_TYPES[match.group(1)].items():
                     if frr_key in frr:
                         kap += f" {kap_name}={frr[frr_key]}"
-                node_attributes["instance_info"]["kernel_append_parameters"] = kap
+                node_attributes["instance_info"]["kernel_append_params"] = kap
 
         node_attributes["extra"].update(
             {"instance_info": json.dumps(node_attributes["instance_info"])}
