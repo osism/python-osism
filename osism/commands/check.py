@@ -305,7 +305,7 @@ find . -maxdepth 10 \\( -name .git -o -name venv -o -name __pycache__ \\) -prune
         else:
             script += '            echo "HASH:NONE"\n'
 
-        script += """
+        script += f"""
         else
             echo "ERROR:$inode"
         fi
