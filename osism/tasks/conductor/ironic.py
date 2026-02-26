@@ -17,6 +17,7 @@ from osism.tasks.conductor.utils import (
     deep_decrypt,
     deep_merge,
     get_vault,
+    mask_secrets,
 )
 
 
@@ -173,16 +174,236 @@ def _prepare_node_attributes(device, get_ironic_parameters):
     return node_attributes
 
 
-def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
+def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, force):
+    osism_utils.push_task_output(request_id, f"Processing device {device.name}\n")
+    node = openstack.baremetal_node_show(device.name, ignore_missing=True)
+    if not node:
+        osism_utils.push_task_output(
+            request_id, f"Creating baremetal node for {device.name}\n"
+        )
+        # NOTE: Create node without automated_clean, so it can be
+        # transitioned fast from managable to available later. It
+        # is also safer to not clean during sync, so that nodes may
+        # later be adopted with their provisioned data.
+        node_attributes.update(dict(automated_clean=False))
+        node = openstack.baremetal_node_create(device.name, node_attributes)
+    else:
+        # NOTE: Check whether the baremetal node needs to be updated
+        node_updates = {}
+        deep_compare(node_attributes, node, node_updates)
+        if "driver_info" in node_updates:
+            # NOTE: The password is not returned by ironic, so we cannot make a comparision and it would always be updated. Therefore we pop it from the dictionary
+            password_key = driver_params[node_attributes["driver"]]["password"]
+            if password_key in node_updates["driver_info"]:
+                node_updates["driver_info"].pop(password_key, None)
+                if not node_updates["driver_info"]:
+                    node_updates.pop("driver_info", None)
+        if node_updates or force:
+            osism_utils.push_task_output(
+                request_id,
+                f"Updating baremetal node for {device.name} with {node_updates}\n",
+            )
+            # NOTE: Do the actual updates with all values in node_attributes. Otherwise nested dicts like e.g. driver_info will be overwritten as a whole and contain only changed values
+            node = openstack.baremetal_node_update(node["uuid"], node_attributes)
+
+    node_ports = openstack.baremetal_port_list(
+        details=False, attributes=dict(node_uuid=node["uuid"])
+    )
+    # NOTE: Baremetal ports are only required for (i)pxe boot
+    for port_attributes in ports_attributes:
+        port_attributes.update({"node_id": node["uuid"]})
+        port = [
+            port
+            for port in node_ports
+            if port_attributes["address"].upper() == port["address"].upper()
+        ]
+        if not port:
+            osism_utils.push_task_output(
+                request_id,
+                f"Creating baremetal port with MAC address {port_attributes['address']} for {device.name}\n",
+            )
+            openstack.baremetal_port_create(port_attributes)
+        else:
+            node_ports.remove(port[0])
+    for node_port in node_ports:
+        # NOTE: Delete remaining ports not found in NetBox
+        osism_utils.push_task_output(
+            request_id,
+            f"Deleting baremetal port with MAC address {node_port['address']} for {device.name}\n",
+        )
+        openstack.baremetal_port_delete(node_port["id"])
+
+    node_validation = openstack.baremetal_node_validate(node["uuid"])
+    if node_validation["management"].result:
+        osism_utils.push_task_output(
+            request_id,
+            f"Validation of management interface successful for baremetal node for {device.name}\n",
+        )
+        if node["provision_state"] in ["enroll", "clean failed"]:
+            osism_utils.push_task_output(
+                request_id,
+                f"Transitioning baremetal node to manageable state for {device.name}\n",
+            )
+            node = openstack.baremetal_node_set_provision_state(node["uuid"], "manage")
+            node = openstack.baremetal_node_wait_for_nodes_provision_state(
+                node["uuid"], "manageable"
+            )
+            osism_utils.push_task_output(
+                request_id,
+                f"Baremetal node for {device.name} is manageable\n",
+            )
+        if node_validation["boot"].result:
+            osism_utils.push_task_output(
+                request_id,
+                f"Validation of boot interface successful for baremetal node for {device.name}\n",
+            )
+            if node["provision_state"] == "manageable":
+                osism_utils.push_task_output(
+                    request_id,
+                    f"Transitioning baremetal node to available state for {device.name}\n",
+                )
+                if node["automated_clean"]:
+                    # NOTE: Skip automated cleaning on transition from managable to available. We are waiting for the transition and do not want to wait on cleaning at this point
+                    node = openstack.baremetal_node_update(
+                        node["uuid"], dict(automated_clean=False)
+                    )
+                node = openstack.baremetal_node_set_provision_state(
+                    node["uuid"], "provide"
+                )
+                node = openstack.baremetal_node_wait_for_nodes_provision_state(
+                    node["uuid"], "available"
+                )
+                if not node["automated_clean"]:
+                    # NOTE: Activate automated cleaning, so that future actions will trigger it
+                    node = openstack.baremetal_node_update(
+                        node["uuid"], dict(automated_clean=True)
+                    )
+                osism_utils.push_task_output(
+                    request_id,
+                    f"Baremetal node for {device.name} is available\n",
+                )
+        else:
+            osism_utils.push_task_output(
+                request_id,
+                f"Validation of boot interface failed for baremetal node for {device.name}\nReason: {node_validation['boot'].reason}\n",
+            )
+            if node["provision_state"] == "available":
+                # NOTE: Demote node to manageable
+                osism_utils.push_task_output(
+                    request_id,
+                    f"Transitioning baremetal node to manageable state for {device.name}\n",
+                )
+                node = openstack.baremetal_node_set_provision_state(
+                    node["uuid"], "manage"
+                )
+                node = openstack.baremetal_node_wait_for_nodes_provision_state(
+                    node["uuid"], "manageable"
+                )
+                osism_utils.push_task_output(
+                    request_id,
+                    f"Baremetal node for {device.name} is manageable\n",
+                )
+                if node["automated_clean"]:
+                    # NOTE: Skip automated cleaning, we do not want to accidentaly clean at this point
+                    node = openstack.baremetal_node_update(
+                        node["uuid"], dict(automated_clean=False)
+                    )
+    else:
+        osism_utils.push_task_output(
+            request_id,
+            f"Validation of management interface failed for baremetal node for {device.name}\nReason: {node_validation['management'].reason}\n",
+        )
+
+
+def _sync_ironic_device_dry_run(
+    request_id, device, node_attributes, ports_attributes, force
+):
+    masked_attributes = mask_secrets(node_attributes)
+
+    osism_utils.push_task_output(request_id, f"Processing device {device.name}\n")
+    node = openstack.baremetal_node_show(device.name, ignore_missing=True)
+    if not node:
+        osism_utils.push_task_output(
+            request_id,
+            f"[DRY RUN] Would CREATE baremetal node for {device.name}\n"
+            f"  Computed node attributes:\n"
+            f"{json.dumps(masked_attributes, indent=2)}\n",
+        )
+        for port_attributes in ports_attributes:
+            osism_utils.push_task_output(
+                request_id,
+                f"[DRY RUN] Would CREATE port with MAC {port_attributes['address']} for {device.name}\n",
+            )
+    else:
+        # NOTE: Check whether the baremetal node needs to be updated
+        node_updates = {}
+        deep_compare(node_attributes, node, node_updates)
+        if "driver_info" in node_updates:
+            password_key = driver_params[node_attributes["driver"]]["password"]
+            if password_key in node_updates["driver_info"]:
+                node_updates["driver_info"].pop(password_key, None)
+                if not node_updates["driver_info"]:
+                    node_updates.pop("driver_info", None)
+        if node_updates or force:
+            masked_updates = mask_secrets(node_updates)
+            osism_utils.push_task_output(
+                request_id,
+                f"[DRY RUN] Would UPDATE baremetal node for {device.name}\n"
+                f"  Changes:\n"
+                f"{json.dumps(masked_updates, indent=2)}\n"
+                f"  Full computed node attributes:\n"
+                f"{json.dumps(masked_attributes, indent=2)}\n",
+            )
+        else:
+            osism_utils.push_task_output(
+                request_id,
+                f"[DRY RUN] Node {device.name} exists, no update needed\n",
+            )
+
+        # Check ports
+        node_ports = openstack.baremetal_port_list(
+            details=False, attributes=dict(node_uuid=node["uuid"])
+        )
+        for port_attributes in ports_attributes:
+            port = [
+                port
+                for port in node_ports
+                if port_attributes["address"].upper() == port["address"].upper()
+            ]
+            if not port:
+                osism_utils.push_task_output(
+                    request_id,
+                    f"[DRY RUN] Would CREATE port with MAC {port_attributes['address']} for {device.name}\n",
+                )
+            else:
+                node_ports.remove(port[0])
+        for node_port in node_ports:
+            osism_utils.push_task_output(
+                request_id,
+                f"[DRY RUN] Would DELETE port with MAC {node_port['address']} for {device.name}\n",
+            )
+
+        # Report current provision state instead of doing validation/transitions
+        osism_utils.push_task_output(
+            request_id,
+            f"[DRY RUN] Current provision_state for {device.name}: {node['provision_state']}\n",
+        )
+
+
+def sync_ironic(
+    request_id, get_ironic_parameters, node_name=None, force=False, dry_run=False
+):
+    prefix = "[DRY RUN] " if dry_run else ""
+
     if node_name:
         osism_utils.push_task_output(
             request_id,
-            f"Starting NetBox device synchronisation with ironic for node {node_name}\n",
+            f"{prefix}Starting NetBox device synchronisation with ironic for node {node_name}\n",
         )
     else:
         osism_utils.push_task_output(
             request_id,
-            "Starting NetBox device synchronisation with ironic\n",
+            f"{prefix}Starting NetBox device synchronisation with ironic\n",
         )
 
     # Check NetBox API connectivity
@@ -250,23 +471,29 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
                 in ["enroll", "manageable", "available", "clean failed"]
                 and node["power_state"] in ["power off", None]
             ):
-                osism_utils.push_task_output(
-                    request_id,
-                    f"Cleaning up baremetal node not found in NetBox: {node['name']}\n",
-                )
-                if node["provision_state"] == "clean failed":
-                    # NOTE: Move node to manageable to allow deletion
-                    node = openstack.baremetal_node_set_provision_state(
-                        node["uuid"], "manage"
+                if dry_run:
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"[DRY RUN] Would delete stale baremetal node: {node['name']}\n",
                     )
-                    node = openstack.baremetal_node_wait_for_nodes_provision_state(
-                        node["uuid"], "manageable"
+                else:
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Cleaning up baremetal node not found in NetBox: {node['name']}\n",
                     )
-                for port in openstack.baremetal_port_list(
-                    details=False, attributes=dict(node_uuid=node["uuid"])
-                ):
-                    openstack.baremetal_port_delete(port.id)
-                openstack.baremetal_node_delete(node["uuid"])
+                    if node["provision_state"] == "clean failed":
+                        # NOTE: Move node to manageable to allow deletion
+                        node = openstack.baremetal_node_set_provision_state(
+                            node["uuid"], "manage"
+                        )
+                        node = openstack.baremetal_node_wait_for_nodes_provision_state(
+                            node["uuid"], "manageable"
+                        )
+                    for port in openstack.baremetal_port_list(
+                        details=False, attributes=dict(node_uuid=node["uuid"])
+                    ):
+                        openstack.baremetal_port_delete(port.id)
+                    openstack.baremetal_node_delete(node["uuid"])
             else:
                 osism_utils.push_task_output(
                     request_id,
@@ -288,174 +515,33 @@ def sync_ironic(request_id, get_ironic_parameters, node_name=None, force=False):
             if interface.enabled and not interface.mgmt_only and interface.mac_address
         ]
 
-        lock = osism_utils.create_redlock(
-            key=f"lock_osism_tasks_conductor_sync_ironic-{device.name}",
-            auto_release_time=600,
-        )
-        if lock.acquire(timeout=120):
-            try:
-                osism_utils.push_task_output(
-                    request_id, f"Processing device {device.name}\n"
-                )
-                node = openstack.baremetal_node_show(device.name, ignore_missing=True)
-                if not node:
-                    osism_utils.push_task_output(
-                        request_id, f"Creating baremetal node for {device.name}\n"
-                    )
-                    # NOTE: Create node without automated_clean, so it can be
-                    # transitioned fast from managable to available later. It
-                    # is also safer to not clean during sync, so that nodes may
-                    # later be adopted with their provisioned data.
-                    node_attributes.update(dict(automated_clean=False))
-                    node = openstack.baremetal_node_create(device.name, node_attributes)
-                else:
-                    # NOTE: Check whether the baremetal node needs to be updated
-                    node_updates = {}
-                    deep_compare(node_attributes, node, node_updates)
-                    if "driver_info" in node_updates:
-                        # NOTE: The password is not returned by ironic, so we cannot make a comparision and it would always be updated. Therefore we pop it from the dictionary
-                        password_key = driver_params[node_attributes["driver"]][
-                            "password"
-                        ]
-                        if password_key in node_updates["driver_info"]:
-                            node_updates["driver_info"].pop(password_key, None)
-                            if not node_updates["driver_info"]:
-                                node_updates.pop("driver_info", None)
-                    if node_updates or force:
-                        osism_utils.push_task_output(
-                            request_id,
-                            f"Updating baremetal node for {device.name} with {node_updates}\n",
-                        )
-                        # NOTE: Do the actual updates with all values in node_attributes. Otherwise nested dicts like e.g. driver_info will be overwritten as a whole and contain only changed values
-                        node = openstack.baremetal_node_update(
-                            node["uuid"], node_attributes
-                        )
-
-                node_ports = openstack.baremetal_port_list(
-                    details=False, attributes=dict(node_uuid=node["uuid"])
-                )
-                # NOTE: Baremetal ports are only required for (i)pxe boot
-                for port_attributes in ports_attributes:
-                    port_attributes.update({"node_id": node["uuid"]})
-                    port = [
-                        port
-                        for port in node_ports
-                        if port_attributes["address"].upper() == port["address"].upper()
-                    ]
-                    if not port:
-                        osism_utils.push_task_output(
-                            request_id,
-                            f"Creating baremetal port with MAC address {port_attributes['address']} for {device.name}\n",
-                        )
-                        openstack.baremetal_port_create(port_attributes)
-                    else:
-                        node_ports.remove(port[0])
-                for node_port in node_ports:
-                    # NOTE: Delete remaining ports not found in NetBox
-                    osism_utils.push_task_output(
-                        request_id,
-                        f"Deleting baremetal port with MAC address {node_port['address']} for {device.name}\n",
-                    )
-                    openstack.baremetal_port_delete(node_port["id"])
-
-                node_validation = openstack.baremetal_node_validate(node["uuid"])
-                if node_validation["management"].result:
-                    osism_utils.push_task_output(
-                        request_id,
-                        f"Validation of management interface successful for baremetal node for {device.name}\n",
-                    )
-                    if node["provision_state"] in ["enroll", "clean failed"]:
-                        osism_utils.push_task_output(
-                            request_id,
-                            f"Transitioning baremetal node to manageable state for {device.name}\n",
-                        )
-                        node = openstack.baremetal_node_set_provision_state(
-                            node["uuid"], "manage"
-                        )
-                        node = openstack.baremetal_node_wait_for_nodes_provision_state(
-                            node["uuid"], "manageable"
-                        )
-                        osism_utils.push_task_output(
-                            request_id,
-                            f"Baremetal node for {device.name} is manageable\n",
-                        )
-                    if node_validation["boot"].result:
-                        osism_utils.push_task_output(
-                            request_id,
-                            f"Validation of boot interface successful for baremetal node for {device.name}\n",
-                        )
-                        if node["provision_state"] == "manageable":
-                            osism_utils.push_task_output(
-                                request_id,
-                                f"Transitioning baremetal node to available state for {device.name}\n",
-                            )
-                            if node["automated_clean"]:
-                                # NOTE: Skip automated cleaning on transition from managable to available. We are waiting for the transition and do not want to wait on cleaning at this point
-                                node = openstack.baremetal_node_update(
-                                    node["uuid"], dict(automated_clean=False)
-                                )
-                            node = openstack.baremetal_node_set_provision_state(
-                                node["uuid"], "provide"
-                            )
-                            node = (
-                                openstack.baremetal_node_wait_for_nodes_provision_state(
-                                    node["uuid"], "available"
-                                )
-                            )
-                            if not node["automated_clean"]:
-                                # NOTE: Activate automated cleaning, so that future actions will trigger it
-                                node = openstack.baremetal_node_update(
-                                    node["uuid"], dict(automated_clean=True)
-                                )
-                            osism_utils.push_task_output(
-                                request_id,
-                                f"Baremetal node for {device.name} is available\n",
-                            )
-                    else:
-                        osism_utils.push_task_output(
-                            request_id,
-                            f"Validation of boot interface failed for baremetal node for {device.name}\nReason: {node_validation['boot'].reason}\n",
-                        )
-                        if node["provision_state"] == "available":
-                            # NOTE: Demote node to manageable
-                            osism_utils.push_task_output(
-                                request_id,
-                                f"Transitioning baremetal node to manageable state for {device.name}\n",
-                            )
-                            node = openstack.baremetal_node_set_provision_state(
-                                node["uuid"], "manage"
-                            )
-                            node = (
-                                openstack.baremetal_node_wait_for_nodes_provision_state(
-                                    node["uuid"], "manageable"
-                                )
-                            )
-                            osism_utils.push_task_output(
-                                request_id,
-                                f"Baremetal node for {device.name} is manageable\n",
-                            )
-                            if node["automated_clean"]:
-                                # NOTE: Skip automated cleaning, we do not want to accidentaly clean at this point
-                                node = openstack.baremetal_node_update(
-                                    node["uuid"], dict(automated_clean=False)
-                                )
-                else:
-                    osism_utils.push_task_output(
-                        request_id,
-                        f"Validation of management interface failed for baremetal node for {device.name}\nReason: {node_validation['management'].reason}\n",
-                    )
-            except Exception as exc:
-                osism_utils.push_task_output(
-                    request_id,
-                    f"Could not fully synchronize device {device.name} with ironic: {exc}\n",
-                )
-            finally:
-                lock.release()
-
-        else:
-            osism_utils.push_task_output(
-                request_id, f"Could not acquire lock for node {device.name}\n"
+        if dry_run:
+            # In dry-run mode, skip locking entirely
+            _sync_ironic_device_dry_run(
+                request_id, device, node_attributes, ports_attributes, force
             )
+        else:
+            lock = osism_utils.create_redlock(
+                key=f"lock_osism_tasks_conductor_sync_ironic-{device.name}",
+                auto_release_time=600,
+            )
+            if lock.acquire(timeout=120):
+                try:
+                    _sync_ironic_device(
+                        request_id, device, node_attributes, ports_attributes, force
+                    )
+                except Exception as exc:
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Could not fully synchronize device {device.name} with ironic: {exc}\n",
+                    )
+                finally:
+                    lock.release()
+
+            else:
+                osism_utils.push_task_output(
+                    request_id, f"Could not acquire lock for node {device.name}\n"
+                )
 
     osism_utils.finish_task_output(request_id, rc=0)
 

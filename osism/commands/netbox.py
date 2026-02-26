@@ -37,6 +37,11 @@ class Ironic(Command):
             help="Force update of baremetal nodes (Used to update non-comparable items like passwords)",
             action="store_true",
         )
+        parser.add_argument(
+            "--dry-run",
+            help="Show what would be done without making any changes",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -47,7 +52,9 @@ class Ironic(Command):
         task_timeout = parsed_args.task_timeout
         node_name = parsed_args.node
 
-        task = conductor.sync_ironic.delay(node_name=node_name, force=parsed_args.force)
+        task = conductor.sync_ironic.delay(
+            node_name=node_name, force=parsed_args.force, dry_run=parsed_args.dry_run
+        )
         if wait:
             if node_name:
                 logger.info(
