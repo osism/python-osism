@@ -2,6 +2,7 @@
 
 import json
 import re
+import textwrap
 
 import jinja2
 
@@ -337,8 +338,23 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
 def _sync_ironic_device_dry_run(
     request_id, device, node_attributes, ports_attributes, force, template_vars
 ):
-    masked_attributes = _prettify_for_display(mask_secrets(node_attributes))
-    masked_template_vars = mask_secrets(template_vars)
+    # Collect actual secret values for string-level masking
+    secret_values = set()
+    for key, value in template_vars.items():
+        if isinstance(value, str) and (
+            "password" in key.lower()
+            or "secret" in key.lower()
+            or key.lower().startswith("ironic_osism_")
+        ):
+            secret_values.add(value)
+
+    masked_attributes = _prettify_for_display(
+        mask_secrets(node_attributes, secret_values=secret_values)
+    )
+    masked_template_vars = mask_secrets(template_vars, secret_values=secret_values)
+
+    def _indent_json(obj):
+        return textwrap.indent(json.dumps(obj, indent=2), "    ")
 
     osism_utils.push_task_output(request_id, f"Processing device {device.name}\n")
     node = openstack.baremetal_node_show(device.name, ignore_missing=True)
@@ -347,9 +363,9 @@ def _sync_ironic_device_dry_run(
             request_id,
             f"[DRY RUN] Would CREATE baremetal node for {device.name}\n"
             f"  Computed node attributes:\n"
-            f"{json.dumps(masked_attributes, indent=2)}\n"
+            f"{_indent_json(masked_attributes)}\n"
             f"  Template variables used:\n"
-            f"{json.dumps(masked_template_vars, indent=2)}\n",
+            f"{_indent_json(masked_template_vars)}\n",
         )
         for port_attributes in ports_attributes:
             osism_utils.push_task_output(
@@ -367,16 +383,18 @@ def _sync_ironic_device_dry_run(
                 if not node_updates["driver_info"]:
                     node_updates.pop("driver_info", None)
         if node_updates or force:
-            masked_updates = _prettify_for_display(mask_secrets(node_updates))
+            masked_updates = _prettify_for_display(
+                mask_secrets(node_updates, secret_values=secret_values)
+            )
             osism_utils.push_task_output(
                 request_id,
                 f"[DRY RUN] Would UPDATE baremetal node for {device.name}\n"
                 f"  Changes:\n"
-                f"{json.dumps(masked_updates, indent=2)}\n"
+                f"{_indent_json(masked_updates)}\n"
                 f"  Full computed node attributes:\n"
-                f"{json.dumps(masked_attributes, indent=2)}\n"
+                f"{_indent_json(masked_attributes)}\n"
                 f"  Template variables used:\n"
-                f"{json.dumps(masked_template_vars, indent=2)}\n",
+                f"{_indent_json(masked_template_vars)}\n",
             )
         else:
             osism_utils.push_task_output(
