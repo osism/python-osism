@@ -29,6 +29,35 @@ SUPPORTED_IPA_TYPES = {
     },
 }
 
+
+def _derive_as_from_hostname_yrzn(hostname):
+    """Derive the AS number from the hostname (yrzn scheme).
+
+    Hostname schema: {type}-{role}-{dc}-{server}-{rack}-{x}
+    AS schema: 42DDDTCCSS
+      - 42  = fixed prefix
+      - DDD = DC number (hardcoded to 001 for now)
+      - T   = type (4=default, 5=Storage)
+      - CC  = rack number (2 digits)
+      - SS  = server number (2 digits)
+
+    Example: stor-nw-22-60-59-6 -> 4200155960
+
+    >>> _derive_as_from_hostname_yrzn("stor-nw-22-60-59-6")
+    '4200155960'
+    """
+    parts = hostname.split("-")
+    if len(parts) < 5:
+        return None
+
+    t = "5" if parts[0] == "stor" else "4"
+
+    server = parts[3].zfill(2)
+    rack = parts[4].zfill(2)
+
+    return f"42001{t}{rack}{server}"
+
+
 driver_params = {
     "ipmi": {
         "address": "ipmi_address",
@@ -144,9 +173,17 @@ def _prepare_node_attributes(device, get_ironic_parameters):
         if kap:
             match = re.search(r"osism-ipa-type=(\S+)", kap)
             if match and match.group(1) in SUPPORTED_IPA_TYPES:
+                ipa_type = match.group(1)
                 frr = device.custom_fields.get("frr_parameters") or {}
-                for kap_name, frr_key in SUPPORTED_IPA_TYPES[match.group(1)].items():
-                    if frr_key in frr:
+                derived_as = (
+                    _derive_as_from_hostname_yrzn(device.name)
+                    if ipa_type == "yrzn001"
+                    else None
+                )
+                for kap_name, frr_key in SUPPORTED_IPA_TYPES[ipa_type].items():
+                    if kap_name == "osism_as" and derived_as:
+                        kap += f" {kap_name}={derived_as}"
+                    elif frr_key in frr:
                         kap += f" {kap_name}={frr[frr_key]}"
                 node_attributes["instance_info"]["kernel_append_params"] = kap
 
