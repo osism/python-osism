@@ -19,16 +19,16 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-1L:1
     scs:name-v2: SCS-1L-1
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-1L-1-5
     cpus: 1
     ram: 1024
     disk: 5
     scs:cpu-type: crowded-core
     scs:disk0-type: network
-    scs:name-v1: SCS-1L:5
-    scs:name-v2: SCS-1L-5
-    hw_rng:allowed: "true"
+    scs:name-v1: SCS-1L:1:5
+    scs:name-v2: SCS-1L-1-5
+    hw_rng:allowed: "True"
   - name: SCS-1V-2
     cpus: 1
     ram: 2048
@@ -37,7 +37,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-1V:2
     scs:name-v2: SCS-1V-2
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-1V-2-5
     cpus: 1
     ram: 2048
@@ -46,7 +46,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-1V:2:5
     scs:name-v2: SCS-1V-2-5
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-1V-4
     cpus: 1
     ram: 4096
@@ -55,7 +55,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-1V:4
     scs:name-v2: SCS-1V-4
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-1V-4-10
     cpus: 1
     ram: 4096
@@ -64,7 +64,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-1V:4:10
     scs:name-v2: SCS-1V-4-10
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-1V-8
     cpus: 1
     ram: 8192
@@ -73,7 +73,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-1V:8
     scs:name-v2: SCS-1V-8
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-1V-8-20
     cpus: 1
     ram: 8192
@@ -82,7 +82,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-1V:8:20
     scs:name-v2: SCS-1V-8-20
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-2V-4
     cpus: 2
     ram: 4096
@@ -91,7 +91,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-2V:4
     scs:name-v2: SCS-2V-4
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-2V-4-10
     cpus: 2
     ram: 4096
@@ -100,7 +100,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-2V:4:10
     scs:name-v2: SCS-2V-4-10
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-2V-8
     cpus: 2
     ram: 8192
@@ -109,7 +109,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-2V:8
     scs:name-v2: SCS-2V-8
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-2V-8-20
     cpus: 2
     ram: 8192
@@ -118,7 +118,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-2V:8:20
     scs:name-v2: SCS-2V-8-20
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-2V-16
     cpus: 2
     ram: 16384
@@ -127,7 +127,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-2V:16
     scs:name-v2: SCS-2V-16
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-2V-16-50
     cpus: 2
     ram: 16384
@@ -136,7 +136,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-2V:16:50
     scs:name-v2: SCS-2V-16-50
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-4V-8
     cpus: 4
     ram: 8192
@@ -145,7 +145,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-4V:8
     scs:name-v2: SCS-4V-8
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-4V-8-20
     cpus: 4
     ram: 8192
@@ -154,7 +154,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-4V:8:20
     scs:name-v2: SCS-4V-8-20
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-4V-16
     cpus: 4
     ram: 16384
@@ -163,7 +163,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-4V:16
     scs:name-v2: SCS-4V-16
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-4V-16-50
     cpus: 4
     ram: 16384
@@ -172,7 +172,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-4V:16:50
     scs:name-v2: SCS-4V-16-50
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-4V-32
     cpus: 4
     ram: 32768
@@ -181,7 +181,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-4V:32
     scs:name-v2: SCS-4V-32
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-4V-32-100
     cpus: 4
     ram: 32768
@@ -190,7 +190,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-4V:32:100
     scs:name-v2: SCS-4V-32-100
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-8V-16
     cpus: 8
     ram: 16384
@@ -199,7 +199,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-8V:16
     scs:name-v2: SCS-8V-16
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-8V-16-50
     cpus: 8
     ram: 16384
@@ -208,7 +208,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-8V:16:50
     scs:name-v2: SCS-8V-16-50
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-8V-32
     cpus: 8
     ram: 32768
@@ -217,7 +217,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-8V:32
     scs:name-v2: SCS-8V-32
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-8V-32-100
     cpus: 8
     ram: 32768
@@ -226,7 +226,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-8V:32:100
     scs:name-v2: SCS-8V-32-100
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-16V-32
     cpus: 16
     ram: 32768
@@ -235,7 +235,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-16V:32
     scs:name-v2: SCS-16V-32
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-16V-32-100
     cpus: 16
     ram: 32768
@@ -244,7 +244,7 @@ mandatory:
     scs:disk0-type: network
     scs:name-v1: SCS-16V:32:100
     scs:name-v2: SCS-16V-32-100
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-2V-4-20s
     cpus: 2
     ram: 4096
@@ -253,7 +253,7 @@ mandatory:
     scs:disk0-type: ssd
     scs:name-v1: SCS-2V:4:20s
     scs:name-v2: SCS-2V-4-20s
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
   - name: SCS-4V-8-50s
     cpus: 4
     ram: 8192
@@ -262,7 +262,16 @@ mandatory:
     scs:disk0-type: ssd
     scs:name-v1: SCS-4V:8:50s
     scs:name-v2: SCS-4V-8-50s
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
+  - name: SCS-4V-16-100s
+    cpus: 4
+    ram: 16384
+    disk: 100
+    scs:cpu-type: shared-core
+    scs:disk0-type: ssd
+    scs:name-v1: SCS-4V:16:100s
+    scs:name-v2: SCS-4V-16-100s
+    hw_rng:allowed: "True"
   - name: SCS-8V-32-100s
     cpus: 8
     ram: 32768
@@ -271,4 +280,4 @@ mandatory:
     scs:disk0-type: ssd
     scs:name-v1: SCS-8V:32:100s
     scs:name-v2: SCS-8V-32-100s
-    hw_rng:allowed: "true"
+    hw_rng:allowed: "True"
