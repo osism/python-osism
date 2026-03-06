@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import ipaddress
 import json
 import re
 import textwrap
@@ -27,6 +28,7 @@ SUPPORTED_IPA_TYPES = {
         "osism-ipa-as": "frr_local_as",
         "osism-ipa-ipv4": "frr_loopback_v4",
         "osism-ipa-ipv6": "frr_loopback_v6",
+        "osism-ipa-metalbox": None,  # resolved via metalbox lookup
     },
 }
 
@@ -57,6 +59,45 @@ def _derive_as_from_hostname_yrzn(hostname):
     rack = parts[4].zfill(2)
 
     return f"42001{t}{rack}{server}"
+
+
+def _get_metalbox_primary_ip4(device):
+    """Get the primary IPv4 address of the metalbox managing this device.
+
+    Finds the metalbox whose interface shares the same subnet as the
+    device's OOB IP address, then returns that metalbox's primary_ip4.
+
+    Args:
+        device: NetBox device object
+
+    Returns:
+        str: The metalbox's primary IPv4 address (without prefix), or None
+    """
+    from osism import utils
+
+    oob_ip_result = get_device_oob_ip(device)
+    if not oob_ip_result:
+        return None
+
+    oob_ip, _ = oob_ip_result
+    oob_addr = ipaddress.ip_address(oob_ip)
+
+    metalboxes = utils.nb.dcim.devices.filter(role="metalbox")
+    for metalbox in metalboxes:
+        interfaces = utils.nb.dcim.interfaces.filter(device_id=metalbox.id)
+        for interface in interfaces:
+            ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                assigned_object_id=interface.id,
+            )
+            for ip_addr in ip_addresses:
+                if ip_addr.address:
+                    network = ipaddress.ip_network(ip_addr.address, strict=False)
+                    if oob_addr in network:
+                        if metalbox.primary_ip4:
+                            return str(metalbox.primary_ip4).split("/")[0]
+                        return None
+
+    return None
 
 
 driver_params = {
@@ -184,6 +225,10 @@ def _prepare_node_attributes(device, get_ironic_parameters):
                 for kap_name, frr_key in SUPPORTED_IPA_TYPES[ipa_type].items():
                     if kap_name == "osism-ipa-as" and derived_as:
                         kap += f" {kap_name}={derived_as}"
+                    elif kap_name == "osism-ipa-metalbox":
+                        metalbox_ip = _get_metalbox_primary_ip4(device)
+                        if metalbox_ip:
+                            kap += f" {kap_name}={metalbox_ip}"
                     elif frr_key in frr:
                         kap += f" {kap_name}={frr[frr_key]}"
                 node_attributes["instance_info"]["kernel_append_params"] = kap
