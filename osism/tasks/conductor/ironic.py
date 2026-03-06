@@ -24,8 +24,9 @@ from osism.tasks.conductor.utils import (
 
 SUPPORTED_IPA_TYPES = {
     "yrzn001": {
-        "osism_as": "frr_local_as",
-        "osism_ipv4": "frr_loopback_v4",
+        "osism-ipa-as": "frr_local_as",
+        "osism-ipa-ipv4": "frr_loopback_v4",
+        "osism-ipa-ipv6": "frr_loopback_v6",
     },
 }
 
@@ -181,7 +182,7 @@ def _prepare_node_attributes(device, get_ironic_parameters):
                     else None
                 )
                 for kap_name, frr_key in SUPPORTED_IPA_TYPES[ipa_type].items():
-                    if kap_name == "osism_as" and derived_as:
+                    if kap_name == "osism-ipa-as" and derived_as:
                         kap += f" {kap_name}={derived_as}"
                     elif frr_key in frr:
                         kap += f" {kap_name}={frr[frr_key]}"
