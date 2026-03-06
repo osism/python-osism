@@ -139,6 +139,12 @@ class BaremetalNode(BaseModel):
     maintenance: Optional[bool] = Field(
         None, description="Whether node is in maintenance mode"
     )
+    maintenance_reason: Optional[str] = Field(
+        None, description="Reason for maintenance mode"
+    )
+    fault: Optional[str] = Field(
+        None, description="Fault type indicating error category"
+    )
     instance_uuid: Optional[str] = Field(
         None, description="UUID of associated instance"
     )
@@ -146,6 +152,16 @@ class BaremetalNode(BaseModel):
     driver: Optional[str] = Field(None, description="Driver used for the node")
     resource_class: Optional[str] = Field(
         None, description="Resource class of the node"
+    )
+    conductor: Optional[str] = Field(None, description="Conductor managing this node")
+    owner: Optional[str] = Field(None, description="Owner of the node")
+    lessee: Optional[str] = Field(None, description="Lessee of the node")
+    description: Optional[str] = Field(None, description="Description of the node")
+    allocation_uuid: Optional[str] = Field(
+        None, description="UUID of the allocation for this node"
+    )
+    traits: list[str] = Field(
+        default_factory=list, description="List of traits for the node"
     )
     properties: Dict[str, Any] = Field(
         default_factory=dict, description="Node properties"
@@ -157,6 +173,9 @@ class BaremetalNode(BaseModel):
         None, description="Redfish address from driver_info"
     )
     last_error: Optional[str] = Field(None, description="Last error message")
+    provision_updated_at: Optional[str] = Field(
+        None, description="Timestamp of last provision state change"
+    )
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
 
