@@ -142,6 +142,7 @@ class BaremetalNode(BaseModel):
     instance_uuid: Optional[str] = Field(
         None, description="UUID of associated instance"
     )
+    device_role: Optional[str] = Field(None, description="Device role from NetBox")
     driver: Optional[str] = Field(None, description="Driver used for the node")
     resource_class: Optional[str] = Field(
         None, description="Resource class of the node"

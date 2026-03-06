@@ -99,6 +99,18 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                   <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.uuid}</dd>
                 </div>
                 <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                  <dt className="text-sm font-medium text-gray-500">Device Role</dt>
+                  <dd className="mt-1 sm:mt-0 sm:col-span-2">
+                    {node.device_role ? (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                        {node.device_role}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-500">-</span>
+                    )}
+                  </dd>
+                </div>
+                <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                   <dt className="text-sm font-medium text-gray-500">Power State</dt>
                   <dd className="mt-1 sm:mt-0 sm:col-span-2">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -110,7 +122,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                     </span>
                   </dd>
                 </div>
-                <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                   <dt className="text-sm font-medium text-gray-500">Provision State</dt>
                   <dd className="mt-1 sm:mt-0 sm:col-span-2">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -128,7 +140,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                     </span>
                   </dd>
                 </div>
-                <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                   <dt className="text-sm font-medium text-gray-500">Maintenance</dt>
                   <dd className="mt-1 sm:mt-0 sm:col-span-2">
                     {node.maintenance ? (
@@ -143,31 +155,31 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                   </dd>
                 </div>
                 {node.driver && (
-                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Driver</dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.driver}</dd>
                   </div>
                 )}
                 {node.resource_class && (
-                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Resource Class</dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.resource_class}</dd>
                   </div>
                 )}
                 {node.instance_uuid && (
-                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Instance UUID</dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.instance_uuid}</dd>
                   </div>
                 )}
                 {node.created_at && (
-                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Created</dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{new Date(node.created_at).toLocaleString()}</dd>
                   </div>
                 )}
                 {node.updated_at && (
-                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Updated</dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{new Date(node.updated_at).toLocaleString()}</dd>
                   </div>
