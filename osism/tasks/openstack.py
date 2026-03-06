@@ -120,6 +120,9 @@ def get_baremetal_nodes():
             "resource_class": getattr(node, "resource_class", None),
             "properties": getattr(node, "properties", {}),
             "extra": getattr(node, "extra", {}),
+            "redfish_address": (getattr(node, "driver_info", None) or {}).get(
+                "redfish_address"
+            ),
             "last_error": getattr(node, "last_error", None),
             "created_at": getattr(node, "created_at", None),
             "updated_at": getattr(node, "updated_at", None),

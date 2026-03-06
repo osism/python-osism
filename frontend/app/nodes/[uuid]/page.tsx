@@ -160,6 +160,21 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.driver}</dd>
                   </div>
                 )}
+                {node.redfish_address && (
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Redfish Address</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <a
+                        href={node.redfish_address}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {node.redfish_address}
+                      </a>
+                    </dd>
+                  </div>
+                )}
                 {node.resource_class && (
                   <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Resource Class</dt>
