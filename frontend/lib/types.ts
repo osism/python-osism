@@ -10,6 +10,7 @@ export interface BaremetalNode {
   resource_class: string | null;
   properties: Record<string, unknown>;
   extra: Record<string, unknown>;
+  redfish_address: string | null;
   last_error: string | null;
   created_at: string | null;
   updated_at: string | null;

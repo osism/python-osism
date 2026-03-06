@@ -153,6 +153,9 @@ class BaremetalNode(BaseModel):
     extra: Dict[str, Any] = Field(
         default_factory=dict, description="Extra node information"
     )
+    redfish_address: Optional[str] = Field(
+        None, description="Redfish address from driver_info"
+    )
     last_error: Optional[str] = Field(None, description="Last error message")
     created_at: Optional[str] = Field(None, description="Creation timestamp")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
