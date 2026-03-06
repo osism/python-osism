@@ -239,6 +239,11 @@ export default function NodesPage() {
                           <p className="text-sm font-medium text-gray-900">
                             {node.name || node.uuid}
                           </p>
+                          {node.device_role && (
+                            <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                              {node.device_role}
+                            </span>
+                          )}
                           {node.maintenance && (
                             <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
                               Maintenance

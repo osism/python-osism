@@ -90,9 +90,28 @@ def get_baremetal_nodes():
     node_list = []
     for node in nodes:
         # OpenStack SDK returns Resource objects, not dicts - use attribute access
+        node_name = getattr(node, "name", None)
+
+        # Get device role from NetBox
+        device_role = None
+        if utils.nb and node_name:
+            try:
+                device = utils.nb.dcim.devices.get(name=node_name)
+                if not device:
+                    devices = utils.nb.dcim.devices.filter(
+                        cf_inventory_hostname=node_name
+                    )
+                    if devices:
+                        device = list(devices)[0]
+                if device and device.role and hasattr(device.role, "name"):
+                    device_role = device.role.name
+            except Exception as e:
+                logger.debug(f"Could not get device role for {node_name}: {e}")
+
         node_info = {
             "uuid": getattr(node, "uuid", None) or getattr(node, "id", None),
-            "name": getattr(node, "name", None),
+            "name": node_name,
+            "device_role": device_role,
             "power_state": getattr(node, "power_state", None),
             "provision_state": getattr(node, "provision_state", None),
             "maintenance": getattr(node, "maintenance", None),
