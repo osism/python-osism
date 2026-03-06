@@ -5,13 +5,22 @@ export interface BaremetalNode {
   power_state: string | null;
   provision_state: string | null;
   maintenance: boolean | null;
+  maintenance_reason: string | null;
+  fault: string | null;
   instance_uuid: string | null;
   driver: string | null;
   resource_class: string | null;
+  conductor: string | null;
+  owner: string | null;
+  lessee: string | null;
+  description: string | null;
+  allocation_uuid: string | null;
+  traits: string[];
   properties: Record<string, unknown>;
   extra: Record<string, unknown>;
   redfish_address: string | null;
   last_error: string | null;
+  provision_updated_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 }

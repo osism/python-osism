@@ -245,8 +245,16 @@ export default function NodesPage() {
                             </span>
                           )}
                           {node.maintenance && (
-                            <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            <span
+                              className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800"
+                              title={node.maintenance_reason || undefined}
+                            >
                               Maintenance
+                            </span>
+                          )}
+                          {node.fault && (
+                            <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                              Fault: {node.fault}
                             </span>
                           )}
                         </div>

@@ -154,6 +154,22 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                     )}
                   </dd>
                 </div>
+                {node.maintenance && node.maintenance_reason && (
+                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Maintenance Reason</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.maintenance_reason}</dd>
+                  </div>
+                )}
+                {node.fault && (
+                  <div className="bg-red-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-red-500">Fault</dt>
+                    <dd className="mt-1 sm:mt-0 sm:col-span-2">
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                        {node.fault}
+                      </span>
+                    </dd>
+                  </div>
+                )}
                 {node.driver && (
                   <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Driver</dt>
@@ -181,10 +197,58 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.resource_class}</dd>
                   </div>
                 )}
-                {node.instance_uuid && (
+                {node.conductor && (
                   <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Conductor</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.conductor}</dd>
+                  </div>
+                )}
+                {node.description && (
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Description</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.description}</dd>
+                  </div>
+                )}
+                {node.owner && (
+                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Owner</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.owner}</dd>
+                  </div>
+                )}
+                {node.lessee && (
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Lessee</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.lessee}</dd>
+                  </div>
+                )}
+                {node.traits && node.traits.length > 0 && (
+                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Traits</dt>
+                    <dd className="mt-1 sm:mt-0 sm:col-span-2 flex flex-wrap gap-1">
+                      {node.traits.map((trait) => (
+                        <span key={trait} className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                          {trait}
+                        </span>
+                      ))}
+                    </dd>
+                  </div>
+                )}
+                {node.instance_uuid && (
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Instance UUID</dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.instance_uuid}</dd>
+                  </div>
+                )}
+                {node.allocation_uuid && (
+                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Allocation UUID</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.allocation_uuid}</dd>
+                  </div>
+                )}
+                {node.provision_updated_at && (
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Provision Updated</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{new Date(node.provision_updated_at).toLocaleString()}</dd>
                   </div>
                 )}
                 {node.created_at && (
