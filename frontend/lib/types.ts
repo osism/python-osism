@@ -19,6 +19,20 @@ export interface BaremetalNodesResponse {
   count: number;
 }
 
+export interface BaremetalPort {
+  uuid: string;
+  address: string | null;
+  node_uuid: string | null;
+  pxe_enabled: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface BaremetalPortsResponse {
+  ports: BaremetalPort[];
+  count: number;
+}
+
 export interface HealthCheckResponse {
   result: string;
 }

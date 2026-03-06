@@ -162,6 +162,20 @@ class BaremetalNodesResponse(BaseModel):
     count: int = Field(..., description="Total number of nodes")
 
 
+class BaremetalPort(BaseModel):
+    uuid: Optional[str] = Field(None, description="Unique identifier of the port")
+    address: Optional[str] = Field(None, description="MAC address of the port")
+    node_uuid: Optional[str] = Field(None, description="UUID of the associated node")
+    pxe_enabled: Optional[bool] = Field(None, description="Whether PXE is enabled")
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+
+
+class BaremetalPortsResponse(BaseModel):
+    ports: list[BaremetalPort] = Field(..., description="List of baremetal ports")
+    count: int = Field(..., description="Total number of ports")
+
+
 def find_device_by_identifier(identifier: str):
     """Find a device in NetBox by various identifiers."""
     if not utils.nb:
@@ -332,6 +346,25 @@ async def get_baremetal_nodes_list() -> BaremetalNodesResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve baremetal nodes: {str(e)}",
+        )
+
+
+@app.get(
+    "/v1/baremetal/nodes/{node_uuid}/ports",
+    response_model=BaremetalPortsResponse,
+    tags=["baremetal"],
+)
+async def get_baremetal_node_ports(node_uuid: str) -> BaremetalPortsResponse:
+    """Get list of ports for a specific baremetal node."""
+    try:
+        ports_data = openstack.get_baremetal_node_ports(node_uuid)
+        ports = [BaremetalPort(**port) for port in ports_data]
+        return BaremetalPortsResponse(ports=ports, count=len(ports))
+    except Exception as e:
+        logger.error(f"Error retrieving ports for node {node_uuid}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve ports for node {node_uuid}: {str(e)}",
         )
 
 

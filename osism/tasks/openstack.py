@@ -110,6 +110,30 @@ def get_baremetal_nodes():
     return node_list
 
 
+def get_baremetal_node_ports(node_uuid):
+    """Get all ports for a specific baremetal node.
+
+    Returns:
+        list: List of dictionaries containing port information
+    """
+    conn = utils.get_openstack_connection()
+    ports = conn.baremetal.ports(details=True, node_uuid=node_uuid)
+
+    port_list = []
+    for port in ports:
+        port_info = {
+            "uuid": getattr(port, "uuid", None) or getattr(port, "id", None),
+            "address": getattr(port, "address", None),
+            "node_uuid": getattr(port, "node_uuid", None),
+            "pxe_enabled": getattr(port, "pxe_enabled", None),
+            "created_at": getattr(port, "created_at", None),
+            "updated_at": getattr(port, "updated_at", None),
+        }
+        port_list.append(port_info)
+
+    return port_list
+
+
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_validate")
 def baremetal_node_validate(self, node_id_or_name):
     conn = utils.get_openstack_connection()
