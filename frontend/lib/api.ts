@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import {
   BaremetalNodesResponse,
+  BaremetalPortsResponse,
   HealthCheckResponse,
   HostsResponse,
   HostvarsResponse,
@@ -53,6 +54,11 @@ export const api = {
     getNodes: async (): Promise<BaremetalNodesResponse> => {
       const client = await getApiClient();
       const response = await client.get<BaremetalNodesResponse>('/v1/baremetal/nodes');
+      return response.data;
+    },
+    getNodePorts: async (nodeUuid: string): Promise<BaremetalPortsResponse> => {
+      const client = await getApiClient();
+      const response = await client.get<BaremetalPortsResponse>(`/v1/baremetal/nodes/${encodeURIComponent(nodeUuid)}/ports`);
       return response.data;
     },
   },

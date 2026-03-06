@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { RefreshCw, Search, AlertCircle, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
 import { BaremetalNode } from "@/lib/types";
@@ -229,6 +230,7 @@ export default function NodesPage() {
           <ul className="divide-y divide-gray-200">
             {paginatedNodes.map((node: BaremetalNode, index) => (
               <li key={node.uuid || `node-${index}`}>
+                <Link href={`/nodes/${node.uuid}`} className="block hover:bg-gray-50">
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -296,6 +298,7 @@ export default function NodesPage() {
                     </div>
                   </div>
                 </div>
+                </Link>
               </li>
             ))}
           </ul>
