@@ -148,10 +148,10 @@ def _prepare_node_attributes(device, get_ironic_parameters):
 
     template_vars["remote_board_username"] = str(
         node_secrets.get("remote_board_username", "admin")
-    )
+    ).strip()
     template_vars["remote_board_password"] = str(
         node_secrets.get("remote_board_password", "password")
-    )
+    ).strip()
 
     oob_ip_result = get_device_oob_ip(device)
     if oob_ip_result:
@@ -160,7 +160,7 @@ def _prepare_node_attributes(device, get_ironic_parameters):
 
     for key, value in node_secrets.items():
         if key.startswith("ironic_osism_"):
-            template_vars[key] = str(value)
+            template_vars[key] = str(value).strip()
 
     # Render Jinja2 templates in all string values
     _render_templates(node_attributes, template_vars)
