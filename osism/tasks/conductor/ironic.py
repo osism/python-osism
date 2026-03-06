@@ -6,6 +6,10 @@ import re
 import textwrap
 
 import jinja2
+import yaml
+from loguru import logger
+
+from osism import settings
 
 from osism import utils as osism_utils
 from osism.tasks import netbox, openstack
@@ -61,11 +65,47 @@ def _derive_as_from_hostname_yrzn(hostname):
     return f"42001{t}{rack}{server}"
 
 
+def _get_metalbox_primary_ip4_fallback():
+    """Fallback: find a metalbox using NETBOX_FILTER_CONDUCTOR_IRONIC filters.
+
+    Takes the NETBOX_FILTER_CONDUCTOR_IRONIC filter, removes the tag filter,
+    and searches for devices with role=metalbox instead.
+
+    Returns:
+        str: The metalbox's primary IPv4 address (without prefix), or None
+    """
+    from osism import utils
+
+    try:
+        nb_device_query_list = yaml.safe_load(settings.NETBOX_FILTER_CONDUCTOR_IRONIC)
+        if type(nb_device_query_list) is not list:
+            return None
+    except yaml.YAMLError:
+        return None
+
+    for nb_device_query in nb_device_query_list:
+        if type(nb_device_query) is not dict:
+            continue
+        query = {k: v for k, v in nb_device_query.items() if k != "tag"}
+        query["role"] = "metalbox"
+        metalboxes = utils.nb.dcim.devices.filter(**query)
+        for metalbox in metalboxes:
+            if metalbox.primary_ip4:
+                return str(metalbox.primary_ip4).split("/")[0]
+
+    logger.warning("No metalbox found via fallback filter either")
+    return None
+
+
 def _get_metalbox_primary_ip4(device):
     """Get the primary IPv4 address of the metalbox managing this device.
 
     Finds the metalbox whose interface shares the same subnet as the
     device's OOB IP address, then returns that metalbox's primary_ip4.
+
+    If no metalbox is found via subnet matching, falls back to searching
+    for a metalbox using the NETBOX_FILTER_CONDUCTOR_IRONIC filters
+    (without the tag filter and with role set to metalbox).
 
     Args:
         device: NetBox device object
@@ -97,7 +137,11 @@ def _get_metalbox_primary_ip4(device):
                             return str(metalbox.primary_ip4).split("/")[0]
                         return None
 
-    return None
+    logger.warning(
+        f"No metalbox found via subnet matching for device {device.name}, "
+        "trying fallback via NETBOX_FILTER_CONDUCTOR_IRONIC"
+    )
+    return _get_metalbox_primary_ip4_fallback()
 
 
 driver_params = {
