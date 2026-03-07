@@ -267,14 +267,14 @@ def _prepare_node_attributes(device, get_ironic_parameters):
                     else None
                 )
                 for kap_name, frr_key in SUPPORTED_IPA_TYPES[ipa_type].items():
-                    if kap_name == "osism-ipa-as" and derived_as:
-                        kap += f" {kap_name}={derived_as}"
-                    elif kap_name == "osism-ipa-metalbox":
+                    if kap_name == "osism-ipa-metalbox":
                         metalbox_ip = _get_metalbox_primary_ip4(device)
                         if metalbox_ip:
                             kap += f" {kap_name}={metalbox_ip}"
-                    elif frr_key in frr:
+                    elif frr_key and frr_key in frr:
                         kap += f" {kap_name}={frr[frr_key]}"
+                    elif kap_name == "osism-ipa-as" and derived_as:
+                        kap += f" {kap_name}={derived_as}"
                 node_attributes["instance_info"]["kernel_append_params"] = kap
 
         node_attributes["extra"].update(
