@@ -182,7 +182,9 @@ def _render_templates(obj, template_vars):
                 _render_templates(item, template_vars)
 
 
-def _prepare_node_attributes(device, get_ironic_parameters, skip_kernel_params=None):
+def _prepare_node_attributes(
+    device, get_ironic_parameters, skip_kernel_params=None, extra_kernel_params=None
+):
     # Get base node attributes (no decryption needed)
     node_attributes = get_ironic_parameters()
 
@@ -287,6 +289,12 @@ def _prepare_node_attributes(device, get_ironic_parameters, skip_kernel_params=N
                 node_attributes["instance_info"]["kernel_append_params"] = " ".join(
                     filtered
                 )
+
+        if extra_kernel_params:
+            kap = node_attributes["instance_info"].get("kernel_append_params", "")
+            for param in extra_kernel_params:
+                kap += f" {param}" if kap else param
+            node_attributes["instance_info"]["kernel_append_params"] = kap
 
         node_attributes["extra"].update(
             {"instance_info": json.dumps(node_attributes["instance_info"])}
@@ -577,9 +585,12 @@ def sync_ironic(
     force=False,
     dry_run=False,
     skip_kernel_params=None,
+    extra_kernel_params=None,
 ):
     if skip_kernel_params is None:
         skip_kernel_params = []
+    if extra_kernel_params is None:
+        extra_kernel_params = []
 
     prefix = "[DRY RUN] " if dry_run else ""
 
@@ -598,6 +609,12 @@ def sync_ironic(
         osism_utils.push_task_output(
             request_id,
             f"{prefix}Skipping kernel append parameters: {', '.join(skip_kernel_params)}\n",
+        )
+
+    if extra_kernel_params:
+        osism_utils.push_task_output(
+            request_id,
+            f"{prefix}Adding extra kernel append parameters: {', '.join(extra_kernel_params)}\n",
         )
 
     # Check NetBox API connectivity
@@ -703,7 +720,10 @@ def sync_ironic(
         node_interfaces = list(netbox.get_interfaces_by_device(device.name))
 
         node_attributes, template_vars = _prepare_node_attributes(
-            device, get_ironic_parameters, skip_kernel_params=skip_kernel_params
+            device,
+            get_ironic_parameters,
+            skip_kernel_params=skip_kernel_params,
+            extra_kernel_params=extra_kernel_params,
         )
         ports_attributes = [
             dict(address=interface.mac_address)

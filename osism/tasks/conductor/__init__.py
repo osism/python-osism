@@ -51,7 +51,12 @@ def sync_netbox(self, node_name=None, netbox_filter=None):
 
 @app.task(bind=True, name="osism.tasks.conductor.sync_ironic")
 def sync_ironic(
-    self, node_name=None, force=False, dry_run=False, skip_kernel_params=None
+    self,
+    node_name=None,
+    force=False,
+    dry_run=False,
+    skip_kernel_params=None,
+    extra_kernel_params=None,
 ):
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -63,6 +68,7 @@ def sync_ironic(
         force,
         dry_run,
         skip_kernel_params=skip_kernel_params or [],
+        extra_kernel_params=extra_kernel_params or [],
     )
 
 
