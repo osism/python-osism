@@ -49,6 +49,13 @@ class Ironic(Command):
             dest="skip_kernel_params",
             help="Skip a kernel append parameter by name (e.g. osism-ipa-as). Can be specified multiple times.",
         )
+        parser.add_argument(
+            "--extra-kernel-param",
+            action="append",
+            default=[],
+            dest="extra_kernel_params",
+            help="Add an extra kernel append parameter as key=value (e.g. osism-ipa-as=12345). Can be specified multiple times.",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -64,6 +71,7 @@ class Ironic(Command):
             force=parsed_args.force,
             dry_run=parsed_args.dry_run,
             skip_kernel_params=parsed_args.skip_kernel_params,
+            extra_kernel_params=parsed_args.extra_kernel_params,
         )
         if wait:
             if node_name:
