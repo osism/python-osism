@@ -182,7 +182,7 @@ def _render_templates(obj, template_vars):
                 _render_templates(item, template_vars)
 
 
-def _prepare_node_attributes(device, get_ironic_parameters):
+def _prepare_node_attributes(device, get_ironic_parameters, skip_kernel_params=None):
     # Get base node attributes (no decryption needed)
     node_attributes = get_ironic_parameters()
 
@@ -276,6 +276,17 @@ def _prepare_node_attributes(device, get_ironic_parameters):
                     elif kap_name == "osism-ipa-as" and derived_as:
                         kap += f" {kap_name}={derived_as}"
                 node_attributes["instance_info"]["kernel_append_params"] = kap
+
+        if skip_kernel_params:
+            kap = node_attributes["instance_info"].get("kernel_append_params", "")
+            if kap:
+                parts = kap.split()
+                filtered = [
+                    p for p in parts if p.split("=", 1)[0] not in skip_kernel_params
+                ]
+                node_attributes["instance_info"]["kernel_append_params"] = " ".join(
+                    filtered
+                )
 
         node_attributes["extra"].update(
             {"instance_info": json.dumps(node_attributes["instance_info"])}
@@ -560,8 +571,16 @@ def _sync_ironic_device_dry_run(
 
 
 def sync_ironic(
-    request_id, get_ironic_parameters, node_name=None, force=False, dry_run=False
+    request_id,
+    get_ironic_parameters,
+    node_name=None,
+    force=False,
+    dry_run=False,
+    skip_kernel_params=None,
 ):
+    if skip_kernel_params is None:
+        skip_kernel_params = []
+
     prefix = "[DRY RUN] " if dry_run else ""
 
     if node_name:
@@ -573,6 +592,12 @@ def sync_ironic(
         osism_utils.push_task_output(
             request_id,
             f"{prefix}Starting NetBox device synchronisation with ironic\n",
+        )
+
+    if skip_kernel_params:
+        osism_utils.push_task_output(
+            request_id,
+            f"{prefix}Skipping kernel append parameters: {', '.join(skip_kernel_params)}\n",
         )
 
     # Check NetBox API connectivity
@@ -678,7 +703,7 @@ def sync_ironic(
         node_interfaces = list(netbox.get_interfaces_by_device(device.name))
 
         node_attributes, template_vars = _prepare_node_attributes(
-            device, get_ironic_parameters
+            device, get_ironic_parameters, skip_kernel_params=skip_kernel_params
         )
         ports_attributes = [
             dict(address=interface.mac_address)
