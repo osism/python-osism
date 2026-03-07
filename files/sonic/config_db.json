@@ -413,16 +413,32 @@
         "default|connected|bgp|ipv4": {},
         "default|connected|bgp|ipv6": {}
     },
-    "SNMP": {
-        "LOCATION": {
-            "Location": "public"
+    "SNMP_SERVER": {
+        "SYSTEM": {}
+    },
+    "SNMP_SERVER_GROUP": {
+        "monitoring": {}
+    },
+    "SNMP_SERVER_GROUP_ACCESS": {
+        "monitoring|Default|usm|auth-no-priv": {
+            "contextMatch": "exact",
+            "notifyView": "None",
+            "readView": "rview",
+            "writeView": "None"
         }
     },
-    "SNMP_COMMUNITY": {
-        "public": {
-            "TYPE": "RO"
+    "SNMP_SERVER_GROUP_MEMBER": {},
+    "SNMP_SERVER_GROUP_PARAMS": {},
+    "SNMP_SERVER_GROUP_TARGET": {},
+    "SNMP_SERVER_GROUP_USER": {},
+    "SNMP_SERVER_VIEW": {
+        "rview": {
+            "include": [
+                ".1"
+            ]
         }
     },
+    "STATIC_ROUTE": {},
     "SSHD_COMMON": {
         "GLOBAL": {
             "ciphers": "aes128-ctr,aes192-ctr,aes256-ctr,chacha20-poly1305@openssh.com,aes128-gcm@openssh.com,aes256-gcm@openssh.com",
@@ -442,7 +458,7 @@
     "TELEMETRY": {
         "gnmi": {}
     },
-    "VERSION": {
+    "VERSIONS": {
         "DATABASE": {
             "VERSION": "version_4_0_1"
         }
