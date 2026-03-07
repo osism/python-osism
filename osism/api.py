@@ -199,6 +199,17 @@ class BaremetalPortsResponse(BaseModel):
     count: int = Field(..., description="Total number of ports")
 
 
+class BaremetalNodeParameters(BaseModel):
+    kernel_append_params: Optional[str] = Field(
+        None,
+        description="Kernel append parameters (secrets masked with ***)",
+    )
+    netplan_parameters: Optional[Dict[str, Any]] = Field(
+        None, description="Netplan parameters"
+    )
+    frr_parameters: Optional[Dict[str, Any]] = Field(None, description="FRR parameters")
+
+
 def find_device_by_identifier(identifier: str):
     """Find a device in NetBox by various identifiers."""
     if not utils.nb:
@@ -388,6 +399,29 @@ async def get_baremetal_node_ports(node_uuid: str) -> BaremetalPortsResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve ports for node {node_uuid}: {str(e)}",
+        )
+
+
+@app.get(
+    "/v1/baremetal/nodes/{node_uuid}/parameters",
+    response_model=BaremetalNodeParameters,
+    tags=["baremetal"],
+)
+async def get_baremetal_node_parameters(
+    node_uuid: str,
+) -> BaremetalNodeParameters:
+    """Get kernel append params, netplan params, and FRR params for a node.
+
+    Secret values in kernel_append_params are masked with ***.
+    """
+    try:
+        params = openstack.get_baremetal_node_parameters(node_uuid)
+        return BaremetalNodeParameters(**params)
+    except Exception as e:
+        logger.error(f"Error retrieving parameters for node {node_uuid}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve parameters for node {node_uuid}: {str(e)}",
         )
 
 

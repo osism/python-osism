@@ -22,6 +22,12 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
     refetchInterval: 60000,
   });
 
+  const { data: paramsData, isLoading: paramsLoading } = useQuery({
+    queryKey: ["baremetal-node-parameters", uuid],
+    queryFn: () => api.baremetal.getNodeParameters(uuid),
+    refetchInterval: 60000,
+  });
+
   const node = nodesData?.nodes.find((n: BaremetalNode) => n.uuid === uuid);
   const isLoading = nodesLoading || portsLoading;
 
@@ -272,6 +278,71 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
               </dl>
             </div>
           </div>
+
+          {paramsData && (paramsData.kernel_append_params || paramsData.netplan_parameters || paramsData.frr_parameters) && (
+            <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+              <div className="px-4 py-5 sm:px-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900">Parameters</h3>
+              </div>
+              <div className="border-t border-gray-200">
+                <dl>
+                  {paramsData.kernel_append_params && (
+                    <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                      <dt className="text-sm font-medium text-gray-500">Kernel Append Params</dt>
+                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        <div className="flex flex-wrap gap-1">
+                          {paramsData.kernel_append_params.split(" ").map((param, i) => {
+                            const [key, value] = param.split("=", 2);
+                            const isSecret = value === "***";
+                            return (
+                              <span
+                                key={i}
+                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                  isSecret
+                                    ? "bg-red-100 text-red-800"
+                                    : "bg-gray-100 text-gray-800"
+                                }`}
+                              >
+                                {value !== undefined ? (
+                                  <>
+                                    <span className="font-semibold">{key}</span>
+                                    <span className="mx-0.5">=</span>
+                                    <span>{value}</span>
+                                  </>
+                                ) : (
+                                  <span>{param}</span>
+                                )}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </dd>
+                    </div>
+                  )}
+                  {paramsData.netplan_parameters && (
+                    <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                      <dt className="text-sm font-medium text-gray-500">Netplan Parameters</dt>
+                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        <pre className="bg-gray-50 rounded p-3 overflow-x-auto text-xs">
+                          {JSON.stringify(paramsData.netplan_parameters, null, 2)}
+                        </pre>
+                      </dd>
+                    </div>
+                  )}
+                  {paramsData.frr_parameters && (
+                    <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                      <dt className="text-sm font-medium text-gray-500">FRR Parameters</dt>
+                      <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        <pre className="bg-white rounded p-3 overflow-x-auto text-xs">
+                          {JSON.stringify(paramsData.frr_parameters, null, 2)}
+                        </pre>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white shadow overflow-hidden sm:rounded-lg">
             <div className="px-4 py-5 sm:px-6">
