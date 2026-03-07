@@ -965,6 +965,17 @@ class BaremetalBurnIn(Command):
                         continue
 
                 if node.provision_state in ["manageable"]:
+                    # NOTE: Ironic removes "instance_info" on undeploy. It was saved to "extra" during sync and needs to be refreshed here.
+                    if (
+                        "instance_info" in node
+                        and not node["instance_info"]
+                        and "instance_info" in node["extra"]
+                        and node["extra"]["instance_info"]
+                    ):
+                        node = conn.baremetal.update_node(
+                            node, instance_info=json.loads(node.extra["instance_info"])
+                        )
+
                     try:
                         conn.baremetal.set_node_provision_state(
                             node.id, "clean", clean_steps=clean_steps
@@ -1067,6 +1078,17 @@ class BaremetalClean(Command):
                         continue
 
                 if node.provision_state in ["manageable"]:
+                    # NOTE: Ironic removes "instance_info" on undeploy. It was saved to "extra" during sync and needs to be refreshed here.
+                    if (
+                        "instance_info" in node
+                        and not node["instance_info"]
+                        and "instance_info" in node["extra"]
+                        and node["extra"]["instance_info"]
+                    ):
+                        node = conn.baremetal.update_node(
+                            node, instance_info=json.loads(node.extra["instance_info"])
+                        )
+
                     try:
                         conn.baremetal.set_node_provision_state(
                             node.id, "clean", clean_steps=clean_steps
