@@ -42,6 +42,13 @@ class Ironic(Command):
             help="Show what would be done without making any changes",
             action="store_true",
         )
+        parser.add_argument(
+            "--skip-kernel-param",
+            action="append",
+            default=[],
+            dest="skip_kernel_params",
+            help="Skip a kernel append parameter by name (e.g. osism-ipa-as). Can be specified multiple times.",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -53,7 +60,10 @@ class Ironic(Command):
         node_name = parsed_args.node
 
         task = conductor.sync_ironic.delay(
-            node_name=node_name, force=parsed_args.force, dry_run=parsed_args.dry_run
+            node_name=node_name,
+            force=parsed_args.force,
+            dry_run=parsed_args.dry_run,
+            skip_kernel_params=parsed_args.skip_kernel_params,
         )
         if wait:
             if node_name:
