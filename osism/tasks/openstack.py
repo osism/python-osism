@@ -165,6 +165,92 @@ def get_baremetal_node_ports(node_uuid):
     return port_list
 
 
+def get_baremetal_node_parameters(node_uuid):
+    """Get kernel append params, netplan params, and FRR params for a node.
+
+    Extracts parameters from the Ironic node's extra field and masks
+    any secret values (from NetBox secrets custom field) with '***'.
+
+    Returns:
+        dict with kernel_append_params, netplan_parameters, frr_parameters
+    """
+    import json
+    from osism.tasks.conductor.utils import deep_decrypt, get_vault
+
+    conn = utils.get_openstack_connection()
+    node = conn.baremetal.get_node(node_uuid)
+
+    extra = getattr(node, "extra", {}) or {}
+
+    # Parse instance_info from extra (stored as JSON string)
+    instance_info = {}
+    if "instance_info" in extra:
+        try:
+            instance_info = json.loads(extra["instance_info"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    kernel_append_params = instance_info.get("kernel_append_params", "")
+
+    # Parse netplan_parameters from extra
+    netplan_parameters = {}
+    if "netplan_parameters" in extra:
+        try:
+            netplan_parameters = json.loads(extra["netplan_parameters"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Parse frr_parameters from extra
+    frr_parameters = {}
+    if "frr_parameters" in extra:
+        try:
+            frr_parameters = json.loads(extra["frr_parameters"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Mask secret values in kernel_append_params
+    node_name = getattr(node, "name", None)
+    if kernel_append_params and utils.nb and node_name:
+        try:
+            device = utils.nb.dcim.devices.get(name=node_name)
+            if not device:
+                devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=node_name)
+                if devices:
+                    device = list(devices)[0]
+
+            if device:
+                node_secrets = device.custom_fields.get("secrets", {})
+                if node_secrets is None:
+                    node_secrets = {}
+
+                vault = get_vault()
+                deep_decrypt(node_secrets, vault)
+
+                # Collect secret values using the same logic as dry-run
+                # (matches _is_secret_key + dry-run secret collection)
+                secret_values = set()
+                for key, value in node_secrets.items():
+                    if isinstance(value, str) and (
+                        "password" in key.lower()
+                        or "secret" in key.lower()
+                        or key.lower().startswith("ironic_osism_")
+                    ):
+                        secret_values.add(value.strip())
+
+                # Replace secret values in kernel_append_params
+                for sv in secret_values:
+                    if sv:
+                        kernel_append_params = kernel_append_params.replace(sv, "***")
+        except Exception as e:
+            logger.debug(f"Could not mask secrets for {node_name}: {e}")
+
+    return {
+        "kernel_append_params": kernel_append_params or None,
+        "netplan_parameters": netplan_parameters or None,
+        "frr_parameters": frr_parameters or None,
+    }
+
+
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_validate")
 def baremetal_node_validate(self, node_id_or_name):
     conn = utils.get_openstack_connection()

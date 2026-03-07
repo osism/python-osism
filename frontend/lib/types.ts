@@ -44,6 +44,12 @@ export interface BaremetalPortsResponse {
   count: number;
 }
 
+export interface BaremetalNodeParameters {
+  kernel_append_params: string | null;
+  netplan_parameters: Record<string, unknown> | null;
+  frr_parameters: Record<string, unknown> | null;
+}
+
 export interface HealthCheckResponse {
   result: string;
 }
