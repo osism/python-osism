@@ -433,6 +433,15 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
                     node = openstack.baremetal_node_update(
                         node["uuid"], dict(automated_clean=False)
                     )
+                try:
+                    openstack.baremetal_node_set_boot_device(
+                        node["uuid"], "cdrom", persistent=False
+                    )
+                except Exception:
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Could not set boot device to cdrom for {device.name}, continuing\n",
+                    )
                 node = openstack.baremetal_node_set_provision_state(
                     node["uuid"], "provide"
                 )
