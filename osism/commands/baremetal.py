@@ -324,6 +324,7 @@ class BaremetalDeploy(Command):
                                 explicit_start=True,
                                 indent=2,
                                 sort_keys=False,
+                                width=float("inf"),
                             )
                         config_drive = configdrive_builder.pack(tmp_dir)
                 except Exception as exc:
@@ -479,6 +480,7 @@ class BaremetalDump(Command):
                         explicit_start=True,
                         indent=2,
                         sort_keys=False,
+                        width=float("inf"),
                     )
                 )
             except Exception as exc:
@@ -581,6 +583,7 @@ class BaremetalDump(Command):
                         explicit_start=True,
                         indent=2,
                         sort_keys=False,
+                        width=float("inf"),
                     )
                 )
             except Exception as exc:
