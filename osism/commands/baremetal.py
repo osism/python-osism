@@ -332,6 +332,19 @@ class BaremetalDeploy(Command):
                     )
                     continue
                 try:
+                    # NOTE: Set boot device to cdrom before deploy to ensure
+                    # the node boots from virtual media. Some BIOS/UEFI firmware
+                    # changes the persistent boot order after a successful deploy,
+                    # putting HDD first, which prevents subsequent operations.
+                    conn.baremetal.set_node_boot_device(
+                        node.id, "cdrom", persistent=False
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
+                    )
+
+                try:
                     conn.baremetal.set_node_provision_state(
                         node.id, provision_state, config_drive=config_drive
                     )
@@ -966,6 +979,15 @@ class BaremetalBurnIn(Command):
 
                 if node.provision_state in ["manageable"]:
                     try:
+                        conn.baremetal.set_node_boot_device(
+                            node.id, "cdrom", persistent=False
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
+                        )
+
+                    try:
                         conn.baremetal.set_node_provision_state(
                             node.id, "clean", clean_steps=clean_steps
                         )
@@ -1067,6 +1089,15 @@ class BaremetalClean(Command):
                         continue
 
                 if node.provision_state in ["manageable"]:
+                    try:
+                        conn.baremetal.set_node_boot_device(
+                            node.id, "cdrom", persistent=False
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
+                        )
+
                     try:
                         conn.baremetal.set_node_provision_state(
                             node.id, "clean", clean_steps=clean_steps

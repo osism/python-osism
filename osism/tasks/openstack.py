@@ -271,6 +271,12 @@ def baremetal_node_wait_for_nodes_provision_state(self, node_id_or_name, state):
         return None
 
 
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_node_set_boot_device")
+def baremetal_node_set_boot_device(self, node, device, persistent=False):
+    conn = utils.get_openstack_connection()
+    conn.baremetal.set_node_boot_device(node, device, persistent=persistent)
+
+
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_node_set_provision_state")
 def baremetal_node_set_provision_state(self, node, state):
     conn = utils.get_openstack_connection()
