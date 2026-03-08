@@ -296,6 +296,17 @@ def _prepare_node_attributes(
                 kap += f" {param}" if kap else param
             node_attributes["instance_info"]["kernel_append_params"] = kap
 
+        # NOTE: Also store kernel_append_params in driver_info so they persist
+        # through undeploy. Ironic clears instance_info on undeploy but keeps
+        # driver_info. Ironic's get_kernel_append_params() falls back to
+        # driver_info when instance_info is empty, ensuring the params are
+        # available during automated cleaning after undeploy.
+        final_kap = node_attributes["instance_info"].get("kernel_append_params", "")
+        if final_kap:
+            if "driver_info" not in node_attributes:
+                node_attributes["driver_info"] = {}
+            node_attributes["driver_info"]["kernel_append_params"] = final_kap
+
         node_attributes["extra"].update(
             {"instance_info": json.dumps(node_attributes["instance_info"])}
         )
