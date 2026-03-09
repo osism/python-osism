@@ -49,7 +49,7 @@ def deep_decrypt(a, vault):
                 deep_decrypt(a[key], vault)
             elif vault.is_encrypted(value):
                 try:
-                    a[key] = vault.decrypt(value).decode()
+                    a[key] = vault.decrypt(value).decode().strip()
                 except Exception:
                     a.pop(key, None)
     elif isinstance(a, list):
@@ -58,7 +58,7 @@ def deep_decrypt(a, vault):
                 deep_decrypt(item, vault)
             elif vault.is_encrypted(item):
                 try:
-                    a[i] = vault.decrypt(item).decode()
+                    a[i] = vault.decrypt(item).decode().strip()
                 except Exception:
                     pass
 
