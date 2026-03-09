@@ -21,6 +21,7 @@ from osism.tasks.openstack import (
 )
 from osism import settings, utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
+from osism.tasks.conductor.utils import deep_decrypt, get_vault
 from osism.tasks import netbox
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
 
@@ -307,12 +308,15 @@ class BaremetalDeploy(Command):
                         )
                         play["roles"].append("osism.commons.network")
                     if "frr_parameters" in node.extra and node.extra["frr_parameters"]:
+                        frr_params = json.loads(node.extra["frr_parameters"])
+                        vault = get_vault()
+                        deep_decrypt(frr_params, vault)
                         play["vars"].update(
                             {
                                 "frr_dummy_interface": settings.FRR_DUMMY_INTERFACE,
                             }
                         )
-                        play["vars"].update(json.loads(node.extra["frr_parameters"]))
+                        play["vars"].update(frr_params)
                         play["roles"].append("osism.services.frr")
                     playbook.append(play)
                     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -475,12 +479,15 @@ class BaremetalDump(Command):
 
                 # Get frr_parameters from Ironic node extra (JSON string, needs parsing)
                 if "frr_parameters" in node.extra and node.extra["frr_parameters"]:
+                    frr_params = json.loads(node.extra["frr_parameters"])
+                    vault = get_vault()
+                    deep_decrypt(frr_params, vault)
                     play["vars"].update(
                         {
                             "frr_dummy_interface": settings.FRR_DUMMY_INTERFACE,
                         }
                     )
-                    play["vars"].update(json.loads(node.extra["frr_parameters"]))
+                    play["vars"].update(frr_params)
                     play["roles"].append("osism.services.frr")
 
                 playbook.append(play)
@@ -578,12 +585,15 @@ class BaremetalDump(Command):
                     "frr_parameters" in device.custom_fields
                     and device.custom_fields["frr_parameters"]
                 ):
+                    frr_params = device.custom_fields["frr_parameters"]
+                    vault = get_vault()
+                    deep_decrypt(frr_params, vault)
                     play["vars"].update(
                         {
                             "frr_dummy_interface": settings.FRR_DUMMY_INTERFACE,
                         }
                     )
-                    play["vars"].update(device.custom_fields["frr_parameters"])
+                    play["vars"].update(frr_params)
                     play["roles"].append("osism.services.frr")
 
                 playbook.append(play)
