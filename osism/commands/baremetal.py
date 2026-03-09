@@ -250,13 +250,17 @@ class BaremetalDeploy(Command):
                                 if devices:
                                     device = devices[0]
 
-                            # Extract local_context_data if device found and has the field
+                            # Extract local_context_data if device found and has the field.
+                            # Remove frr_parameters and netplan_parameters as they are
+                            # handled separately via Ironic node extra.
                             if (
                                 device
                                 and hasattr(device, "local_context_data")
                                 and device.local_context_data
                             ):
                                 default_vars = device.local_context_data
+                                default_vars.pop("frr_parameters", None)
+                                default_vars.pop("netplan_parameters", None)
                                 logger.info(
                                     f"Using NetBox local_context_data for node {node.name}"
                                 )
@@ -419,13 +423,17 @@ class BaremetalDump(Command):
                             if devices:
                                 device = devices[0]
 
-                        # Extract local_context_data if device found and has the field
+                        # Extract local_context_data if device found and has the field.
+                        # Remove frr_parameters and netplan_parameters as they are
+                        # handled separately via Ironic node extra.
                         if (
                             device
                             and hasattr(device, "local_context_data")
                             and device.local_context_data
                         ):
                             default_vars = device.local_context_data
+                            default_vars.pop("frr_parameters", None)
+                            default_vars.pop("netplan_parameters", None)
                             logger.info(
                                 f"Using NetBox local_context_data for node {node.name}"
                             )
@@ -529,10 +537,14 @@ class BaremetalDump(Command):
                     logger.error(f"Could not find device {name} in NetBox")
                     return
 
-                # Get default vars from NetBox local_context_data if available
+                # Get default vars from NetBox local_context_data if available.
+                # Remove frr_parameters and netplan_parameters as they are
+                # handled separately via custom fields.
                 default_vars = {}
                 if hasattr(device, "local_context_data") and device.local_context_data:
                     default_vars = device.local_context_data
+                    default_vars.pop("frr_parameters", None)
+                    default_vars.pop("netplan_parameters", None)
                     logger.info(
                         f"Using NetBox local_context_data for device {device.name}"
                     )
