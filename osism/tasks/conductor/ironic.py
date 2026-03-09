@@ -263,6 +263,7 @@ def _prepare_node_attributes(
             if match and match.group(1) in SUPPORTED_IPA_TYPES:
                 ipa_type = match.group(1)
                 frr = device.custom_fields.get("frr_parameters") or {}
+                deep_decrypt(frr, vault)
                 derived_as = (
                     _derive_as_from_hostname_yrzn(device.name)
                     if ipa_type == "yrzn001"
@@ -325,9 +326,9 @@ def _prepare_node_attributes(
         "frr_parameters" in device.custom_fields
         and device.custom_fields["frr_parameters"]
     ):
-        node_attributes["extra"].update(
-            {"frr_parameters": json.dumps(device.custom_fields["frr_parameters"])}
-        )
+        frr_params = device.custom_fields["frr_parameters"]
+        deep_decrypt(frr_params, vault)
+        node_attributes["extra"].update({"frr_parameters": json.dumps(frr_params)})
 
     return node_attributes, template_vars
 
