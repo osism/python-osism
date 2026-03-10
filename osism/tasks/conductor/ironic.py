@@ -430,6 +430,20 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
                 request_id,
                 f"Baremetal node for {device.name} is manageable\n",
             )
+            # NOTE: Ironic keeps the power state found during enroll. We set the node power state to off in order to have a defined state for all newly synced nodes
+            if node["power_state"] != "power off":
+                osism_utils.push_task_output(
+                    request_id,
+                    f"Setting power state to 'power off' for {device.name}\n",
+                )
+                node = openstack.baremetal_node_set_provision_state(
+                    node["uuid"], "power off", wait=True, timeout=300
+                )
+                osism_utils.push_task_output(
+                    request_id,
+                    f"Successfully transitioned power state to 'power off' for {device.name}\n",
+                )
+
         if node_validation["boot"].result:
             osism_utils.push_task_output(
                 request_id,
