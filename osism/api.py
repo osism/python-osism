@@ -149,6 +149,12 @@ class BaremetalNode(BaseModel):
         None, description="UUID of associated instance"
     )
     device_role: Optional[str] = Field(None, description="Device role from NetBox")
+    primary_ip4: Optional[str] = Field(
+        None, description="Primary IPv4 address from NetBox"
+    )
+    primary_ip6: Optional[str] = Field(
+        None, description="Primary IPv6 address from NetBox"
+    )
     driver: Optional[str] = Field(None, description="Driver used for the node")
     resource_class: Optional[str] = Field(
         None, description="Resource class of the node"

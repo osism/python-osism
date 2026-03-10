@@ -92,8 +92,10 @@ def get_baremetal_nodes():
         # OpenStack SDK returns Resource objects, not dicts - use attribute access
         node_name = getattr(node, "name", None)
 
-        # Get device role from NetBox
+        # Get device role and primary IPs from NetBox
         device_role = None
+        primary_ip4 = None
+        primary_ip6 = None
         if utils.nb and node_name:
             try:
                 device = utils.nb.dcim.devices.get(name=node_name)
@@ -105,6 +107,10 @@ def get_baremetal_nodes():
                         device = list(devices)[0]
                 if device and device.role and hasattr(device.role, "name"):
                     device_role = device.role.name
+                if device and device.primary_ip4:
+                    primary_ip4 = str(device.primary_ip4).split("/")[0]
+                if device and device.primary_ip6:
+                    primary_ip6 = str(device.primary_ip6).split("/")[0]
             except Exception as e:
                 logger.debug(f"Could not get device role for {node_name}: {e}")
 
@@ -112,6 +118,8 @@ def get_baremetal_nodes():
             "uuid": getattr(node, "uuid", None) or getattr(node, "id", None),
             "name": node_name,
             "device_role": device_role,
+            "primary_ip4": primary_ip4,
+            "primary_ip6": primary_ip6,
             "power_state": getattr(node, "power_state", None),
             "provision_state": getattr(node, "provision_state", None),
             "maintenance": getattr(node, "maintenance", None),
