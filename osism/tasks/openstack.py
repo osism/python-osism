@@ -284,6 +284,17 @@ def baremetal_node_set_provision_state(self, node, state):
     return result
 
 
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_node_set_power_state")
+def baremetal_node_set_power_state(self, node, state, wait=False, timeout=None):
+    conn = utils.get_openstack_connection()
+    conn.baremetal.set_node_power_state(node, state)
+    if wait:
+        result = conn.baremetal.wait_for_node_power_state(node, state, timeout=timeout)
+    else:
+        result = conn.baremetal.get_node(node)
+    return result
+
+
 @app.task(bind=True, name="osism.tasks.openstack.baremetal_port_list")
 def baremetal_port_list(self, details=False, attributes=None):
     if attributes is None:
