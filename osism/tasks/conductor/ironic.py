@@ -436,7 +436,7 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
                     request_id,
                     f"Setting power state to 'power off' for {device.name}\n",
                 )
-                node = openstack.baremetal_node_set_provision_state(
+                node = openstack.baremetal_node_set_power_state(
                     node["uuid"], "power off", wait=True, timeout=300
                 )
                 osism_utils.push_task_output(
