@@ -2,6 +2,8 @@ export interface BaremetalNode {
   uuid: string;
   name: string | null;
   device_role: string | null;
+  primary_ip4: string | null;
+  primary_ip6: string | null;
   power_state: string | null;
   provision_state: string | null;
   maintenance: boolean | null;

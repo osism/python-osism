@@ -116,6 +116,18 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                     )}
                   </dd>
                 </div>
+                {node.primary_ip4 && (
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Primary IPv4</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.primary_ip4}</dd>
+                  </div>
+                )}
+                {node.primary_ip6 && (
+                  <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">Primary IPv6</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.primary_ip6}</dd>
+                  </div>
+                )}
                 <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                   <dt className="text-sm font-medium text-gray-500">Power State</dt>
                   <dd className="mt-1 sm:mt-0 sm:col-span-2">
