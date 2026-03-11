@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
 import api from "@/lib/api";
 import { BaremetalNode, BaremetalPort } from "@/lib/types";
+import CopyButton from "@/app/components/CopyButton";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -142,8 +143,9 @@ export default function NodeDetailPage({ params }: { params: Promise<{ identifie
         </Link>
         <div className="sm:flex sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-1">
               {node?.name || decodedIdentifier}
+              {node?.name && <CopyButton text={node.name} />}
             </h2>
             <p className="mt-1 text-sm text-gray-600">
               Node details and ports
@@ -199,11 +201,17 @@ export default function NodeDetailPage({ params }: { params: Promise<{ identifie
               <dl>
                 <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                   <dt className="text-sm font-medium text-gray-500">Name</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.name || "-"}</dd>
+                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center gap-1">
+                    {node.name || "-"}
+                    {node.name && <CopyButton text={node.name} />}
+                  </dd>
                 </div>
                 <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                   <dt className="text-sm font-medium text-gray-500">UUID</dt>
-                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.uuid}</dd>
+                  <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center gap-1">
+                    {node.uuid}
+                    <CopyButton text={node.uuid} />
+                  </dd>
                 </div>
                 <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                   <dt className="text-sm font-medium text-gray-500">Device Role</dt>
@@ -220,13 +228,19 @@ export default function NodeDetailPage({ params }: { params: Promise<{ identifie
                 {netboxData?.primary_ip4 && (
                   <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Primary IPv4</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{netboxData.primary_ip4}</dd>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center gap-1">
+                      {netboxData.primary_ip4}
+                      <CopyButton text={netboxData.primary_ip4} />
+                    </dd>
                   </div>
                 )}
                 {netboxData?.primary_ip6 && (
                   <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Primary IPv6</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{netboxData.primary_ip6}</dd>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center gap-1">
+                      {netboxData.primary_ip6}
+                      <CopyButton text={netboxData.primary_ip6} />
+                    </dd>
                   </div>
                 )}
                 <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
@@ -298,7 +312,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ identifie
                 {node.redfish_address && (
                   <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Redfish Address</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center gap-1">
                       <a
                         href={node.redfish_address}
                         target="_blank"
@@ -307,6 +321,7 @@ export default function NodeDetailPage({ params }: { params: Promise<{ identifie
                       >
                         {node.redfish_address}
                       </a>
+                      <CopyButton text={node.redfish_address} />
                     </dd>
                   </div>
                 )}
@@ -385,7 +400,10 @@ export default function NodeDetailPage({ params }: { params: Promise<{ identifie
                 {node.last_error && (
                   <div className="bg-red-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-red-500">Last Error</dt>
-                    <dd className="mt-1 text-sm text-red-700 sm:mt-0 sm:col-span-2">{node.last_error}</dd>
+                    <dd className="mt-1 text-sm text-red-700 sm:mt-0 sm:col-span-2 flex items-center gap-1">
+                      {node.last_error}
+                      <CopyButton text={node.last_error} />
+                    </dd>
                   </div>
                 )}
               </dl>
