@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { RefreshCw, Search, AlertCircle, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import api from "@/lib/api";
-import { BaremetalNode } from "@/lib/types";
+import { BaremetalNode, BaremetalNodeNetboxInfo } from "@/lib/types";
 
 export default function NodesPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -56,6 +56,23 @@ export default function NodesPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedNodes = filteredAndSortedNodes?.slice(startIndex, endIndex);
+
+  // Get node names for the current page to lazy-load NetBox data
+  const visibleNodeNames = useMemo(
+    () => (paginatedNodes || []).map((n) => n.name).filter((name): name is string => Boolean(name)),
+    [paginatedNodes]
+  );
+
+  const { data: netboxData } = useQuery({
+    queryKey: ["baremetal-netbox", visibleNodeNames],
+    queryFn: () => api.baremetal.getNodesNetboxInfo(visibleNodeNames),
+    enabled: visibleNodeNames.length > 0,
+  });
+
+  const getNetboxInfo = (nodeName: string | null): BaremetalNodeNetboxInfo | undefined => {
+    if (!nodeName || !netboxData) return undefined;
+    return netboxData.nodes[nodeName];
+  };
 
   // Reset to first page when filters change
   const resetToFirstPage = () => {
@@ -239,9 +256,9 @@ export default function NodesPage() {
                           <p className="text-sm font-medium text-gray-900">
                             {node.name || node.uuid}
                           </p>
-                          {node.device_role && (
+                          {getNetboxInfo(node.name)?.device_role && (
                             <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                              {node.device_role}
+                              {getNetboxInfo(node.name)!.device_role}
                             </span>
                           )}
                           {node.maintenance && (

@@ -1,6 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
 import {
   BaremetalNodesResponse,
+  BaremetalNodeNetboxInfo,
+  BaremetalNodesNetboxResponse,
   BaremetalPortsResponse,
   BaremetalNodeParameters,
   HealthCheckResponse,
@@ -65,6 +67,16 @@ export const api = {
     getNodeParameters: async (nodeUuid: string): Promise<BaremetalNodeParameters> => {
       const client = await getApiClient();
       const response = await client.get<BaremetalNodeParameters>(`/v1/baremetal/nodes/${encodeURIComponent(nodeUuid)}/parameters`);
+      return response.data;
+    },
+    getNodeNetboxInfo: async (nodeName: string): Promise<BaremetalNodeNetboxInfo> => {
+      const client = await getApiClient();
+      const response = await client.get<BaremetalNodeNetboxInfo>(`/v1/baremetal/nodes/${encodeURIComponent(nodeName)}/netbox`);
+      return response.data;
+    },
+    getNodesNetboxInfo: async (nodeNames: string[]): Promise<BaremetalNodesNetboxResponse> => {
+      const client = await getApiClient();
+      const response = await client.post<BaremetalNodesNetboxResponse>('/v1/baremetal/nodes/netbox', { node_names: nodeNames });
       return response.data;
     },
   },
