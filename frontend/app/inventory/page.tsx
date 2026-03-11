@@ -10,13 +10,12 @@ import {
   Server,
   Database,
   FileJson,
-  Copy,
-  Check,
   Filter,
   X,
 } from "lucide-react";
 import api from "@/lib/api";
 import { HostvarEntry, FactEntry, SearchResultEntry } from "@/lib/types";
+import CopyButton from "@/app/components/CopyButton";
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) {
@@ -52,30 +51,6 @@ function getTypeColor(value: unknown): string {
     default:
       return "bg-gray-100 text-gray-800 border-gray-200";
   }
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-      title="Copy to clipboard"
-    >
-      {copied ? (
-        <Check className="h-4 w-4 text-green-500" />
-      ) : (
-        <Copy className="h-4 w-4" />
-      )}
-    </button>
-  );
 }
 
 function DataTable({
