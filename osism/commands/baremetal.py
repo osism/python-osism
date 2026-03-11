@@ -340,18 +340,20 @@ class BaremetalDeploy(Command):
                         f"Failed to build config drive for {node.name} ({node.id}): {exc}"
                     )
                     continue
-                try:
-                    # NOTE: Set boot device to cdrom before deploy to ensure
-                    # the node boots from virtual media. Some BIOS/UEFI firmware
-                    # changes the persistent boot order after a successful deploy,
-                    # putting HDD first, which prevents subsequent operations.
-                    conn.baremetal.set_node_boot_device(
-                        node.id, "cdrom", persistent=False
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
-                    )
+                node_vendor = node.properties.get("vendor", "").strip().lower()
+                if node_vendor == "supermicro":
+                    try:
+                        # NOTE: Set boot device to cdrom before deploy to ensure
+                        # the node boots from virtual media. Some BIOS/UEFI firmware
+                        # changes the persistent boot order after a successful deploy,
+                        # putting HDD first, which prevents subsequent operations.
+                        conn.baremetal.set_node_boot_device(
+                            node.id, "cdrom", persistent=False
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
+                        )
 
                 try:
                     conn.baremetal.set_node_provision_state(
@@ -1015,14 +1017,16 @@ class BaremetalBurnIn(Command):
                             instance_info=json.loads(node.extra["instance_info"]),
                         )
 
-                    try:
-                        conn.baremetal.set_node_boot_device(
-                            node.id, "cdrom", persistent=False
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
-                        )
+                    node_vendor = node.properties.get("vendor", "").strip().lower()
+                    if node_vendor == "supermicro":
+                        try:
+                            conn.baremetal.set_node_boot_device(
+                                node.id, "cdrom", persistent=False
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
+                            )
 
                     try:
                         conn.baremetal.set_node_provision_state(
@@ -1138,14 +1142,16 @@ class BaremetalClean(Command):
                             instance_info=json.loads(node.extra["instance_info"]),
                         )
 
-                    try:
-                        conn.baremetal.set_node_boot_device(
-                            node.id, "cdrom", persistent=False
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
-                        )
+                    node_vendor = node.properties.get("vendor", "").strip().lower()
+                    if node_vendor == "supermicro":
+                        try:
+                            conn.baremetal.set_node_boot_device(
+                                node.id, "cdrom", persistent=False
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
+                            )
 
                     try:
                         conn.baremetal.set_node_provision_state(
