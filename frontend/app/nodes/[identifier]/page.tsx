@@ -1,14 +1,18 @@
 "use client";
 
-import { use } from "react";
+import { use, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
 import api from "@/lib/api";
 import { BaremetalNode, BaremetalPort } from "@/lib/types";
 
-export default function NodeDetailPage({ params }: { params: Promise<{ uuid: string }> }) {
-  const { uuid } = use(params);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export default function NodeDetailPage({ params }: { params: Promise<{ identifier: string }> }) {
+  const { identifier } = use(params);
+  const decodedIdentifier = decodeURIComponent(identifier);
+  const isUuid = UUID_REGEX.test(decodedIdentifier);
 
   const { data: nodesData, isLoading: nodesLoading, error: nodesError } = useQuery({
     queryKey: ["baremetal-nodes"],
@@ -16,7 +20,17 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
     refetchInterval: 60000,
   });
 
-  const node = nodesData?.nodes.find((n: BaremetalNode) => n.uuid === uuid);
+  const matchingNodes = useMemo(() => {
+    if (!nodesData) return [];
+    if (isUuid) {
+      const node = nodesData.nodes.find((n: BaremetalNode) => n.uuid === decodedIdentifier);
+      return node ? [node] : [];
+    }
+    return nodesData.nodes.filter((n: BaremetalNode) => n.name === decodedIdentifier);
+  }, [nodesData, decodedIdentifier, isUuid]);
+
+  const node = matchingNodes.length === 1 ? matchingNodes[0] : null;
+  const nodeUuid = node?.uuid;
 
   const { data: netboxData } = useQuery({
     queryKey: ["baremetal-netbox-node", node?.name],
@@ -25,17 +39,96 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
   });
 
   const { data: portsData, isLoading: portsLoading, error: portsError, refetch, isRefetching } = useQuery({
-    queryKey: ["baremetal-node-ports", uuid],
-    queryFn: () => api.baremetal.getNodePorts(uuid),
+    queryKey: ["baremetal-node-ports", nodeUuid],
+    queryFn: () => api.baremetal.getNodePorts(nodeUuid!),
+    enabled: !!nodeUuid,
     refetchInterval: 60000,
   });
 
-  const { data: paramsData, isLoading: paramsLoading } = useQuery({
-    queryKey: ["baremetal-node-parameters", uuid],
-    queryFn: () => api.baremetal.getNodeParameters(uuid),
+  const { data: paramsData } = useQuery({
+    queryKey: ["baremetal-node-parameters", nodeUuid],
+    queryFn: () => api.baremetal.getNodeParameters(nodeUuid!),
+    enabled: !!nodeUuid,
     refetchInterval: 60000,
   });
-  const isLoading = nodesLoading || portsLoading;
+
+  const isLoading = nodesLoading || (!!nodeUuid && portsLoading);
+
+  // Multiple nodes match the name - show selection list
+  if (!nodesLoading && matchingNodes.length > 1) {
+    return (
+      <div className="px-4 sm:px-0">
+        <div className="mb-6">
+          <Link
+            href="/nodes"
+            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Nodes
+          </Link>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Multiple nodes found for &quot;{decodedIdentifier}&quot;
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            {matchingNodes.length} nodes match this name. Please select one.
+          </p>
+        </div>
+        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <ul className="divide-y divide-gray-200">
+            {matchingNodes.map((n: BaremetalNode) => (
+              <li key={n.uuid}>
+                <Link href={`/nodes/${n.uuid}`} className="block hover:bg-gray-50">
+                  <div className="px-4 py-4 sm:px-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center min-w-0">
+                        <p className="text-sm font-medium text-blue-600 truncate">
+                          {n.name || n.uuid}
+                        </p>
+                      </div>
+                      <div className="ml-4 flex items-center gap-2">
+                        {n.provision_state && (
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            n.provision_state === "active"
+                              ? "bg-blue-100 text-blue-800"
+                              : n.provision_state === "available"
+                              ? "bg-green-100 text-green-800"
+                              : n.provision_state === "error"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}>
+                            {n.provision_state}
+                          </span>
+                        )}
+                        {n.power_state && (
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            n.power_state === "power on"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}>
+                            {n.power_state}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        UUID: {n.uuid}
+                      </p>
+                      {n.conductor && (
+                        <p className="text-sm text-gray-500">
+                          Conductor: {n.conductor}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 sm:px-0">
@@ -50,20 +143,22 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
         <div className="sm:flex sm:items-center sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">
-              {node?.name || uuid}
+              {node?.name || decodedIdentifier}
             </h2>
             <p className="mt-1 text-sm text-gray-600">
               Node details and ports
             </p>
           </div>
-          <button
-            onClick={() => refetch()}
-            disabled={isRefetching}
-            className="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          {node && (
+            <button
+              onClick={() => refetch()}
+              disabled={isRefetching}
+              className="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          )}
         </div>
       </div>
 
