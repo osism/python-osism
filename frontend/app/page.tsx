@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Server, Settings, Zap } from "lucide-react";
+import { Activity, Server } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 
@@ -35,22 +35,6 @@ export default function Home() {
       href: "/nodes",
       loading: nodesLoading,
     },
-    {
-      id: "services",
-      name: "Services",
-      value: "N/A",
-      icon: Settings,
-      href: "/services",
-      loading: false,
-    },
-    {
-      id: "events",
-      name: "Live Events",
-      value: "Stream",
-      icon: Zap,
-      href: "/events",
-      loading: false,
-    },
   ];
 
   return (
@@ -81,7 +65,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {stats.map((item) => {
           const Icon = item.icon;
           return (
@@ -90,25 +74,21 @@ export default function Home() {
               href={item.href}
               className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow"
             >
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <Icon className="h-6 w-6 text-gray-400" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        {item.name}
-                      </dt>
-                      <dd className="text-lg font-semibold text-gray-900">
-                        {item.loading ? (
-                          <span className="text-gray-400">Loading...</span>
-                        ) : (
-                          item.value
-                        )}
-                      </dd>
-                    </dl>
-                  </div>
+              <div className="px-8 py-12">
+                <div className="flex flex-col items-center text-center">
+                  <Icon className="h-12 w-12 text-gray-400 mb-4" />
+                  <dl>
+                    <dt className="text-lg font-medium text-gray-500">
+                      {item.name}
+                    </dt>
+                    <dd className="mt-2 text-5xl font-bold text-gray-900">
+                      {item.loading ? (
+                        <span className="text-gray-400">...</span>
+                      ) : (
+                        item.value
+                      )}
+                    </dd>
+                  </dl>
                 </div>
               </div>
             </Link>
