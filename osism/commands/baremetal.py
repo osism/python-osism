@@ -48,12 +48,19 @@ class BaremetalList(Command):
             action="store_true",
             help="Only list baremetal nodes in maintenance mode",
         )
+        parser.add_argument(
+            "--netbox",
+            default=False,
+            action="store_true",
+            help="Include device role from NetBox (slower)",
+        )
         return parser
 
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
         provision_state = parsed_args.provision_state
         maintenance = parsed_args.maintenance
+        include_netbox = parsed_args.netbox
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -72,49 +79,35 @@ class BaremetalList(Command):
 
             result = []
             for b in baremetal:
-                # Get device role from NetBox
-                device_role = "N/A"
-                if utils.nb:
-                    try:
-                        # Try to find device by name first
-                        device = utils.nb.dcim.devices.get(name=b["name"])
-
-                        # If not found by name, try by inventory_hostname custom field
-                        if not device:
-                            devices = utils.nb.dcim.devices.filter(
-                                cf_inventory_hostname=b["name"]
-                            )
-                            if devices:
-                                device = list(devices)[0]
-
-                        # Get device role
-                        if device and device.role and hasattr(device.role, "name"):
-                            device_role = device.role.name
-                    except Exception as e:
-                        logger.debug(f"Could not get device role for {b['name']}: {e}")
-
-                result.append(
-                    [
-                        b["name"],
-                        device_role,
-                        b["power_state"] if b["power_state"] is not None else "n/a",
-                        b["provision_state"],
-                        b["maintenance"],
-                    ]
-                )
+                row = [
+                    b["name"],
+                    b["power_state"] if b["power_state"] is not None else "n/a",
+                    b["provision_state"],
+                    b["maintenance"],
+                ]
+                result.append(row)
 
             result.sort(key=lambda x: x[0])
+
+            headers = [
+                "Name",
+                "Power State",
+                "Provision State",
+                "Maintenance",
+            ]
+
+            if include_netbox and utils.nb:
+                from osism.tasks.openstack import get_baremetal_node_netbox_info
+
+                for row in result:
+                    info = get_baremetal_node_netbox_info(row[0])
+                    row.insert(1, info.get("device_role") or "N/A")
+                headers.insert(1, "Device Role")
 
             print(
                 tabulate(
                     result,
-                    headers=[
-                        "Name",
-                        "Device Role",
-                        "Power State",
-                        "Provision State",
-                        "Maintenance",
-                    ],
+                    headers=headers,
                     tablefmt="psql",
                 )
             )

@@ -191,6 +191,26 @@ class BaremetalNodesResponse(BaseModel):
     count: int = Field(..., description="Total number of nodes")
 
 
+class BaremetalNodeNetboxInfo(BaseModel):
+    device_role: Optional[str] = Field(None, description="Device role from NetBox")
+    primary_ip4: Optional[str] = Field(
+        None, description="Primary IPv4 address from NetBox"
+    )
+    primary_ip6: Optional[str] = Field(
+        None, description="Primary IPv6 address from NetBox"
+    )
+
+
+class BaremetalNodesNetboxRequest(BaseModel):
+    node_names: List[str] = Field(..., description="List of node names to look up")
+
+
+class BaremetalNodesNetboxResponse(BaseModel):
+    nodes: Dict[str, BaremetalNodeNetboxInfo] = Field(
+        ..., description="NetBox info keyed by node name"
+    )
+
+
 class BaremetalPort(BaseModel):
     uuid: Optional[str] = Field(None, description="Unique identifier of the port")
     address: Optional[str] = Field(None, description="MAC address of the port")
@@ -386,6 +406,51 @@ async def get_baremetal_nodes_list() -> BaremetalNodesResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve baremetal nodes: {str(e)}",
+        )
+
+
+@app.get(
+    "/v1/baremetal/nodes/{node_name}/netbox",
+    response_model=BaremetalNodeNetboxInfo,
+    tags=["baremetal"],
+)
+async def get_baremetal_node_netbox_info(node_name: str) -> BaremetalNodeNetboxInfo:
+    """Get NetBox information for a single baremetal node.
+
+    Returns device_role, primary_ip4, primary_ip6 from NetBox.
+    """
+    try:
+        info = openstack.get_baremetal_node_netbox_info(node_name)
+        return BaremetalNodeNetboxInfo(**info)
+    except Exception as e:
+        logger.error(f"Error retrieving NetBox info for node {node_name}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve NetBox info for node {node_name}: {str(e)}",
+        )
+
+
+@app.post(
+    "/v1/baremetal/nodes/netbox",
+    response_model=BaremetalNodesNetboxResponse,
+    tags=["baremetal"],
+)
+async def get_baremetal_nodes_netbox_info(
+    request: BaremetalNodesNetboxRequest,
+) -> BaremetalNodesNetboxResponse:
+    """Get NetBox information for multiple baremetal nodes.
+
+    Accepts a list of node names and returns NetBox info for each.
+    """
+    try:
+        info = openstack.get_baremetal_nodes_netbox_info(request.node_names)
+        nodes = {name: BaremetalNodeNetboxInfo(**data) for name, data in info.items()}
+        return BaremetalNodesNetboxResponse(nodes=nodes)
+    except Exception as e:
+        logger.error(f"Error retrieving NetBox info for nodes: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve NetBox info: {str(e)}",
         )
 
 

@@ -16,6 +16,14 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
     refetchInterval: 60000,
   });
 
+  const node = nodesData?.nodes.find((n: BaremetalNode) => n.uuid === uuid);
+
+  const { data: netboxData } = useQuery({
+    queryKey: ["baremetal-netbox-node", node?.name],
+    queryFn: () => api.baremetal.getNodeNetboxInfo(node!.name!),
+    enabled: !!node?.name,
+  });
+
   const { data: portsData, isLoading: portsLoading, error: portsError, refetch, isRefetching } = useQuery({
     queryKey: ["baremetal-node-ports", uuid],
     queryFn: () => api.baremetal.getNodePorts(uuid),
@@ -27,8 +35,6 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
     queryFn: () => api.baremetal.getNodeParameters(uuid),
     refetchInterval: 60000,
   });
-
-  const node = nodesData?.nodes.find((n: BaremetalNode) => n.uuid === uuid);
   const isLoading = nodesLoading || portsLoading;
 
   return (
@@ -107,25 +113,25 @@ export default function NodeDetailPage({ params }: { params: Promise<{ uuid: str
                 <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                   <dt className="text-sm font-medium text-gray-500">Device Role</dt>
                   <dd className="mt-1 sm:mt-0 sm:col-span-2">
-                    {node.device_role ? (
+                    {netboxData?.device_role ? (
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
-                        {node.device_role}
+                        {netboxData.device_role}
                       </span>
                     ) : (
                       <span className="text-sm text-gray-500">-</span>
                     )}
                   </dd>
                 </div>
-                {node.primary_ip4 && (
+                {netboxData?.primary_ip4 && (
                   <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Primary IPv4</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.primary_ip4}</dd>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{netboxData.primary_ip4}</dd>
                   </div>
                 )}
-                {node.primary_ip6 && (
+                {netboxData?.primary_ip6 && (
                   <div className="bg-gray-50 px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">Primary IPv6</dt>
-                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{node.primary_ip6}</dd>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{netboxData.primary_ip6}</dd>
                   </div>
                 )}
                 <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">

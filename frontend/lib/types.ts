@@ -32,6 +32,16 @@ export interface BaremetalNodesResponse {
   count: number;
 }
 
+export interface BaremetalNodeNetboxInfo {
+  device_role: string | null;
+  primary_ip4: string | null;
+  primary_ip6: string | null;
+}
+
+export interface BaremetalNodesNetboxResponse {
+  nodes: Record<string, BaremetalNodeNetboxInfo>;
+}
+
 export interface BaremetalPort {
   uuid: string;
   address: string | null;
