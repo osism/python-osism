@@ -21,6 +21,7 @@ from osism.tasks.openstack import (
 )
 from osism import settings, utils
 from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
+from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
 from osism.tasks.conductor.utils import deep_decrypt, get_vault
 from osism.tasks import netbox
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
@@ -230,6 +231,7 @@ class BaremetalDeploy(Command):
                 try:
                     # Get default vars from NetBox local_context_data if available
                     default_vars = {}
+                    device = None
                     if utils.nb:
                         try:
                             # Try to find device by name first
@@ -291,6 +293,12 @@ class BaremetalDeploy(Command):
                     play["vars"].update(
                         {"hostname_name": node.name, "hosts_type": "template"}
                     )
+                    if device:
+                        metalbox_ip = _get_metalbox_primary_ip4(device)
+                        if metalbox_ip:
+                            play["vars"]["hosts_additional_entries"] = {
+                                "metalbox.osism.xyz": metalbox_ip
+                            }
                     if (
                         "netplan_parameters" in node.extra
                         and node.extra["netplan_parameters"]
@@ -405,6 +413,7 @@ class BaremetalDump(Command):
 
                 # Get default vars from NetBox local_context_data if available
                 default_vars = {}
+                device = None
                 if utils.nb:
                     try:
                         # Try to find device by name first
@@ -466,6 +475,12 @@ class BaremetalDump(Command):
                 play["vars"].update(
                     {"hostname_name": node.name, "hosts_type": "template"}
                 )
+                if device:
+                    metalbox_ip = _get_metalbox_primary_ip4(device)
+                    if metalbox_ip:
+                        play["vars"]["hosts_additional_entries"] = {
+                            "metalbox.osism.xyz": metalbox_ip
+                        }
 
                 # Get netplan_parameters from Ironic node extra (JSON string, needs parsing)
                 if (
@@ -573,6 +588,11 @@ class BaremetalDump(Command):
                 play["vars"].update(
                     {"hostname_name": device.name, "hosts_type": "template"}
                 )
+                metalbox_ip = _get_metalbox_primary_ip4(device)
+                if metalbox_ip:
+                    play["vars"]["hosts_additional_entries"] = {
+                        "metalbox.osism.xyz": metalbox_ip
+                    }
 
                 # Get netplan_parameters from NetBox custom fields (already a dict, no JSON parsing needed)
                 if (
