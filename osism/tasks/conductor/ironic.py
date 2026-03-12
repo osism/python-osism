@@ -137,7 +137,7 @@ def _get_metalbox_primary_ip4(device):
                             return str(metalbox.primary_ip4).split("/")[0]
                         return None
 
-    logger.warning(
+    logger.debug(
         f"No metalbox found via subnet matching for device {device.name}, "
         "trying fallback via NETBOX_FILTER_CONDUCTOR_IRONIC"
     )
