@@ -296,3 +296,161 @@ class Lldp(Command):
             logger.warning(
                 f"Failed to query {len(failed_hosts)} host(s): {', '.join(failed_hosts)}"
             )
+
+
+class Bgp(Command):
+    def get_parser(self, prog_name):
+        parser = super(Bgp, self).get_parser(prog_name)
+        parser.add_argument(
+            "-l",
+            "--limit",
+            type=str,
+            help="Limit selected hosts to an additional pattern",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+            )
+
+        try:
+            command = [
+                "ansible-inventory",
+                "-i",
+                "/ansible/inventory/hosts.yml",
+                "--list",
+            ]
+            if parsed_args.limit:
+                command.extend(["--limit", parsed_args.limit])
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0:
+                logger.error("Error loading inventory.")
+                return
+        except subprocess.TimeoutExpired:
+            logger.error("Timeout loading inventory.")
+            return
+
+        data = json.loads(result.stdout)
+        hosts = sorted(data.get("_meta", {}).get("hostvars", {}).keys())
+
+        if not hosts:
+            logger.error("No hosts found in inventory.")
+            return
+
+        ssh_base = [
+            "/usr/bin/ssh",
+            "-i",
+            "/ansible/secrets/id_rsa.operator",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "LogLevel=ERROR",
+            "-o",
+            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
+            "-o",
+            "ConnectTimeout=10",
+        ]
+        bgp_command = 'sudo vtysh -c "show bgp summary json"'
+
+        table = []
+        failed_hosts = []
+
+        for host in hosts:
+            resolved_host = resolve_host_with_fallback(host)
+
+            try:
+                bgp_result = subprocess.run(
+                    [
+                        *ssh_base,
+                        f"{settings.OPERATOR_USER}@{resolved_host}",
+                        bgp_command,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+
+                if bgp_result.returncode != 0:
+                    logger.warning(
+                        f"Failed to get BGP info from {host}: {bgp_result.stderr.strip()}"
+                    )
+                    failed_hosts.append(host)
+                    continue
+
+                bgp_data = json.loads(bgp_result.stdout)
+
+                for afi, afi_data in bgp_data.items():
+                    peers = afi_data.get("peers", {})
+                    for peer_name, peer_data in peers.items():
+                        table.append(
+                            [
+                                host,
+                                afi,
+                                peer_name,
+                                peer_data.get("hostname", "n/a"),
+                                peer_data.get("remoteAs", "n/a"),
+                                peer_data.get("localAs", "n/a"),
+                                peer_data.get("state", "n/a"),
+                                peer_data.get("peerState", "n/a"),
+                                peer_data.get("peerUptime", "n/a"),
+                                peer_data.get("msgRcvd", 0),
+                                peer_data.get("msgSent", 0),
+                                peer_data.get("pfxRcd", 0),
+                                peer_data.get("pfxSnt", 0),
+                                peer_data.get("connectionsEstablished", 0),
+                                peer_data.get("connectionsDropped", 0),
+                            ]
+                        )
+
+            except subprocess.TimeoutExpired:
+                logger.warning(f"Timeout connecting to {host}.")
+                failed_hosts.append(host)
+            except (ValueError, json.JSONDecodeError):
+                logger.warning(f"Could not parse BGP info from {host}.")
+                failed_hosts.append(host)
+
+        if table:
+            print(
+                tabulate(
+                    table,
+                    headers=[
+                        "Host",
+                        "AFI",
+                        "Peer",
+                        "Remote Hostname",
+                        "Remote AS",
+                        "Local AS",
+                        "State",
+                        "Peer State",
+                        "Uptime",
+                        "Msg Rcvd",
+                        "Msg Sent",
+                        "Pfx Rcvd",
+                        "Pfx Sent",
+                        "Conn Est",
+                        "Conn Drop",
+                    ],
+                    tablefmt="psql",
+                )
+            )
+            print()
+            print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Hosts: {len(set(row[0] for row in table))}")
+            print(f"Sessions: {len(table)}")
+            established = sum(1 for row in table if row[6] == "Established")
+            print(f"Established: {established}/{len(table)}")
+
+        if failed_hosts:
+            print()
+            logger.warning(
+                f"Failed to query {len(failed_hosts)} host(s): {', '.join(failed_hosts)}"
+            )
