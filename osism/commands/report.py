@@ -149,3 +149,150 @@ class Memory(Command):
             logger.warning(
                 f"Failed to query {len(failed_hosts)} host(s): {', '.join(failed_hosts)}"
             )
+
+
+class Lldp(Command):
+    def get_parser(self, prog_name):
+        parser = super(Lldp, self).get_parser(prog_name)
+        parser.add_argument(
+            "-l",
+            "--limit",
+            type=str,
+            help="Limit selected hosts to an additional pattern",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+            )
+
+        try:
+            command = [
+                "ansible-inventory",
+                "-i",
+                "/ansible/inventory/hosts.yml",
+                "--list",
+            ]
+            if parsed_args.limit:
+                command.extend(["--limit", parsed_args.limit])
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0:
+                logger.error("Error loading inventory.")
+                return
+        except subprocess.TimeoutExpired:
+            logger.error("Timeout loading inventory.")
+            return
+
+        data = json.loads(result.stdout)
+        hosts = sorted(data.get("_meta", {}).get("hostvars", {}).keys())
+
+        if not hosts:
+            logger.error("No hosts found in inventory.")
+            return
+
+        ssh_base = [
+            "/usr/bin/ssh",
+            "-i",
+            "/ansible/secrets/id_rsa.operator",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "LogLevel=ERROR",
+            "-o",
+            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
+            "-o",
+            "ConnectTimeout=10",
+        ]
+        lldp_command = "lldpctl -f json"
+
+        table = []
+        failed_hosts = []
+
+        for host in hosts:
+            resolved_host = resolve_host_with_fallback(host)
+
+            try:
+                lldp_result = subprocess.run(
+                    [
+                        *ssh_base,
+                        f"{settings.OPERATOR_USER}@{resolved_host}",
+                        lldp_command,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+
+                if lldp_result.returncode != 0:
+                    logger.warning(
+                        f"Failed to get LLDP info from {host}: {lldp_result.stderr.strip()}"
+                    )
+                    failed_hosts.append(host)
+                    continue
+
+                lldp_data = json.loads(lldp_result.stdout)
+                interfaces = lldp_data.get("lldp", {}).get("interface", [])
+
+                for iface_entry in interfaces:
+                    for local_iface, iface_data in iface_entry.items():
+                        chassis = iface_data.get("chassis", {})
+                        remote_switch = next(iter(chassis), "n/a")
+
+                        port = iface_data.get("port", {})
+                        remote_port = port.get("id", {}).get("value", "n/a")
+                        port_descr = port.get("descr", "")
+
+                        age = iface_data.get("age", "n/a")
+
+                        table.append(
+                            [
+                                host,
+                                local_iface,
+                                remote_switch,
+                                remote_port,
+                                port_descr,
+                                age,
+                            ]
+                        )
+
+            except subprocess.TimeoutExpired:
+                logger.warning(f"Timeout connecting to {host}.")
+                failed_hosts.append(host)
+            except (ValueError, json.JSONDecodeError):
+                logger.warning(f"Could not parse LLDP info from {host}.")
+                failed_hosts.append(host)
+
+        if table:
+            print(
+                tabulate(
+                    table,
+                    headers=[
+                        "Host",
+                        "Local Interface",
+                        "Remote Switch",
+                        "Remote Port",
+                        "Port Description",
+                        "Age",
+                    ],
+                    tablefmt="psql",
+                )
+            )
+            print()
+            print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Hosts: {len(set(row[0] for row in table))}")
+            print(f"Neighbors: {len(table)}")
+
+        if failed_hosts:
+            print()
+            logger.warning(
+                f"Failed to query {len(failed_hosts)} host(s): {', '.join(failed_hosts)}"
+            )
