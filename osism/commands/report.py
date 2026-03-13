@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import configparser
 from datetime import datetime
 import json
 import subprocess
@@ -454,6 +455,140 @@ class Bgp(Command):
             print(f"Sessions: {len(table)}")
             established = sum(1 for row in table if row[6] == "Established")
             print(f"Established: {established}/{len(table)}")
+
+        if failed_hosts:
+            print()
+            logger.warning(
+                f"Failed to query {len(failed_hosts)} host(s): {', '.join(failed_hosts)}"
+            )
+
+
+class Bootstrap(Command):
+    def get_parser(self, prog_name):
+        parser = super(Bootstrap, self).get_parser(prog_name)
+        parser.add_argument(
+            "-l",
+            "--limit",
+            type=str,
+            help="Limit selected hosts to an additional pattern",
+        )
+        parser.add_argument(
+            "--bootstrap",
+            type=str,
+            choices=["True", "False"],
+            default="True",
+            help="Filter by bootstrap status (default: True)",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+            )
+
+        try:
+            command = [
+                "ansible-inventory",
+                "-i",
+                get_inventory_path("/ansible/inventory/hosts.yml"),
+                "--list",
+            ]
+            if parsed_args.limit:
+                command.extend(["--limit", parsed_args.limit])
+
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            if result.returncode != 0:
+                logger.error("Error loading inventory.")
+                return
+        except subprocess.TimeoutExpired:
+            logger.error("Timeout loading inventory.")
+            return
+
+        data = json.loads(result.stdout)
+        hosts = get_hosts_from_inventory(data)
+
+        if not hosts:
+            logger.error("No hosts found in inventory.")
+            return
+
+        ssh_base = [
+            "/usr/bin/ssh",
+            "-i",
+            "/ansible/secrets/id_rsa.operator",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "LogLevel=ERROR",
+            "-o",
+            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
+            "-o",
+            "ConnectTimeout=10",
+        ]
+        fact_command = "cat /etc/ansible/facts.d/osism.fact"
+
+        filter_status = parsed_args.bootstrap
+
+        table = []
+        failed_hosts = []
+
+        for host in hosts:
+            resolved_host = resolve_host_with_fallback(host)
+
+            try:
+                fact_result = subprocess.run(
+                    [
+                        *ssh_base,
+                        f"{settings.OPERATOR_USER}@{resolved_host}",
+                        fact_command,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+
+                if fact_result.returncode != 0:
+                    logger.warning(
+                        f"Failed to get bootstrap info from {host}: {fact_result.stderr.strip()}"
+                    )
+                    failed_hosts.append(host)
+                    continue
+
+                config = configparser.ConfigParser()
+                config.read_string(fact_result.stdout)
+
+                status = config.get("bootstrap", "status", fallback="n/a")
+                timestamp = config.get("bootstrap", "timestamp", fallback="n/a")
+
+                if status != filter_status:
+                    continue
+
+                table.append([host, status, timestamp])
+
+            except subprocess.TimeoutExpired:
+                logger.warning(f"Timeout connecting to {host}.")
+                failed_hosts.append(host)
+            except (ValueError, configparser.Error):
+                logger.warning(f"Could not parse bootstrap info from {host}.")
+                failed_hosts.append(host)
+
+        if table:
+            print(
+                tabulate(
+                    table,
+                    headers=["Host", "Status", "Timestamp"],
+                    tablefmt="psql",
+                )
+            )
+            print()
+            print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"Hosts: {len(table)}")
 
         if failed_hosts:
             print()
