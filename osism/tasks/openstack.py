@@ -211,7 +211,7 @@ def get_baremetal_node_parameters(node_uuid):
         dict with kernel_append_params, netplan_parameters, frr_parameters
     """
     import json
-    from osism.tasks.conductor.utils import deep_decrypt, get_vault
+    from osism.tasks.conductor.utils import deep_decrypt, get_vault, mask_secrets
 
     conn = utils.get_openstack_connection()
     node = conn.baremetal.get_node(node_uuid)
@@ -244,9 +244,10 @@ def get_baremetal_node_parameters(node_uuid):
         except (json.JSONDecodeError, TypeError):
             pass
 
-    # Mask secret values in kernel_append_params
+    # Mask secret values in all parameters
     node_name = getattr(node, "name", None)
-    if kernel_append_params and utils.nb and node_name:
+    secret_values = set()
+    if utils.nb and node_name:
         try:
             device = utils.nb.dcim.devices.get(name=node_name)
             if not device:
@@ -264,7 +265,6 @@ def get_baremetal_node_parameters(node_uuid):
 
                 # Collect secret values using the same logic as dry-run
                 # (matches _is_secret_key + dry-run secret collection)
-                secret_values = set()
                 for key, value in node_secrets.items():
                     if isinstance(value, str) and (
                         "password" in key.lower()
@@ -274,11 +274,26 @@ def get_baremetal_node_parameters(node_uuid):
                         secret_values.add(value.strip())
 
                 # Replace secret values in kernel_append_params
-                for sv in secret_values:
-                    if sv:
-                        kernel_append_params = kernel_append_params.replace(sv, "***")
+                if kernel_append_params:
+                    for sv in secret_values:
+                        if sv:
+                            kernel_append_params = kernel_append_params.replace(
+                                sv, "***"
+                            )
         except Exception as e:
             logger.debug(f"Could not mask secrets for {node_name}: {e}")
+
+    # Mask secrets in frr_parameters and netplan_parameters
+    # This catches keys containing 'password'/'secret' and 'ironic_osism_*' prefixed keys,
+    # and also replaces any collected secret values found in string values.
+    if frr_parameters:
+        frr_parameters = mask_secrets(
+            frr_parameters, mask="***", secret_values=secret_values
+        )
+    if netplan_parameters:
+        netplan_parameters = mask_secrets(
+            netplan_parameters, mask="***", secret_values=secret_values
+        )
 
     return {
         "kernel_append_params": kernel_append_params or None,
