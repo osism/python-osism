@@ -29,6 +29,26 @@ from osism.utils.inventory import get_inventory_path
 from osism.services.listener import BaremetalEvents
 from osism.services.websocket_manager import websocket_manager
 from osism.services.event_bridge import event_bridge
+from osism.tasks.conductor.utils import _is_secret_key
+
+
+def _mask_inventory_secrets(data: dict) -> dict:
+    """Mask secret values in inventory data before returning via API.
+
+    Masks values for keys matching secret patterns (password, secret,
+    ironic_osism_*) and values that are Ansible Vault encrypted.
+    """
+    masked: dict = {}
+    for key, value in data.items():
+        if _is_secret_key(key):
+            masked[key] = "***"
+        elif isinstance(value, str) and value.strip().startswith("$ANSIBLE_VAULT;"):
+            masked[key] = "***"
+        elif isinstance(value, dict):
+            masked[key] = _mask_inventory_secrets(value)
+        else:
+            masked[key] = value
+    return masked
 
 
 class NotificationBaremetal(BaseModel):
@@ -232,9 +252,11 @@ class BaremetalNodeParameters(BaseModel):
         description="Kernel append parameters (secrets masked with ***)",
     )
     netplan_parameters: Optional[Dict[str, Any]] = Field(
-        None, description="Netplan parameters"
+        None, description="Netplan parameters (secrets masked with ***)"
     )
-    frr_parameters: Optional[Dict[str, Any]] = Field(None, description="FRR parameters")
+    frr_parameters: Optional[Dict[str, Any]] = Field(
+        None, description="FRR parameters (secrets masked with ***)"
+    )
 
 
 def find_device_by_identifier(identifier: str):
@@ -484,7 +506,7 @@ async def get_baremetal_node_parameters(
 ) -> BaremetalNodeParameters:
     """Get kernel append params, netplan params, and FRR params for a node.
 
-    Secret values in kernel_append_params are masked with ***.
+    Secret values are masked with *** in all returned parameters.
     """
     try:
         params = openstack.get_baremetal_node_parameters(node_uuid)
@@ -805,6 +827,7 @@ async def get_host_hostvars(host: str) -> HostvarsResponse:
             )
 
         data = json.loads(result.stdout)
+        data = _mask_inventory_secrets(data)
         variables = [
             HostvarEntry(name=name, value=value) for name, value in sorted(data.items())
         ]
@@ -873,6 +896,7 @@ async def get_host_hostvar(host: str, variable: str) -> HostvarSingleResponse:
                 detail=f"Variable '{variable}' not found for host '{host}'",
             )
 
+        data = _mask_inventory_secrets(data)
         return HostvarSingleResponse(host=host, name=variable, value=data[variable])
     except subprocess.TimeoutExpired:
         logger.error(f"Timeout getting hostvar {variable} for {host}")
@@ -1073,6 +1097,7 @@ async def search_inventory(
                     )
                     if hostvar_result.returncode == 0:
                         hostvars = json.loads(hostvar_result.stdout)
+                        hostvars = _mask_inventory_secrets(hostvars)
                         for var_name, var_value in hostvars.items():
                             if len(results) >= limit:
                                 break
