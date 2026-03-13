@@ -220,6 +220,9 @@ class BaremetalNodeNetboxInfo(BaseModel):
     primary_ip6: Optional[str] = Field(
         None, description="Primary IPv6 address from NetBox"
     )
+    netbox_url: Optional[str] = Field(
+        None, description="URL to the device detail page in NetBox"
+    )
 
 
 class BaremetalNodesNetboxRequest(BaseModel):
