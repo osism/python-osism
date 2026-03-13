@@ -241,7 +241,12 @@ class Lldp(Command):
                     continue
 
                 lldp_data = json.loads(lldp_result.stdout)
-                interfaces = lldp_data.get("lldp", {}).get("interface", [])
+                interfaces = lldp_data.get("lldp", {}).get("interface", {})
+
+                # lldpctl returns a list of dicts for multiple interfaces,
+                # but a single dict for one interface. Normalize to list.
+                if isinstance(interfaces, dict):
+                    interfaces = [{k: v} for k, v in interfaces.items()]
 
                 for iface_entry in interfaces:
                     for local_iface, iface_data in iface_entry.items():
