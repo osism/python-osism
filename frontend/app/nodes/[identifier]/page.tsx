@@ -3,7 +3,7 @@
 import { use, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
+import { ArrowLeft, RefreshCw, AlertCircle, ExternalLink } from "lucide-react";
 import api from "@/lib/api";
 import { BaremetalNode, BaremetalPort } from "@/lib/types";
 import CopyButton from "@/app/components/CopyButton";
@@ -240,6 +240,22 @@ export default function NodeDetailPage({ params }: { params: Promise<{ identifie
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2 flex items-center gap-1">
                       {netboxData.primary_ip6}
                       <CopyButton text={netboxData.primary_ip6} />
+                    </dd>
+                  </div>
+                )}
+                {netboxData?.netbox_url && (
+                  <div className="bg-white px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt className="text-sm font-medium text-gray-500">NetBox</dt>
+                    <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                      <a
+                        href={netboxData.netbox_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        Open in NetBox
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
                     </dd>
                   </div>
                 )}

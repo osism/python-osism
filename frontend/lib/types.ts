@@ -36,6 +36,7 @@ export interface BaremetalNodeNetboxInfo {
   device_role: string | null;
   primary_ip4: string | null;
   primary_ip6: string | null;
+  netbox_url: string | null;
 }
 
 export interface BaremetalNodesNetboxResponse {

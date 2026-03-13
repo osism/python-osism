@@ -8,7 +8,7 @@ import tempfile
 import yaml
 from loguru import logger
 
-from osism import utils
+from osism import settings, utils
 from osism.tasks import Config, run_command
 from osism.tasks.conductor.utils import get_vault
 
@@ -132,9 +132,14 @@ def get_baremetal_node_netbox_info(node_name):
     """Get NetBox information for a single baremetal node.
 
     Returns:
-        dict with device_role, primary_ip4, primary_ip6
+        dict with device_role, primary_ip4, primary_ip6, netbox_url
     """
-    result = {"device_role": None, "primary_ip4": None, "primary_ip6": None}
+    result = {
+        "device_role": None,
+        "primary_ip4": None,
+        "primary_ip6": None,
+        "netbox_url": None,
+    }
 
     if not utils.nb or not node_name:
         return result
@@ -152,6 +157,10 @@ def get_baremetal_node_netbox_info(node_name):
                 result["primary_ip4"] = str(device.primary_ip4).split("/")[0]
             if device.primary_ip6:
                 result["primary_ip6"] = str(device.primary_ip6).split("/")[0]
+            if settings.NETBOX_URL and device.id:
+                result["netbox_url"] = (
+                    f"{settings.NETBOX_URL.rstrip('/')}/dcim/devices/{device.id}/"
+                )
     except Exception as e:
         logger.debug(f"Could not get NetBox info for {node_name}: {e}")
 
