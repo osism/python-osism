@@ -2,6 +2,7 @@
 
 from celery import Celery
 import os
+import re
 import shutil
 import tempfile
 import yaml
@@ -260,6 +261,17 @@ def get_baremetal_node_parameters(node_uuid):
                 if node_secrets is None:
                     node_secrets = {}
 
+                # Collect ironic_osism_* parameter names BEFORE decryption
+                # so they're available even if vault decryption removes them.
+                # Convention: ironic_osism_aa -> osism-aa in kernel_append_params
+                secret_param_names = set()
+                for key in node_secrets:
+                    if isinstance(key, str) and key.lower().startswith("ironic_osism_"):
+                        param_name = key[len("ironic_") :].replace(  # noqa: E203
+                            "_", "-"
+                        )
+                        secret_param_names.add(param_name)
+
                 vault = get_vault()
                 deep_decrypt(node_secrets, vault)
 
@@ -280,6 +292,16 @@ def get_baremetal_node_parameters(node_uuid):
                             kernel_append_params = kernel_append_params.replace(
                                 sv, "***"
                             )
+
+                    # Also mask by parameter name for ironic_osism_* params.
+                    # This catches cases where vault decryption failed and
+                    # the secret values could not be collected.
+                    for param_name in secret_param_names:
+                        kernel_append_params = re.sub(
+                            rf"\b{re.escape(param_name)}=\S+",
+                            f"{param_name}=***",
+                            kernel_append_params,
+                        )
         except Exception as e:
             logger.debug(f"Could not mask secrets for {node_name}: {e}")
 
