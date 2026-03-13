@@ -10,6 +10,7 @@ from tabulate import tabulate
 
 from osism import settings
 from osism.commands.console import resolve_host_with_fallback
+from osism.utils.inventory import get_inventory_path
 from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
@@ -34,7 +35,7 @@ class Memory(Command):
             command = [
                 "ansible-inventory",
                 "-i",
-                "/ansible/inventory/hosts.yml",
+                get_inventory_path("/ansible/inventory/hosts.yml"),
                 "--list",
             ]
             if parsed_args.limit:
@@ -172,7 +173,7 @@ class Lldp(Command):
             command = [
                 "ansible-inventory",
                 "-i",
-                "/ansible/inventory/hosts.yml",
+                get_inventory_path("/ansible/inventory/hosts.yml"),
                 "--list",
             ]
             if parsed_args.limit:
@@ -319,7 +320,7 @@ class Bgp(Command):
             command = [
                 "ansible-inventory",
                 "-i",
-                "/ansible/inventory/hosts.yml",
+                get_inventory_path("/ansible/inventory/hosts.yml"),
                 "--list",
             ]
             if parsed_args.limit:
