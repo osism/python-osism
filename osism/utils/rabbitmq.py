@@ -10,6 +10,7 @@ import yaml
 
 from osism.tasks.conductor.utils import get_vault
 from osism.utils import redis
+from osism.utils.inventory import get_inventory_path
 
 
 def get_rabbitmq_node_addresses():
@@ -21,8 +22,9 @@ def get_rabbitmq_node_addresses():
     """
     try:
         # Use ansible-inventory with --limit to get hosts in rabbitmq group
+        inventory_path = get_inventory_path("/ansible/inventory/hosts.yml")
         result = subprocess.check_output(
-            "ansible-inventory -i /ansible/inventory/hosts.yml --list --limit rabbitmq",
+            f"ansible-inventory -i {inventory_path} --list --limit rabbitmq",
             shell=True,
             stderr=subprocess.DEVNULL,
         )

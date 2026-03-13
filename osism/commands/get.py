@@ -13,6 +13,7 @@ from tabulate import tabulate
 
 from osism.tasks import Config
 from osism.utils import redis
+from osism.utils.inventory import get_inventory_path
 
 
 class VersionsManager(Command):
@@ -231,7 +232,8 @@ class Hosts(Command):
 
     def take_action(self, parsed_args):
         try:
-            command = ["ansible-inventory -i /ansible/inventory/hosts.yml --list"]
+            inventory_path = get_inventory_path("/ansible/inventory/hosts.yml")
+            command = [f"ansible-inventory -i {inventory_path} --list"]
             if parsed_args.limit:
                 command.append(f"--limit {parsed_args.limit}")
 

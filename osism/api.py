@@ -25,6 +25,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from osism.tasks import reconciler, openstack
 from osism import utils
+from osism.utils.inventory import get_inventory_path
 from osism.services.listener import BaremetalEvents
 from osism.services.websocket_manager import websocket_manager
 from osism.services.event_bridge import event_bridge
@@ -713,7 +714,7 @@ async def get_inventory_hosts(limit: Optional[str] = None) -> HostsResponse:
     Args:
         limit: Optional pattern to limit hosts (e.g., 'compute*', 'control')
     """
-    inventory_path = "/inventory/hosts.yml"
+    inventory_path = get_inventory_path("/inventory/hosts.yml")
 
     try:
         if not os.path.exists(inventory_path):
@@ -993,6 +994,7 @@ async def search_inventory(
         limit: Maximum number of results to return (default: 100)
     """
     inventory_path = "/inventory/hosts.yml"
+    inventory_path_hosts = get_inventory_path(inventory_path)
     facts_cache_path = "/cache/facts"
 
     try:
@@ -1023,15 +1025,15 @@ async def search_inventory(
             )
 
         # Check inventory file exists
-        if not os.path.exists(inventory_path):
+        if not os.path.exists(inventory_path_hosts):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Inventory file not found: {inventory_path}",
+                detail=f"Inventory file not found: {inventory_path_hosts}",
             )
 
-        # Get all hosts from inventory
+        # Get all hosts from inventory (minified is sufficient for host list)
         result = subprocess.run(
-            ["ansible-inventory", "-i", inventory_path, "--list"],
+            ["ansible-inventory", "-i", inventory_path_hosts, "--list"],
             capture_output=True,
             text=True,
             timeout=30,
