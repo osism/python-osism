@@ -5,6 +5,221 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260313.0] - 2026-03-13
+
+### Added
+- LLDP neighbors report command (`osism report lldp`) with per-host neighbor discovery via SSH
+- BGP sessions report command (`osism report bgp`) showing peer state, uptime, and prefix counts
+
+### Changed
+- Use minified inventory (`hosts-minified.yml`) for faster host and group resolution when full host variables are not needed
+- Downgrade metalbox subnet matching log from warning to debug for routed OOB addresses where the fallback path is expected
+- Mask secrets in `frr_parameters`, `netplan_parameters`, and inventory hostvar API responses in addition to `kernel_append_params`
+
+### Fixed
+- Fix masking of `ironic_osism_*` secrets in `kernel_append_params` when vault decryption is unavailable by adding regex-based fallback masking by parameter name
+- Fix host resolution with minified inventory by extracting hosts from group listings when `_meta.hostvars` is empty
+- Fix LLDP report for single-interface hosts where `lldpctl` returns a dict instead of a list
+
+## [v0.20260312.0] - 2026-03-12
+
+### Added
+- Tag handling for L2VPN EVPN BGP neighbor address family, allowing enablement via `bgp-af-l2vpn-evpn` tag on local interfaces
+- Report memory command (`osism report memory`) to query physical memory and product UUID for all hosts in the Ansible inventory
+- Configurable operator user via `OSISM_OPERATOR_USER` environment variable, replacing hardcoded "dragon" username
+- Configurable FRR dummy interface via `OSISM_FRR_DUMMY_INTERFACE` environment variable
+- `validate scs` command for running SCS IaaS conformity tests against OpenStack clouds
+- Support for ironic_parameters from NetBox Config Context during node sync, with Ansible Vault decryption
+- `--dry-run` flag for `osism sync ironic` command to preview changes without modifying Ironic baremetal nodes, with secret masking and prettified JSON output
+- `osism vault check` command to verify the full vault password chain: keyfile existence, Fernet key validity, Redis storage, password decryption, and optional secrets.yml test
+- FRR parameter appending to kernel_append_params for supported IPA types during ironic node sync
+- Baremetal node detail page with ports listing and new API endpoint `GET /v1/baremetal/nodes/{node_uuid}/ports`
+- Device role from NetBox to baremetal nodes list and detail views
+- Redfish address from driver_info to baremetal node detail page
+- High-value Ironic fields (conductor, fault, maintenance_reason, description, owner, lessee, traits, allocation_uuid, provision_updated_at) to baremetal node views
+- IPv6 support (`osism-ipa-ipv6`) for yrzn001 IPA type kernel parameters
+- `osism-ipa-metalbox` kernel parameter for yrzn001 IPA type with subnet-based metalbox lookup
+- Fallback metalbox lookup via NETBOX_FILTER_CONDUCTOR_IRONIC filters when subnet matching fails
+- `--skip-kernel-param` option for `osism sync ironic` to exclude specific kernel append parameters by name
+- `--extra-kernel-param` option for `osism sync ironic` to add extra kernel append parameters as key=value pairs
+- Kernel append params, netplan parameters, and FRR parameters display in frontend node detail view with secret masking
+- Boot device set to cdrom before deploy, clean, and burn-in operations to ensure virtual media boot
+- Persistence of kernel_append_params in driver_info for automated cleaning after undeploy
+- Restoration of instance_info from extra before clean and burn-in commands
+- Ansible Vault decryption support for frr_parameters custom field
+- Power off nodes during Ironic sync to ensure a defined power state for all newly synced nodes
+- Primary IPv4/IPv6 addresses in node detail view, lazy-loaded from NetBox
+- Node detail view lookup by name in addition to UUID, with selection list for duplicate names
+- Node properties display in the Parameters section of the detail view
+- Copy-to-clipboard buttons on node detail view fields
+- Metalbox `hosts_additional_entries` to the deploy playbook for baremetal deployments
+- New API endpoints for lazy-loading NetBox data (`GET /v1/baremetal/nodes/{node_name}/netbox`, `POST /v1/baremetal/nodes/netbox`)
+- `--netbox` CLI flag for `baremetal list` command to optionally include NetBox device roles
+
+### Changed
+- Automatic node cleaning is now enabled per node after reaching available state during ironic sync
+- Generic recursive Jinja2 rendering for ironic_osism_* secrets in node attributes, replacing hard-coded per-field rendering of remote_board_* fields
+- Derive AS number from hostname for yrzn001 IPA type instead of reading from frr_parameters
+- Extend secret masking to keys starting with ironic_osism_* and support string-level masking of embedded secret values
+- Sync flavors.yaml with osism/openstack-flavor-manager, adding SCS-4V-16-100s flavor and fixing hw_rng:allowed casing
+- Renamed IPA kernel parameters from `osism_as`/`osism_ipv4` to `osism-ipa-as`/`osism-ipa-ipv4` scheme
+- Prioritize `frr_local_as` from config context over hostname-derived AS number for yrzn001
+- Restrict cdrom boot device override to Supermicro nodes only during deploy, burn-in, and clean operations
+- Lazy-load NetBox data (device role, primary IPs) to eliminate N+1 HTTP requests on baremetal node listing
+- Simplify dashboard to show only Total Nodes and Active Nodes tiles with centered layout
+
+### Fixed
+- Listing of SONiC devices by moving device retrieval to a conductor task where `NETBOX_FILTER_CONDUCTOR_SONIC` is available
+- Typo in netbox command output messages ("comming" → "coming")
+- Missing f-string prefix for operator_user interpolation in check mount command
+- Wrong key name `kernel_append_parameters` instead of `kernel_append_params` in FRR parameter appending
+- Strip whitespace from decrypted secrets used as template variables in kernel_append_params
+- YAML line wrapping breaking long strings (e.g. SSH keys) in deployment playbooks by setting `width=float("inf")`
+- Trailing whitespace in decrypted Vault values in frr_parameters
+- Remove `frr_parameters` and `netplan_parameters` from `local_context_data` defaults to prevent duplicate encrypted values in generated playbooks
+- Use correct task (`baremetal_node_set_power_state`) when switching off Ironic nodes during sync
+- Copy-to-clipboard fallback for non-HTTPS connections using `document.execCommand`
+
+### Dependencies
+- @eslint/eslintrc 3.3.3 → 3.3.4
+- @tailwindcss/postcss 4.2.0 → 4.2.1
+- @tanstack/react-query 5.90.20 → 5.90.21
+- @types/node 24.10.9 → 24.12.0
+- @types/react 19.2.10 → 19.2.14
+- autoprefixer 10.4.23 → 10.4.27
+- axios 1.13.4 → 1.13.6
+- boto3 1.38.0 → 1.42.63
+- cliff 4.13.1 → 4.13.2
+- community.docker 5.0.5 → 5.0.6
+- eslint 9 → 10.0.3
+- fastapi 0.128.0 → 0.135.1
+- keystoneauth1 5.13.0 → 5.13.1
+- lucide-react 0.563.0 → 0.577.0
+- netbox-manager 0.20260129.0 → 0.20260211.0
+- openstack-flavor-manager 0.20260127.0 → 0.20260227.0
+- openstack-image-manager 0.20260128.0 → 0.20260227.0
+- openstacksdk 4.9.0 → 4.10.0
+- postcss 8.5.6 → 8.5.8
+- setuptools 80.10.2 → 82.0.1
+- sqlmodel 0.0.31 → 0.0.37
+- sushy 5.9.0 → 5.10.0
+- tabulate 0.9.0 → 0.10.0
+- tailwind-merge 3.4.0 → 3.5.0
+- tailwindcss 4.1.18 → 4.2.1
+- uv 0.9.27 → 0.10.8
+- uvicorn 0.40.0 → 0.41.0
+
+## [v0.20260129.0] - 2026-01-29
+
+### Added
+- `list-exchanges` and `delete-exchanges` commands for the `rabbitmq3to4` migration tool to manage RabbitMQ exchanges during migration
+
+### Changed
+- Improved live streaming of Ansible playbook output by disabling output buffering (`PYTHONUNBUFFERED=1` and `stdbuf -oL`)
+
+### Dependencies
+- pynetbox 7.6.0 → 7.6.1
+
+## [v0.20260128.1] - 2026-01-28
+
+### Added
+- `--cloud` parameter to all compute and baremetal manage commands (default: `admin`)
+
+### Changed
+- Migrate compute and baremetal commands to use dynamic credential handling via `setup_cloud_environment()` instead of `get_cloud_connection()`
+- OpenStack CLI commands now load passwords dynamically from secrets.yml using the `os_password_<cloud>` pattern instead of relying solely on secure.yml
+- Credential loading falls back to /etc/openstack/secure.yml for backward compatibility when no password is found in secrets.yml
+- OpenStack connection creation uses new `get_openstack_connection` helper with proper authentication error handling
+- Empty secure.yml is created in /tmp when using secrets.yml to prevent SDK from reading stale credentials
+- Credential loading log messages reduced from INFO to DEBUG level
+
+### Removed
+- Unused `get_cloud_connection` and `get_cloud_project` helper functions
+
+## [v0.20260128.0] - 2026-01-28
+
+### Added
+- Vault decrypt command for decrypting Ansible Vault encrypted files in-place
+- `osism check mount` command to detect bind mount staleness by comparing container view with a fresh mount
+- `osism check inode` command for quick inode display of specific files in `/opt/configuration`
+- `--soft` option to `osism baremetal power off` for graceful ACPI power-off
+- Inventory API endpoints to query Ansible inventory data (`/v1/inventory/hosts`, `/v1/inventory/hosts/{host}/hostvars`, `/v1/inventory/hosts/{host}/facts` and single-item variants)
+- Inventory search API endpoint (`/v1/inventory/search`) with regex support for searching variables and facts across multiple hosts
+- Frontend inventory page with host selection panel, tabbed view for hostvars and facts, search/filter functionality, and copy-to-clipboard support
+- Global search panel in inventory frontend with regex-based search across all hosts
+- Initial log message before Celery task creation in apply command
+- BGP_GLOBALS_AF l2vpn_evpn configuration (advertise-all-vni, advertise-svi-ip, dad-enabled) for SONIC
+- BGP_GLOBALS configuration for VRFs in SONIC, copying settings from default VRF
+- VRF RD (Route Distinguisher) support for SONIC interface VRF assignment when VRF name doesn't match 'vrf<number>' pattern
+- VRF support for BGP_NEIGHBOR and BGP_NEIGHBOR_AF with VRF name prefix in SONIC configuration
+- Automatic VLAN creation for VRFs with Route Distinguisher (RD) in SONIC configuration
+- VXLAN tunnel configuration (VXLAN_TUNNEL, VXLAN_EVPN_NVO, VXLAN_TUNNEL_MAP) for VRFs with VNI in SONIC
+- L2VPN_EVPN address family to BGP_NEIGHBOR_AF for default VRF switch-to-switch connections in SONIC
+- BGP_GLOBALS_AF entries with route-distinguisher and route-targets for VRFs with VNI in SONIC
+- BGP_GLOBALS_ROUTE_ADVERTISE for L2VPN_EVPN address family in SONIC
+- ROUTE_REDISTRIBUTE for connected route redistribution into BGP for VRFs with VNI in SONIC
+- SONiC port config file for Accton-AS4630-54TE switch
+
+### Changed
+- Inventory file path from `/ansible/inventory/hosts.yml` to `/inventory/hosts.yml`
+- Improved inventory frontend with type badges, alternating row backgrounds, and card layout
+- Extended VRF detection to support flexible naming conventions (numeric RD or numeric VRF name) in SONIC
+- Restricted l2vpn_evpn BGP configuration to switch-to-switch connections only in SONIC
+- Removed unnecessary scope/family parameters from SONIC INTERFACE configuration
+
+### Fixed
+- Netbox dump showing wrong host when device not found by validating exact hostname match
+- NetBox device query filter using correct `status` parameter instead of `state` for ironic and sonic conductors
+- NetBox device query functions now properly raise exceptions instead of returning empty lists on configuration errors
+- OpenStack connection error where `conn` variable was not assigned when `MissingRequiredOptions` exception was raised in `get_openstack_connection()`
+- Added existence check for inventory file with proper 503 error response
+
+### Dependencies
+- @eslint/eslintrc 3.3.1 → 3.3.3
+- @eslint/js 9.39.0 → 9.39.2
+- @tanstack/react-query 5.85.5 → 5.90.20
+- @types/node 22.18.0 → ^24.0.0
+- @types/react 19.2.9 → 19.2.10
+- ansible.utils 6.0.0 → 6.0.1
+- autoprefixer 10.4.21 → 10.4.23
+- axios 1.12.2 → 1.13.4
+- celery 5.6.0 → 5.6.2
+- cliff 4.12.0 → 4.13.1
+- community.docker 5.0.3 → 5.0.5
+- eslint 9.39.0 → 9.39.2
+- eslint-config-next 15.5.0 → 16.1.6
+- fastapi 0.124.0 → 0.128.0
+- ghcr.io/astral-sh/uv 0.9.15 → 0.9.27
+- gitpython 3.1.45 → 3.1.46
+- greenlet 3.3.0 → 3.3.1
+- huey 2.5.4 → 2.6.0
+- jmespath 1.0.1 → 1.1.0
+- keystoneauth1 5.12.0 → 5.13.0
+- kombu 5.6.1 → 5.6.2
+- lightningcss 1.30.1 → 1.30.2
+- lucide-react 0.542.0 → 0.563.0
+- netbox-manager 0.20251120.0 → 0.20260123.0
+- netbox.netbox 3.21.0 → 3.22.0
+- next 15.5.0 → 16.1.6
+- node 22 → 24 (container base image)
+- openstack-flavor-manager 0.20251128.0 → 0.20260127.0
+- openstack-image-manager 0.20251201.0 → 0.20260128.0
+- openstacksdk 4.8.0 → 4.9.0
+- packaging 25.0 → 26.0
+- pycparser 2.23 → 3.0
+- pynetbox 7.5.0 → 7.6.0
+- react 19.1.1 → 19.2.4
+- react-dom 19.1.1 → 19.2.4
+- setuptools 80.9.0 → 80.10.2
+- sqlalchemy 2.0.45 → 2.0.46
+- sqlmodel 0.0.27 → 0.0.31
+- tailwind-merge 3.3.1 → 3.4.0
+- tailwindcss 4.1.12 → 4.1.18
+- typescript 5.9.2 → 5.9.3
+- uvicorn 0.38.0 → 0.40.0
+- wcwidth 0.2.14 → 0.3.1
+- websockets 15.0.1 → 16.0
+
 ## [v0.20251208.0] - 2025-12-08
 
 ### Changed
