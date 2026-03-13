@@ -10,7 +10,7 @@ import yaml
 
 from osism.tasks.conductor.utils import get_vault
 from osism.utils import redis
-from osism.utils.inventory import get_inventory_path
+from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 
 
 def get_rabbitmq_node_addresses():
@@ -30,12 +30,7 @@ def get_rabbitmq_node_addresses():
         )
         inventory = json.loads(result)
 
-        # Get hosts from _meta.hostvars (contains all hosts matching the limit)
-        if "_meta" not in inventory or "hostvars" not in inventory["_meta"]:
-            logger.error("Invalid inventory format: _meta.hostvars not found")
-            return None
-
-        rabbitmq_hosts = list(inventory["_meta"]["hostvars"].keys())
+        rabbitmq_hosts = get_hosts_from_inventory(inventory)
         if not rabbitmq_hosts:
             logger.error("No hosts found in rabbitmq group")
             return None

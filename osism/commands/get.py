@@ -13,7 +13,7 @@ from tabulate import tabulate
 
 from osism.tasks import Config
 from osism.utils import redis
-from osism.utils.inventory import get_inventory_path
+from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 
 
 class VersionsManager(Command):
@@ -249,7 +249,7 @@ class Hosts(Command):
         data = json.loads(result)
         table = []
 
-        for host in data["_meta"]["hostvars"]:
+        for host in get_hosts_from_inventory(data):
             table.append([host])
 
         if table:

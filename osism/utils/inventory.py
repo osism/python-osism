@@ -27,3 +27,18 @@ def get_inventory_path(base_path: str, prefer_minified: bool = True) -> str:
             logger.debug(f"Using minified inventory: {minified_path}")
             return minified_path
     return base_path
+
+
+def get_hosts_from_inventory(data: dict) -> list:
+    """Extract host names from ansible-inventory --list JSON output.
+
+    The minified inventory does not populate _meta.hostvars (since hosts
+    have no variables), so we also collect hosts from group listings.
+    """
+    hosts = set(data.get("_meta", {}).get("hostvars", {}).keys())
+    for key, value in data.items():
+        if key == "_meta":
+            continue
+        if isinstance(value, dict) and "hosts" in value:
+            hosts.update(value["hosts"])
+    return sorted(hosts)
