@@ -25,7 +25,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from osism.tasks import reconciler, openstack
 from osism import utils
-from osism.utils.inventory import get_inventory_path
+from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 from osism.services.listener import BaremetalEvents
 from osism.services.websocket_manager import websocket_manager
 from osism.services.event_bridge import event_bridge
@@ -766,9 +766,8 @@ async def get_inventory_hosts(limit: Optional[str] = None) -> HostsResponse:
 
         data = json.loads(result.stdout)
         logger.debug(f"Inventory data keys: {list(data.keys())}")
-        hosts = list(data.get("_meta", {}).get("hostvars", {}).keys())
+        hosts = get_hosts_from_inventory(data)
         logger.debug(f"Found {len(hosts)} hosts in inventory")
-        hosts.sort()
 
         return HostsResponse(hosts=hosts, count=len(hosts))
     except subprocess.TimeoutExpired:
@@ -1071,7 +1070,7 @@ async def search_inventory(
             )
 
         inventory_data = json.loads(result.stdout)
-        all_hosts = list(inventory_data.get("_meta", {}).get("hostvars", {}).keys())
+        all_hosts = get_hosts_from_inventory(inventory_data)
 
         # Filter hosts by pattern
         if host_regex:

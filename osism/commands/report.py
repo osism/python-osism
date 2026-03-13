@@ -10,7 +10,7 @@ from tabulate import tabulate
 
 from osism import settings
 from osism.commands.console import resolve_host_with_fallback
-from osism.utils.inventory import get_inventory_path
+from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
@@ -56,7 +56,7 @@ class Memory(Command):
             return
 
         data = json.loads(result.stdout)
-        hosts = sorted(data.get("_meta", {}).get("hostvars", {}).keys())
+        hosts = get_hosts_from_inventory(data)
 
         if not hosts:
             logger.error("No hosts found in inventory.")
@@ -194,7 +194,7 @@ class Lldp(Command):
             return
 
         data = json.loads(result.stdout)
-        hosts = sorted(data.get("_meta", {}).get("hostvars", {}).keys())
+        hosts = get_hosts_from_inventory(data)
 
         if not hosts:
             logger.error("No hosts found in inventory.")
@@ -341,7 +341,7 @@ class Bgp(Command):
             return
 
         data = json.loads(result.stdout)
-        hosts = sorted(data.get("_meta", {}).get("hostvars", {}).keys())
+        hosts = get_hosts_from_inventory(data)
 
         if not hosts:
             logger.error("No hosts found in inventory.")
