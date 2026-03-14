@@ -6,8 +6,6 @@ import subprocess
 
 from celery import Celery
 from loguru import logger
-from pottery import ReleaseUnlockedLock
-
 from osism import settings, utils
 from osism.tasks import Config
 
@@ -58,6 +56,8 @@ def run(self, publish=True):
         if publish:
             utils.finish_task_output(self.request.id, rc=rc)
 
+        from pottery import ReleaseUnlockedLock
+
         try:
             lock.release()
         except ReleaseUnlockedLock:
@@ -79,6 +79,8 @@ def run_on_change(self):
             "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
         p.wait()
+
+        from pottery import ReleaseUnlockedLock
 
         try:
             lock.release()
