@@ -802,12 +802,13 @@ async def get_inventory_hosts(limit: Optional[str] = None) -> HostsResponse:
 )
 async def get_host_hostvars(host: str) -> HostvarsResponse:
     """Get all host variables for a specific host from Ansible inventory."""
+    inventory_path = get_inventory_path("/inventory/hosts.yml", prefer_minified=False)
     try:
         result = subprocess.run(
             [
                 "ansible-inventory",
                 "-i",
-                "/inventory/hosts.yml",
+                inventory_path,
                 "--host",
                 host,
             ],
@@ -864,12 +865,13 @@ async def get_host_hostvars(host: str) -> HostvarsResponse:
 )
 async def get_host_hostvar(host: str, variable: str) -> HostvarSingleResponse:
     """Get a specific host variable for a host from Ansible inventory."""
+    inventory_path = get_inventory_path("/inventory/hosts.yml", prefer_minified=False)
     try:
         result = subprocess.run(
             [
                 "ansible-inventory",
                 "-i",
-                "/inventory/hosts.yml",
+                inventory_path,
                 "--host",
                 host,
             ],
@@ -1019,8 +1021,8 @@ async def search_inventory(
         source: Optional source filter: 'hostvars', 'facts', or None for both
         limit: Maximum number of results to return (default: 100)
     """
-    inventory_path = "/inventory/hosts.yml"
-    inventory_path_hosts = get_inventory_path(inventory_path)
+    inventory_path = get_inventory_path("/inventory/hosts.yml", prefer_minified=False)
+    inventory_path_hosts = get_inventory_path("/inventory/hosts.yml")
     facts_cache_path = "/cache/facts"
 
     try:
