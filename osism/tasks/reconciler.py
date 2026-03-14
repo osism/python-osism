@@ -6,6 +6,7 @@ import subprocess
 
 from celery import Celery
 from loguru import logger
+from pottery import ReleaseUnlockedLock
 
 from osism import settings, utils
 from osism.tasks import Config
@@ -57,7 +58,12 @@ def run(self, publish=True):
         if publish:
             utils.finish_task_output(self.request.id, rc=rc)
 
-        lock.release()
+        try:
+            lock.release()
+        except ReleaseUnlockedLock:
+            logger.warning(
+                "Lock auto-released before explicit release (auto_release_time exceeded)"
+            )
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run_on_change")
@@ -74,4 +80,9 @@ def run_on_change(self):
         )
         p.wait()
 
-        lock.release()
+        try:
+            lock.release()
+        except ReleaseUnlockedLock:
+            logger.warning(
+                "Lock auto-released before explicit release (auto_release_time exceeded)"
+            )
