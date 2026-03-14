@@ -50,8 +50,11 @@ def get_rabbitmq_node_addresses():
             facts = json.loads(facts_data)
 
             # Get hostvars for this host to find internal_interface
+            hostvar_inventory_path = get_inventory_path(
+                "/ansible/inventory/hosts.yml", prefer_minified=False
+            )
             result = subprocess.check_output(
-                f"ansible-inventory -i /ansible/inventory/hosts.yml --host {host}",
+                f"ansible-inventory -i {hostvar_inventory_path} --host {host}",
                 shell=True,
                 stderr=subprocess.DEVNULL,
             )

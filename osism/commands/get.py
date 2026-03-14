@@ -126,9 +126,12 @@ class Hostvars(Command):
         host = parsed_args.host[0]
         variable = parsed_args.variable
 
+        inventory_path = get_inventory_path(
+            "/ansible/inventory/hosts.yml", prefer_minified=False
+        )
         try:
             result = subprocess.check_output(
-                f"ansible-inventory -i /ansible/inventory/hosts.yml --host {host}",
+                f"ansible-inventory -i {inventory_path} --host {host}",
                 shell=True,
                 stderr=subprocess.DEVNULL,
             )
