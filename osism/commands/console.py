@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import socket
 import subprocess
 from typing import Optional
@@ -9,6 +10,7 @@ from loguru import logger
 from prompt_toolkit import prompt
 
 from osism import settings, utils
+from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
@@ -91,6 +93,64 @@ def resolve_host_with_fallback(hostname: str) -> str:
     return hostname
 
 
+def get_hosts_from_group(group: str) -> list:
+    """Resolve an Ansible inventory group to its list of hosts.
+
+    Args:
+        group: The inventory group name to resolve
+
+    Returns:
+        Sorted list of hostnames in the group, or empty list if the
+        group does not exist or cannot be resolved.
+    """
+    try:
+        inventory_path = get_inventory_path("/ansible/inventory/hosts.yml")
+        result = subprocess.check_output(
+            [
+                "ansible-inventory",
+                "-i",
+                inventory_path,
+                "--list",
+                "--limit",
+                group,
+            ],
+            stderr=subprocess.DEVNULL,
+        )
+        inventory = json.loads(result)
+        hosts = get_hosts_from_inventory(inventory)
+        return sorted(hosts)
+    except Exception:
+        logger.debug("Could not resolve group %r", group, exc_info=True)
+        return []
+
+
+def select_host_from_list(hosts: list) -> Optional[str]:
+    """Display a numbered list of hosts and let the user choose one.
+
+    Args:
+        hosts: List of hostnames to choose from
+
+    Returns:
+        The selected hostname, or None if the selection was cancelled.
+    """
+    print(f"\nGroup contains {len(hosts)} hosts:\n")
+    for i, host in enumerate(hosts, 1):
+        print(f"  {i}) {host}")
+    print()
+
+    while True:
+        answer = prompt("Select host [1-{}]: ".format(len(hosts)))
+        if answer.strip().lower() in ("q", "quit", "exit"):
+            return None
+        try:
+            index = int(answer.strip())
+            if 1 <= index <= len(hosts):
+                return hosts[index - 1]
+        except ValueError:
+            pass
+        print(f"Please enter a number between 1 and {len(hosts)}, or 'q' to cancel.")
+
+
 class Run(Command):
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
@@ -104,7 +164,7 @@ class Run(Command):
             "host",
             nargs=1,
             type=str,
-            help="Hostname or address of the console to connect",
+            help="Hostname, address, or inventory group of the console to connect",
         )
         return parser
 
@@ -146,6 +206,17 @@ class Run(Command):
                 shell=True,
             )
         elif type_console == "ssh":
+            # Try to resolve as an inventory group
+            group_hosts = get_hosts_from_group(host)
+            if len(group_hosts) == 1:
+                logger.info(f"Group '{host}' contains one host: {group_hosts[0]}")
+                host = group_hosts[0]
+            elif len(group_hosts) > 1:
+                selected = select_host_from_list(group_hosts)
+                if not selected:
+                    return
+                host = selected
+
             # Resolve hostname with Netbox fallback
             resolved_host = resolve_host_with_fallback(host)
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
