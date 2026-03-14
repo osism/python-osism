@@ -314,6 +314,23 @@ class Bgp(Command):
             type=str,
             help="Limit selected hosts to an additional pattern",
         )
+        parser.add_argument(
+            "--afi",
+            type=str,
+            nargs="+",
+            choices=[
+                "ipv4Unicast",
+                "ipv4Multicast",
+                "ipv4Vpn",
+                "ipv4Flowspec",
+                "ipv6Unicast",
+                "ipv6Multicast",
+                "ipv6Vpn",
+                "ipv6Flowspec",
+                "l2VpnEvpn",
+            ],
+            help="Filter by address family (e.g. ipv4Unicast ipv6Unicast)",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -395,7 +412,13 @@ class Bgp(Command):
 
                 bgp_data = json.loads(bgp_result.stdout)
 
+                afi_filter = None
+                if parsed_args.afi:
+                    afi_filter = {a.lower() for a in parsed_args.afi}
+
                 for afi, afi_data in bgp_data.items():
+                    if afi_filter is not None and afi.lower() not in afi_filter:
+                        continue
                     peers = afi_data.get("peers", {})
                     for peer_name, peer_data in peers.items():
                         table.append(
