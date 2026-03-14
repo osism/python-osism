@@ -469,7 +469,7 @@ class Status(Command):
         parser.add_argument(
             "type",
             type=str,
-            choices=["boot"],
+            choices=["bootstrap"],
             help="Type of status to report",
         )
         parser.add_argument(
@@ -482,8 +482,8 @@ class Status(Command):
             "--status",
             type=str,
             choices=["True", "False"],
-            default="True",
-            help="Filter by status value (default: True)",
+            default=None,
+            help="Filter by status value",
         )
         return parser
 
@@ -539,10 +539,7 @@ class Status(Command):
         ]
         fact_command = "cat /etc/ansible/facts.d/osism.fact"
 
-        section_map = {
-            "boot": "bootstrap",
-        }
-        section = section_map[parsed_args.type]
+        section = parsed_args.type
 
         filter_status = parsed_args.status
 
@@ -565,19 +562,16 @@ class Status(Command):
                 )
 
                 if fact_result.returncode != 0:
-                    logger.warning(
-                        f"Failed to get {section} info from {host}: {fact_result.stderr.strip()}"
-                    )
-                    failed_hosts.append(host)
-                    continue
+                    status = "False"
+                    timestamp = "n/a"
+                else:
+                    config = configparser.ConfigParser()
+                    config.read_string(fact_result.stdout)
 
-                config = configparser.ConfigParser()
-                config.read_string(fact_result.stdout)
+                    status = config.get(section, "status", fallback="False")
+                    timestamp = config.get(section, "timestamp", fallback="n/a")
 
-                status = config.get(section, "status", fallback="n/a")
-                timestamp = config.get(section, "timestamp", fallback="n/a")
-
-                if status != filter_status:
+                if filter_status and status != filter_status:
                     continue
 
                 table.append([host, status, timestamp])
