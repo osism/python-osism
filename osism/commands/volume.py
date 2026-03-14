@@ -10,11 +10,6 @@ from prompt_toolkit import prompt
 import pytz
 from tabulate import tabulate
 
-from osism.tasks.openstack import (
-    cleanup_cloud_environment,
-    get_openstack_connection,
-    setup_cloud_environment,
-)
 
 # Time threshold for stuck volumes (2 hours in seconds)
 STUCK_VOLUME_THRESHOLD_SECONDS = 7200
@@ -54,6 +49,12 @@ class VolumeList(Command):
         domain = parsed_args.domain
         project = parsed_args.project
         project_domain = parsed_args.project_domain
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -250,6 +251,12 @@ class VolumeRepair(Command):
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
         auto_confirm = parsed_args.yes
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:

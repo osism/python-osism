@@ -3,16 +3,13 @@
 from datetime import datetime
 import pprint
 import subprocess
-
-from celery import Celery
-from cliff.command import Command
-import docker
 import json
+
+from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
 
-from osism.tasks import Config
-from osism.utils import redis
+from osism import utils
 from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 
 
@@ -22,6 +19,8 @@ class VersionsManager(Command):
         return parser
 
     def take_action(self, parsed_args):
+        import docker
+
         client = docker.from_env()
 
         data = []
@@ -57,6 +56,9 @@ class Tasks(Command):
         return parser
 
     def take_action(self, parsed_args):
+        from celery import Celery
+        from osism.tasks import Config
+
         status = parsed_args.status
 
         app = Celery("task")
@@ -189,7 +191,7 @@ class Facts(Command):
         fact = parsed_args.fact
         cache = not parsed_args.no_cache
 
-        data = redis.get(f"ansible_facts{host}")
+        data = utils.redis.get(f"ansible_facts{host}")
         if data:
             data = json.loads(data)
             table = []
@@ -275,7 +277,7 @@ class States(Command):
     def take_action(self, parsed_args):
         host = parsed_args.host[0]
 
-        data = redis.get(f"ansible_facts{host}")
+        data = utils.redis.get(f"ansible_facts{host}")
         if data:
             data = json.loads(data)
             table = []

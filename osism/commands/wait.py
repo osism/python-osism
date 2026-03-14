@@ -2,12 +2,9 @@
 
 import time
 
-from celery import Celery
-from celery.result import AsyncResult
 from cliff.command import Command
 from loguru import logger
 from osism import utils
-from osism.tasks import Config
 
 
 class Run(Command):
@@ -63,6 +60,10 @@ class Run(Command):
         return sorted(task_ids)
 
     def take_action(self, parsed_args):
+        from celery import Celery
+        from celery.result import AsyncResult
+        from osism.tasks import Config
+
         delay = parsed_args.delay
         format = parsed_args.format
         live = parsed_args.live

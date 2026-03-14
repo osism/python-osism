@@ -7,12 +7,6 @@ from cliff.command import Command
 from loguru import logger
 import requests
 
-from osism.utils.rabbitmq import (
-    get_rabbitmq_node_addresses,
-    load_rabbitmq_password,
-    RABBITMQ_USER,
-)
-
 
 # Service-specific queue patterns for classic queue identification
 # Each service has a list of regex patterns that match its queues
@@ -600,6 +594,12 @@ class Rabbitmq3to4(Command):
             return False
 
     def take_action(self, parsed_args):
+        from osism.utils.rabbitmq import (
+            get_rabbitmq_node_addresses,
+            load_rabbitmq_password,
+            RABBITMQ_USER,
+        )
+
         command = parsed_args.command
         service = parsed_args.service
         server = parsed_args.server

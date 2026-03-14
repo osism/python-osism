@@ -8,8 +8,6 @@ import subprocess
 from loguru import logger
 import yaml
 
-from osism.tasks.conductor.utils import get_vault
-from osism.utils import redis
 from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 
 
@@ -39,10 +37,12 @@ def get_rabbitmq_node_addresses():
         rabbitmq_hosts.sort()
         logger.debug(f"RabbitMQ hosts: {rabbitmq_hosts}")
 
+        from osism import utils
+
         node_addresses = []
         for host in rabbitmq_hosts:
             # Get ansible facts from Redis cache
-            facts_data = redis.get(f"ansible_facts{host}")
+            facts_data = utils.redis.get(f"ansible_facts{host}")
             if not facts_data:
                 logger.error(f"No ansible facts found in cache for {host}")
                 continue
@@ -150,6 +150,8 @@ def load_rabbitmq_password():
         return None
 
     try:
+        from osism.tasks.conductor.utils import get_vault
+
         vault = get_vault()
 
         with open(secrets_path, "rb") as f:

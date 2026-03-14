@@ -2,21 +2,10 @@
 
 import os
 
-from celery import Celery
 from cliff.command import Command
 from loguru import logger
-import pymysql
-import requests
 from tabulate import tabulate
 import yaml
-
-from osism.tasks import Config
-from osism.tasks.conductor.utils import get_vault
-from osism.utils.rabbitmq import (
-    get_rabbitmq_node_addresses,
-    load_rabbitmq_password,
-    RABBITMQ_USER,
-)
 
 # https://stackoverflow.com/questions/4048651/python-function-to-convert-seconds-into-minutes-hours-and-days/4048773
 
@@ -55,6 +44,9 @@ class Run(Command):
         return parser
 
     def take_action(self, parsed_args):
+        from celery import Celery
+        from osism.tasks import Config
+
         type_of_resource = parsed_args.type[0]
 
         app = Celery("status")
@@ -112,6 +104,8 @@ class Database(Command):
 
     def _load_database_password(self):
         """Load and decrypt the database password from secrets.yml"""
+        from osism.tasks.conductor.utils import get_vault
+
         secrets_path = "/opt/configuration/environments/kolla/secrets.yml"
 
         if not os.path.exists(secrets_path):
@@ -359,6 +353,8 @@ class Database(Command):
         if format == "log":
             logger.info(f"Connecting to MariaDB at {vip_address} as {db_user}...")
 
+        import pymysql
+
         try:
             connection = pymysql.connect(
                 host=vip_address,
@@ -484,6 +480,8 @@ class Messaging(Command):
 
     def _check_rabbitmq_status(self, vip_address, username, password, target_host=None):
         """Check the RabbitMQ cluster status and return validation results"""
+        import requests
+
         results = {
             "cluster_name": None,
             "rabbitmq_version": None,
@@ -639,6 +637,12 @@ class Messaging(Command):
         return results, errors
 
     def take_action(self, parsed_args):
+        from osism.utils.rabbitmq import (
+            get_rabbitmq_node_addresses,
+            load_rabbitmq_password,
+            RABBITMQ_USER,
+        )
+
         format = parsed_args.format
         filter_hosts = parsed_args.hosts
 

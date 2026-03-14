@@ -8,14 +8,10 @@ import os
 import subprocess
 import sys
 
-from ansible import constants as ansible_constants
-from ansible.parsing.vault import VaultLib, VaultSecret
 from cliff.command import Command
-from cryptography.fernet import Fernet, InvalidToken
 from loguru import logger
-from prompt_toolkit import prompt
 
-from osism.utils import redis
+from osism import utils
 
 
 class SetPassword(Command):
@@ -26,6 +22,9 @@ class SetPassword(Command):
         return parser
 
     def take_action(self, parsed_args):
+        from cryptography.fernet import Fernet
+        from prompt_toolkit import prompt
+
         if os.path.isfile(self.keyfile):
             with open(self.keyfile, "r") as fp:
                 key = fp.read()
@@ -44,7 +43,7 @@ class SetPassword(Command):
                 "Ansible Vault password: ", is_password=True
             )
 
-        redis.set(
+        utils.redis.set(
             "ansible_vault_password", f.encrypt(ansible_vault_password.encode("utf-8"))
         )
 
@@ -55,7 +54,7 @@ class UnsetPassword(Command):
         return parser
 
     def take_action(self, parsed_args):
-        redis.delete("ansible_vault_password")
+        utils.redis.delete("ansible_vault_password")
 
 
 class View(Command):
@@ -146,6 +145,8 @@ class Check(Command):
         return None
 
     def take_action(self, parsed_args):
+        from cryptography.fernet import Fernet, InvalidToken
+
         format = parsed_args.format
         passed = 0
         failed = 0
@@ -182,7 +183,7 @@ class Check(Command):
             return 1
 
         # Step 3: Check vault password is set in Redis
-        encrypted_password = redis.get("ansible_vault_password")
+        encrypted_password = utils.redis.get("ansible_vault_password")
         if encrypted_password is not None:
             if format == "log":
                 logger.info("Vault password is set in Redis")
@@ -241,6 +242,9 @@ class Check(Command):
             test_path = self._find_secrets_file()
 
         if test_path:
+            from ansible import constants as ansible_constants
+            from ansible.parsing.vault import VaultLib, VaultSecret
+
             try:
                 vault = VaultLib(
                     [

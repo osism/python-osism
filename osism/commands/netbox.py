@@ -9,7 +9,6 @@ import requests
 from tabulate import tabulate
 import yaml
 
-from osism.tasks import conductor, netbox, handle_task
 from osism import utils, settings
 
 
@@ -65,6 +64,8 @@ class Ironic(Command):
         wait = not parsed_args.no_wait
         task_timeout = parsed_args.task_timeout
         node_name = parsed_args.node
+
+        from osism.tasks import conductor
 
         task = conductor.sync_ironic.delay(
             node_name=node_name,
@@ -342,6 +343,8 @@ class Sync(Command):
         node_name = parsed_args.node
         netbox_filter = parsed_args.filter
 
+        from osism.tasks import conductor
+
         task = conductor.sync_netbox.delay(
             node_name=node_name, netbox_filter=netbox_filter
         )
@@ -458,6 +461,8 @@ class Manage(Command):
         else:
             arguments.append("--no-skipres")
 
+        from osism.tasks import netbox, handle_task
+
         task_signature = netbox.manage.si(*arguments)
         task = task_signature.apply_async()
         if wait:
@@ -476,6 +481,8 @@ class Versions(Command):
     def take_action(self, parsed_args):
         # Check if tasks are locked before proceeding
         utils.check_task_lock_and_exit()
+
+        from osism.tasks import netbox
 
         task = netbox.ping.delay()
         task.wait(timeout=None, interval=0.5)

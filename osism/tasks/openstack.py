@@ -513,6 +513,10 @@ def get_cloud_password(cloud):
         return None
 
 
+def get_cloud_helpers():
+    return setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment
+
+
 def setup_cloud_environment(cloud):
     """
     Set up cloud configuration environment for OpenStack commands.

@@ -6,7 +6,6 @@ from loguru import logger
 from tabulate import tabulate
 
 from osism import utils
-from osism.tasks.conductor import get_redfish_resources
 
 
 class List(Command):
@@ -158,6 +157,8 @@ class List(Command):
         )
 
         # Use Celery task to get Redfish resources
+        from osism.tasks.conductor import get_redfish_resources
+
         task_result = get_redfish_resources.delay(hostname, resourcetype)
         result = task_result.get()
 

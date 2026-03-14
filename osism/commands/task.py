@@ -1,9 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from celery import Celery
 from cliff.command import Command
-
-from osism.tasks import Config
 
 
 class Revoke(Command):
@@ -13,6 +10,9 @@ class Revoke(Command):
         return parser
 
     def take_action(self, parsed_args):
+        from celery import Celery
+        from osism.tasks import Config
+
         task = parsed_args.task
 
         app = Celery("task")

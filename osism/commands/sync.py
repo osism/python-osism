@@ -7,14 +7,10 @@ import tempfile
 from pathlib import Path
 
 from cliff.command import Command
-import jinja2
 from loguru import logger
-import requests
 from yaml import safe_load, YAMLError
 
 from osism import utils
-from osism.data import TEMPLATE_KOLLA_VERSIONS
-from osism.tasks import ansible, conductor, handle_task
 
 
 class Facts(Command):
@@ -25,6 +21,8 @@ class Facts(Command):
     def take_action(self, parsed_args):
         # Check if tasks are locked before proceeding
         utils.check_task_lock_and_exit()
+
+        from osism.tasks import ansible, handle_task
 
         arguments = []
         t = ansible.run.delay(
@@ -48,6 +46,8 @@ class CephKeys(Command):
     def take_action(self, parsed_args):
         # Check if tasks are locked before proceeding
         utils.check_task_lock_and_exit()
+
+        from osism.tasks import ansible, handle_task
 
         wait = not parsed_args.no_wait
         arguments = []
@@ -94,6 +94,8 @@ class Sonic(Command):
         wait = not parsed_args.no_wait
         device_name = parsed_args.device
         show_diff = parsed_args.diff
+
+        from osism.tasks import conductor, handle_task
 
         task = conductor.sync_sonic.delay(device_name, show_diff)
 
@@ -259,6 +261,8 @@ class Versions(Command):
         url = f"{release_repository_url}/{release}/base.yml"
         logger.info(f"Fetching release configuration from {url}")
 
+        import requests
+
         try:
             response = requests.get(url, timeout=30)
             response.raise_for_status()
@@ -370,6 +374,9 @@ class Versions(Command):
         logger.info(f"Configuration path: {config_path}")
         logger.info(f"SBOM image: {sbom_image}")
         logger.info(f"Found {len(versions)} version entries in SBOM")
+
+        import jinja2
+        from osism.data import TEMPLATE_KOLLA_VERSIONS
 
         # Render template
         environment = jinja2.Environment()

@@ -6,15 +6,8 @@ import datetime
 from cliff.command import Command
 from jc import parse
 from loguru import logger
-import openstack
 from tabulate import tabulate
 from prompt_toolkit import prompt
-
-from osism.tasks.openstack import (
-    cleanup_cloud_environment,
-    get_openstack_connection,
-    setup_cloud_environment,
-)
 
 
 class ComputeEnable(Command):
@@ -37,6 +30,13 @@ class ComputeEnable(Command):
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
         host = parsed_args.host[0]
+
+        import openstack
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -100,6 +100,12 @@ class ComputeDisable(Command):
         cloud = parsed_args.cloud
         host = parsed_args.host[0]
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -162,6 +168,12 @@ class ComputeList(Command):
         domain = parsed_args.domain
         project = parsed_args.project
         details = parsed_args.details
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -295,6 +307,12 @@ class ComputeEvacuate(Command):
         host = parsed_args.host[0]
         target = parsed_args.target
         yes = parsed_args.yes
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -456,6 +474,12 @@ class ComputeMigrate(Command):
         domain = parsed_args.domain
         project = parsed_args.project
         xfilter = parsed_args.filter
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -641,6 +665,13 @@ class ComputeMigrationList(Command):
                 )
                 return
 
+        import openstack
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -786,6 +817,12 @@ class ComputeStart(Command):
         yes = parsed_args.yes
         host = parsed_args.host[0]
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -845,6 +882,12 @@ class ComputeStop(Command):
         cloud = parsed_args.cloud
         yes = parsed_args.yes
         host = parsed_args.host[0]
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
