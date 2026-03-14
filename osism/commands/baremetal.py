@@ -8,22 +8,10 @@ import os
 import subprocess
 import threading
 from loguru import logger
-import openstack
 from tabulate import tabulate
 import json
 import yaml
-from openstack.baremetal import configdrive as configdrive_builder
-
-from osism.tasks.openstack import (
-    cleanup_cloud_environment,
-    get_openstack_connection,
-    setup_cloud_environment,
-)
 from osism import settings, utils
-from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
-from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
-from osism.tasks.conductor.utils import deep_decrypt, get_vault
-from osism.tasks import netbox
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
 
 
@@ -62,6 +50,12 @@ class BaremetalList(Command):
         provision_state = parsed_args.provision_state
         maintenance = parsed_args.maintenance
         include_netbox = parsed_args.netbox
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -168,6 +162,15 @@ class BaremetalDeploy(Command):
                 "Please confirm that you wish to rebuild all nodes by specifying '--yes-i-really-really-mean-it'"
             )
             return
+
+        import openstack
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+        from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
+        from osism.tasks.conductor.utils import deep_decrypt, get_vault
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -335,6 +338,10 @@ class BaremetalDeploy(Command):
                                 sort_keys=False,
                                 width=float("inf"),
                             )
+                        from openstack.baremetal import (
+                            configdrive as configdrive_builder,
+                        )
+
                         config_drive = configdrive_builder.pack(tmp_dir)
                 except Exception as exc:
                     logger.warning(
@@ -399,6 +406,16 @@ class BaremetalDump(Command):
 
         if use_ironic:
             # Fetch data from Ironic (shows actual deployment state)
+            from osism.tasks.openstack import get_cloud_helpers
+
+            (
+                setup_cloud_environment,
+                get_openstack_connection,
+                cleanup_cloud_environment,
+            ) = get_cloud_helpers()
+            from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
+            from osism.tasks.conductor.utils import deep_decrypt, get_vault
+
             password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
             if not success:
                 return 1
@@ -527,6 +544,9 @@ class BaremetalDump(Command):
                 cleanup_cloud_environment(temp_files, original_cwd)
         else:
             # Fetch data from NetBox (default behavior, may show newer data)
+            from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
+            from osism.tasks.conductor.utils import deep_decrypt, get_vault
+
             # Check if NetBox connection is available
             if not utils.nb:
                 logger.error("NetBox connection not available")
@@ -686,6 +706,12 @@ class BaremetalUndeploy(Command):
             )
             return
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -816,6 +842,9 @@ class BaremetalPing(Command):
         results[host_name] = {"host": host, "status": status, "time_info": time_info}
 
     def take_action(self, parsed_args):
+        from osism.tasks.conductor.netbox import get_nb_device_query_list_ironic
+        from osism.tasks import netbox
+
         name = parsed_args.name
 
         if not utils.nb:
@@ -982,6 +1011,12 @@ class BaremetalBurnIn(Command):
             )
             return
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -1107,6 +1142,12 @@ class BaremetalClean(Command):
 
         clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -1219,6 +1260,12 @@ class BaremetalProvide(Command):
             logger.error("Please specify a node name or use --all")
             return
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -1287,6 +1334,12 @@ class BaremetalMaintenanceSet(Command):
         name = parsed_args.name
         reason = parsed_args.reason
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -1328,6 +1381,12 @@ class BaremetalMaintenanceUnset(Command):
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
         name = parsed_args.name
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -1374,6 +1433,12 @@ class BaremetalPowerOn(Command):
         if not name:
             logger.error("Please specify a node name")
             return
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -1427,6 +1492,12 @@ class BaremetalPowerOff(Command):
         if not name:
             logger.error("Please specify a node name")
             return
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -1496,6 +1567,12 @@ class BaremetalDelete(Command):
                 "Please confirm that you wish to delete all nodes by specifying '--yes-i-really-really-mean-it'"
             )
             return
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:

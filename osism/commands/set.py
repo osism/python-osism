@@ -4,7 +4,6 @@ from cliff.command import Command
 from loguru import logger
 
 from osism import utils
-from osism.tasks import ansible
 
 
 class Maintenance(Command):
@@ -30,6 +29,8 @@ class Maintenance(Command):
             "-e status=True",
             f"-l {host}",
         ]
+
+        from osism.tasks import ansible
 
         ansible.run.delay(
             "generic",
@@ -61,6 +62,8 @@ class Bootstrap(Command):
             "-e status=True",
             f"-l {host}",
         ]
+
+        from osism.tasks import ansible
 
         ansible.run.delay(
             "generic",

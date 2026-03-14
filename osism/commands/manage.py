@@ -4,19 +4,10 @@ from re import findall
 from urllib.parse import urljoin
 
 from cliff.command import Command
-import docker
-from jinja2 import Template
 from loguru import logger
 import requests
 
 from osism import utils
-from osism.data import (
-    TEMPLATE_IMAGE_CLUSTERAPI,
-    TEMPLATE_IMAGE_OCTAVIA,
-    TEMPLATE_IMAGE_GARDENLINUX,
-    TEMPLATE_IMAGE_CLUSTERAPI_GARDENER,
-)
-from osism.tasks import openstack, ansible, handle_task
 
 SUPPORTED_CLUSTERAPI_GARDENER_K8S_IMAGES = ["1.33"]
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.32", "1.33", "1.34"]
@@ -102,6 +93,9 @@ class ImageClusterapi(Command):
             splitted_checksum = response_checksum.text.strip().split(" ")
             logger.info(f"checksum: {splitted_checksum[0]}")
 
+            from jinja2 import Template
+            from osism.data import TEMPLATE_IMAGE_CLUSTERAPI
+
             template = Template(TEMPLATE_IMAGE_CLUSTERAPI)
             result.extend(
                 [
@@ -113,6 +107,8 @@ class ImageClusterapi(Command):
                     )
                 ]
             )
+
+        from osism.tasks import openstack, handle_task
 
         args = [
             "--cloud",
@@ -218,6 +214,9 @@ class ImageClusterapiGardener(Command):
             splitted_checksum = response_checksum.text.strip().split(" ")
             logger.info(f"checksum: {splitted_checksum[0]}")
 
+            from jinja2 import Template
+            from osism.data import TEMPLATE_IMAGE_CLUSTERAPI_GARDENER
+
             template = Template(TEMPLATE_IMAGE_CLUSTERAPI_GARDENER)
             result.extend(
                 [
@@ -229,6 +228,8 @@ class ImageClusterapiGardener(Command):
                     )
                 ]
             )
+
+        from osism.tasks import openstack, handle_task
 
         args = [
             "--cloud",
@@ -325,6 +326,9 @@ class ImageGardenlinux(Command):
             checksum = response_checksum.text.strip().split()[0]
             logger.info(f"checksum: {checksum}")
 
+            from jinja2 import Template
+            from osism.data import TEMPLATE_IMAGE_GARDENLINUX
+
             template = Template(TEMPLATE_IMAGE_GARDENLINUX)
             result.extend(
                 [
@@ -349,6 +353,8 @@ class ImageGardenlinux(Command):
             args.extend(["--tag", tag])
         if parsed_args.dry_run:
             args.append("--dry-run")
+
+        from osism.tasks import openstack, handle_task
 
         task_signature = openstack.image_manager.si(*args, configs=result, cloud=cloud)
         task = task_signature.apply_async()
@@ -391,6 +397,11 @@ class ImageOctavia(Command):
         wait = not parsed_args.no_wait
         cloud = parsed_args.cloud
         base_url = parsed_args.base_url
+
+        import docker
+        from jinja2 import Template
+        from osism.data import TEMPLATE_IMAGE_OCTAVIA
+        from osism.tasks import openstack, handle_task
 
         client = docker.from_env()
         container = client.containers.get("kolla-ansible")
@@ -532,6 +543,8 @@ class Images(Command):
         arguments.append("--stuck-retry")
         arguments.append("1")
 
+        from osism.tasks import openstack, handle_task
+
         task_signature = openstack.image_manager.si(*arguments, cloud=parsed_args.cloud)
         task = task_signature.apply_async()
         if wait:
@@ -604,6 +617,8 @@ class Flavors(Command):
             arguments.append("--url")
             arguments.append(url)
 
+        from osism.tasks import openstack, handle_task
+
         task_signature = openstack.flavor_manager.si(*arguments, cloud=cloud)
         task = task_signature.apply_async()
         if wait:
@@ -630,6 +645,8 @@ class Dnsmasq(Command):
         utils.check_task_lock_and_exit()
 
         wait = not parsed_args.no_wait
+
+        from osism.tasks import ansible, handle_task
 
         task_signature = ansible.run.si("infrastructure", "dnsmasq", [])
         task = task_signature.apply_async()
@@ -1051,6 +1068,8 @@ class ProjectCreate(Command):
                 ["--service-network-cidr", parsed_args.service_network_cidr]
             )
 
+        from osism.tasks import openstack, handle_task
+
         # Call the task
         task_signature = openstack.project_manager.si(*arguments, cloud=cloud)
         task = task_signature.apply_async()
@@ -1256,6 +1275,8 @@ class ProjectSync(Command):
 
         if parsed_args.name is not None:
             arguments.extend(["--name", parsed_args.name])
+
+        from osism.tasks import openstack, handle_task
 
         # Call the task
         task_signature = openstack.project_manager_sync.si(*arguments, cloud=cloud)

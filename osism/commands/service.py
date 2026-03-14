@@ -6,11 +6,8 @@ import subprocess
 import time
 
 from cliff.command import Command
-from watchdog.observers.polling import PollingObserver
-from watchdog.events import FileSystemEventHandler
 
 from osism import utils
-from osism.tasks import reconciler
 
 
 class Run(Command):
@@ -78,6 +75,9 @@ class Run(Command):
             p.wait()
 
         elif service == "watchdog":
+            from watchdog.observers.polling import PollingObserver
+            from watchdog.events import FileSystemEventHandler
+
             event_handler_inventory = FileSystemEventHandler()
             event_handler_inventory.on_any_event = self.watchdog_inventory_on_any_event
 
@@ -95,4 +95,6 @@ class Run(Command):
                 observer.join()
 
     def watchdog_inventory_on_any_event(self, event):
+        from osism.tasks import reconciler
+
         reconciler.run.delay()

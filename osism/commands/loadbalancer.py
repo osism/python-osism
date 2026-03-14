@@ -11,12 +11,6 @@ from tabulate import tabulate
 import yaml
 
 from osism.commands.octavia import wait_for_amphora_boot
-from osism.tasks.openstack import (
-    cleanup_cloud_environment,
-    get_openstack_connection,
-    setup_cloud_environment,
-)
-from osism.tasks.conductor.utils import get_vault
 
 
 def _load_kolla_configuration():
@@ -45,6 +39,8 @@ def _load_octavia_database_password():
         return None
 
     try:
+        from osism.tasks.conductor.utils import get_vault
+
         vault = get_vault()
 
         with open(secrets_path, "rb") as f:
@@ -160,6 +156,12 @@ class LoadbalancerList(Command):
         status_type = parsed_args.status_type
         cloud = parsed_args.cloud
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
+
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
             return 1
@@ -259,6 +261,12 @@ class LoadbalancerReset(Command):
         yes = parsed_args.yes
         no_failover = parsed_args.no_failover
         cloud = parsed_args.cloud
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -366,6 +374,12 @@ class LoadbalancerDelete(Command):
         loadbalancer_id = parsed_args.loadbalancer
         yes = parsed_args.yes
         cloud = parsed_args.cloud
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:

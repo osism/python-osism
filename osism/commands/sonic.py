@@ -12,11 +12,6 @@ from prompt_toolkit import prompt
 from tabulate import tabulate
 
 from osism import utils
-from osism.tasks import netbox, conductor
-from osism.tasks.conductor.netbox import (
-    get_device_oob_ip,
-)
-from osism.tasks.conductor.sonic.constants import SUPPORTED_HWSKUS
 from osism.utils.ssh import (
     cleanup_ssh_known_hosts_for_node,
     ensure_known_hosts_file,
@@ -839,6 +834,8 @@ class Reset(SonicCommandBase):
                     logger.warning("- SSH known_hosts cleanup completed with warnings")
 
                 # Set provision_state to 'ztp' in NetBox
+                from osism.tasks import netbox
+
                 logger.info("Setting provision_state to 'ztp' in NetBox")
                 netbox.set_provision_state.delay(hostname, "ztp")
 
@@ -1074,6 +1071,10 @@ class List(Command):
         return parser
 
     def take_action(self, parsed_args):
+        from osism.tasks import conductor
+        from osism.tasks.conductor.netbox import get_device_oob_ip
+        from osism.tasks.conductor.sonic.constants import SUPPORTED_HWSKUS
+
         device_name = parsed_args.device
 
         try:

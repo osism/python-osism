@@ -7,7 +7,6 @@ import subprocess
 from cliff.command import Command
 from loguru import logger
 
-from osism.tasks import reconciler
 from osism import utils
 
 
@@ -51,6 +50,8 @@ class Sync(Command):
 
         wait = not parsed_args.no_wait
         task_timeout = parsed_args.task_timeout
+
+        from osism.tasks import reconciler
 
         t = reconciler.run.delay(publish=wait)
         if wait:

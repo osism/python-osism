@@ -9,12 +9,6 @@ from loguru import logger
 from prompt_toolkit import prompt
 from tabulate import tabulate
 
-from osism.tasks.openstack import (
-    cleanup_cloud_environment,
-    get_openstack_connection,
-    setup_cloud_environment,
-)
-
 
 class ServerMigrate(Command):
     def get_parser(self, prog_name):
@@ -64,6 +58,12 @@ class ServerMigrate(Command):
         target = parsed_args.target
         force = parsed_args.force
         no_wait = parsed_args.no_wait
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -155,6 +155,12 @@ class ServerList(Command):
         project_domain = parsed_args.project_domain
         user = parsed_args.user
         user_domain = parsed_args.user_domain
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -398,6 +404,12 @@ class ServerClean(Command):
         cloud = parsed_args.cloud
         yes = parsed_args.yes
         build_timeout = parsed_args.build_timeout
+
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
+            get_cloud_helpers()
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:

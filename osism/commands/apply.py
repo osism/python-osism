@@ -3,8 +3,6 @@
 import argparse
 import os
 
-from celery import chain, group
-from celery.result import GroupResult
 from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
@@ -12,8 +10,6 @@ from tabulate import tabulate
 from osism import utils
 from osism.data import enums
 from osism.data.enums import Role
-from osism.data.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
-from osism.tasks import ansible, ceph, kolla, kubernetes, handle_task
 
 
 class Run(Command):
@@ -107,6 +103,8 @@ class Run(Command):
         return parser
 
     def handle_loadbalancer_task(self, t, wait, format, timeout):
+        from osism.tasks import handle_task
+
         # process the parent task
         rc = handle_task(t.parent, wait, format, timeout)
 
@@ -151,6 +149,9 @@ class Run(Command):
         dry_run,
         show_tree,
     ):
+        from celery import chain, group
+        from osism.tasks import ansible
+
         g = []
         for item in data:
             # All items must be Role objects
@@ -277,6 +278,10 @@ class Run(Command):
         timeout,
         task_timeout,
     ):
+        from celery import group
+        from osism.data.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
+        from osism.tasks import ansible, ceph, kolla, kubernetes
+
         # There is a special playbook ceph-ceph which should be called
         # with ceph. Therefore, the environment is set explicitly in
         # this case.
@@ -375,6 +380,9 @@ class Run(Command):
         timeout,
         task_timeout,
     ):
+        from celery.result import GroupResult
+        from osism.tasks import handle_task
+
         t = self._prepare_task(
             arguments,
             environment,
@@ -406,6 +414,8 @@ class Run(Command):
         return rc
 
     def take_action(self, parsed_args):
+        from osism.data.playbooks import MAP_ROLE2ENVIRONMENT
+
         # Check if tasks are locked before proceeding
         utils.check_task_lock_and_exit()
 

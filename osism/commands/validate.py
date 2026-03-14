@@ -8,8 +8,6 @@ from cliff.command import Command
 from loguru import logger
 
 from osism.data.enums import VALIDATE_PLAYBOOKS
-from osism.tasks import ansible, ceph, kolla
-from osism.tasks.openstack import cleanup_cloud_environment, setup_cloud_environment
 from osism import utils
 
 
@@ -73,6 +71,8 @@ class Run(Command):
             return 0
 
     def take_action(self, parsed_args):
+        from osism.tasks import ansible, ceph, kolla
+
         # Check if tasks are locked before proceeding
         utils.check_task_lock_and_exit()
 
@@ -156,6 +156,11 @@ class Scs(Command):
         return parser
 
     def take_action(self, parsed_args):
+        from osism.tasks.openstack import (
+            cleanup_cloud_environment,
+            setup_cloud_environment,
+        )
+
         cloud = parsed_args.cloud
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)

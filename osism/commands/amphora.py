@@ -6,14 +6,8 @@ from time import sleep
 from cliff.command import Command
 from dateutil import parser as dateutil_parser
 from loguru import logger
-import openstack
 
 from osism.commands.octavia import wait_for_amphora_boot, wait_for_amphora_delete
-from osism.tasks.openstack import (
-    cleanup_cloud_environment,
-    get_openstack_connection,
-    setup_cloud_environment,
-)
 
 # Default age threshold for rotation (30 days in seconds)
 DEFAULT_ROTATION_AGE_SECONDS = 2592000
@@ -41,6 +35,12 @@ class AmphoraRestore(Command):
     def take_action(self, parsed_args):
         cloud = parsed_args.cloud
         loadbalancer_id = parsed_args.loadbalancer
+
+        from osism.tasks.openstack import (
+            cleanup_cloud_environment,
+            get_openstack_connection,
+            setup_cloud_environment,
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:
@@ -98,6 +98,13 @@ class AmphoraRotate(Command):
         cloud = parsed_args.cloud
         loadbalancer_id = parsed_args.loadbalancer
         force = parsed_args.force
+
+        import openstack
+        from osism.tasks.openstack import (
+            cleanup_cloud_environment,
+            get_openstack_connection,
+            setup_cloud_environment,
+        )
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
         if not success:

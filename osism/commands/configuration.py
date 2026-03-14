@@ -6,7 +6,6 @@ from cliff.command import Command
 from loguru import logger
 
 from osism import utils
-from osism.tasks import ansible, handle_task
 
 
 class Sync(Command):
@@ -18,6 +17,8 @@ class Sync(Command):
         return parser
 
     def take_action(self, parsed_args):
+        from osism.tasks import ansible, handle_task
+
         # Check if tasks are locked before proceeding
         utils.check_task_lock_and_exit()
 

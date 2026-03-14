@@ -6,19 +6,105 @@ import time
 import uuid
 import os
 from contextlib import redirect_stdout, redirect_stderr
-from cryptography.fernet import Fernet
-import keystoneauth1
 from loguru import logger
-import openstack
-import pynetbox
-from pottery import Redlock
-from redis import Redis
-import requests
-from requests.adapters import HTTPAdapter
-import urllib3
 import yaml
 
 from osism import settings
+
+
+_redis = None
+_nb = None
+_secondary_nb_list = None
+_nb_initialized = False
+_secondary_nb_initialized = False
+_cleanup_registered = False
+
+
+def _init_redis():
+    global _redis
+    if _redis is None:
+        from redis import Redis
+
+        _redis = Redis(
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_DB,
+            socket_keepalive=True,
+        )
+        _redis.ping()
+    return _redis
+
+
+def _init_nb():
+    global _nb, _nb_initialized
+    if not _nb_initialized:
+        _nb = get_netbox_connection(
+            settings.NETBOX_URL, settings.NETBOX_TOKEN, settings.IGNORE_SSL_ERRORS
+        )
+        _nb_initialized = True
+    return _nb
+
+
+def _init_secondary_nb_list():
+    global _secondary_nb_list, _secondary_nb_initialized
+    if not _secondary_nb_initialized:
+        try:
+            secondary_nb_settings_list = yaml.safe_load(settings.NETBOX_SECONDARIES)
+            supported_secondary_nb_keys = [
+                "NETBOX_URL",
+                "NETBOX_TOKEN",
+                "IGNORE_SSL_ERRORS",
+                "NETBOX_NAME",
+                "NETBOX_SITE",
+            ]
+            result = []
+            if type(secondary_nb_settings_list) is not list:
+                raise TypeError(
+                    f"Setting NETBOX_SECONDARIES needs to be an array of mappings containing supported NetBox API configuration: {supported_secondary_nb_keys}"
+                )
+            for secondary_nb_settings in secondary_nb_settings_list:
+                if type(secondary_nb_settings) is not dict:
+                    raise TypeError(
+                        f"Elements in setting NETBOX_SECONDARIES need to be mappings containing supported NetBox API configuration: {supported_secondary_nb_keys}"
+                    )
+                for key in list(secondary_nb_settings.keys()):
+                    if key not in supported_secondary_nb_keys:
+                        raise ValueError(
+                            f"Unknown key in element of setting NETBOX_SECONDARIES. Supported keys: {supported_secondary_nb_keys}"
+                        )
+                if (
+                    "NETBOX_URL" not in secondary_nb_settings
+                    or not secondary_nb_settings["NETBOX_URL"]
+                ):
+                    raise ValueError(
+                        "All NETBOX_URL values in the elements of setting NETBOX_SECONDARIES need to be valid NetBox URLs"
+                    )
+                if (
+                    "NETBOX_TOKEN" not in secondary_nb_settings
+                    or not str(secondary_nb_settings["NETBOX_TOKEN"]).strip()
+                ):
+                    raise ValueError(
+                        "All NETBOX_TOKEN values in the elements of setting NETBOX_SECONDARIES need to be valid NetBox tokens"
+                    )
+
+                secondary_nb = get_netbox_connection(
+                    secondary_nb_settings["NETBOX_URL"],
+                    str(secondary_nb_settings["NETBOX_TOKEN"]).strip(),
+                    secondary_nb_settings.get("IGNORE_SSL_ERRORS", True),
+                )
+
+                if "NETBOX_NAME" in secondary_nb_settings:
+                    secondary_nb.netbox_name = secondary_nb_settings["NETBOX_NAME"]
+                if "NETBOX_SITE" in secondary_nb_settings:
+                    secondary_nb.netbox_site = secondary_nb_settings["NETBOX_SITE"]
+
+                result.append(secondary_nb)
+            _secondary_nb_list = result
+        except (yaml.YAMLError, TypeError, ValueError) as exc:
+            logger.error(f"Error parsing settings NETBOX_SECONDARIES: {exc}")
+            _secondary_nb_list = []
+        _secondary_nb_initialized = True
+    return _secondary_nb_list
 
 
 class RedisSemaphore:
@@ -89,24 +175,41 @@ class RedisSemaphore:
         return False
 
 
-class TimeoutHTTPAdapter(HTTPAdapter):
-    """HTTPAdapter that sets a default timeout for all requests."""
+_TimeoutHTTPAdapterClass = None
 
-    def __init__(
-        self, timeout=None, pool_connections=10, pool_maxsize=10, *args, **kwargs
-    ):
-        self.timeout = timeout
-        super().__init__(
-            pool_connections=pool_connections,
-            pool_maxsize=pool_maxsize,
+
+def _get_timeout_http_adapter_class():
+    global _TimeoutHTTPAdapterClass
+    if _TimeoutHTTPAdapterClass is not None:
+        return _TimeoutHTTPAdapterClass
+    from requests.adapters import HTTPAdapter
+
+    class _TimeoutHTTPAdapter(HTTPAdapter):
+        """HTTPAdapter that sets a default timeout for all requests."""
+
+        def __init__(
+            self,
+            timeout=None,
+            pool_connections=10,
+            pool_maxsize=10,
             *args,
             **kwargs,
-        )
+        ):
+            self.timeout = timeout
+            super().__init__(
+                pool_connections=pool_connections,
+                pool_maxsize=pool_maxsize,
+                *args,
+                **kwargs,
+            )
 
-    def send(self, request, **kwargs):
-        if kwargs.get("timeout") is None and self.timeout is not None:
-            kwargs["timeout"] = self.timeout
-        return super().send(request, **kwargs)
+        def send(self, request, **kwargs):
+            if kwargs.get("timeout") is None and self.timeout is not None:
+                kwargs["timeout"] = self.timeout
+            return super().send(request, **kwargs)
+
+    _TimeoutHTTPAdapterClass = _TimeoutHTTPAdapter
+    return _TimeoutHTTPAdapterClass
 
 
 class NetBoxSessionManager:
@@ -131,12 +234,16 @@ class NetBoxSessionManager:
             requests.Session: The shared session instance
         """
         if cls._session is None:
+            import requests
+            import urllib3
+
             if cls._lock is None:
                 cls._lock = threading.Lock()
             with cls._lock:
                 if cls._session is None:
                     cls._session = requests.Session()
-                    adapter = TimeoutHTTPAdapter(
+                    AdapterClass = _get_timeout_http_adapter_class()
+                    adapter = AdapterClass(
                         timeout=timeout, pool_connections=10, pool_maxsize=10
                     )
                     cls._session.mount("http://", adapter)
@@ -173,10 +280,17 @@ def get_netbox_connection(
     Returns:
         pynetbox.api instance or None
     """
+    import pynetbox
+
     if netbox_url and netbox_token:
         nb = pynetbox.api(netbox_url, token=netbox_token)
 
         if nb:
+            global _cleanup_registered
+            if not _cleanup_registered:
+                atexit.register(cleanup_netbox_sessions)
+                _cleanup_registered = True
+
             # Use shared session instead of creating new one
             nb.http_session = NetBoxSessionManager.get_session(
                 ignore_ssl_errors=ignore_ssl_errors, timeout=timeout
@@ -188,80 +302,10 @@ def get_netbox_connection(
     return nb
 
 
-redis = Redis(
-    host=settings.REDIS_HOST,
-    port=settings.REDIS_PORT,
-    db=settings.REDIS_DB,
-    socket_keepalive=True,
-)
-redis.ping()
-
-nb = get_netbox_connection(
-    settings.NETBOX_URL, settings.NETBOX_TOKEN, settings.IGNORE_SSL_ERRORS
-)
-
-try:
-    secondary_nb_settings_list = yaml.safe_load(settings.NETBOX_SECONDARIES)
-    supported_secondary_nb_keys = [
-        "NETBOX_URL",
-        "NETBOX_TOKEN",
-        "IGNORE_SSL_ERRORS",
-        "NETBOX_NAME",
-        "NETBOX_SITE",
-    ]
-    secondary_nb_list = []
-    if type(secondary_nb_settings_list) is not list:
-        raise TypeError(
-            f"Setting NETBOX_SECONDARIES needs to be an array of mappings containing supported NetBox API configuration: {supported_secondary_nb_keys}"
-        )
-    for secondary_nb_settings in secondary_nb_settings_list:
-        if type(secondary_nb_settings) is not dict:
-            raise TypeError(
-                f"Elements in setting NETBOX_SECONDARIES need to be mappings containing supported NetBox API configuration: {supported_secondary_nb_keys}"
-            )
-        for key in list(secondary_nb_settings.keys()):
-            if key not in supported_secondary_nb_keys:
-                raise ValueError(
-                    f"Unknown key in element of setting NETBOX_SECONDARIES. Supported keys: {supported_secondary_nb_keys}"
-                )
-        if (
-            "NETBOX_URL" not in secondary_nb_settings
-            or not secondary_nb_settings["NETBOX_URL"]
-        ):
-            raise ValueError(
-                "All NETBOX_URL values in the elements of setting NETBOX_SECONDARIES need to be valid NetBox URLs"
-            )
-        if (
-            "NETBOX_TOKEN" not in secondary_nb_settings
-            or not str(secondary_nb_settings["NETBOX_TOKEN"]).strip()
-        ):
-            raise ValueError(
-                "All NETBOX_TOKEN values in the elements of setting NETBOX_SECONDARIES need to be valid NetBox tokens"
-            )
-
-        secondary_nb = get_netbox_connection(
-            secondary_nb_settings["NETBOX_URL"],
-            str(secondary_nb_settings["NETBOX_TOKEN"]).strip(),
-            secondary_nb_settings.get("IGNORE_SSL_ERRORS", True),
-        )
-
-        # Store optional metadata as attributes
-        if "NETBOX_NAME" in secondary_nb_settings:
-            secondary_nb.netbox_name = secondary_nb_settings["NETBOX_NAME"]
-        if "NETBOX_SITE" in secondary_nb_settings:
-            secondary_nb.netbox_site = secondary_nb_settings["NETBOX_SITE"]
-
-        secondary_nb_list.append(secondary_nb)
-except (yaml.YAMLError, TypeError, ValueError) as exc:
-    logger.error(f"Error parsing settings NETBOX_SECONDARIES: {exc}")
-    secondary_nb_list = []
-
-
-# Register cleanup handler to close sessions on program exit
-atexit.register(cleanup_netbox_sessions)
-
-
 def get_openstack_connection():
+    import keystoneauth1
+    import openstack
+
     try:
         conn = openstack.connect()
     except keystoneauth1.exceptions.auth_plugins.MissingRequiredOptions as e:
@@ -273,6 +317,8 @@ def get_openstack_connection():
 
 
 def get_ansible_vault_password():
+    from cryptography.fernet import Fernet
+
     keyfile = "/share/ansible_vault_password.key"
 
     try:
@@ -280,7 +326,8 @@ def get_ansible_vault_password():
             key = fp.read()
         f = Fernet(key)
 
-        encrypted_ansible_vault_password = redis.get("ansible_vault_password")
+        r = _init_redis()
+        encrypted_ansible_vault_password = r.get("ansible_vault_password")
         if encrypted_ansible_vault_password is None:
             raise ValueError("Ansible vault password is not set in Redis")
 
@@ -325,11 +372,12 @@ def first(iterable, condition=lambda x: True):
 def fetch_task_output(
     task_id, timeout=os.environ.get("OSISM_TASK_TIMEOUT", 300), enable_play_recap=False
 ):
+    r = _init_redis()
     rc = 0
     stoptime = time.time() + timeout
     last_id = 0
     while time.time() < stoptime:
-        data = redis.xread({str(task_id): last_id}, count=1, block=(timeout * 1000))
+        data = r.xread({str(task_id): last_id}, count=1, block=(timeout * 1000))
         if data:
             stoptime = time.time() + timeout
             messages = data[0]
@@ -339,7 +387,7 @@ def fetch_task_output(
                 message_content = message[b"content"].decode()
 
                 logger.debug(f"Processing message {last_id} of type {message_type}")
-                redis.xdel(str(task_id), last_id)
+                r.xdel(str(task_id), last_id)
 
                 if message_type == "stdout":
                     print(message_content, end="")
@@ -352,19 +400,20 @@ def fetch_task_output(
                 elif message_type == "rc":
                     rc = int(message_content)
                 elif message_type == "action" and message_content == "quit":
-                    redis.close()
+                    r.close()
                     return rc
     raise TimeoutError
 
 
 def push_task_output(task_id, line):
-    redis.xadd(task_id, {"type": "stdout", "content": line})
+    _init_redis().xadd(task_id, {"type": "stdout", "content": line})
 
 
 def finish_task_output(task_id, rc=None):
+    r = _init_redis()
     if rc:
-        redis.xadd(task_id, {"type": "rc", "content": rc})
-    redis.xadd(task_id, {"type": "action", "content": "quit"})
+        r.xadd(task_id, {"type": "rc", "content": rc})
+    r.xadd(task_id, {"type": "action", "content": "quit"})
 
 
 def revoke_task(task_id):
@@ -402,6 +451,7 @@ def create_redlock(key, auto_release_time=3600):
         Redlock: The configured Redlock instance
     """
     import logging
+    from pottery import Redlock
 
     # Permanently suppress pottery logger output
     pottery_logger = logging.getLogger("pottery")
@@ -411,7 +461,7 @@ def create_redlock(key, auto_release_time=3600):
         with redirect_stdout(devnull), redirect_stderr(devnull):
             return Redlock(
                 key=key,
-                masters={redis},
+                masters={_init_redis()},
                 auto_release_time=auto_release_time,
             )
 
@@ -439,7 +489,7 @@ def create_netbox_semaphore(netbox_url, max_connections=None):
     return RedisSemaphore(
         key=key,
         maxsize=max_connections,
-        redis_client=redis,
+        redis_client=_init_redis(),
         timeout=30,
     )
 
@@ -466,7 +516,7 @@ def set_task_lock(user=None, reason=None):
             "reason": reason,
         }
 
-        redis.set("osism:task_lock", json.dumps(lock_data))
+        _init_redis().set("osism:task_lock", json.dumps(lock_data))
         return True
     except Exception as e:
         logger.error(f"Failed to set task lock: {e}")
@@ -481,7 +531,7 @@ def remove_task_lock():
         bool: True if lock was removed successfully
     """
     try:
-        redis.delete("osism:task_lock")
+        _init_redis().delete("osism:task_lock")
         return True
     except Exception as e:
         logger.error(f"Failed to remove task lock: {e}")
@@ -498,7 +548,7 @@ def is_task_locked():
     try:
         import json
 
-        lock_data = redis.get("osism:task_lock")
+        lock_data = _init_redis().get("osism:task_lock")
         if lock_data:
             return json.loads(lock_data.decode("utf-8"))
         return None
@@ -523,3 +573,19 @@ def check_task_lock_and_exit():
             logger.error(f"Reason: {reason}")
         logger.error("Use 'osism unlock' to remove the lock")
         exit(1)
+
+
+def __getattr__(name):
+    if name == "redis":
+        val = _init_redis()
+        globals()["redis"] = val
+        return val
+    elif name == "nb":
+        val = _init_nb()
+        globals()["nb"] = val
+        return val
+    elif name == "secondary_nb_list":
+        val = _init_secondary_nb_list()
+        globals()["secondary_nb_list"] = val
+        return val
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
