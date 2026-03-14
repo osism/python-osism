@@ -463,9 +463,15 @@ class Bgp(Command):
             )
 
 
-class Bootstrap(Command):
+class Status(Command):
     def get_parser(self, prog_name):
-        parser = super(Bootstrap, self).get_parser(prog_name)
+        parser = super(Status, self).get_parser(prog_name)
+        parser.add_argument(
+            "type",
+            type=str,
+            choices=["boot"],
+            help="Type of status to report",
+        )
         parser.add_argument(
             "-l",
             "--limit",
@@ -473,11 +479,11 @@ class Bootstrap(Command):
             help="Limit selected hosts to an additional pattern",
         )
         parser.add_argument(
-            "--bootstrap",
+            "--status",
             type=str,
             choices=["True", "False"],
             default="True",
-            help="Filter by bootstrap status (default: True)",
+            help="Filter by status value (default: True)",
         )
         return parser
 
@@ -533,7 +539,12 @@ class Bootstrap(Command):
         ]
         fact_command = "cat /etc/ansible/facts.d/osism.fact"
 
-        filter_status = parsed_args.bootstrap
+        section_map = {
+            "boot": "bootstrap",
+        }
+        section = section_map[parsed_args.type]
+
+        filter_status = parsed_args.status
 
         table = []
         failed_hosts = []
@@ -555,7 +566,7 @@ class Bootstrap(Command):
 
                 if fact_result.returncode != 0:
                     logger.warning(
-                        f"Failed to get bootstrap info from {host}: {fact_result.stderr.strip()}"
+                        f"Failed to get {section} info from {host}: {fact_result.stderr.strip()}"
                     )
                     failed_hosts.append(host)
                     continue
@@ -563,8 +574,8 @@ class Bootstrap(Command):
                 config = configparser.ConfigParser()
                 config.read_string(fact_result.stdout)
 
-                status = config.get("bootstrap", "status", fallback="n/a")
-                timestamp = config.get("bootstrap", "timestamp", fallback="n/a")
+                status = config.get(section, "status", fallback="n/a")
+                timestamp = config.get(section, "timestamp", fallback="n/a")
 
                 if status != filter_status:
                     continue
@@ -575,7 +586,7 @@ class Bootstrap(Command):
                 logger.warning(f"Timeout connecting to {host}.")
                 failed_hosts.append(host)
             except (ValueError, configparser.Error):
-                logger.warning(f"Could not parse bootstrap info from {host}.")
+                logger.warning(f"Could not parse {section} info from {host}.")
                 failed_hosts.append(host)
 
         if table:
