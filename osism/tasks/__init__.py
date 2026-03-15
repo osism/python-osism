@@ -4,7 +4,9 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 import yaml
 from datetime import datetime, timezone
 from pathlib import Path
@@ -175,155 +177,181 @@ def run_ansible_in_environment(
     # This ensures Ansible's Python process flushes stdout immediately
     env["PYTHONUNBUFFERED"] = "1"
 
-    # handle sub environments
-    if "." in environment:
-        sub_name = environment.split(".")[1]
-        env["SUB"] = environment
-        environment = environment.split(".")[0]
-        logger.info(
-            f"worker = {worker}, environment = {environment}, sub = {sub_name}, role = {role}"
-        )
-    else:
-        logger.info(f"worker = {worker}, environment = {environment}, role = {role}")
+    # Use a unique SSH ControlPath directory per task to prevent race conditions
+    # when multiple Celery workers connect to the same host simultaneously.
+    # Without this, concurrent Ansible runs share the same ControlMaster socket,
+    # which can cause intermittent "Permission denied (publickey)" errors.
+    ssh_control_dir = tempfile.mkdtemp(prefix=f".ansible-ssh-{request_id}-")
+    logger.debug(f"Using per-task SSH ControlPath directory: {ssh_control_dir}")
+    env["ANSIBLE_SSH_CONTROL_PATH_DIR"] = ssh_control_dir
 
-    env["ENVIRONMENT"] = environment
-
-    # NOTE: This is a first step to make Ansible Vault usable via OSISM workers.
-    #       It's not ready in that form yet.
-    ansible_vault_password = utils.redis.get("ansible_vault_password")
-    if ansible_vault_password:
-        env["VAULT"] = "/ansible-vault.py"
-
-    # Log play execution start
-    log_play_execution(
-        request_id=request_id,
-        worker=worker,
-        environment=environment,
-        role=role,
-        hosts=None,  # Hosts will be empty at start, filled at completion
-        arguments=joined_arguments,
-        result="started",
-    )
-
-    # NOTE: Consider arguments in the future
-    if locking:
-        lock = utils.create_redlock(
-            key=f"lock-ansible-{environment}-{role}",
-            auto_release_time=auto_release_time,
-        )
-
-    # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
-    #       not working out of the box
-
-    # Use stdbuf for line-buffered output to ensure immediate streaming
-    # stdbuf -oL sets stdout to line-buffered mode at the OS level
-    stdbuf_prefix = "stdbuf -oL "
-
-    # execute roles from kolla-ansible
-    if worker == "kolla-ansible":
-        if locking:
-            lock.acquire()
-
-        if role in ["mariadb-backup", "mariadb_backup"]:
-            action = "backup"
-            role = "mariadb"
-            # Hacky workaround. The handling of kolla_action will be revised in the future.
-            joined_arguments = re.sub(
-                r"-e kolla_action=(bootstrap|config|deploy|precheck|pull|reconfigure|refresh-containers|start|stop|upgrade)",
-                r"-e kolla_action=backup",
-                joined_arguments,
+    try:
+        # handle sub environments
+        if "." in environment:
+            sub_name = environment.split(".")[1]
+            env["SUB"] = environment
+            environment = environment.split(".")[0]
+            logger.info(
+                f"worker = {worker}, environment = {environment}, sub = {sub_name}, role = {role}"
             )
         else:
-            action = "deploy"
+            logger.info(
+                f"worker = {worker}, environment = {environment}, role = {role}"
+            )
 
-        command = f"{stdbuf_prefix}/run.sh {action} {role} {joined_arguments}"
-        logger.info(f"RUN {command}")
-        p = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True,
-            env=env,
+        env["ENVIRONMENT"] = environment
+
+        # NOTE: This is a first step to make Ansible Vault usable via OSISM workers.
+        #       It's not ready in that form yet.
+        ansible_vault_password = utils.redis.get("ansible_vault_password")
+        if ansible_vault_password:
+            env["VAULT"] = "/ansible-vault.py"
+
+        # Log play execution start
+        log_play_execution(
+            request_id=request_id,
+            worker=worker,
+            environment=environment,
+            role=role,
+            hosts=None,  # Hosts will be empty at start, filled at completion
+            arguments=joined_arguments,
+            result="started",
         )
 
-    # execute roles from osism-kubernetes
-    elif worker == "osism-kubernetes":
+        # NOTE: Consider arguments in the future
+        lock = None
         if locking:
-            lock.acquire()
+            lock = utils.create_redlock(
+                key=f"lock-ansible-{environment}-{role}",
+                auto_release_time=auto_release_time,
+            )
 
-        command = f"{stdbuf_prefix}/run.sh {role} {joined_arguments}"
-        logger.info(f"RUN {command}")
-        p = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True,
-            env=env,
-        )
+        # NOTE: use python interface in the future, something with ansible-runner and the fact cache is
+        #       not working out of the box
 
-    # execute roles from ceph-ansible
-    elif worker == "ceph-ansible":
-        if locking:
-            lock.acquire()
+        # Use stdbuf for line-buffered output to ensure immediate streaming
+        # stdbuf -oL sets stdout to line-buffered mode at the OS level
+        stdbuf_prefix = "stdbuf -oL "
 
-        command = f"{stdbuf_prefix}/run.sh {role} {joined_arguments}"
-        logger.info(f"RUN {command}")
-        p = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True,
-            env=env,
-        )
+        # execute roles from kolla-ansible
+        if worker == "kolla-ansible":
+            if lock:
+                lock.acquire()
 
-    # execute all other roles
-    else:
-        if locking:
-            lock.acquire()
+            if role in ["mariadb-backup", "mariadb_backup"]:
+                action = "backup"
+                role = "mariadb"
+                # Hacky workaround. The handling of kolla_action will be revised in the future.
+                joined_arguments = re.sub(
+                    r"-e kolla_action=(bootstrap|config|deploy|precheck|pull|reconfigure|refresh-containers|start|stop|upgrade)",
+                    r"-e kolla_action=backup",
+                    joined_arguments,
+                )
+            else:
+                action = "deploy"
 
-        command = f"{stdbuf_prefix}/run-{environment}.sh {role} {joined_arguments}"
-        logger.info(f"RUN {command}")
-        p = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            shell=True,
-            env=env,
-        )
+            command = f"{stdbuf_prefix}/run.sh {action} {role} {joined_arguments}"
+            logger.info(f"RUN {command}")
+            p = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                shell=True,
+                env=env,
+            )
 
-    while p.poll() is None:
-        line = p.stdout.readline().decode("utf-8")
+        # execute roles from osism-kubernetes
+        elif worker == "osism-kubernetes":
+            if lock:
+                lock.acquire()
 
-        # Extract hosts from Ansible output
-        match = HOST_PATTERN.match(line.strip())
-        if match:
-            hostname = match.group(2)
-            extracted_hosts.add(hostname)  # Local set (automatic deduplication)
+            command = f"{stdbuf_prefix}/run.sh {role} {joined_arguments}"
+            logger.info(f"RUN {command}")
+            p = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                shell=True,
+                env=env,
+            )
 
-        if publish:
-            utils.push_task_output(request_id, line)
-        result += line
+        # execute roles from ceph-ansible
+        elif worker == "ceph-ansible":
+            if lock:
+                lock.acquire()
 
-    rc = p.wait(timeout=60)
+            command = f"{stdbuf_prefix}/run.sh {role} {joined_arguments}"
+            logger.info(f"RUN {command}")
+            p = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                shell=True,
+                env=env,
+            )
 
-    # Log play execution result
-    log_play_execution(
-        request_id=request_id,
-        worker=worker,
-        environment=environment,
-        role=role,
-        hosts=sorted(list(extracted_hosts)),  # Direct pass of extracted hosts
-        arguments=joined_arguments,
-        result="success" if rc == 0 else "failure",
-    )
+        # execute all other roles
+        else:
+            if lock:
+                lock.acquire()
 
-    if publish:
-        utils.finish_task_output(request_id, rc=rc)
+            command = f"{stdbuf_prefix}/run-{environment}.sh {role} {joined_arguments}"
+            logger.info(f"RUN {command}")
+            p = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                shell=True,
+                env=env,
+            )
 
-    if locking:
-        lock.release()
+        try:
+            while p.poll() is None:
+                line = p.stdout.readline().decode("utf-8")
 
-    return result
+                # Extract hosts from Ansible output
+                match = HOST_PATTERN.match(line.strip())
+                if match:
+                    hostname = match.group(2)
+                    extracted_hosts.add(hostname)  # Local set (automatic deduplication)
+
+                if publish:
+                    utils.push_task_output(request_id, line)
+                result += line
+
+            rc = p.wait(timeout=60)
+
+            # Log play execution result
+            log_play_execution(
+                request_id=request_id,
+                worker=worker,
+                environment=environment,
+                role=role,
+                hosts=sorted(list(extracted_hosts)),  # Direct pass of extracted hosts
+                arguments=joined_arguments,
+                result="success" if rc == 0 else "failure",
+            )
+
+            if publish:
+                utils.finish_task_output(request_id, rc=rc)
+
+            return result
+        finally:
+            if lock:
+                try:
+                    lock.release()
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to release lock for {environment}-{role}: {e}"
+                    )
+    finally:
+        # Clean up per-task SSH ControlPath directory
+        try:
+            shutil.rmtree(ssh_control_dir)
+        except Exception as e:
+            logger.warning(
+                f"Failed to clean up SSH ControlPath directory {ssh_control_dir}: {e}"
+            )
 
 
 def run_command(
