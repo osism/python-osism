@@ -1,8 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import os
+import shlex
+import shutil
 import socket
 import subprocess
+import tempfile
 from typing import Optional
 
 from cliff.command import Command
@@ -196,15 +200,40 @@ class Run(Command):
             type_console = "clush"
             host = host[1:]
 
-        ssh_options = f"-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
+        ssh_options = [
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "LogLevel=ERROR",
+            "-o",
+            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
+        ]
 
         if type_console == "ansible":
-            subprocess.call(f"/run-ansible-console.sh {host}", shell=True)
+            subprocess.call(["/run-ansible-console.sh", host])
         elif type_console == "clush":
-            subprocess.call(
-                f"/usr/local/bin/clush -l {settings.OPERATOR_USER} -g {host}",
-                shell=True,
-            )
+            # Create a per-invocation known_hosts file to avoid race conditions
+            # with fanout:64 concurrent SSH connections while still persisting
+            # host keys during the session.
+            fd, tmp_known_hosts = tempfile.mkstemp(prefix="clush_known_hosts_")
+            try:
+                os.close(fd)
+                if os.path.exists(KNOWN_HOSTS_PATH):
+                    shutil.copy2(KNOWN_HOSTS_PATH, tmp_known_hosts)
+                subprocess.call(
+                    [
+                        "/usr/local/bin/clush",
+                        "-l",
+                        settings.OPERATOR_USER,
+                        "-o",
+                        f"-o UserKnownHostsFile={tmp_known_hosts}",
+                        "-g",
+                        host,
+                    ]
+                )
+            finally:
+                if os.path.exists(tmp_known_hosts):
+                    os.unlink(tmp_known_hosts)
         elif type_console == "ssh":
             # Try to resolve as an inventory group
             group_hosts = get_hosts_from_group(host)
@@ -221,8 +250,13 @@ class Run(Command):
             resolved_host = resolve_host_with_fallback(host)
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{resolved_host}",
-                shell=True,
+                [
+                    "/usr/bin/ssh",
+                    "-i",
+                    "/ansible/secrets/id_rsa.operator",
+                    *ssh_options,
+                    f"{settings.OPERATOR_USER}@{resolved_host}",
+                ]
             )
         elif type_console == "container_prompt":
             while True:
@@ -230,26 +264,47 @@ class Run(Command):
                 if command in ["Exit", "exit", "EXIT"]:
                     break
 
-                ssh_command = f"docker {command}"
+                ssh_command = f"docker {shlex.quote(command)}"
                 # Resolve hostname with Netbox fallback
                 resolved_host = resolve_host_with_fallback(host[:-1])
                 # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
                 subprocess.call(
-                    f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{resolved_host} {ssh_command}",
-                    shell=True,
+                    [
+                        "/usr/bin/ssh",
+                        "-i",
+                        "/ansible/secrets/id_rsa.operator",
+                        *ssh_options,
+                        f"{settings.OPERATOR_USER}@{resolved_host}",
+                        ssh_command,
+                    ]
                 )
         elif type_console == "container":
             target_containername = host.split("/")[1]
             target_host = host.split("/")[0]
             target_command = "bash"
 
-            ssh_command = f"docker exec -it {target_containername} {target_command}"
-            ssh_options = f"-o RequestTTY=force -o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
+            ssh_command = f"docker exec -it {shlex.quote(target_containername)} {shlex.quote(target_command)}"
+            ssh_options = [
+                "-o",
+                "RequestTTY=force",
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "LogLevel=ERROR",
+                "-o",
+                f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
+            ]
 
             # Resolve hostname with Netbox fallback
             resolved_target_host = resolve_host_with_fallback(target_host)
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             subprocess.call(
-                f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{resolved_target_host} {ssh_command}",
-                shell=True,
+                [
+                    "/usr/bin/ssh",
+                    "-i",
+                    "/ansible/secrets/id_rsa.operator",
+                    *ssh_options,
+                    f"{settings.OPERATOR_USER}@{resolved_target_host}",
+                    ssh_command,
+                ]
             )
