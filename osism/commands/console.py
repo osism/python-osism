@@ -226,7 +226,11 @@ class Run(Command):
                         "-l",
                         settings.OPERATOR_USER,
                         "-o",
-                        f"-o UserKnownHostsFile={tmp_known_hosts}",
+                        "StrictHostKeyChecking=no",
+                        "-o",
+                        "LogLevel=ERROR",
+                        "-o",
+                        f"UserKnownHostsFile={tmp_known_hosts}",
                         "-g",
                         host,
                     ]
