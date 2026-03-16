@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-import os
 import shlex
-import shutil
 import socket
 import subprocess
-import tempfile
 from typing import Optional
 
 from cliff.command import Command
@@ -212,32 +209,17 @@ class Run(Command):
         if type_console == "ansible":
             subprocess.call(["/run-ansible-console.sh", host])
         elif type_console == "clush":
-            # Create a per-invocation known_hosts file to avoid race conditions
-            # with fanout:64 concurrent SSH connections while still persisting
-            # host keys during the session.
-            fd, tmp_known_hosts = tempfile.mkstemp(prefix="clush_known_hosts_")
-            try:
-                os.close(fd)
-                if os.path.exists(KNOWN_HOSTS_PATH):
-                    shutil.copy2(KNOWN_HOSTS_PATH, tmp_known_hosts)
-                subprocess.call(
-                    [
-                        "/usr/local/bin/clush",
-                        "-l",
-                        settings.OPERATOR_USER,
-                        "-o",
-                        "StrictHostKeyChecking=no",
-                        "-o",
-                        "LogLevel=ERROR",
-                        "-o",
-                        f"UserKnownHostsFile={tmp_known_hosts}",
-                        "-g",
-                        host,
-                    ]
-                )
-            finally:
-                if os.path.exists(tmp_known_hosts):
-                    os.unlink(tmp_known_hosts)
+            # SSH options (IdentityFile, StrictHostKeyChecking, LogLevel)
+            # are configured in clush.conf, no need to pass them here.
+            subprocess.call(
+                [
+                    "/usr/local/bin/clush",
+                    "-l",
+                    settings.OPERATOR_USER,
+                    "-g",
+                    host,
+                ]
+            )
         elif type_console == "ssh":
             # Try to resolve as an inventory group
             group_hosts = get_hosts_from_group(host)
