@@ -155,6 +155,19 @@ class OpenStackStress(Command):
     def take_action(self, parsed_args):
         """Execute the OpenStack stress testing tool"""
 
+        from osism.tasks.openstack import get_cloud_helpers
+
+        setup_cloud_environment, _, cleanup_cloud_environment = get_cloud_helpers()
+
+        _, temp_files, original_cwd, success = setup_cloud_environment(
+            parsed_args.cloud
+        )
+        if not success:
+            logger.error(
+                f"Failed to set up cloud environment for '{parsed_args.cloud}'"
+            )
+            return 1
+
         # Build the command
         command = [
             "python3",
@@ -199,7 +212,6 @@ class OpenStackStress(Command):
             f"Executing OpenStack stress test with command: {' '.join(command)}"
         )
 
-        # Execute the stress tool
         try:
             result = subprocess.run(command, check=False)
             return result.returncode
@@ -211,3 +223,5 @@ class OpenStackStress(Command):
         except Exception as e:
             logger.error(f"Error executing OpenStack stress tool: {e}")
             return 1
+        finally:
+            cleanup_cloud_environment(temp_files, original_cwd)
