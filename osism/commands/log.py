@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import posixpath
+import shlex
 import subprocess
 
 from cliff.command import Command
@@ -11,6 +13,7 @@ from prompt_toolkit.history import FileHistory
 import requests
 
 from osism import settings
+from osism.commands.console import get_hosts_from_group, resolve_host_with_fallback
 from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
 
 
@@ -72,11 +75,118 @@ class Container(Command):
 class File(Command):
     def get_parser(self, prog_name):
         parser = super(File, self).get_parser(prog_name)
-        parser.add_argument("host", nargs=1, type=str, help="Hostname or address")
+        parser.add_argument(
+            "host", nargs=1, type=str, help="Hostname, address, or inventory group"
+        )
+        parser.add_argument(
+            "path",
+            nargs=1,
+            type=str,
+            help="Path relative to /var/log (e.g. syslog, kern.log, kolla/nova/nova-compute.log)",
+        )
+        parser.add_argument(
+            "--follow",
+            "-f",
+            default=False,
+            action="store_true",
+            help="Follow the log file in real-time (tail -f)",
+        )
+        parser.add_argument(
+            "--lines",
+            "-n",
+            default=100,
+            type=int,
+            choices=range(1, 100001),
+            metavar="LINES",
+            help="Number of lines to show (1-100000, default: %(default)s)",
+        )
         return parser
 
     def take_action(self, parsed_args):
-        print("NOT YET IMPLEMENTED")
+        host = parsed_args.host[0]
+        path = parsed_args.path[0]
+        follow = parsed_args.follow
+        lines = parsed_args.lines
+
+        # Resolve the path relative to /var/log and prevent path traversal
+        resolved = posixpath.normpath(posixpath.join("/var/log", path))
+        if not resolved.startswith("/var/log/"):
+            logger.error("Invalid path: must stay within /var/log")
+            return 1
+
+        # Ensure known_hosts file exists
+        if not ensure_known_hosts_file():
+            logger.warning(
+                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
+            )
+
+        # Build tail command
+        tail_command = f"tail -n {lines}"
+        if follow:
+            tail_command += " -f"
+        tail_command += f" {shlex.quote(resolved)}"
+
+        # Check if host is an inventory group with multiple hosts
+        group_hosts = get_hosts_from_group(host)
+
+        if len(group_hosts) > 1:
+            # Use clush for multi-node log tailing.
+            # SSH options are configured in clush.conf.
+            rc = subprocess.call(
+                [
+                    "/usr/local/bin/clush",
+                    "-l",
+                    settings.OPERATOR_USER,
+                    "-w",
+                    ",".join(group_hosts),
+                    tail_command,
+                ]
+            )
+            if rc != 0:
+                logger.error(
+                    "clush log tailing failed with return code %s for group '%s' (hosts: %s)",
+                    rc,
+                    host,
+                    ",".join(group_hosts),
+                )
+                return rc
+        else:
+            if len(group_hosts) == 1:
+                logger.info(f"Group '{host}' contains one host: {group_hosts[0]}")
+                host = group_hosts[0]
+
+            # Resolve hostname with DNS + Netbox fallback
+            resolved_host = resolve_host_with_fallback(host)
+
+            ssh_options = [
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "LogLevel=ERROR",
+                "-o",
+                f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
+            ]
+
+            # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
+            rc = subprocess.call(
+                [
+                    "/usr/bin/ssh",
+                    "-i",
+                    "/ansible/secrets/id_rsa.operator",
+                    *ssh_options,
+                    f"{settings.OPERATOR_USER}@{resolved_host}",
+                    tail_command,
+                ]
+            )
+            if rc != 0:
+                logger.error(
+                    "ssh log tailing failed with return code %s for host '%s'",
+                    rc,
+                    resolved_host,
+                )
+                return rc
+
+        return 0
 
 
 class Opensearch(Command):
