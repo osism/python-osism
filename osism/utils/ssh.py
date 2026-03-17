@@ -3,13 +3,111 @@
 import os
 import subprocess
 from typing import List, Optional
+
 from loguru import logger
 
-from osism import utils
+from osism import settings, utils
 
 
 # Default path for SSH known_hosts file
 KNOWN_HOSTS_PATH = "/share/known_hosts"
+
+# SSH / clush binary paths and default identity file
+SSH_BINARY = "/usr/bin/ssh"
+SSH_KEY_PATH = "/ansible/secrets/id_rsa.operator"
+CLUSH_BINARY = "/usr/local/bin/clush"
+
+
+def build_ssh_command(
+    host: str,
+    remote_command: str = "",
+    *,
+    user: str = "",
+    connect_timeout: int | None = None,
+    request_tty: bool = False,
+    identity_file: str = SSH_KEY_PATH,
+    known_hosts_path: str = KNOWN_HOSTS_PATH,
+) -> list[str]:
+    """Build an SSH command as a list for subprocess.
+
+    Args:
+        host: Target host (hostname or IP).
+        remote_command: Optional command to execute on the remote host.
+        user: SSH login user. Defaults to ``settings.OPERATOR_USER``.
+        connect_timeout: Optional SSH ConnectTimeout in seconds.
+        request_tty: If True, add ``-o RequestTTY=force``.
+        identity_file: Path to the SSH identity (private key) file.
+        known_hosts_path: Path to the SSH known_hosts file.
+
+    Returns:
+        Command list suitable for :func:`subprocess.call` / :func:`subprocess.run`.
+    """
+    if not user:
+        user = settings.OPERATOR_USER
+
+    cmd: list[str] = [
+        SSH_BINARY,
+        "-i",
+        identity_file,
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "LogLevel=ERROR",
+        "-o",
+        f"UserKnownHostsFile={known_hosts_path}",
+    ]
+
+    if connect_timeout is not None:
+        cmd.extend(["-o", f"ConnectTimeout={connect_timeout}"])
+
+    if request_tty:
+        cmd.extend(["-o", "RequestTTY=force"])
+
+    cmd.append(f"{user}@{host}")
+
+    if remote_command:
+        cmd.append(remote_command)
+
+    return cmd
+
+
+def build_clush_command(
+    hosts: list[str] | None = None,
+    group: str | None = None,
+    remote_command: str = "",
+    *,
+    user: str = "",
+) -> list[str]:
+    """Build a clush command as a list for subprocess.
+
+    SSH options (IdentityFile, StrictHostKeyChecking, LogLevel) are
+    expected to be configured in ``clush.conf``.
+
+    Either *hosts* or *group* must be provided.
+
+    Args:
+        hosts: Explicit list of target hosts (``-w``).
+        group: Inventory group name (``-g``).
+        remote_command: Command to execute on remote hosts.
+        user: SSH login user. Defaults to ``settings.OPERATOR_USER``.
+
+    Returns:
+        Command list suitable for :func:`subprocess.call` / :func:`subprocess.run`.
+    """
+    if not user:
+        user = settings.OPERATOR_USER
+
+    cmd: list[str] = [CLUSH_BINARY, "-l", user]
+
+    if hosts:
+        cmd.extend(["-w", ",".join(hosts)])
+    elif group:
+        cmd.extend(["-g", group])
+
+    if remote_command:
+        cmd.append(remote_command)
+
+    return cmd
 
 
 def ensure_known_hosts_file(known_hosts_path: str = KNOWN_HOSTS_PATH) -> bool:
