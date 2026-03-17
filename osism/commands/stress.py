@@ -43,6 +43,11 @@ class OpenStackStress(Command):
             action="store_true",
             help="Do not wait for resources",
         )
+        parser.add_argument(
+            "--clean",
+            action="store_true",
+            help="Clean up leftover resources matching the prefix",
+        )
 
         # Integer parameters with defaults
         parser.add_argument(
@@ -149,6 +154,13 @@ class OpenStackStress(Command):
             default="__DEFAULT__",
             help="Volume type (default: %(default)s)",
         )
+        parser.add_argument(
+            "--mode",
+            type=str,
+            default="rolling",
+            choices=["rolling", "block"],
+            help="Execution mode (default: %(default)s)",
+        )
 
         return parser
 
@@ -187,6 +199,8 @@ class OpenStackStress(Command):
             command.append("--no-boot-volume")
         if parsed_args.no_wait:
             command.append("--no-wait")
+        if parsed_args.clean:
+            command.append("--clean")
 
         # Add integer parameters
         command.extend(["--interval", str(parsed_args.interval)])
@@ -207,6 +221,7 @@ class OpenStackStress(Command):
         command.extend(["--storage-zone", parsed_args.storage_zone])
         command.extend(["--affinity", parsed_args.affinity])
         command.extend(["--volume-type", parsed_args.volume_type])
+        command.extend(["--mode", parsed_args.mode])
 
         logger.debug(
             f"Executing OpenStack stress test with command: {' '.join(command)}"
