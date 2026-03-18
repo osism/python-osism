@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "29d65ca335c6475225d5078011c75b2869c40c5d93a5eae23bfdec183edddc9f"
+            "sha256": "bec23d5268aa7fb60f434e4ff70cfb25f983ff8d7d81a2c53f7293e22b44d269"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -497,12 +497,12 @@
         },
         "deepdiff": {
             "hashes": [
-                "sha256:ec56d7a769ca80891b5200ec7bd41eec300ced91ebcc7797b41eb2b3f3ff643a",
-                "sha256:ee8708a7f7d37fb273a541fa24ad010ed484192cd0c4ffc0fa0ed5e2d4b9e78b"
+                "sha256:186dcbd181e4d76cef11ab05f802d0056c5d6083c5a6748c1473e9d7481e183e",
+                "sha256:4d22034a866c3928303a9332c279362f714192d9305bac17c498720d095fd1b4"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.9'",
-            "version": "==8.6.1"
+            "version": "==8.6.2"
         },
         "docker": {
             "hashes": [
@@ -1429,11 +1429,11 @@
         },
         "pyasn1": {
             "hashes": [
-                "sha256:1eb26d860996a18e9b6ed05e7aae0e9fc21619fcee6af91cca9bad4fbea224bf",
-                "sha256:9b59a2b25ba7e4f8197db7686c09fb33e658b98339fadb826e9512629017833b"
+                "sha256:697a8ecd6d98891189184ca1fa05d1bb00e2f84b5977c481452050549c8a72cf",
+                "sha256:a80184d120f0864a52a073acc6fc642847d0be408e7c7252f31390c0f4eadcde"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==0.6.2"
+            "version": "==0.6.3"
         },
         "pyasn1-modules": {
             "hashes": [
