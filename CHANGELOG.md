@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260319.0] - 2026-03-19
+
+### Added
+- Log file command for realtime log tailing from nodes via SSH, with clush support for inventory groups and path traversal prevention (osism/python-osism#2148)
+
+### Dependencies
+- netbox-manager 0.20260211.0 → 0.20260310.0 (osism/python-osism#2103)
+- @tanstack/react-query 5.90.21 → 5.91.0 (osism/python-osism#2151)
+
+## [v0.20260317.0] - 2026-03-17
+
+### Added
+- `--mode` and `--clean` parameters to `openstack stress` command for rolling/block execution mode and resource cleanup (osism/python-osism#2147)
+
+### Fixed
+- Cloud credential setup in stress command by integrating cloud helpers used by other OpenStack commands (osism/python-osism#2139)
+- Known_hosts race condition and command injection in console subprocess calls by using list-form subprocess and `shlex.quote()` (osism/python-osism#2137)
+- Host key verification failure for clush console type by adding missing SSH options (osism/python-osism#2141)
+- Clush group resolver error by moving SSH options from CLI flags to clush.conf (osism/python-osism#2142)
+
+### Dependencies
+- uvicorn 0.41.0 → 0.42.0 (osism/python-osism#2138)
+- redfish 3.3.4 → 3.3.5 (osism/python-osism#2123)
+- hiredis 3.3.0 → 3.3.1 (osism/python-osism#2145)
+
+## [v0.20260315.0] - 2026-03-15
+
+### Fixed
+
+- Move pottery import inside stdout/stderr suppression context to suppress "Monkey patched json.dumps()" message (osism/python-osism#2136)
+- Fix intermittent SSH "Permission denied" errors with concurrent Ansible tasks by using per-task SSH ControlPath directories (osism/python-osism#2134)
+
+## [v0.20260314.0] - 2026-03-14
+
+### Added
+- NetBox device link in nodes detail view for quick navigation to the device in NetBox (osism/python-osism#2124)
+- Status report command (`osism report status`) with type parameter for querying host status facts via SSH (osism/python-osism#2126, osism/python-osism#2127)
+- Support for fast inventory directory (`fast/`) as an alternative to `hosts.yml` for faster Ansible inventory parsing (osism/python-osism#2128)
+- `--afi` filter option to `report bgp` command for filtering by address family (osism/python-osism#2133)
+- Host group support to `console ssh` command, allowing inventory group names with interactive host selection (osism/python-osism#2135)
+
+### Changed
+- All hardcoded inventory paths now go through `get_inventory_path` with resolution order: minified → fast directory → hosts.yml (osism/python-osism#2128)
+- Use lazy imports to reduce CLI startup time from ~11 seconds by deferring heavy library imports to first use (osism/python-osism#2130)
+- Rename `report status` type from `boot` to `bootstrap` and show both True and False status by default (osism/python-osism#2131)
+
+### Fixed
+- `ReleaseUnlockedLock` error in reconciler tasks when `/run.sh` exceeds the 60s lock auto-release time (osism/python-osism#2129)
+- Suppress pottery "Monkey patched json.dumps()" message on CLI invocation by deferring import in reconciler (osism/python-osism#2132)
+
 ## [v0.20260313.0] - 2026-03-13
 
 ### Added
