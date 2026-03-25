@@ -959,12 +959,12 @@ class BaremetalBurnIn(Command):
             "name",
             nargs="?",
             type=str,
-            help="Run burn-in on given baremetal node when in provision state available",
+            help="Run burn-in on given baremetal node",
         )
         parser.add_argument(
             "--all",
             default=False,
-            help="Run burn-in on all baremetal nodes in provision state available",
+            help="Run burn-in on all baremetal nodes",
             action="store_true",
         )
         parser.add_argument(
@@ -985,6 +985,12 @@ class BaremetalBurnIn(Command):
             help="Enable disk burn-in",
             action=BooleanOptionalAction,
         )
+        parser.add_argument(
+            "--yes-i-really-really-mean-it",
+            default=False,
+            help="Specify this to actually burn-in active nodes",
+            action="store_true",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -996,6 +1002,8 @@ class BaremetalBurnIn(Command):
         stressor["cpu"] = parsed_args.cpu
         stressor["memory"] = parsed_args.memory
         stressor["disk"] = parsed_args.disk
+
+        yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
 
         if not all_nodes and not name:
             logger.error("Please specify a node name or use --all")
@@ -1085,6 +1093,32 @@ class BaremetalBurnIn(Command):
                             f"Burn-In of node {node.name} ({node.id}) failed: {exc}"
                         )
                         continue
+                elif node.provision_state in ["active"]:
+                    # NOTE: Use service step to run burn-in
+                    if not yes_i_really_really_mean_it:
+                        logger.error(
+                            "Please confirm that you wish to burn-in an active node by specifying '--yes-i-really-really-mean-it'"
+                        )
+                        continue
+
+                    # NOTE: Skip disk burn-in, so that we do not accidentaly overwrite the root disk or any state
+                    service_steps = [
+                        step for step in clean_steps if step["step"] != "burnin_disk"
+                    ]
+                    if len(service_steps) < len(clean_steps):
+                        logger.warning(
+                            "Request to burn-in an active node. Skipping disk burn-in to prevent accidental dataloss"
+                        )
+                    try:
+                        node.set_provision_state(
+                            conn.baremetal, "service", service_steps=service_steps
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            f"Burn-In of node {node.name} ({node.id}) failed: {exc}"
+                        )
+                        continue
+
                 else:
                     logger.warning(
                         f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
