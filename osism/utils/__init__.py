@@ -558,6 +558,87 @@ def is_task_locked():
         return None
 
 
+def check_ansible_facts(max_age=None):
+    """Check if Ansible facts exist in Redis and are not stale.
+
+    Scans Redis for ansible_facts* keys and checks the
+    ansible_date_time.epoch field to determine freshness.
+
+    Args:
+        max_age: Maximum age in seconds (default: settings.FACTS_MAX_AGE)
+    """
+    import json
+
+    if max_age is None:
+        max_age = settings.FACTS_MAX_AGE
+
+    try:
+        r = _init_redis()
+
+        # Find all ansible_facts keys
+        keys = []
+        cursor = 0
+        while True:
+            cursor, batch = r.scan(cursor, match="ansible_facts*", count=100)
+            keys.extend(batch)
+            if cursor == 0:
+                break
+    except Exception as e:
+        logger.warning(f"Could not check Ansible facts freshness: {e}")
+        return
+
+    if not keys:
+        logger.warning(
+            "No Ansible facts found in Redis cache. "
+            "Run 'osism sync facts' to gather facts."
+        )
+        return
+
+    now = time.time()
+    stale_hosts = []
+
+    for key in keys:
+        data = None
+        try:
+            key_str = key.decode() if isinstance(key, bytes) else key
+            hostname = key_str.replace("ansible_facts", "", 1)
+
+            data = r.get(key)
+            if not data:
+                continue
+            facts = json.loads(data)
+            date_time = facts.get("ansible_date_time", {})
+            epoch = date_time.get("epoch")
+            if epoch is None:
+                logger.debug(
+                    f"Host '{hostname}': facts missing ansible_date_time.epoch"
+                )
+                continue
+            age = now - float(epoch)
+            if age > max_age:
+                stale_hosts.append((hostname, int(age)))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            truncated_value = data
+            if isinstance(truncated_value, (bytes, str)):
+                truncated_value = truncated_value[:200]
+            logger.debug(
+                "Skipping malformed ansible_facts entry for key %r: %r",
+                key,
+                truncated_value,
+                exc_info=True,
+            )
+            continue
+
+    if stale_hosts:
+        logger.warning(
+            f"Ansible facts in Redis are stale for {len(stale_hosts)} host(s) "
+            f"(older than {max_age} seconds). "
+            f"Run 'osism sync facts' to update facts."
+        )
+        for hostname, age in stale_hosts:
+            logger.warning(f"  Host '{hostname}': facts are {age} seconds old")
+
+
 def check_task_lock_and_exit():
     """
     Check if tasks are locked and exit with error message if they are.

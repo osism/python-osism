@@ -31,6 +31,7 @@ IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", "True") == "True"
 
 # 43200 seconds = 12 hours
 GATHER_FACTS_SCHEDULE = float(os.getenv("GATHER_FACTS_SCHEDULE", "43200.0"))
+FACTS_MAX_AGE = int(os.getenv("FACTS_MAX_AGE", str(int(GATHER_FACTS_SCHEDULE))))
 INVENTORY_RECONCILER_SCHEDULE = float(
     os.getenv("INVENTORY_RECONCILER_SCHEDULE", "600.0")
 )
