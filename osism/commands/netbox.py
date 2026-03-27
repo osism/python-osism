@@ -32,6 +32,13 @@ class Ironic(Command):
             help="Timeout for a scheduled task that has not been executed yet",
         )
         parser.add_argument(
+            "--adopt",
+            help="Adopt nodes rather than moving them to available\n"
+            "Note: nodes are also adopted implicitly when the NetBox"
+            "custom field 'provision_state' is set to 'active'.",
+            action="store_true",
+        )
+        parser.add_argument(
             "--force",
             help="Force update of baremetal nodes (Used to update non-comparable items like passwords)",
             action="store_true",
@@ -69,6 +76,7 @@ class Ironic(Command):
 
         task = conductor.sync_ironic.delay(
             node_name=node_name,
+            adopt=parsed_args.adopt,
             force=parsed_args.force,
             dry_run=parsed_args.dry_run,
             skip_kernel_params=parsed_args.skip_kernel_params,

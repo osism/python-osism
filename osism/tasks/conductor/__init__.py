@@ -53,6 +53,7 @@ def sync_netbox(self, node_name=None, netbox_filter=None):
 def sync_ironic(
     self,
     node_name=None,
+    adopt=False,
     force=False,
     dry_run=False,
     skip_kernel_params=None,
@@ -65,6 +66,7 @@ def sync_ironic(
         self.request.id,
         get_ironic_parameters,
         node_name,
+        adopt,
         force,
         dry_run,
         skip_kernel_params=skip_kernel_params or [],

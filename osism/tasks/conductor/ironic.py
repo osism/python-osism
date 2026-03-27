@@ -352,7 +352,9 @@ def _prettify_for_display(obj):
     return result
 
 
-def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, force):
+def _sync_ironic_device(
+    request_id, device, node_attributes, ports_attributes, adopt, force
+):
     osism_utils.push_task_output(request_id, f"Processing device {device.name}\n")
     node = openstack.baremetal_node_show(device.name, ignore_missing=True)
     if not node:
@@ -411,6 +413,9 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
         )
         openstack.baremetal_port_delete(node_port["id"])
 
+    # NOTE: Adopt nodes with provisioning state active in NetBox or if explicitly requested
+    is_adoption = adopt or device.custom_fields.get("provision_state", None) == "active"
+
     node_validation = openstack.baremetal_node_validate(node["uuid"])
     if node_validation["management"].result:
         osism_utils.push_task_output(
@@ -430,8 +435,8 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
                 request_id,
                 f"Baremetal node for {device.name} is manageable\n",
             )
-            # NOTE: Ironic keeps the power state found during enroll. We set the node power state to off in order to have a defined state for all newly synced nodes
-            if node["power_state"] != "power off":
+            if not is_adoption and node["power_state"] != "power off":
+                # NOTE: Ironic keeps the power state found during enroll. We set the node power state to off in order to have a defined state for all newly synced nodes
                 osism_utils.push_task_output(
                     request_id,
                     f"Setting power state to 'power off' for {device.name}\n",
@@ -449,40 +454,73 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
                 request_id,
                 f"Validation of boot interface successful for baremetal node for {device.name}\n",
             )
-            if node["provision_state"] == "manageable":
+            if is_adoption and node["provision_state"] == "available":
+                # Note: Prepare adoption of available nodes by moving them to manageable
                 osism_utils.push_task_output(
                     request_id,
-                    f"Transitioning baremetal node to available state for {device.name}\n",
+                    f"Prepare adoption of available baremetal node by transitioning to manageable state for {device.name}\n",
                 )
-                if node["automated_clean"]:
-                    # NOTE: Skip automated cleaning on transition from managable to available. We are waiting for the transition and do not want to wait on cleaning at this point
-                    node = openstack.baremetal_node_update(
-                        node["uuid"], dict(automated_clean=False)
-                    )
-                try:
-                    openstack.baremetal_node_set_boot_device(
-                        node["uuid"], "cdrom", persistent=False
-                    )
-                except Exception:
-                    osism_utils.push_task_output(
-                        request_id,
-                        f"Could not set boot device to cdrom for {device.name}, continuing\n",
-                    )
                 node = openstack.baremetal_node_set_provision_state(
-                    node["uuid"], "provide"
+                    node["uuid"], "manage"
                 )
                 node = openstack.baremetal_node_wait_for_nodes_provision_state(
-                    node["uuid"], "available"
+                    node["uuid"], "manageable"
                 )
+                osism_utils.push_task_output(
+                    request_id,
+                    f"Baremetal node for {device.name} is manageable\n",
+                )
+            if node["provision_state"] == "manageable":
+                if is_adoption:
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Adopting baremetal node for {device.name}\n",
+                    )
+                    node = openstack.baremetal_node_set_provision_state(
+                        node["uuid"], "adopt"
+                    )
+                    node = openstack.baremetal_node_wait_for_nodes_provision_state(
+                        node["uuid"], "active"
+                    )
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Baremetal node for {device.name} is active\n",
+                    )
+                else:
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Transitioning baremetal node to available state for {device.name}\n",
+                    )
+                    if node["automated_clean"]:
+                        # NOTE: Skip automated cleaning on transition from managable to available. We are waiting for the transition and do not want to wait on cleaning at this point
+                        node = openstack.baremetal_node_update(
+                            node["uuid"], dict(automated_clean=False)
+                        )
+                    try:
+                        openstack.baremetal_node_set_boot_device(
+                            node["uuid"], "cdrom", persistent=False
+                        )
+                    except Exception:
+                        osism_utils.push_task_output(
+                            request_id,
+                            f"Could not set boot device to cdrom for {device.name}, continuing\n",
+                        )
+                    node = openstack.baremetal_node_set_provision_state(
+                        node["uuid"], "provide"
+                    )
+                    node = openstack.baremetal_node_wait_for_nodes_provision_state(
+                        node["uuid"], "available"
+                    )
+                    osism_utils.push_task_output(
+                        request_id,
+                        f"Baremetal node for {device.name} is available\n",
+                    )
+
                 if not node["automated_clean"]:
                     # NOTE: Activate automated cleaning, so that future actions will trigger it
                     node = openstack.baremetal_node_update(
                         node["uuid"], dict(automated_clean=True)
                     )
-                osism_utils.push_task_output(
-                    request_id,
-                    f"Baremetal node for {device.name} is available\n",
-                )
         else:
             osism_utils.push_task_output(
                 request_id,
@@ -517,7 +555,7 @@ def _sync_ironic_device(request_id, device, node_attributes, ports_attributes, f
 
 
 def _sync_ironic_device_dry_run(
-    request_id, device, node_attributes, ports_attributes, force, template_vars
+    request_id, device, node_attributes, ports_attributes, adopt, force, template_vars
 ):
     # Collect actual secret values for string-level masking
     secret_values = set()
@@ -552,6 +590,20 @@ def _sync_ironic_device_dry_run(
             osism_utils.push_task_output(
                 request_id,
                 f"[DRY RUN] Would CREATE port with MAC {port_attributes['address']} for {device.name}\n",
+            )
+        osism_utils.push_task_output(
+            request_id,
+            f"[DRY RUN] Would try to transition node to `manageable` for {device.name}\n",
+        )
+        if adopt or device.custom_fields["provision_state"] == "active":
+            osism_utils.push_task_output(
+                request_id,
+                f"[DRY RUN] Would try to adopt node for {device.name}\n",
+            )
+        else:
+            osism_utils.push_task_output(
+                request_id,
+                f"[DRY RUN] Would try to transition node to `available` for {device.name}\n",
             )
     else:
         # NOTE: Check whether the baremetal node needs to be updated
@@ -617,6 +669,7 @@ def sync_ironic(
     request_id,
     get_ironic_parameters,
     node_name=None,
+    adopt=False,
     force=False,
     dry_run=False,
     skip_kernel_params=None,
@@ -773,6 +826,7 @@ def sync_ironic(
                 device,
                 node_attributes,
                 ports_attributes,
+                adopt,
                 force,
                 template_vars,
             )
@@ -784,7 +838,12 @@ def sync_ironic(
             if lock.acquire(timeout=120):
                 try:
                     _sync_ironic_device(
-                        request_id, device, node_attributes, ports_attributes, force
+                        request_id,
+                        device,
+                        node_attributes,
+                        ports_attributes,
+                        adopt,
+                        force,
                     )
                 except Exception as exc:
                     osism_utils.push_task_output(
