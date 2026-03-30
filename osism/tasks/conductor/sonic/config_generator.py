@@ -17,6 +17,10 @@ from osism.tasks.conductor.netbox import (
     get_device_oob_ip,
     get_device_vlans,
 )
+from osism.tasks.conductor.utils import (
+    deep_decrypt,
+    get_vault,
+)
 from .bgp import calculate_local_asn_from_ipv4
 from .device import get_device_platform, get_device_hostname, get_device_mac_address
 from .interface import (
@@ -2124,12 +2128,23 @@ def _add_snmp_configuration(config, device, oob_ip):
     in the config_context of the device.
     """
 
+    # Create vault instance for Custom Field decryption
+    vault = get_vault()
+
+    # Decrypt secrets Custom Field
+    node_secrets = device.custom_fields.get("secrets", {})
+    if node_secrets is None:
+        node_secrets = {}
+    deep_decrypt(node_secrets, vault)
+
+    # Configure SNMP location and contact
     location = device.config_context.get("_segment_snmp_server_location", "Data Center")
     contact = device.config_context.get(
         "_segment_snmp_server_contact", "info@example.com"
     )
     config["SNMP_SERVER"] = {"SYSTEM": {"sysContact": contact, "sysLocation": location}}
 
+    # Configure SNMP traps
     traps = device.config_context.get("_segment_snmp_server_traps", True)
     if traps:
         config["SNMP_SERVER"]["SYSTEM"]["traps"] = "enable"
@@ -2139,13 +2154,14 @@ def _add_snmp_configuration(config, device, oob_ip):
             f"{oob_ip}|161|mgmt": {"name": "agentEntry1"}
         }
 
+    # Configure SNMP user
     username = device.config_context.get("_segment_snmp_server_username", None)
     if username:
-        userauthpass = device.config_context.get(
-            "_segment_snmp_server_userauthpass", "OBFUSCATEDSECRET1"
+        userauthpass = node_secrets.get(
+            "_segment_snmp_server_userauthpass", "OBFUSCATEDAUTHSECRET"
         )
-        userprivpass = device.config_context.get(
-            "_segment_snmp_server_userprivpass", "OBFUSCATEDSECRET2"
+        userprivpass = node_secrets.get(
+            "_segment_snmp_server_userprivpass", "OBFUSCATEDPRIVSECRET"
         )
         config["SNMP_SERVER_GROUP_MEMBER"] = {}
         config["SNMP_SERVER_USER"] = {}
