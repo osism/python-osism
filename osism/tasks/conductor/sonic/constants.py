@@ -5,6 +5,9 @@
 # Tag to add AF L2VPN EVPN to BGP neighbor
 BGP_AF_L2VPN_EVPN_TAG = "bgp-af-l2vpn-evpn"
 
+# Tag to enable EVPN Multihoming (evpn-lag mode) on a port channel
+EVPN_LAG_TAG = "evpn-lag"
+
 # Default AS prefix for local ASN calculation
 DEFAULT_LOCAL_AS_PREFIX = 4200
 

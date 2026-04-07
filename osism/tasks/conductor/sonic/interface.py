@@ -7,7 +7,7 @@ import os
 import re
 from loguru import logger
 
-from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS, PORT_CONFIG_PATH
+from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS, PORT_CONFIG_PATH, EVPN_LAG_TAG
 from .cache import get_cached_device_interfaces
 
 # Global cache for port configurations to avoid repeated file reads
@@ -1044,12 +1044,24 @@ def detect_port_channels(device):
 
                 # Initialize port channel if not exists
                 if portchannel_name not in portchannels:
+                    # Find the full LAG interface object to check tags
+                    lag_interface = next(
+                        (iface for iface in lag_interfaces if iface.id == lag_parent.id),
+                        None,
+                    )
+                    evpn_lag = False
+                    if lag_interface and hasattr(lag_interface, "tags") and lag_interface.tags:
+                        evpn_lag = any(
+                            tag.slug == EVPN_LAG_TAG for tag in lag_interface.tags
+                        )
+
                     portchannels[portchannel_name] = {
                         "members": [],
                         "admin_status": "up",
                         "fast_rate": "true",
                         "min_links": "1",
                         "mtu": "9100",
+                        "evpn_lag": evpn_lag,
                     }
 
                 # Add member to port channel

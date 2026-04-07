@@ -274,7 +274,8 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["BREAKOUT_PORTS"].update(breakout_info["breakout_ports"])
 
     # Add port channel configuration
-    _add_portchannel_configuration(config, portchannel_info)
+    evpn_system_mac = device.config_context.get("_evpn_system_mac")
+    _add_portchannel_configuration(config, portchannel_info, evpn_system_mac)
 
     # Add VRF configuration
     _add_vrf_configuration(config, vrf_info, netbox_interfaces)
@@ -2067,17 +2068,20 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             )
 
 
-def _add_portchannel_configuration(config, portchannel_info):
+def _add_portchannel_configuration(config, portchannel_info, evpn_system_mac=None):
     """Add port channel configuration from NetBox."""
     if portchannel_info["portchannels"]:
         for pc_name, pc_data in portchannel_info["portchannels"].items():
             # Add PORTCHANNEL configuration
-            config["PORTCHANNEL"][pc_name] = {
+            pc_config = {
                 "admin_status": pc_data["admin_status"],
                 "fast_rate": pc_data["fast_rate"],
                 "min_links": pc_data["min_links"],
                 "mtu": pc_data["mtu"],
             }
+            if pc_data.get("evpn_lag") and evpn_system_mac:
+                pc_config["system_mac"] = evpn_system_mac
+            config["PORTCHANNEL"][pc_name] = pc_config
 
             # Add PORTCHANNEL_INTERFACE configuration to enable IPv6 link-local
             config["PORTCHANNEL_INTERFACE"][pc_name] = {
