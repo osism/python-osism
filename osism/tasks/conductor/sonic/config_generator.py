@@ -73,6 +73,17 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     # Get port channel configuration from NetBox first (needed by get_connected_interfaces)
     portchannel_info = detect_port_channels(device)
 
+    # Resolve evpn_system_mac early so it is validated once and passed explicitly later
+    _raw_evpn_mac = device.config_context.get("_evpn_system_mac")
+    evpn_system_mac = (
+        _raw_evpn_mac if isinstance(_raw_evpn_mac, str) and _raw_evpn_mac else None
+    )
+    if _raw_evpn_mac and not evpn_system_mac:
+        logger.warning(
+            f"Device {device.name}: '_evpn_system_mac' in config_context is not a valid string"
+            f" (got {type(_raw_evpn_mac).__name__!r}), ignoring"
+        )
+
     # Get connected interfaces to determine admin_status
     connected_interfaces, connected_portchannels = get_connected_interfaces(
         device, portchannel_info
@@ -274,7 +285,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["BREAKOUT_PORTS"].update(breakout_info["breakout_ports"])
 
     # Add port channel configuration
-    _add_portchannel_configuration(config, portchannel_info)
+    _add_portchannel_configuration(config, portchannel_info, evpn_system_mac)
 
     # Add VRF configuration
     _add_vrf_configuration(config, vrf_info, netbox_interfaces)
@@ -2108,17 +2119,20 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             )
 
 
-def _add_portchannel_configuration(config, portchannel_info):
+def _add_portchannel_configuration(config, portchannel_info, evpn_system_mac=None):
     """Add port channel configuration from NetBox."""
     if portchannel_info["portchannels"]:
         for pc_name, pc_data in portchannel_info["portchannels"].items():
             # Add PORTCHANNEL configuration
-            config["PORTCHANNEL"][pc_name] = {
+            pc_config = {
                 "admin_status": pc_data["admin_status"],
                 "fast_rate": pc_data["fast_rate"],
                 "min_links": pc_data["min_links"],
                 "mtu": pc_data["mtu"],
             }
+            if pc_data.get("evpn_lag") and evpn_system_mac:
+                pc_config["system_mac"] = evpn_system_mac
+            config["PORTCHANNEL"][pc_name] = pc_config
 
             # Add PORTCHANNEL_INTERFACE configuration to enable IPv6 link-local
             config["PORTCHANNEL_INTERFACE"][pc_name] = {
