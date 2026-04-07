@@ -278,7 +278,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     _add_portchannel_configuration(config, portchannel_info, evpn_system_mac)
 
     # Add VRF configuration
-    _add_vrf_configuration(config, vrf_info, netbox_interfaces)
+    _add_vrf_configuration(config, vrf_info, vlan_info, netbox_interfaces)
 
     # Set DATABASE VERSION from config_version parameter or default
     if "VERSIONS" not in config:
@@ -1927,12 +1927,13 @@ def _get_vrf_info(device):
     return vrf_info
 
 
-def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
+def _add_vrf_configuration(config, vrf_info, vlan_info, netbox_interfaces):
     """Add VRF configuration to config.
 
     Args:
         config: Configuration dictionary to update
         vrf_info: VRF information dictionary from _get_vrf_info()
+        vlan_info: VLAN information dictionary from get_device_vlans()
         netbox_interfaces: Dict mapping SONiC names to NetBox interface info
     """
     # Track VRFs with VNI for VXLAN configuration
@@ -2019,8 +2020,11 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             config["BGP_GLOBALS"][vrf_name] = copy.deepcopy(default_bgp)
             logger.info(f"Added BGP_GLOBALS for VRF {vrf_name}")
 
-    # Add VXLAN configuration if there are VRFs with VNI
-    if vrfs_with_vni:
+    # Collect L2 VNI VLANs (tagged evpn-l2vni in NetBox, VNI == VID)
+    l2vni_vlans = vlan_info.get("l2vni_vlans", {})
+
+    # Add VXLAN configuration if there are VRFs with VNI or L2 VNI VLANs
+    if vrfs_with_vni or l2vni_vlans:
         # Get source IP from BGP_GLOBALS default router_id
         src_ip = config.get("BGP_GLOBALS", {}).get("default", {}).get("router_id", "")
 
@@ -2039,7 +2043,7 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
         }
         logger.info(f"Added VXLAN_EVPN_NVO nvo1 with source_vtep {VXLAN_VTEP_NAME}")
 
-        # Add VXLAN_TUNNEL_MAP for each VRF with VNI
+        # Add VXLAN_TUNNEL_MAP for each VRF with VNI (L3 / IRB)
         for vrf_entry in vrfs_with_vni:
             vni = vrf_entry["vni"]
             vlan_name = f"Vlan{vni}"
@@ -2049,6 +2053,22 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
                 "vni": str(vni),
             }
             logger.info(f"Added VXLAN_TUNNEL_MAP {map_key}")
+
+        # Add VXLAN_TUNNEL_MAP for each L2 VNI VLAN (pure L2, no VRF assignment)
+        vrf_vnis = {entry["vni"] for entry in vrfs_with_vni}
+        for vid, vni in l2vni_vlans.items():
+            if vni in vrf_vnis:
+                logger.debug(
+                    f"Skipping L2 VNI {vni} for Vlan{vid}: already covered by VRF tunnel map"
+                )
+                continue
+            vlan_name = f"Vlan{vid}"
+            map_key = f"{VXLAN_VTEP_NAME}|map_{vni}_{vlan_name}"
+            config["VXLAN_TUNNEL_MAP"][map_key] = {
+                "vlan": vlan_name,
+                "vni": str(vni),
+            }
+            logger.info(f"Added L2 VXLAN_TUNNEL_MAP {map_key}")
 
     # Add VRF assignments to interfaces
     for sonic_interface, vrf_name in vrf_info["interface_vrf_mapping"].items():

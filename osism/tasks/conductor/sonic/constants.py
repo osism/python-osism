@@ -8,6 +8,9 @@ BGP_AF_L2VPN_EVPN_TAG = "bgp-af-l2vpn-evpn"
 # Tag to enable EVPN Multihoming (evpn-lag mode) on a port channel
 EVPN_LAG_TAG = "evpn-lag"
 
+# Tag to enable L2 VxLAN (EVPN L2 VNI) for a VLAN — VNI equals VLAN ID
+EVPN_L2VNI_TAG = "evpn-l2vni"
+
 # Default AS prefix for local ASN calculation
 DEFAULT_LOCAL_AS_PREFIX = 4200
 

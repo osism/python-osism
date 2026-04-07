@@ -160,14 +160,18 @@ def get_device_vlans(device):
               {
                   'vlans': {vid: {'name': name, 'description': desc}},
                   'vlan_members': {vid: {'port_name': 'tagging_mode'}},
-                  'vlan_interfaces': {vid: {'addresses': [ip_with_prefix, ...]}}
+                  'vlan_interfaces': {vid: {'addresses': [ip_with_prefix, ...]}},
+                  'l2vni_vlans': {vid: vni}  -- VLANs tagged evpn-l2vni (VNI == VID)
               }
     """
     from .sonic.cache import get_cached_device_interfaces
+    from .sonic.constants import EVPN_L2VNI_TAG
 
     vlans = {}
     vlan_members = {}
     vlan_interfaces = {}
+    # Map of NetBox VLAN object id -> vid, collected while iterating interfaces
+    vlan_obj_ids = {}
 
     try:
         # Use cached interfaces instead of separate query
@@ -204,6 +208,7 @@ def get_device_vlans(device):
                         "name": vlan.name or f"Vlan{vid}",
                         "description": vlan.description or "",
                     }
+                vlan_obj_ids[vlan.id] = vid
 
                 # Add interface to VLAN members as untagged
                 if vid not in vlan_members:
@@ -223,6 +228,7 @@ def get_device_vlans(device):
                             "name": vlan.name or f"Vlan{vid}",
                             "description": vlan.description or "",
                         }
+                    vlan_obj_ids[vlan.id] = vid
 
                     # Add interface to VLAN members as tagged
                     if vid not in vlan_members:
@@ -259,6 +265,25 @@ def get_device_vlans(device):
                     # Skip if interface name doesn't follow Vlan<number> pattern
                     pass
 
+        # Determine which VLANs are tagged evpn-l2vni by fetching full VLAN objects
+        l2vni_vlans = {}
+        if vlan_obj_ids:
+            try:
+                full_vlans = list(
+                    utils.nb.ipam.vlans.filter(id=list(vlan_obj_ids.keys()))
+                )
+                for v in full_vlans:
+                    if any(
+                        getattr(t, "slug", None) == EVPN_L2VNI_TAG
+                        for t in getattr(v, "tags", [])
+                    ):
+                        l2vni_vlans[v.vid] = v.vid  # VNI equals VID
+                        logger.debug(
+                            f"VLAN {v.vid} tagged {EVPN_L2VNI_TAG}, will add L2 VXLAN_TUNNEL_MAP entry"
+                        )
+            except Exception as e:
+                logger.warning(f"Could not fetch VLAN tags for L2 VNI check: {e}")
+
     except Exception as e:
         logger.warning(f"Could not get VLANs for device {device.name}: {e}")
 
@@ -266,6 +291,7 @@ def get_device_vlans(device):
         "vlans": vlans,
         "vlan_members": vlan_members,
         "vlan_interfaces": vlan_interfaces,
+        "l2vni_vlans": l2vni_vlans,
     }
 
 
