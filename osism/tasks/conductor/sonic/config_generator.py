@@ -1754,7 +1754,6 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
 
         # Add SAG entries for anycast addresses
         if anycast_addresses:
-            sag_enabled = True
             if "SAG" not in config:
                 config["SAG"] = {}
             ipv4_anycast = []
@@ -1769,8 +1768,10 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
                 except ValueError:
                     logger.warning(f"Invalid anycast IP address format: {addr}")
             if ipv4_anycast:
+                sag_enabled = True
                 config["SAG"][f"{vlan_name}|IPv4"] = {"gwip": ipv4_anycast}
             if ipv6_anycast:
+                sag_enabled = True
                 config["SAG"][f"{vlan_name}|IPv6"] = {"gwip": ipv6_anycast}
 
     if sag_enabled:
