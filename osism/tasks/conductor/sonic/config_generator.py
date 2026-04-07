@@ -34,7 +34,12 @@ from .connections import (
     get_connected_interface_ipv4_address,
 )
 from .cache import get_cached_device_interfaces
-from .constants import BGP_AF_L2VPN_EVPN_TAG, DEFAULT_SONIC_ROLES
+from .constants import (
+    BGP_AF_L2VPN_EVPN_TAG,
+    DEFAULT_SONIC_ROLES,
+    DEFAULT_EVPN_SYSTEM_MAC,
+    DEFAULT_SAG_MAC,
+)
 
 # Global cache for NTP servers to avoid multiple queries
 _ntp_servers_cache = None
@@ -73,16 +78,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     # Get port channel configuration from NetBox first (needed by get_connected_interfaces)
     portchannel_info = detect_port_channels(device)
 
-    # Resolve evpn_system_mac early so it is validated once and passed explicitly later
-    _raw_evpn_mac = device.config_context.get("_evpn_system_mac")
-    evpn_system_mac = (
-        _raw_evpn_mac if isinstance(_raw_evpn_mac, str) and _raw_evpn_mac else None
-    )
-    if _raw_evpn_mac and not evpn_system_mac:
-        logger.warning(
-            f"Device {device.name}: '_evpn_system_mac' in config_context is not a valid string"
-            f" (got {type(_raw_evpn_mac).__name__!r}), ignoring"
-        )
+    evpn_system_mac = DEFAULT_EVPN_SYSTEM_MAC
 
     # Get connected interfaces to determine admin_status
     connected_interfaces, connected_portchannels = get_connected_interfaces(
@@ -270,7 +266,8 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["MGMT_INTERFACE"]["eth0"] = {"admin_status": "up"}
         config["MGMT_INTERFACE"][f"eth0|{oob_ip}/{prefix_len}"] = {}
         metalbox_ip = _get_metalbox_ip_for_device(device)
-        config["STATIC_ROUTE"] = {}
+        if "STATIC_ROUTE" not in config:
+            config["STATIC_ROUTE"] = {}
         config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] = {"nexthop": metalbox_ip}
     else:
         oob_ip = None
@@ -288,7 +285,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     _add_portchannel_configuration(config, portchannel_info, evpn_system_mac)
 
     # Add VRF configuration
-    _add_vrf_configuration(config, vrf_info, netbox_interfaces)
+    _add_vrf_configuration(config, vrf_info, vlan_info, netbox_interfaces)
 
     # Set DATABASE VERSION from config_version parameter or default
     if "VERSIONS" not in config:
@@ -1756,7 +1753,11 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
 
         if addresses or anycast_addresses:
             # Add the VLAN interface base entry
-            config["VLAN_INTERFACE"][vlan_name] = {"admin_status": "up"}
+            vlan_iface_entry = {"admin_status": "up"}
+            vrf_name = interface_data.get("vrf_name")
+            if vrf_name:
+                vlan_iface_entry["vrf_name"] = vrf_name
+            config["VLAN_INTERFACE"][vlan_name] = vlan_iface_entry
 
         # Add regular IP configuration for each address (IPv4 and IPv6)
         for address in addresses:
@@ -1786,19 +1787,39 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
                 config["SAG"][f"{vlan_name}|IPv6"] = {"gwip": ipv6_anycast}
 
     if sag_enabled:
-        gwmac = device.config_context.get("_sag_gwmac")
-        if not gwmac:
-            raise ValueError(
-                f"Device {device.name} has SAG anycast addresses but no '_sag_gwmac' "
-                "defined in its config context"
-            )
         if "SAG_GLOBAL" not in config:
             config["SAG_GLOBAL"] = {}
         config["SAG_GLOBAL"]["IP"] = {
             "IPv4": "enable",
             "IPv6": "enable",
-            "gwmac": gwmac,
+            "gwmac": DEFAULT_SAG_MAC,
         }
+
+    # Add static default routes per VRF from sonic_parameters on VLAN interfaces
+    for vid, interface_data in vlan_info["vlan_interfaces"].items():
+        vrf_name = interface_data.get("vrf_name")
+        if not vrf_name:
+            continue
+        logger.debug(f"Adding static default routes for VRF {vrf_name} (Vlan{vid})")
+
+        default_route_ipv4 = interface_data.get("default_route_ipv4")
+        default_route_ipv6 = interface_data.get("default_route_ipv6")
+        if not default_route_ipv4 and not default_route_ipv6:
+            continue
+        if "STATIC_ROUTE" not in config:
+            config["STATIC_ROUTE"] = {}
+        if default_route_ipv4:
+            config["STATIC_ROUTE"][f"{vrf_name}|0.0.0.0/0"] = {
+                "nexthop": default_route_ipv4
+            }
+            logger.debug(
+                f"Added static IPv4 default route for VRF {vrf_name} via {default_route_ipv4} (Vlan{vid})"
+            )
+        if default_route_ipv6:
+            config["STATIC_ROUTE"][f"{vrf_name}|::/0"] = {"nexthop": default_route_ipv6}
+            logger.debug(
+                f"Added static IPv6 default route for VRF {vrf_name} via {default_route_ipv6} (Vlan{vid})"
+            )
 
 
 def _add_loopback_configuration(config, loopback_info):
@@ -1978,12 +1999,13 @@ def _get_vrf_info(device):
     return vrf_info
 
 
-def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
+def _add_vrf_configuration(config, vrf_info, vlan_info, netbox_interfaces):
     """Add VRF configuration to config.
 
     Args:
         config: Configuration dictionary to update
         vrf_info: VRF information dictionary from _get_vrf_info()
+        vlan_info: VLAN information dictionary from get_device_vlans()
         netbox_interfaces: Dict mapping SONiC names to NetBox interface info
     """
     # Track VRFs with VNI for VXLAN configuration
@@ -2070,8 +2092,11 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             config["BGP_GLOBALS"][vrf_name] = copy.deepcopy(default_bgp)
             logger.info(f"Added BGP_GLOBALS for VRF {vrf_name}")
 
-    # Add VXLAN configuration if there are VRFs with VNI
-    if vrfs_with_vni:
+    # Collect L2 VNI VLANs (tagged evpn-l2vni in NetBox, VNI == VID)
+    l2vni_vlans = vlan_info.get("l2vni_vlans", {})
+
+    # Add VXLAN configuration if there are VRFs with VNI or L2 VNI VLANs
+    if vrfs_with_vni or l2vni_vlans:
         # Get source IP from BGP_GLOBALS default router_id
         src_ip = config.get("BGP_GLOBALS", {}).get("default", {}).get("router_id", "")
 
@@ -2090,7 +2115,7 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
         }
         logger.info(f"Added VXLAN_EVPN_NVO nvo1 with source_vtep {VXLAN_VTEP_NAME}")
 
-        # Add VXLAN_TUNNEL_MAP for each VRF with VNI
+        # Add VXLAN_TUNNEL_MAP for each VRF with VNI (L3 / IRB)
         for vrf_entry in vrfs_with_vni:
             vni = vrf_entry["vni"]
             vlan_name = f"Vlan{vni}"
@@ -2100,6 +2125,22 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
                 "vni": str(vni),
             }
             logger.info(f"Added VXLAN_TUNNEL_MAP {map_key}")
+
+        # Add VXLAN_TUNNEL_MAP for each L2 VNI VLAN (pure L2, no VRF assignment)
+        vrf_vnis = {entry["vni"] for entry in vrfs_with_vni}
+        for vid, vni in l2vni_vlans.items():
+            if vni in vrf_vnis:
+                logger.debug(
+                    f"Skipping L2 VNI {vni} for Vlan{vid}: already covered by VRF tunnel map"
+                )
+                continue
+            vlan_name = f"Vlan{vid}"
+            map_key = f"{VXLAN_VTEP_NAME}|map_{vni}_{vlan_name}"
+            config["VXLAN_TUNNEL_MAP"][map_key] = {
+                "vlan": vlan_name,
+                "vni": str(vni),
+            }
+            logger.info(f"Added L2 VXLAN_TUNNEL_MAP {map_key}")
 
     # Add VRF assignments to interfaces
     for sonic_interface, vrf_name in vrf_info["interface_vrf_mapping"].items():
@@ -2119,7 +2160,7 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             )
 
 
-def _add_portchannel_configuration(config, portchannel_info, evpn_system_mac=None):
+def _add_portchannel_configuration(config, portchannel_info, evpn_system_mac):
     """Add port channel configuration from NetBox."""
     if portchannel_info["portchannels"]:
         for pc_name, pc_data in portchannel_info["portchannels"].items():
@@ -2133,6 +2174,18 @@ def _add_portchannel_configuration(config, portchannel_info, evpn_system_mac=Non
             if pc_data.get("evpn_lag") and evpn_system_mac:
                 pc_config["system_mac"] = evpn_system_mac
             config["PORTCHANNEL"][pc_name] = pc_config
+
+            # Add EVPN_ETHERNET_SEGMENT configuration for EVPN multihoming LAGs
+            if pc_data.get("evpn_lag"):
+                if "EVPN_ETHERNET_SEGMENT" not in config:
+                    config["EVPN_ETHERNET_SEGMENT"] = {}
+                config["EVPN_ETHERNET_SEGMENT"][pc_name] = {
+                    "esi": "AUTO",
+                    "esi_type": "TYPE_3_MAC_BASED",
+                    "ifname": pc_name,
+                }
+                if "EVPN_MH_GLOBAL" not in config:
+                    config["EVPN_MH_GLOBAL"] = {"default": {"startup_delay": "300"}}
 
             # Add PORTCHANNEL_INTERFACE configuration to enable IPv6 link-local
             config["PORTCHANNEL_INTERFACE"][pc_name] = {
