@@ -246,15 +246,25 @@ def get_device_vlans(device):
                     ip_addresses = interface_ips_map.get(interface.id, [])
 
                     addresses = []
+                    anycast_addresses = []
                     for ip_addr in ip_addresses:
                         if ip_addr.address:
-                            addresses.append(ip_addr.address)
+                            role = getattr(ip_addr, "role", None)
+                            role_value = (
+                                getattr(role, "value", None) if role else None
+                            )
+                            if role_value == "anycast":
+                                anycast_addresses.append(ip_addr.address)
+                            else:
+                                addresses.append(ip_addr.address)
 
-                    if addresses:
+                    if addresses or anycast_addresses:
                         if vid not in vlan_interfaces:
                             vlan_interfaces[vid] = {}
-                        # Store all IP addresses for this VLAN interface
-                        vlan_interfaces[vid]["addresses"] = addresses
+                        if addresses:
+                            vlan_interfaces[vid]["addresses"] = addresses
+                        if anycast_addresses:
+                            vlan_interfaces[vid]["anycast_addresses"] = anycast_addresses
                 except (ValueError, IndexError):
                     # Skip if interface name doesn't follow Vlan<number> pattern
                     pass
