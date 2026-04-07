@@ -7,7 +7,12 @@ import os
 import re
 from loguru import logger
 
-from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS, PORT_CONFIG_PATH, EVPN_LAG_TAG
+from .constants import (
+    PORT_TYPE_TO_SPEED_MAP,
+    HIGH_SPEED_PORTS,
+    PORT_CONFIG_PATH,
+    EVPN_LAG_TAG,
+)
 from .cache import get_cached_device_interfaces
 
 # Global cache for port configurations to avoid repeated file reads
@@ -978,7 +983,7 @@ def detect_port_channels(device):
         # Get all interfaces for the device (using cache)
         interfaces = get_cached_device_interfaces(device.id)
 
-        # First pass: find LAG interfaces
+        # First pass: find LAG interfaces and precompute evpn_lag lookup
         lag_interfaces = []
         for interface in interfaces:
             # Check if this is a LAG interface
@@ -986,6 +991,15 @@ def detect_port_channels(device):
                 if interface.type.value == "lag":
                     lag_interfaces.append(interface)
                     logger.debug(f"Found LAG interface: {interface.name}")
+
+        evpn_lag_by_id = {
+            iface.id: (
+                hasattr(iface, "tags")
+                and iface.tags
+                and any(tag.slug == EVPN_LAG_TAG for tag in iface.tags)
+            )
+            for iface in lag_interfaces
+        }
 
         # Second pass: map members to LAGs
         for interface in interfaces:
@@ -1044,16 +1058,7 @@ def detect_port_channels(device):
 
                 # Initialize port channel if not exists
                 if portchannel_name not in portchannels:
-                    # Find the full LAG interface object to check tags
-                    lag_interface = next(
-                        (iface for iface in lag_interfaces if iface.id == lag_parent.id),
-                        None,
-                    )
-                    evpn_lag = False
-                    if lag_interface and hasattr(lag_interface, "tags") and lag_interface.tags:
-                        evpn_lag = any(
-                            tag.slug == EVPN_LAG_TAG for tag in lag_interface.tags
-                        )
+                    evpn_lag = evpn_lag_by_id.get(lag_parent.id, False)
 
                     portchannels[portchannel_name] = {
                         "members": [],

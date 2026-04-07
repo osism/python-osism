@@ -73,6 +73,17 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     # Get port channel configuration from NetBox first (needed by get_connected_interfaces)
     portchannel_info = detect_port_channels(device)
 
+    # Resolve evpn_system_mac early so it is validated once and passed explicitly later
+    _raw_evpn_mac = device.config_context.get("_evpn_system_mac")
+    evpn_system_mac = (
+        _raw_evpn_mac if isinstance(_raw_evpn_mac, str) and _raw_evpn_mac else None
+    )
+    if _raw_evpn_mac and not evpn_system_mac:
+        logger.warning(
+            f"Device {device.name}: '_evpn_system_mac' in config_context is not a valid string"
+            f" (got {type(_raw_evpn_mac).__name__!r}), ignoring"
+        )
+
     # Get connected interfaces to determine admin_status
     connected_interfaces, connected_portchannels = get_connected_interfaces(
         device, portchannel_info
@@ -274,7 +285,6 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["BREAKOUT_PORTS"].update(breakout_info["breakout_ports"])
 
     # Add port channel configuration
-    evpn_system_mac = device.config_context.get("_evpn_system_mac")
     _add_portchannel_configuration(config, portchannel_info, evpn_system_mac)
 
     # Add VRF configuration
