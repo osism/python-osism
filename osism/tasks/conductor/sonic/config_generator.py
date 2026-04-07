@@ -1736,17 +1736,58 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
             member_key = f"{vlan_name}|{sonic_interface_name}"
             config["VLAN_MEMBER"][member_key] = {"tagging_mode": tagging_mode}
 
-    # Add VLAN interfaces (SVIs)
+    # Add VLAN interfaces (SVIs) and SAG entries
+    sag_enabled = False
     for vid, interface_data in vlan_info["vlan_interfaces"].items():
         vlan_name = f"Vlan{vid}"
-        if "addresses" in interface_data and interface_data["addresses"]:
-            # Add the VLAN interface
+        addresses = interface_data.get("addresses", [])
+        anycast_addresses = interface_data.get("anycast_addresses", [])
+
+        if addresses or anycast_addresses:
+            # Add the VLAN interface base entry
             config["VLAN_INTERFACE"][vlan_name] = {"admin_status": "up"}
 
-            # Add IP configuration for each address (IPv4 and IPv6)
-            for address in interface_data["addresses"]:
-                ip_key = f"{vlan_name}|{address}"
-                config["VLAN_INTERFACE"][ip_key] = {}
+        # Add regular IP configuration for each address (IPv4 and IPv6)
+        for address in addresses:
+            ip_key = f"{vlan_name}|{address}"
+            config["VLAN_INTERFACE"][ip_key] = {}
+
+        # Add SAG entries for anycast addresses
+        if anycast_addresses:
+            if "SAG" not in config:
+                config["SAG"] = {}
+            ipv4_anycast = []
+            ipv6_anycast = []
+            for addr in anycast_addresses:
+                try:
+                    ip_obj = ipaddress.ip_interface(addr)
+                    if ip_obj.version == 4:
+                        ipv4_anycast.append(addr)
+                    elif ip_obj.version == 6:
+                        ipv6_anycast.append(addr)
+                except ValueError:
+                    logger.warning(f"Invalid anycast IP address format: {addr}")
+            if ipv4_anycast:
+                sag_enabled = True
+                config["SAG"][f"{vlan_name}|IPv4"] = {"gwip": ipv4_anycast}
+            if ipv6_anycast:
+                sag_enabled = True
+                config["SAG"][f"{vlan_name}|IPv6"] = {"gwip": ipv6_anycast}
+
+    if sag_enabled:
+        gwmac = device.config_context.get("_sag_gwmac")
+        if not gwmac:
+            raise ValueError(
+                f"Device {device.name} has SAG anycast addresses but no '_sag_gwmac' "
+                "defined in its config context"
+            )
+        if "SAG_GLOBAL" not in config:
+            config["SAG_GLOBAL"] = {}
+        config["SAG_GLOBAL"]["IP"] = {
+            "IPv4": "enable",
+            "IPv6": "enable",
+            "gwmac": gwmac,
+        }
 
 
 def _add_loopback_configuration(config, loopback_info):
