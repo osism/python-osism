@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+
 from ansible import constants as ansible_constants
 from ansible.parsing.vault import VaultLib, VaultSecret
 from loguru import logger
@@ -7,6 +9,7 @@ from loguru import logger
 from osism import utils
 import sushy
 import urllib3
+import yaml
 
 
 def deep_compare(a, b, updates):
@@ -86,6 +89,32 @@ def get_vault():
         logger.error("Dropping encrypted entries")
         vault = VaultLib()
     return vault
+
+
+def load_yaml_file(path):
+    """Load a YAML file and only request the vault secret when needed."""
+    if not os.path.exists(path):
+        logger.error(f"YAML file not found: {path}")
+        return None
+
+    try:
+        with open(path, "rb") as f:
+            file_data = f.read()
+
+        if VaultLib().is_encrypted(file_data):
+            decrypted_data = get_vault().decrypt(file_data).decode()
+            logger.debug(f"Successfully decrypted vault-encrypted YAML file: {path}")
+        else:
+            decrypted_data = file_data.decode()
+            logger.debug(f"YAML file is not encrypted: {path}")
+
+        return yaml.safe_load(decrypted_data)
+    except yaml.YAMLError as exc:
+        logger.error(f"Failed to parse YAML file {path}: {exc}")
+        return None
+    except Exception as exc:
+        logger.error(f"Failed to load YAML file {path}: {exc}")
+        return None
 
 
 def get_redfish_connection(

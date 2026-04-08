@@ -10,7 +10,7 @@ from loguru import logger
 
 from osism import settings, utils
 from osism.tasks import Config, run_command
-from osism.tasks.conductor.utils import get_vault
+from osism.tasks.conductor.utils import load_yaml_file
 
 app = Celery("openstack")
 app.config_from_object(Config)
@@ -432,52 +432,7 @@ def get_cloud_password(cloud):
             logger.warning(f"Secrets file not found: {secrets_path}")
             return None
 
-        # Get vault instance for decryption
-        vault = get_vault()
-
-        # Load the secrets file
-        with open(secrets_path, "rb") as f:
-            file_data = f.read()
-
-        decrypted_secrets = None
-
-        # Try to decrypt the file if it's vault encrypted
-        try:
-            if vault.is_encrypted(file_data):
-                # File is encrypted, decrypt it
-                decrypted_data = vault.decrypt(file_data).decode()
-                logger.debug(f"Successfully decrypted secrets file: {secrets_path}")
-            else:
-                # File is not encrypted, use as-is
-                decrypted_data = file_data.decode()
-                logger.debug(
-                    f"Secrets file is not encrypted (development mode): {secrets_path}"
-                )
-
-            # Parse the YAML content safely
-            try:
-                decrypted_secrets = yaml.safe_load(decrypted_data)
-            except yaml.YAMLError as yaml_exc:
-                logger.error(
-                    f"Failed to parse YAML content from secrets file: {yaml_exc}"
-                )
-                return None
-
-        except Exception as decrypt_exc:
-            # If decryption fails, try reading as plain YAML (development fallback)
-            logger.warning(
-                f"Failed to decrypt secrets file, attempting to read as plain YAML: {decrypt_exc}"
-            )
-            try:
-                with open(secrets_path, "r") as f:
-                    decrypted_secrets = yaml.safe_load(f)
-                logger.debug(
-                    f"Successfully loaded unencrypted secrets file (development mode): {secrets_path}"
-                )
-            except Exception as plain_exc:
-                logger.error(f"Failed to read secrets file as plain YAML: {plain_exc}")
-                return None
-
+        decrypted_secrets = load_yaml_file(secrets_path)
         if not decrypted_secrets or not isinstance(decrypted_secrets, dict):
             logger.warning(
                 f"Empty or invalid secrets file after decryption: {secrets_path}"
