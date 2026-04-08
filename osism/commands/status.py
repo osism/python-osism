@@ -104,8 +104,6 @@ class Database(Command):
 
     def _load_database_password(self):
         """Load and decrypt the database password from secrets.yml"""
-        from osism.tasks.conductor.utils import get_vault
-
         secrets_path = "/opt/configuration/environments/kolla/secrets.yml"
 
         if not os.path.exists(secrets_path):
@@ -113,21 +111,9 @@ class Database(Command):
             return None
 
         try:
-            vault = get_vault()
+            from osism.tasks.conductor.utils import load_yaml_file
 
-            with open(secrets_path, "rb") as f:
-                file_data = f.read()
-
-            if vault.is_encrypted(file_data):
-                decrypted_data = vault.decrypt(file_data).decode()
-                logger.debug(f"Successfully decrypted secrets file: {secrets_path}")
-            else:
-                decrypted_data = file_data.decode()
-                logger.debug(
-                    f"Secrets file is not encrypted (development mode): {secrets_path}"
-                )
-
-            secrets = yaml.safe_load(decrypted_data)
+            secrets = load_yaml_file(secrets_path)
 
             if not secrets or not isinstance(secrets, dict):
                 logger.error("Empty or invalid secrets file")
