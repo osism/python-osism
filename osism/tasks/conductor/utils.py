@@ -94,7 +94,7 @@ def get_vault():
 def load_yaml_file(path):
     """Load a YAML file and only request the vault secret when needed."""
     if not os.path.exists(path):
-        logger.error(f"YAML file not found: {path}")
+        logger.debug(f"YAML file not found: {path}")
         return None
 
     try:
@@ -110,10 +110,10 @@ def load_yaml_file(path):
 
         return yaml.safe_load(decrypted_data)
     except yaml.YAMLError as exc:
-        logger.error(f"Failed to parse YAML file {path}: {exc}")
+        logger.debug(f"Failed to parse YAML file {path}: {exc}")
         return None
     except Exception as exc:
-        logger.error(f"Failed to load YAML file {path}: {exc}")
+        logger.debug(f"Failed to load YAML file {path}: {exc}")
         return None
 
 
