@@ -3,6 +3,7 @@
 import os
 
 from ansible import constants as ansible_constants
+from ansible.errors import AnsibleError
 from ansible.parsing.vault import VaultLib, VaultSecret
 from loguru import logger
 
@@ -112,8 +113,11 @@ def load_yaml_file(path):
     except yaml.YAMLError as exc:
         logger.debug(f"Failed to parse YAML file {path}: {exc}")
         return None
-    except Exception as exc:
-        logger.debug(f"Failed to load YAML file {path}: {exc}")
+    except AnsibleError as exc:
+        logger.debug(f"Failed to decrypt YAML file {path}: {exc}")
+        return None
+    except OSError as exc:
+        logger.debug(f"Failed to read YAML file {path}: {exc}")
         return None
 
 
