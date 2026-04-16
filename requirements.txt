@@ -6,7 +6,7 @@ PyMySQL==1.1.2
 PyYAML==6.0.3
 ara==1.7.5
 celery[redis]==5.6.3
-cliff==4.13.2
+cliff==4.13.3
 deepdiff==8.6.2
 docker==7.1.0
 dtrack-auditor==1.5.0
