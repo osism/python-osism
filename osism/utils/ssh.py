@@ -7,7 +7,6 @@ from loguru import logger
 
 from osism import utils
 
-
 # Default path for SSH known_hosts file
 KNOWN_HOSTS_PATH = "/share/known_hosts"
 

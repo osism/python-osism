@@ -26,7 +26,6 @@ from osism.tasks.conductor.utils import (
     mask_secrets,
 )
 
-
 SUPPORTED_IPA_TYPES = {
     "yrzn001": {
         "osism-ipa-as": "frr_local_as",

@@ -11,7 +11,6 @@ import yaml
 
 from osism import settings
 
-
 _redis = None
 _nb = None
 _secondary_nb_list = None

@@ -7,7 +7,6 @@ from cliff.command import Command
 from loguru import logger
 import requests
 
-
 # Service-specific queue patterns for classic queue identification
 # Each service has a list of regex patterns that match its queues
 SERVICE_QUEUE_PATTERNS = {
