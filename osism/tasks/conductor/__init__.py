@@ -12,7 +12,6 @@ from osism.tasks.conductor.redfish import get_resources as _get_redfish_resource
 from osism.tasks.conductor.sonic import sync_sonic as _sync_sonic
 from osism.tasks.conductor.sonic import get_devices as _get_sonic_devices
 
-
 # App configuration
 app = Celery("conductor")
 app.config_from_object(Config)
