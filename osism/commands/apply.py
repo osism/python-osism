@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import time
 
 from cliff.command import Command
 from loguru import logger
@@ -432,6 +433,16 @@ class Run(Command):
         wait = not parsed_args.no_wait
         dry_run = parsed_args.dry_run
         show_tree = parsed_args.show_tree
+
+        # Check if Ansible facts in Redis are available and fresh.
+        # Skip when gathering facts or just showing the tree.
+        # Use time-based backoff to avoid a costly Redis scan on every invocation.
+        if role and role not in ("gather-facts", "facts") and not show_tree:
+            now = time.time()
+            last_check = getattr(utils, "_last_ansible_facts_check", 0)
+            if now - last_check > 300:
+                utils.check_ansible_facts()
+                utils._last_ansible_facts_check = now
 
         rc = 0
 
