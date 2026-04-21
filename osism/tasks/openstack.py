@@ -402,6 +402,18 @@ def baremetal_port_delete(self, port_or_id):
     return result
 
 
+@app.task(bind=True, name="osism.tasks.openstack.baremetal_node_set_target_raid_config")
+def baremetal_node_set_target_raid_config(self, node_id_or_name, target_raid_config):
+    conn = utils.get_openstack_connection()
+    node = conn.baremetal.get_node(node_id_or_name)
+    response = conn.baremetal.put(
+        f"/nodes/{node['uuid']}/states/raid",
+        microversion="1.12",
+        json=target_raid_config,
+    )
+    return response.ok, response.content
+
+
 def get_cloud_password(cloud):
     """
     Load and decrypt the OpenStack password for a specific cloud profile

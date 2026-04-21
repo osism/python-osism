@@ -354,6 +354,8 @@ def _prettify_for_display(obj):
 def _sync_ironic_device(
     request_id, device, node_attributes, ports_attributes, adopt, force
 ):
+    # NOTE: Pop target_raid_config from node_attributes since they cannot be set using node updates
+    target_raid_config = node_attributes.pop("target_raid_config", None)
     osism_utils.push_task_output(request_id, f"Processing device {device.name}\n")
     node = openstack.baremetal_node_show(device.name, ignore_missing=True)
     if not node:
@@ -366,6 +368,14 @@ def _sync_ironic_device(
         # later be adopted with their provisioned data.
         node_attributes.update(dict(automated_clean=False))
         node = openstack.baremetal_node_create(device.name, node_attributes)
+        if target_raid_config:
+            resp_ok, resp_content = openstack.baremetal_node_set_target_raid_config(
+                node["uuid"], target_raid_config
+            )
+            if not resp_ok:
+                raise Exception(
+                    f"Error updating target_raid_config of baremetal node for {device.name}: {resp_content}"
+                )
     else:
         # NOTE: Check whether the baremetal node needs to be updated
         node_updates = {}
@@ -384,6 +394,14 @@ def _sync_ironic_device(
             )
             # NOTE: Do the actual updates with all values in node_attributes. Otherwise nested dicts like e.g. driver_info will be overwritten as a whole and contain only changed values
             node = openstack.baremetal_node_update(node["uuid"], node_attributes)
+            if ("target_raid_config" in node_updates or force) and target_raid_config:
+                resp_ok, resp_content = openstack.baremetal_node_set_target_raid_config(
+                    node["uuid"], target_raid_config
+                )
+                if not resp_ok:
+                    raise Exception(
+                        f"Error updating target_raid_config of baremetal node for {device.name}: {resp_content}"
+                    )
 
     node_ports = openstack.baremetal_port_list(
         details=False, attributes=dict(node_uuid=node["uuid"])

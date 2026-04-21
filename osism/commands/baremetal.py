@@ -363,9 +363,26 @@ class BaremetalDeploy(Command):
                             f"Node {node.name} ({node.id}) could not set boot device to cdrom: {exc}"
                         )
 
+                deploy_steps = None
+                if node["target_raid_config"]:
+                    deploy_steps = [
+                        {
+                            "interface": "raid",
+                            "step": "apply_configuration",
+                            "args": {
+                                "delete_existing": True,
+                                "raid_config": node["target_raid_config"],
+                            },
+                            "priority": 90,
+                        }
+                    ]
+
                 try:
                     conn.baremetal.set_node_provision_state(
-                        node.id, provision_state, config_drive=config_drive
+                        node.id,
+                        provision_state,
+                        config_drive=config_drive,
+                        deploy_steps=deploy_steps,
                     )
                 except Exception as exc:
                     logger.warning(
@@ -1201,6 +1218,12 @@ class BaremetalClean(Command):
             for node in clean_nodes:
                 if not node:
                     continue
+
+                # NOTE: If the node has an agent raid interface, include step to delete the raid configuration
+                if node.get("raid_interface", "no-raid") != "no-raid":
+                    clean_steps = [
+                        {"interface": "raid", "step": "delete_configuration"}
+                    ] + clean_steps
 
                 if node.provision_state in ["available"]:
                     # NOTE: Clean is available in the "manageable" provision state, so we move the node into this state
