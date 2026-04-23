@@ -10,7 +10,7 @@ cliff==4.13.3
 deepdiff==8.6.2
 docker==7.1.0
 dtrack-auditor==1.5.0
-fastapi==0.135.2
+fastapi==0.136.1
 flower==2.0.1
 hiredis==3.3.1
 jc==1.25.6
