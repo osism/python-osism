@@ -1,6 +1,6 @@
 ClusterShell==1.9.3
 boto3==1.42.95
-GitPython==3.1.46
+GitPython==3.1.47
 Jinja2==3.1.6
 PyMySQL==1.1.2
 PyYAML==6.0.3
