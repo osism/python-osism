@@ -40,3 +40,8 @@ sushy = "==5.10.0"
 transitions = "==0.9.3"
 validators = "==0.35.0"
 watchdog = "==6.0.0"
+
+[dev-packages]
+pytest = "==9.0.3"
+pytest-cov = "==6.0.0"
+pytest-mock = "==3.14.0"
