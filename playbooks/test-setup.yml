@@ -15,4 +15,4 @@
           export PATH=$PATH:$HOME/.local/bin
 
           pipenv install
-          pipenv run pip install .
+          pipenv run pip install --no-deps .

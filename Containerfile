@@ -58,6 +58,7 @@ uv pip install --no-cache --system -r /src/requirements.ansible.txt
 uv pip install --no-cache --system -r /src/requirements.openstack-image-manager.txt
 uv pip install --no-cache --system -r /src/requirements.openstack-flavor-manager.txt
 uv pip install --no-cache --system -r /src/requirements.netbox-manager.txt
+uv pip install --no-cache --system -r /src/requirements.sonic.txt
 
 # install python-osism
 uv pip install --no-cache --system /src

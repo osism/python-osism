@@ -1,0 +1,1 @@
+sonic-yang-mgmt @ git+https://github.com/sonic-net/sonic-buildimage.git@9ef3658e5315002006ea1d6da2524ad14f77c928#subdirectory=src/sonic-yang-mgmt
