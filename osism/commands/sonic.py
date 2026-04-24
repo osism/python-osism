@@ -1072,7 +1072,6 @@ class List(Command):
 
     def take_action(self, parsed_args):
         from osism.tasks import conductor
-        from osism.tasks.conductor.netbox import get_device_oob_ip
         from osism.tasks.conductor.sonic.constants import SUPPORTED_HWSKUS
 
         device_name = parsed_args.device
@@ -1080,11 +1079,6 @@ class List(Command):
         try:
             task = conductor.get_sonic_devices.delay(device_name=device_name)
             devices = task.wait()
-            if isinstance(devices, type(None)):
-                logger.error(
-                    "Error listing SONiC devices. Check the conductor log for details"
-                )
-                return 1
 
             logger.info(f"Found {len(devices)} devices matching criteria")
 
@@ -1101,90 +1095,28 @@ class List(Command):
             ]
 
             for device in devices:
-                # Get device name
-                device_name = device.name
+                name = device.get("name")
+                hwsku = device.get("hwsku")
 
-                # Get device role
-                device_role = "N/A"
-                try:
-                    if device.role and hasattr(device.role, "name"):
-                        device_role = device.role.name
-                except Exception as e:
-                    logger.debug(f"Could not get device role for {device_name}: {e}")
-
-                # Get OOB IP address
-                oob_ip = "N/A"
-                try:
-                    oob_result = get_device_oob_ip(device)
-                    if oob_result:
-                        oob_ip = oob_result[0]  # Get just the IP address
-                except Exception as e:
-                    logger.debug(f"Could not get OOB IP for {device_name}: {e}")
-
-                # Get primary IP address
-                primary_ip = "N/A"
-                try:
-                    if device.primary_ip4:
-                        # Extract IP address from CIDR notation
-                        primary_ip = str(device.primary_ip4).split("/")[0]
-                    elif device.primary_ip6:
-                        # Extract IP address from CIDR notation
-                        primary_ip = str(device.primary_ip6).split("/")[0]
-                except Exception as e:
-                    logger.debug(f"Could not get primary IP for {device_name}: {e}")
-
-                # Get HWSKU and Version from sonic_parameters custom field
-                hwsku = "N/A"
-                version = "N/A"
-                try:
-                    if (
-                        hasattr(device, "custom_fields")
-                        and "sonic_parameters" in device.custom_fields
-                        and device.custom_fields["sonic_parameters"]
-                        and isinstance(device.custom_fields["sonic_parameters"], dict)
-                    ):
-                        sonic_params = device.custom_fields["sonic_parameters"]
-                        if "hwsku" in sonic_params and sonic_params["hwsku"]:
-                            hwsku = sonic_params["hwsku"]
-                        if "version" in sonic_params and sonic_params["version"]:
-                            version = sonic_params["version"]
-                except Exception as e:
-                    logger.debug(
-                        f"Could not extract sonic_parameters for {device_name}: {e}"
+                if hwsku is None:
+                    provision_state = "No HWSKU"
+                elif hwsku not in SUPPORTED_HWSKUS:
+                    provision_state = "Unsupported HWSKU"
+                    logger.warning(
+                        f"Device {name} has unsupported HWSKU: {hwsku}. "
+                        f"Supported HWSKUs: {', '.join(SUPPORTED_HWSKUS)}"
                     )
-
-                # Determine provision state with HWSKU validation
-                provision_state = "N/A"
-                try:
-                    if hwsku == "N/A":
-                        provision_state = "No HWSKU"
-                    elif hwsku not in SUPPORTED_HWSKUS:
-                        provision_state = "Unsupported HWSKU"
-                        logger.warning(
-                            f"Device {device_name} has unsupported HWSKU: {hwsku}. "
-                            f"Supported HWSKUs: {', '.join(SUPPORTED_HWSKUS)}"
-                        )
-                    else:
-                        # For valid HWSKUs, get provision state from Netbox custom field
-                        if (
-                            hasattr(device, "custom_fields")
-                            and "provision_state" in device.custom_fields
-                            and device.custom_fields["provision_state"]
-                        ):
-                            provision_state = device.custom_fields["provision_state"]
-                except Exception as e:
-                    logger.debug(
-                        f"Could not determine provision state for {device_name}: {e}"
-                    )
+                else:
+                    provision_state = device.get("provision_state") or "N/A"
 
                 table_data.append(
                     [
-                        device_name,
-                        device_role,
-                        oob_ip,
-                        primary_ip,
-                        hwsku,
-                        version,
+                        name,
+                        device.get("role_name") or "N/A",
+                        device.get("oob_ip") or "N/A",
+                        device.get("primary_ip") or "N/A",
+                        hwsku or "N/A",
+                        device.get("version") or "N/A",
                         provision_state,
                     ]
                 )
