@@ -5,8 +5,17 @@ from pathlib import Path
 from loguru import logger
 import yaml
 
+_PLAYBOOK_DIR = Path("/interface/playbooks")
 _MAP_ROLE2ENVIRONMENT = None
 _MAP_ROLE2RUNTIME = None
+
+
+def _reset_caches():
+    global _MAP_ROLE2ENVIRONMENT, _MAP_ROLE2RUNTIME
+    _MAP_ROLE2ENVIRONMENT = None
+    _MAP_ROLE2RUNTIME = None
+    globals().pop("MAP_ROLE2ENVIRONMENT", None)
+    globals().pop("MAP_ROLE2RUNTIME", None)
 
 
 def _load_playbook_data():
@@ -17,7 +26,7 @@ def _load_playbook_data():
     _MAP_ROLE2ENVIRONMENT = {}
     _MAP_ROLE2RUNTIME = {}
 
-    for path in Path("/interface/playbooks").glob("*.yml"):
+    for path in _PLAYBOOK_DIR.glob("*.yml"):
         try:
             with open(path) as fp:
                 data = yaml.load(fp, Loader=yaml.SafeLoader)
