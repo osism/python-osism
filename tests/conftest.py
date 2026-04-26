@@ -48,8 +48,15 @@ def _install_ansible_stubs() -> None:
         def __init__(self, *args, **kwargs):
             pass
 
-        def is_encrypted(self, *args, **kwargs):
-            return False
+        def is_encrypted(self, data, *args, **kwargs):
+            if isinstance(data, str):
+                data = data.encode("utf-8", errors="ignore")
+            return isinstance(data, (bytes, bytearray)) and bytes(data).startswith(
+                b"$ANSIBLE_VAULT"
+            )
+
+        def decrypt(self, *args, **kwargs):
+            return b""
 
     class VaultSecret:
         def __init__(self, *args, **kwargs):
