@@ -419,6 +419,7 @@ class ImageOctavia(Command):
 
         logger.info(f"checksum_url: {url}.CHECKSUM")
         response_checksum = requests.get(f"{url}.CHECKSUM")
+        logger.info(f"checksum_url_status: {response_checksum.status_code}")
         splitted_checksum = response_checksum.text.strip().split(" ")
         logger.info(f"checksum: {splitted_checksum[0]}")
 
