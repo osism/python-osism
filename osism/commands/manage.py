@@ -43,6 +43,20 @@ def _validate_marker(body: str) -> bool:
     )
 
 
+def _fetch_image_info(base_url, marker_url):
+    marker_body = fetch_text(marker_url, validate=_validate_marker)
+    date, image_filename = marker_body.strip().split()[:2]
+    logger.info(f"date: {date}")
+    logger.info(f"image: {image_filename}")
+    url = urljoin(base_url, image_filename)
+    logger.info(f"url: {url}")
+    logger.info(f"checksum_url: {url}.CHECKSUM")
+    checksum_body = fetch_text(f"{url}.CHECKSUM", validate=_is_sha256)
+    checksum = checksum_body.strip().split()[0]
+    logger.info(f"checksum: {checksum}")
+    return date, image_filename, url, checksum
+
+
 SUPPORTED_CLUSTERAPI_GARDENER_K8S_IMAGES = ["1.33"]
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.32", "1.33", "1.34"]
 SUPPORTED_GARDENLINUX_VERSIONS = {"1877.7": "2025-11-14"}
@@ -107,24 +121,14 @@ class ImageClusterapi(Command):
         result = []
         for kubernetes_release in supported_cluterapi_k8s_images:
             marker_url = urljoin(base_url, f"last-{kubernetes_release}")
-            marker_body = fetch_text(marker_url, validate=_validate_marker)
-            splitted = marker_body.strip().split()
-
-            logger.info(f"date: {splitted[0]}")
-            logger.info(f"image: {splitted[1]}")
+            date, image_filename, url, checksum = _fetch_image_info(
+                base_url, marker_url
+            )
 
             r = findall(
-                r".*ubuntu-[0-9][02468]04-kube-v(.*\..*\..*).qcow2", splitted[1]
+                r".*ubuntu-[0-9][02468]04-kube-v(.*\..*\..*).qcow2", image_filename
             )
             logger.info(f"version: {r[0].strip()}")
-
-            url = urljoin(base_url, splitted[1])
-            logger.info(f"url: {url}")
-
-            logger.info(f"checksum_url: {url}.CHECKSUM")
-            checksum_body = fetch_text(f"{url}.CHECKSUM", validate=_is_sha256)
-            splitted_checksum = checksum_body.strip().split()
-            logger.info(f"checksum: {splitted_checksum[0]}")
 
             from jinja2 import Template
             from osism.data import TEMPLATE_IMAGE_CLUSTERAPI
@@ -134,9 +138,9 @@ class ImageClusterapi(Command):
                 [
                     template.render(
                         image_url=url,
-                        image_checksum=f"sha256:{splitted_checksum[0]}",
+                        image_checksum=f"sha256:{checksum}",
                         image_version=r[0].strip(),
-                        image_builddate=splitted[0],
+                        image_builddate=date,
                     )
                 ]
             )
@@ -227,24 +231,14 @@ class ImageClusterapiGardener(Command):
         result = []
         for kubernetes_release in supported_cluterapi_gardener_k8s_images:
             marker_url = urljoin(base_url, f"last-{kubernetes_release}-gardener")
-            marker_body = fetch_text(marker_url, validate=_validate_marker)
-            splitted = marker_body.strip().split()
-
-            logger.info(f"date: {splitted[0]}")
-            logger.info(f"image: {splitted[1]}")
+            date, image_filename, url, checksum = _fetch_image_info(
+                base_url, marker_url
+            )
 
             r = findall(
-                r".*ubuntu-[0-9][02468]04-kube-v(.*\..*\..*)\.qcow2", splitted[1]
+                r".*ubuntu-[0-9][02468]04-kube-v(.*\..*\..*)\.qcow2", image_filename
             )
             logger.info(f"version: {r[0].strip()}")
-
-            url = urljoin(base_url, splitted[1])
-            logger.info(f"url: {url}")
-
-            logger.info(f"checksum_url: {url}.CHECKSUM")
-            checksum_body = fetch_text(f"{url}.CHECKSUM", validate=_is_sha256)
-            splitted_checksum = checksum_body.strip().split()
-            logger.info(f"checksum: {splitted_checksum[0]}")
 
             from jinja2 import Template
             from osism.data import TEMPLATE_IMAGE_CLUSTERAPI_GARDENER
@@ -254,9 +248,9 @@ class ImageClusterapiGardener(Command):
                 [
                     template.render(
                         image_url=url,
-                        image_checksum=f"sha256:{splitted_checksum[0]}",
+                        image_checksum=f"sha256:{checksum}",
                         image_version=r[0].strip(),
-                        image_builddate=splitted[0],
+                        image_builddate=date,
                     )
                 ]
             )
@@ -438,19 +432,7 @@ class ImageOctavia(Command):
         container = client.containers.get("kolla-ansible")
         openstack_release = container.labels["de.osism.release.openstack"]
         marker_url = urljoin(base_url, f"last-{openstack_release}")
-        marker_body = fetch_text(marker_url, validate=_validate_marker)
-        splitted = marker_body.strip().split()
-
-        logger.info(f"date: {splitted[0]}")
-        logger.info(f"image: {splitted[1]}")
-
-        url = urljoin(base_url, splitted[1])
-        logger.info(f"url: {url}")
-
-        logger.info(f"checksum_url: {url}.CHECKSUM")
-        checksum_body = fetch_text(f"{url}.CHECKSUM", validate=_is_sha256)
-        splitted_checksum = checksum_body.strip().split()
-        logger.info(f"checksum: {splitted_checksum[0]}")
+        date, _, url, checksum = _fetch_image_info(base_url, marker_url)
 
         template = Template(TEMPLATE_IMAGE_OCTAVIA)
         result = []
@@ -458,9 +440,9 @@ class ImageOctavia(Command):
             [
                 template.render(
                     image_url=url,
-                    image_checksum=f"sha256:{splitted_checksum[0]}",
-                    image_version=splitted[0],
-                    image_builddate=splitted[0],
+                    image_checksum=f"sha256:{checksum}",
+                    image_version=date,
+                    image_builddate=date,
                 )
             ]
         )
