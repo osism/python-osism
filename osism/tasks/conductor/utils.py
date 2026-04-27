@@ -12,6 +12,8 @@ import sushy
 import urllib3
 import yaml
 
+DELETE_SENTINEL = "DELETE"
+
 
 def deep_compare(a, b, updates):
     """
@@ -31,7 +33,7 @@ def deep_compare(a, b, updates):
 
 def deep_merge(a, b):
     for key, value in b.items():
-        if value == "DELETE":
+        if value == DELETE_SENTINEL:
             # NOTE: Use special string to remove keys
             a.pop(key, None)
         elif (
