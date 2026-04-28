@@ -40,9 +40,6 @@ from .connections import (
 from .cache import get_cached_device_interfaces
 from .constants import BGP_AF_L2VPN_EVPN_TAG, DEFAULT_SONIC_ROLES
 
-# Global cache for NTP servers to avoid multiple queries
-_ntp_servers_cache = None
-
 # Global cache for metalbox IPs per device to avoid duplicate lookups
 _metalbox_ip_cache: dict[int, Optional[str]] = {}
 
@@ -51,6 +48,40 @@ _metalbox_devices_cache: Optional[dict] = None
 
 # VXLAN VTEP name used for VXLAN tunnel configuration
 VXLAN_VTEP_NAME = "vtepServ"
+
+# Top-level scaffold keys that the orchestrator and downstream helpers index
+# into directly. Kept as a single source of truth so that the production code
+# and the test helpers cannot drift apart when keys are added or removed.
+TOP_LEVEL_SCAFFOLD_KEYS = (
+    "DEVICE_METADATA",
+    "BGP_GLOBALS",
+    "BGP_GLOBALS_AF",
+    "BGP_GLOBALS_AF_NETWORK",
+    "BGP_GLOBALS_ROUTE_ADVERTISE",
+    "BGP_NEIGHBOR",
+    "BGP_NEIGHBOR_AF",
+    "MGMT_INTERFACE",
+    "STATIC_ROUTE",
+    "BREAKOUT_CFG",
+    "BREAKOUT_PORTS",
+    "NTP_SERVER",
+    "DNS_NAMESERVER",
+    "PORT",
+    "INTERFACE",
+    "VLAN",
+    "VLAN_INTERFACE",
+    "VLAN_MEMBER",
+    "LOOPBACK",
+    "LOOPBACK_INTERFACE",
+    "PORTCHANNEL",
+    "PORTCHANNEL_INTERFACE",
+    "PORTCHANNEL_MEMBER",
+    "VRF",
+    "VXLAN_TUNNEL",
+    "VXLAN_EVPN_NVO",
+    "VXLAN_TUNNEL_MAP",
+    "VERSIONS",
+)
 
 
 def natural_sort_key(port_name):
@@ -159,6 +190,12 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         )
         # Ensure we start fresh even on error
         config = {}
+
+    # Ensure the top-level scaffold keys the orchestrator and downstream
+    # helpers index into directly are always present, even when the on-disk
+    # base config is missing or only partially populated.
+    for _scaffold_key in TOP_LEVEL_SCAFFOLD_KEYS:
+        config.setdefault(_scaffold_key, {})
 
     # Update DEVICE_METADATA with NetBox information
     if "localhost" not in config["DEVICE_METADATA"]:
@@ -1563,64 +1600,6 @@ def _get_metalbox_ip_for_device(device):
         return None
 
 
-def _get_ntp_servers():
-    """Get NTP servers from manager/metalbox devices. Uses caching to avoid repeated queries."""
-    global _ntp_servers_cache
-
-    if _ntp_servers_cache is not None:
-        logger.debug("Using cached NTP servers")
-        return _ntp_servers_cache
-
-    ntp_servers = {}
-    try:
-        # Get devices with manager or metalbox device roles
-        devices_manager = utils.nb.dcim.devices.filter(role="manager")
-        devices_metalbox = utils.nb.dcim.devices.filter(role="metalbox")
-
-        # Combine both device lists
-        ntp_devices = list(devices_manager) + list(devices_metalbox)
-        logger.debug(f"Found {len(ntp_devices)} potential NTP devices")
-
-        for ntp_device in ntp_devices:
-            # Get interfaces for this device to find Loopback0
-            device_interfaces = utils.nb.dcim.interfaces.filter(device_id=ntp_device.id)
-
-            for interface in device_interfaces:
-                # Look for Loopback0 interface
-                if interface.name == "Loopback0":
-                    # Get IP addresses assigned to this Loopback0 interface
-                    ip_addresses = utils.nb.ipam.ip_addresses.filter(
-                        assigned_object_id=interface.id,
-                    )
-
-                    for ip_addr in ip_addresses:
-                        if ip_addr.address:
-                            # Extract just the IPv4 address without prefix
-                            ip_only = ip_addr.address.split("/")[0]
-
-                            # Check if it's an IPv4 address (simple check)
-                            if "." in ip_only and ":" not in ip_only:
-                                ntp_servers[ip_only] = {
-                                    "maxpoll": "10",
-                                    "minpoll": "6",
-                                    "prefer": "false",
-                                }
-                                logger.info(
-                                    f"Found NTP server {ip_only} from device {ntp_device.name} with role {ntp_device.role.slug}"
-                                )
-                    break
-
-        # Cache the results
-        _ntp_servers_cache = ntp_servers
-        logger.debug(f"Cached {len(ntp_servers)} NTP servers")
-
-    except Exception as e:
-        logger.warning(f"Could not process NTP servers: {e}")
-        _ntp_servers_cache = {}
-
-    return _ntp_servers_cache
-
-
 def _add_ntp_configuration(config, device):
     """Add NTP_SERVER configuration to device config.
 
@@ -1644,13 +1623,6 @@ def _add_ntp_configuration(config, device):
 
     except Exception as e:
         logger.warning(f"Could not add NTP configuration to device {device.name}: {e}")
-
-
-def clear_ntp_cache():
-    """Clear the NTP servers cache. Should be called at the start of sync_sonic."""
-    global _ntp_servers_cache
-    _ntp_servers_cache = None
-    logger.debug("Cleared NTP servers cache")
 
 
 def clear_metalbox_ip_cache():
@@ -1690,7 +1662,6 @@ def _add_dns_configuration(config, device):
 
 def clear_all_caches():
     """Clear all caches in config_generator module."""
-    clear_ntp_cache()
     clear_metalbox_ip_cache()
     clear_metalbox_devices_cache()
     clear_port_config_cache()
