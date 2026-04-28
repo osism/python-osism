@@ -5,8 +5,22 @@
 # Tag to add AF L2VPN EVPN to BGP neighbor
 BGP_AF_L2VPN_EVPN_TAG = "bgp-af-l2vpn-evpn"
 
+# Tag to enable EVPN Multihoming (evpn-lag mode) on a port channel
+EVPN_LAG_TAG = "evpn-lag"
+
+# Tag to enable L2 VxLAN (EVPN L2 VNI) for a VLAN — VNI equals VLAN ID
+EVPN_L2VNI_TAG = "evpn-l2vni"
+
 # Default AS prefix for local ASN calculation
 DEFAULT_LOCAL_AS_PREFIX = 4200
+
+# Default Base MAC for EVPN PortChannels (Calculated with each PortChannel Index)
+# using a locally administered MAC adress range
+DEFAULT_EVPN_SYSTEM_MAC = "02:00:00:00:00:00"
+
+# Default MAC for Static Anycast Gateway (L2 Anycast Gateway)
+# using a locally administered MAC adress range
+DEFAULT_SAG_MAC = "02:00:10:00:00:00"
 
 # Default SONiC device roles
 DEFAULT_SONIC_ROLES = [
