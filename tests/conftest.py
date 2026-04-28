@@ -17,6 +17,8 @@ Tests that genuinely exercise ansible-using code paths must install
 import sys
 import types
 
+import pytest
+
 
 def _install_ansible_stubs() -> None:
     try:
@@ -78,3 +80,29 @@ def _install_ansible_stubs() -> None:
 
 
 _install_ansible_stubs()
+
+
+@pytest.fixture
+def loguru_logs():
+    """Capture loguru log records emitted during a test.
+
+    Yields a list of ``{"level": str, "message": str}`` dicts. The default
+    pytest ``caplog`` fixture only sees ``logging`` records; loguru goes
+    elsewhere, so we install our own sink for the duration of the test.
+    """
+    from loguru import logger
+
+    records: list[dict[str, str]] = []
+    handler_id = logger.add(
+        lambda message: records.append(
+            {
+                "level": message.record["level"].name,
+                "message": message.record["message"],
+            }
+        ),
+        level="DEBUG",
+    )
+    try:
+        yield records
+    finally:
+        logger.remove(handler_id)
