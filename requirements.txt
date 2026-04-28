@@ -31,7 +31,8 @@ redfish==3.3.5
 setuptools==82.0.1
 sqlmodel==0.0.38
 sushy==5.10.0
-tabulate==0.10.0
+# pinned to 0.9.0 because sonic-yang-mgmt requires tabulate==0.9.0
+tabulate==0.9.0
 transitions==0.9.3
 uvicorn[standard]==0.42.0
 validators==0.35.0

@@ -1,0 +1,25 @@
+module sonic-extension {
+
+    yang-version 1.1;
+
+    namespace "http://github.com/sonic-net/sonic-extension";
+    prefix sonic-extension;
+
+    description "Extension yang Module for SONiC OS";
+
+    revision 2019-07-01 {
+        description "First Revision";
+    }
+
+    /* For complete guide of using these extensions in SONiC yangs, refer
+    SONiC yang guidelines at
+    https://github.com/Azure/SONiC/blob/master/doc/mgmt/SONiC_YANG_Model_Guidelines.md */
+
+    extension db-name {
+        description "DB name, e.g. APPL_DB, CONFIG_DB";
+        argument "value";
+    }
+
+    
+    
+}

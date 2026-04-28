@@ -58,6 +58,13 @@ SONIC_EXPORT_PREFIX = os.getenv("SONIC_EXPORT_PREFIX", "osism_")
 SONIC_EXPORT_SUFFIX = os.getenv("SONIC_EXPORT_SUFFIX", "_config_db.json")
 SONIC_EXPORT_IDENTIFIER = os.getenv("SONIC_EXPORT_IDENTIFIER", "serial-number")
 
+SONIC_YANG_MODELS_DIR = os.getenv(
+    "SONIC_YANG_MODELS_DIR",
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "files", "sonic", "yang_models")
+    ),
+)
+
 NETBOX_SECONDARIES = (
     os.getenv("NETBOX_SECONDARIES", read_secret("NETBOX_SECONDARIES")) or "[]"
 )

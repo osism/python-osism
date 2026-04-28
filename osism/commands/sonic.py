@@ -1136,3 +1136,248 @@ class List(Command):
         except Exception as e:
             logger.error(f"Error listing SONiC devices: {e}")
             return 1
+
+
+class Validate(SonicCommandBase):
+    """Validate SONiC config_db.json against the bundled YANG models.
+
+    Configurations can be sourced from a local file, NetBox local context,
+    the on-disk export directory, or generated on-the-fly from NetBox.
+    """
+
+    def get_parser(self, prog_name):
+        parser = super(Validate, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname",
+            nargs="*",
+            default=[],
+            type=str,
+            help=(
+                "One or more hostnames. Required for --from-netbox / --generate; "
+                "optional for --from-export-dir (filters by filename)."
+            ),
+        )
+        source = parser.add_mutually_exclusive_group(required=True)
+        source.add_argument(
+            "--file",
+            dest="file",
+            type=str,
+            help="Validate a single config_db.json file at this path.",
+        )
+        source.add_argument(
+            "--from-netbox",
+            dest="from_netbox",
+            action="store_true",
+            help="Validate the sonic_config stored in NetBox local_context_data.",
+        )
+        source.add_argument(
+            "--from-export-dir",
+            dest="from_export_dir",
+            nargs="?",
+            const="",
+            default=None,
+            help=(
+                "Validate config files from the SONiC export directory "
+                "(default: SONIC_EXPORT_DIR setting)."
+            ),
+        )
+        source.add_argument(
+            "--generate",
+            dest="generate",
+            action="store_true",
+            help="Generate config from NetBox in-memory and validate it.",
+        )
+        parser.add_argument(
+            "--yang-dir",
+            dest="yang_dir",
+            type=str,
+            default=None,
+            help="Override YANG model directory (default: SONIC_YANG_MODELS_DIR).",
+        )
+        parser.add_argument(
+            "--format",
+            dest="output_format",
+            choices=["text", "json"],
+            default="text",
+            help="Output format (default: text).",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        try:
+            from osism.tasks.conductor.sonic.validator import (
+                ValidatorUnavailable,
+                load_yang_context,
+                validate_config,
+            )
+        except ImportError as exc:
+            logger.error(f"Validator module unavailable: {exc}")
+            return 2
+
+        try:
+            ctx = load_yang_context(parsed_args.yang_dir)
+        except ValidatorUnavailable as exc:
+            logger.error(str(exc))
+            return 2
+        except Exception as exc:
+            logger.error(f"Failed to load YANG models: {exc}")
+            return 2
+
+        try:
+            sources = self._collect_sources(parsed_args)
+        except ValueError as exc:
+            logger.error(str(exc))
+            return 2
+
+        if not sources:
+            logger.error("No configurations found to validate.")
+            return 2
+
+        results = []
+        worst_rc = 0
+        for label, config in sources:
+            if config is None:
+                results.append((label, None))
+                worst_rc = max(worst_rc, 2)
+                continue
+            result = validate_config(config, ctx=ctx)
+            results.append((label, result))
+            if not result.valid:
+                worst_rc = max(worst_rc, 1)
+
+        if parsed_args.output_format == "json":
+            payload = {
+                label: (
+                    result.to_dict()
+                    if result
+                    else {
+                        "valid": False,
+                        "errors": [{"message": "config not available"}],
+                    }
+                )
+                for label, result in results
+            }
+            print(json.dumps(payload, indent=2))
+        else:
+            self._print_text_report(results)
+
+        return worst_rc
+
+    def _collect_sources(self, parsed_args):
+        """Return a list of (label, config_dict_or_None) tuples to validate."""
+        if parsed_args.file:
+            with open(parsed_args.file, "r") as fh:
+                return [(parsed_args.file, json.load(fh))]
+
+        if parsed_args.from_netbox:
+            if not parsed_args.hostname:
+                raise ValueError("--from-netbox requires at least one hostname.")
+            return [
+                (hostname, self._config_from_netbox(hostname))
+                for hostname in parsed_args.hostname
+            ]
+
+        if parsed_args.from_export_dir is not None:
+            from osism import settings
+
+            export_dir = parsed_args.from_export_dir or settings.SONIC_EXPORT_DIR
+            return self._configs_from_export_dir(export_dir, parsed_args.hostname)
+
+        if parsed_args.generate:
+            if not parsed_args.hostname:
+                raise ValueError("--generate requires at least one hostname.")
+            return [
+                (f"{hostname} (generated)", self._config_from_generate(hostname))
+                for hostname in parsed_args.hostname
+            ]
+
+        raise ValueError("No configuration source specified.")
+
+    def _config_from_netbox(self, hostname):
+        device = self._get_device_from_netbox(hostname)
+        if not device:
+            return None
+        ctx = self._get_config_context(device, hostname)
+        if not ctx:
+            return None
+        config = ctx.get("sonic_config")
+        if not config:
+            logger.error(
+                f"Device {hostname} has no 'sonic_config' in local_context_data."
+            )
+            return None
+        return config
+
+    def _configs_from_export_dir(self, export_dir, hostnames):
+        if not os.path.isdir(export_dir):
+            raise ValueError(f"Export directory not found: {export_dir}")
+
+        from osism import settings
+
+        prefix = settings.SONIC_EXPORT_PREFIX
+        suffix = settings.SONIC_EXPORT_SUFFIX
+
+        wanted = set(hostnames) if hostnames else None
+        sources = []
+        for name in sorted(os.listdir(export_dir)):
+            if not (name.startswith(prefix) and name.endswith(suffix)):
+                continue
+            identifier = (
+                name[len(prefix) : -len(suffix)] if suffix else name[len(prefix) :]
+            )
+            if wanted is not None and identifier not in wanted:
+                continue
+            path = os.path.join(export_dir, name)
+            try:
+                with open(path, "r") as fh:
+                    sources.append((path, json.load(fh)))
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.error(f"Could not read {path}: {exc}")
+                sources.append((path, None))
+        return sources
+
+    def _config_from_generate(self, hostname):
+        from osism.tasks.conductor.sonic.config_generator import generate_sonic_config
+        from osism.tasks.conductor.sonic.constants import SUPPORTED_HWSKUS
+
+        device = self._get_device_from_netbox(hostname)
+        if not device:
+            return None
+        hwsku = None
+        if (
+            hasattr(device, "custom_fields")
+            and device.custom_fields.get("sonic_parameters")
+            and device.custom_fields["sonic_parameters"].get("hwsku")
+        ):
+            hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
+        if not hwsku:
+            logger.error(f"Device {hostname} has no HWSKU configured.")
+            return None
+        if hwsku not in SUPPORTED_HWSKUS:
+            logger.error(
+                f"Device {hostname} HWSKU '{hwsku}' is not supported "
+                f"(supported: {', '.join(SUPPORTED_HWSKUS)})."
+            )
+            return None
+        config_version = None
+        if device.custom_fields.get("sonic_parameters", {}).get("config_version"):
+            config_version = device.custom_fields["sonic_parameters"]["config_version"]
+        return generate_sonic_config(device, hwsku, None, config_version)
+
+    def _print_text_report(self, results):
+        ok = sum(1 for _, r in results if r and r.valid)
+        fail = sum(1 for _, r in results if r is None or not r.valid)
+        for label, result in results:
+            if result is None:
+                print(f"[ERROR] {label}: configuration not available")
+                continue
+            if result.valid:
+                print(f"[OK]    {label}")
+            else:
+                print(f"[FAIL]  {label}: {len(result.errors)} error(s)")
+                for err in result.errors:
+                    if err.path:
+                        print(f"        - {err.message} ({err.path})")
+                    else:
+                        print(f"        - {err.message}")
+        print(f"\nSummary: {ok} valid, {fail} failed, {len(results)} total")
