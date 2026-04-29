@@ -536,8 +536,8 @@ def test_find_interconnected_devices_single_spine_no_peers(make_device, wire_top
     spine = make_device(1, role_slug="spine")
     wire_topology(device_interfaces={1: []}, connections_map={})
 
-    # Single device with no peers — the role_graphs entry is empty and
-    # groups of size 1 are dropped.
+    # Single device with no in-role peers — the device never enters
+    # role_graphs, so the BFS has nothing to walk and returns no groups.
     assert connections.find_interconnected_devices([spine]) == []
 
 

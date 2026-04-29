@@ -297,8 +297,7 @@ def find_interconnected_devices(
                             visited.add(neighbor_id)
                             queue.append(neighbor_id)
 
-                if len(group) > 1:  # Only include groups with multiple devices
-                    all_groups.append(group)
+                all_groups.append(group)
 
     return all_groups
 
