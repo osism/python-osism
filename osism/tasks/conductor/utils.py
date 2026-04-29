@@ -26,7 +26,7 @@ def deep_compare(a, b, updates):
                 updates[key] = value
         else:
             updates[key] = {}
-            deep_compare(a[key], b[key], updates[key])
+            deep_compare(a[key], b.get(key, {}), updates[key])
             if not updates[key]:
                 updates.pop(key)
 

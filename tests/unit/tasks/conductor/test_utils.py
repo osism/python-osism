@@ -99,6 +99,16 @@ def test_deep_compare_records_list_value_difference():
     assert updates == {"items": [1, 2, 3]}
 
 
+def test_deep_compare_nested_key_missing_from_b_records_whole_subtree():
+    a = {"outer": {"inner": "val", "other": 1}}
+    b = {}
+    updates = {}
+
+    deep_compare(a, b, updates)
+
+    assert updates == {"outer": {"inner": "val", "other": 1}}
+
+
 # ---------------------------------------------------------------------------
 # deep_merge
 # ---------------------------------------------------------------------------
