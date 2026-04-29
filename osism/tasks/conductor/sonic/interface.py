@@ -1008,15 +1008,6 @@ def detect_port_channels(device):
             if hasattr(interface, "lag") and interface.lag:
                 lag_parent = interface.lag
 
-                # Convert NetBox interface name to SONiC format
-                interface_speed = getattr(interface, "speed", None)
-                if (
-                    not interface_speed
-                    and hasattr(interface, "type")
-                    and interface.type
-                ):
-                    interface_speed = get_speed_from_port_type(interface.type.value)
-
                 sonic_interface_name = convert_netbox_interface_to_sonic(
                     interface, device
                 )
