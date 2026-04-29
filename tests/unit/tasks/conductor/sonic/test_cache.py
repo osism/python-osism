@@ -294,6 +294,34 @@ def test_concurrent_get_device_interfaces_is_safe(mock_nb):
     assert mock_nb.dcim.interfaces.filter.call_count == 1
 
 
+def test_get_device_interfaces_acquires_lock_once(mock_nb):
+    mock_nb.dcim.interfaces.filter.return_value = []
+    cache = InterfaceCache()
+    cache._lock = MagicMock(wraps=threading.Lock())
+
+    cache.get_device_interfaces(1)
+
+    assert cache._lock.__enter__.call_count == 1
+
+
+def test_clear_acquires_lock_once():
+    cache = InterfaceCache()
+    cache._lock = MagicMock(wraps=threading.Lock())
+
+    cache.clear()
+
+    assert cache._lock.__enter__.call_count == 1
+
+
+def test_get_cache_stats_acquires_lock_once():
+    cache = InterfaceCache()
+    cache._lock = MagicMock(wraps=threading.Lock())
+
+    cache.get_cache_stats()
+
+    assert cache._lock.__enter__.call_count == 1
+
+
 # ---------------------------------------------------------------------------
 # get_interface_cache (module-level, thread-local)
 # ---------------------------------------------------------------------------
