@@ -498,12 +498,12 @@ def test_netbox_filter_conductor_ironic_default(reload_settings, monkeypatch):
 
     assert (
         settings_module.NETBOX_FILTER_CONDUCTOR_IRONIC
-        == "[{'state': 'active', 'tag': ['managed-by-ironic']}]"
+        == settings_module.DEFAULT_NETBOX_FILTER_CONDUCTOR_IRONIC
     )
 
 
 def test_netbox_filter_conductor_ironic_override(reload_settings, monkeypatch):
-    override = "[{'state': 'active', 'tag': ['custom']}]"
+    override = "[{'status': 'active', 'tag': ['custom']}]"
     monkeypatch.setenv("NETBOX_FILTER_CONDUCTOR_IRONIC", override)
     reload_settings()
 
@@ -516,12 +516,12 @@ def test_netbox_filter_conductor_sonic_default(reload_settings, monkeypatch):
 
     assert (
         settings_module.NETBOX_FILTER_CONDUCTOR_SONIC
-        == "[{'state': 'active', 'tag': ['managed-by-metalbox']}]"
+        == settings_module.DEFAULT_NETBOX_FILTER_CONDUCTOR_SONIC
     )
 
 
 def test_netbox_filter_conductor_sonic_override(reload_settings, monkeypatch):
-    override = "[{'state': 'active', 'tag': ['custom-metalbox']}]"
+    override = "[{'status': 'active', 'tag': ['custom-metalbox']}]"
     monkeypatch.setenv("NETBOX_FILTER_CONDUCTOR_SONIC", override)
     reload_settings()
 

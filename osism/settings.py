@@ -42,14 +42,21 @@ OPERATOR_USER = os.getenv("OSISM_OPERATOR_USER", "dragon")
 
 FRR_DUMMY_INTERFACE = os.getenv("OSISM_FRR_DUMMY_INTERFACE", "loopback0")
 
+DEFAULT_NETBOX_FILTER_CONDUCTOR_IRONIC = (
+    "[{'status': 'active', 'tag': ['managed-by-ironic']}]"
+)
+DEFAULT_NETBOX_FILTER_CONDUCTOR_SONIC = (
+    "[{'status': 'active', 'tag': ['managed-by-metalbox']}]"
+)
+
 NETBOX_FILTER_CONDUCTOR_IRONIC = os.getenv(
     "NETBOX_FILTER_CONDUCTOR_IRONIC",
-    "[{'state': 'active', 'tag': ['managed-by-ironic']}]",
+    DEFAULT_NETBOX_FILTER_CONDUCTOR_IRONIC,
 )
 
 NETBOX_FILTER_CONDUCTOR_SONIC = os.getenv(
     "NETBOX_FILTER_CONDUCTOR_SONIC",
-    "[{'state': 'active', 'tag': ['managed-by-metalbox']}]",
+    DEFAULT_NETBOX_FILTER_CONDUCTOR_SONIC,
 )
 
 # SONiC export configuration
