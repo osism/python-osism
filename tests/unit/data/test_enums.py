@@ -254,6 +254,18 @@ def test_map_role2role_collection_openstack_core_includes_core_services():
     assert {"keystone", "neutron", "nova", "glance", "cinder", "placement"} <= names
 
 
+def test_map_role2role_collection_openstack_core_chain_keystone_to_octavia():
+    roots = MAP_ROLE2ROLE["collection-openstack-core"]
+    keystone = find_role(roots, "keystone")
+    assert keystone is not None and isinstance(keystone, Role)
+    neutron = find_role(keystone.dependencies, "neutron")
+    assert neutron is not None and isinstance(neutron, Role)
+    wait_for_nova = find_role(neutron.dependencies, "wait-for-nova")
+    assert wait_for_nova is not None and isinstance(wait_for_nova, Role)
+    octavia = find_role(wait_for_nova.dependencies, "octavia")
+    assert octavia is not None and isinstance(octavia, Role)
+
+
 def test_map_role2role_collection_monitoring_grafana_depends_on_prometheus():
     prometheus = find_role(MAP_ROLE2ROLE["collection-monitoring"], "prometheus")
 
