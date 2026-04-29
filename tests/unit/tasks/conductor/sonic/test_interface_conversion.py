@@ -516,6 +516,22 @@ def test_convert_using_port_config_breakout_no_base_port_falls_back():
     assert _convert_using_port_config("Ethernet5", 5, True, {}) == "Eth1/2/2"
 
 
+def test_convert_using_port_config_breakout_base_port_found_but_alias_has_no_number(
+    loguru_logs,
+):
+    # is_breakout=True; base port Ethernet4 IS found in port_config, but its
+    # alias "no-digits" yields no extractable number.  The code should log a
+    # warning and fall back to speed-based calculation.
+    # _convert_using_speed_calculation(5, None, True):
+    #   base_port=4, subport=2, physical_port=2 → "Eth1/2/2"
+    port_config = {"Ethernet4": {"alias": "no-digits"}}
+
+    assert _convert_using_port_config("Ethernet5", 5, True, port_config) == "Eth1/2/2"
+    assert _has_log(
+        loguru_logs, "WARNING", "Could not extract port number from alias 'no-digits'"
+    )
+
+
 def test_convert_using_port_config_regular_missing_alias_falls_back():
     # Regular path with port present but alias unparseable → legacy calc.
     # Ethernet4 with speed=None falls to multiplier 1 → Eth1/5.
