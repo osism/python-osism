@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import osism.tasks.conductor.sonic.cache as _cache_mod
 from osism.tasks.conductor.sonic.cache import (
     InterfaceCache,
     clear_interface_cache,
@@ -43,6 +44,7 @@ def _reset_thread_local():
     """
     yield
     clear_interface_cache()
+    _cache_mod._thread_local.__dict__.pop("interface_cache", None)
 
 
 # ---------------------------------------------------------------------------
