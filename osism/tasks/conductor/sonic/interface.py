@@ -386,6 +386,12 @@ def _convert_using_port_config(
                 )
                 return result
 
+            logger.warning(
+                f"Could not extract port number from alias '{base_alias}' "
+                f"for breakout interface {sonic_interface_name}"
+            )
+            return _convert_using_speed_calculation(ethernet_num, None, is_breakout)
+
         # Fallback if base port not found
         logger.warning(
             f"Could not find base port for breakout interface {sonic_interface_name}"
