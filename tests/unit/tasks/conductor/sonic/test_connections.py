@@ -239,6 +239,33 @@ def test_get_connected_interfaces_helper_exception_logs_warning(mocker, make_int
     assert "sw1" in warning.call_args.args[0]
 
 
+def test_get_connected_interfaces_continues_after_per_interface_exception(
+    mocker, make_interface
+):
+    """An exception on one interface must not abort processing of subsequent ones."""
+    device = SimpleNamespace(id=1, name="sw1")
+    bad_iface = make_interface(name="Ethernet0")
+    good_iface = make_interface(name="Ethernet4")
+    peer = SimpleNamespace(id=2, name="peer")
+
+    mocker.patch(
+        "osism.tasks.conductor.sonic.connections.get_cached_device_interfaces",
+        return_value=[bad_iface, good_iface],
+    )
+    mocker.patch(
+        "osism.tasks.conductor.sonic.connections.get_connected_device_via_interface",
+        side_effect=[RuntimeError("boom"), peer],
+    )
+    mocker.patch(
+        "osism.tasks.conductor.sonic.connections.convert_netbox_interface_to_sonic",
+        return_value="Ethernet4",
+    )
+
+    connected, _ = connections.get_connected_interfaces(device)
+
+    assert connected == {"Ethernet4"}
+
+
 def test_get_connected_interfaces_cache_lookup_failure_returns_empty(mocker):
     device = SimpleNamespace(id=1, name="sw1")
     mocker.patch(
