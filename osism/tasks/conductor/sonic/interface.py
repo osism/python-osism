@@ -445,7 +445,16 @@ def _extract_port_number_from_alias(alias):
         )
         return port_number
 
-    # Fallback to number at end of alias
+    # Handle Eth(PortN) format where no digit follows "Eth" directly
+    paren_port_match = re.search(r"\(Port(\d+)\)", alias)
+    if paren_port_match:
+        port_number = int(paren_port_match.group(1))
+        logger.debug(
+            f"Extracted port number {port_number} from Eth(Port) alias '{alias}'"
+        )
+        return port_number
+
+    # Fallback to trailing number (e.g. "hundredGigE49", "twentyFiveGigE1")
     match = re.search(r"(\d+)$", alias)
     if match:
         port_number = int(match.group(1))

@@ -574,10 +574,17 @@ def test_extract_port_number_no_digits_returns_none():
     assert _extract_port_number_from_alias("foo") is None
 
 
-def test_extract_port_number_paren_alias_without_leading_digit_returns_none():
-    # "Eth(Port5)" matches neither regex (no \d+ before "(", trailing char
-    # is ")", so $-anchored digit search fails). Documents actual behavior.
-    assert _extract_port_number_from_alias("Eth(Port5)") is None
+def test_extract_port_number_paren_alias_without_leading_digit():
+    # "Eth(Port5)" has no digit immediately after "Eth", so the primary
+    # Eth\d+(Port\d+) regex does not match.  The explicit \(Port(\d+)\)
+    # pattern handles it next and returns 5.
+    assert _extract_port_number_from_alias("Eth(Port5)") == 5
+
+
+def test_extract_port_number_alias_with_prefix_digits_uses_trailing():
+    # "QSFP28-49": the \(Port(\d+)\) pattern does not match, and the
+    # trailing-number fallback correctly returns 49 rather than 28.
+    assert _extract_port_number_from_alias("QSFP28-49") == 49
 
 
 # ---------------------------------------------------------------------------
