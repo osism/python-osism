@@ -46,6 +46,10 @@ def _reset_port_config_cache():
     clear_port_config_cache()
 
 
+def _has_log(records, level, substring):
+    return any(r["level"] == level and substring in r["message"] for r in records)
+
+
 def _make_device(hwsku="Accton-AS7326-56X", device_id=1, name="sw-1"):
     """Build a minimal NetBox-shaped device with sonic_parameters."""
     custom_fields = (
@@ -105,24 +109,27 @@ def test_convert_netbox_interface_already_sonic_returns_unchanged():
     assert convert_netbox_interface_to_sonic(iface, device) == "Ethernet4"
 
 
-def test_convert_netbox_interface_string_without_device_returns_input():
+def test_convert_netbox_interface_string_without_device_returns_input(loguru_logs):
     assert convert_netbox_interface_to_sonic("Eth1/1", device=None) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "Device object required")
 
 
-def test_convert_netbox_interface_object_without_device_returns_name():
+def test_convert_netbox_interface_object_without_device_returns_name(loguru_logs):
     iface = _make_iface("Eth1/1")
 
     assert convert_netbox_interface_to_sonic(iface, device=None) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "Device object required")
 
 
-def test_convert_netbox_interface_device_without_hwsku_returns_input():
+def test_convert_netbox_interface_device_without_hwsku_returns_input(loguru_logs):
     device = _make_device(hwsku=None)  # sonic_parameters dict, no "hwsku" key
     iface = _make_iface("Eth1/1")
 
     assert convert_netbox_interface_to_sonic(iface, device) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "No HWSKU found")
 
 
-def test_convert_netbox_interface_cache_failure_returns_input(mocker):
+def test_convert_netbox_interface_cache_failure_returns_input(mocker, loguru_logs):
     mocker.patch(
         "osism.tasks.conductor.sonic.interface.get_cached_device_interfaces",
         side_effect=RuntimeError("netbox down"),
@@ -131,9 +138,10 @@ def test_convert_netbox_interface_cache_failure_returns_input(mocker):
     iface = _make_iface("Eth1/1")
 
     assert convert_netbox_interface_to_sonic(iface, device) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "Could not fetch device interfaces")
 
 
-def test_convert_netbox_interface_empty_port_config_returns_input(mocker):
+def test_convert_netbox_interface_empty_port_config_returns_input(mocker, loguru_logs):
     mocker.patch(
         "osism.tasks.conductor.sonic.interface.get_cached_device_interfaces",
         return_value=[_make_iface("Eth1/1")],
@@ -145,9 +153,10 @@ def test_convert_netbox_interface_empty_port_config_returns_input(mocker):
     device = _make_device()
 
     assert convert_netbox_interface_to_sonic(_make_iface("Eth1/1"), device) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "No port config found")
 
 
-def test_convert_netbox_interface_port_config_raises_returns_input(mocker):
+def test_convert_netbox_interface_port_config_raises_returns_input(mocker, loguru_logs):
     mocker.patch(
         "osism.tasks.conductor.sonic.interface.get_cached_device_interfaces",
         return_value=[_make_iface("Eth1/1")],
@@ -159,6 +168,7 @@ def test_convert_netbox_interface_port_config_raises_returns_input(mocker):
     device = _make_device()
 
     assert convert_netbox_interface_to_sonic(_make_iface("Eth1/1"), device) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "Could not load port config")
 
 
 def test_convert_netbox_interface_standard_form_resolves_via_alias(mocker):
