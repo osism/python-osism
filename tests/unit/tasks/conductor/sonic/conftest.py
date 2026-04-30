@@ -3,8 +3,39 @@
 """Shared fixtures for the SONiC unit tests."""
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
+
+
+@pytest.fixture
+def reset_config_generator_caches():
+    """Reset every module global the ``config_generator`` orchestrator touches.
+
+    Without this, a previous test's ``_metalbox_ip_cache`` /
+    ``_metalbox_devices_cache`` would leak into the next one and make the
+    suite order-dependent. Files that exercise ``config_generator`` opt in
+    via ``pytestmark = pytest.mark.usefixtures(...)`` so the reset never runs
+    for unrelated SONiC tests.
+    """
+    from osism.tasks.conductor.sonic import config_generator
+
+    config_generator.clear_all_caches()
+    yield
+    config_generator.clear_all_caches()
+
+
+@pytest.fixture
+def mock_nb(mocker):
+    """Replace ``utils.nb`` for the duration of one test.
+
+    ``utils.nb`` is normally lazily wired through ``__getattr__`` and would
+    try to reach a real NetBox instance — ``create=True`` is needed because
+    the attribute may not be bound yet.
+    """
+    nb = MagicMock()
+    mocker.patch("osism.utils.nb", new=nb, create=True)
+    return nb
 
 
 @pytest.fixture
