@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import osism.tasks.conductor.sonic.cache as _cache_mod
 from osism.tasks.conductor.sonic.cache import (
     InterfaceCache,
     clear_interface_cache,
@@ -43,6 +44,7 @@ def _reset_thread_local():
     """
     yield
     clear_interface_cache()
+    _cache_mod._thread_local.__dict__.pop("interface_cache", None)
 
 
 # ---------------------------------------------------------------------------
@@ -292,6 +294,34 @@ def test_concurrent_get_device_interfaces_is_safe(mock_nb):
     # The list is cached, so even under contention only one filter call should
     # have happened.
     assert mock_nb.dcim.interfaces.filter.call_count == 1
+
+
+def test_get_device_interfaces_acquires_lock_once(mock_nb):
+    mock_nb.dcim.interfaces.filter.return_value = []
+    cache = InterfaceCache()
+    cache._lock = MagicMock(wraps=threading.Lock())
+
+    cache.get_device_interfaces(1)
+
+    assert cache._lock.__enter__.call_count == 1
+
+
+def test_clear_acquires_lock_once():
+    cache = InterfaceCache()
+    cache._lock = MagicMock(wraps=threading.Lock())
+
+    cache.clear()
+
+    assert cache._lock.__enter__.call_count == 1
+
+
+def test_get_cache_stats_acquires_lock_once():
+    cache = InterfaceCache()
+    cache._lock = MagicMock(wraps=threading.Lock())
+
+    cache.get_cache_stats()
+
+    assert cache._lock.__enter__.call_count == 1
 
 
 # ---------------------------------------------------------------------------

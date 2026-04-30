@@ -75,18 +75,24 @@ def get_connected_interfaces(
     Returns:
         tuple: (set of connected interfaces, set of connected port channels)
     """
-    connected_interfaces = set()
-    connected_portchannels = set()
+    connected_interfaces: Set[str] = set()
+    connected_portchannels: Set[str] = set()
 
     try:
         # Get all interfaces for the device (using cache)
         interfaces = get_cached_device_interfaces(device.id)
+    except Exception as e:
+        logger.warning(
+            f"Could not get interface connections for device {device.name}: {e}"
+        )
+        return connected_interfaces, connected_portchannels
 
-        for interface in interfaces:
-            # Skip management-only interfaces
-            if hasattr(interface, "mgmt_only") and interface.mgmt_only:
-                continue
+    for interface in interfaces:
+        # Skip management-only interfaces
+        if hasattr(interface, "mgmt_only") and interface.mgmt_only:
+            continue
 
+        try:
             # Check if interface is connected using connected_endpoints API
             connected_device = get_connected_device_via_interface(interface, device.id)
 
@@ -104,11 +110,12 @@ def get_connected_interfaces(
                 ):
                     pc_name = portchannel_info["member_mapping"][sonic_interface_name]
                     connected_portchannels.add(pc_name)
-
-    except Exception as e:
-        logger.warning(
-            f"Could not get interface connections for device {device.name}: {e}"
-        )
+        except Exception as e:
+            logger.warning(
+                f"Could not process interface {getattr(interface, 'name', interface)}"
+                f" on device {device.name}: {e}"
+            )
+            continue
 
     return connected_interfaces, connected_portchannels
 
@@ -290,8 +297,7 @@ def find_interconnected_devices(
                             visited.add(neighbor_id)
                             queue.append(neighbor_id)
 
-                if len(group) > 1:  # Only include groups with multiple devices
-                    all_groups.append(group)
+                all_groups.append(group)
 
     return all_groups
 

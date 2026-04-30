@@ -46,6 +46,10 @@ def _reset_port_config_cache():
     clear_port_config_cache()
 
 
+def _has_log(records, level, substring):
+    return any(r["level"] == level and substring in r["message"] for r in records)
+
+
 def _make_device(hwsku="Accton-AS7326-56X", device_id=1, name="sw-1"):
     """Build a minimal NetBox-shaped device with sonic_parameters."""
     custom_fields = (
@@ -105,24 +109,27 @@ def test_convert_netbox_interface_already_sonic_returns_unchanged():
     assert convert_netbox_interface_to_sonic(iface, device) == "Ethernet4"
 
 
-def test_convert_netbox_interface_string_without_device_returns_input():
+def test_convert_netbox_interface_string_without_device_returns_input(loguru_logs):
     assert convert_netbox_interface_to_sonic("Eth1/1", device=None) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "Device object required")
 
 
-def test_convert_netbox_interface_object_without_device_returns_name():
+def test_convert_netbox_interface_object_without_device_returns_name(loguru_logs):
     iface = _make_iface("Eth1/1")
 
     assert convert_netbox_interface_to_sonic(iface, device=None) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "Device object required")
 
 
-def test_convert_netbox_interface_device_without_hwsku_returns_input():
+def test_convert_netbox_interface_device_without_hwsku_returns_input(loguru_logs):
     device = _make_device(hwsku=None)  # sonic_parameters dict, no "hwsku" key
     iface = _make_iface("Eth1/1")
 
     assert convert_netbox_interface_to_sonic(iface, device) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "No HWSKU found")
 
 
-def test_convert_netbox_interface_cache_failure_returns_input(mocker):
+def test_convert_netbox_interface_cache_failure_returns_input(mocker, loguru_logs):
     mocker.patch(
         "osism.tasks.conductor.sonic.interface.get_cached_device_interfaces",
         side_effect=RuntimeError("netbox down"),
@@ -131,9 +138,10 @@ def test_convert_netbox_interface_cache_failure_returns_input(mocker):
     iface = _make_iface("Eth1/1")
 
     assert convert_netbox_interface_to_sonic(iface, device) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "Could not fetch device interfaces")
 
 
-def test_convert_netbox_interface_empty_port_config_returns_input(mocker):
+def test_convert_netbox_interface_empty_port_config_returns_input(mocker, loguru_logs):
     mocker.patch(
         "osism.tasks.conductor.sonic.interface.get_cached_device_interfaces",
         return_value=[_make_iface("Eth1/1")],
@@ -145,9 +153,10 @@ def test_convert_netbox_interface_empty_port_config_returns_input(mocker):
     device = _make_device()
 
     assert convert_netbox_interface_to_sonic(_make_iface("Eth1/1"), device) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "No port config found")
 
 
-def test_convert_netbox_interface_port_config_raises_returns_input(mocker):
+def test_convert_netbox_interface_port_config_raises_returns_input(mocker, loguru_logs):
     mocker.patch(
         "osism.tasks.conductor.sonic.interface.get_cached_device_interfaces",
         return_value=[_make_iface("Eth1/1")],
@@ -159,6 +168,7 @@ def test_convert_netbox_interface_port_config_raises_returns_input(mocker):
     device = _make_device()
 
     assert convert_netbox_interface_to_sonic(_make_iface("Eth1/1"), device) == "Eth1/1"
+    assert _has_log(loguru_logs, "WARNING", "Could not load port config")
 
 
 def test_convert_netbox_interface_standard_form_resolves_via_alias(mocker):
@@ -516,6 +526,22 @@ def test_convert_using_port_config_breakout_no_base_port_falls_back():
     assert _convert_using_port_config("Ethernet5", 5, True, {}) == "Eth1/2/2"
 
 
+def test_convert_using_port_config_breakout_base_port_found_but_alias_has_no_number(
+    loguru_logs,
+):
+    # is_breakout=True; base port Ethernet4 IS found in port_config, but its
+    # alias "no-digits" yields no extractable number.  The code should log a
+    # warning and fall back to speed-based calculation.
+    # _convert_using_speed_calculation(5, None, True):
+    #   base_port=4, subport=2, physical_port=2 → "Eth1/2/2"
+    port_config = {"Ethernet4": {"alias": "no-digits"}}
+
+    assert _convert_using_port_config("Ethernet5", 5, True, port_config) == "Eth1/2/2"
+    assert _has_log(
+        loguru_logs, "WARNING", "Could not extract port number from alias 'no-digits'"
+    )
+
+
 def test_convert_using_port_config_regular_missing_alias_falls_back():
     # Regular path with port present but alias unparseable → legacy calc.
     # Ethernet4 with speed=None falls to multiplier 1 → Eth1/5.
@@ -574,10 +600,17 @@ def test_extract_port_number_no_digits_returns_none():
     assert _extract_port_number_from_alias("foo") is None
 
 
-def test_extract_port_number_paren_alias_without_leading_digit_returns_none():
-    # "Eth(Port5)" matches neither regex (no \d+ before "(", trailing char
-    # is ")", so $-anchored digit search fails). Documents actual behavior.
-    assert _extract_port_number_from_alias("Eth(Port5)") is None
+def test_extract_port_number_paren_alias_without_leading_digit():
+    # "Eth(Port5)" has no digit immediately after "Eth", so the primary
+    # Eth\d+(Port\d+) regex does not match.  The explicit \(Port(\d+)\)
+    # pattern handles it next and returns 5.
+    assert _extract_port_number_from_alias("Eth(Port5)") == 5
+
+
+def test_extract_port_number_alias_with_prefix_digits_uses_trailing():
+    # "QSFP28-49": the \(Port(\d+)\) pattern does not match, and the
+    # trailing-number fallback correctly returns 49 rather than 28.
+    assert _extract_port_number_from_alias("QSFP28-49") == 49
 
 
 # ---------------------------------------------------------------------------

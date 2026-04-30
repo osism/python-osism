@@ -386,6 +386,12 @@ def _convert_using_port_config(
                 )
                 return result
 
+            logger.warning(
+                f"Could not extract port number from alias '{base_alias}' "
+                f"for breakout interface {sonic_interface_name}"
+            )
+            return _convert_using_speed_calculation(ethernet_num, None, is_breakout)
+
         # Fallback if base port not found
         logger.warning(
             f"Could not find base port for breakout interface {sonic_interface_name}"
@@ -445,7 +451,16 @@ def _extract_port_number_from_alias(alias):
         )
         return port_number
 
-    # Fallback to number at end of alias
+    # Handle Eth(PortN) format where no digit follows "Eth" directly
+    paren_port_match = re.search(r"\(Port(\d+)\)", alias)
+    if paren_port_match:
+        port_number = int(paren_port_match.group(1))
+        logger.debug(
+            f"Extracted port number {port_number} from Eth(Port) alias '{alias}'"
+        )
+        return port_number
+
+    # Fallback to trailing number (e.g. "hundredGigE49", "twentyFiveGigE1")
     match = re.search(r"(\d+)$", alias)
     if match:
         port_number = int(match.group(1))
@@ -992,15 +1007,6 @@ def detect_port_channels(device):
             # Check if this interface has a LAG parent
             if hasattr(interface, "lag") and interface.lag:
                 lag_parent = interface.lag
-
-                # Convert NetBox interface name to SONiC format
-                interface_speed = getattr(interface, "speed", None)
-                if (
-                    not interface_speed
-                    and hasattr(interface, "type")
-                    and interface.type
-                ):
-                    interface_speed = get_speed_from_port_type(interface.type.value)
 
                 sonic_interface_name = convert_netbox_interface_to_sonic(
                     interface, device
