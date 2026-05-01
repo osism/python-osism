@@ -1,13 +1,47 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from re import findall
 from urllib.parse import urljoin
 
 from cliff.command import Command
 from loguru import logger
-import requests
 
 from osism import utils
+from osism.utils.http import fetch_text
+
+_MARKER_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_QCOW2_FILENAME_RE = re.compile(r"\S+\.qcow2")
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def _is_sha256(body: str) -> bool:
+    """Lowercase-hex sha256, per sha256sum(1) output.
+
+    The OSISM image publishing pipeline produces .CHECKSUM and .sha256 files
+    via sha256sum, which emits the digest as lowercase hex. The existing
+    parsing code passes the digest verbatim to image-manager as
+    sha256:<digest>, with no case normalization, so accepting uppercase
+    here would only paper over a downstream mismatch.
+    """
+    parts = body.strip().split()
+    return bool(parts) and bool(_SHA256_RE.fullmatch(parts[0]))
+
+
+def _validate_marker(body: str) -> bool:
+    """Generic marker contract: ``YYYY-MM-DD <filename>.qcow2``.
+
+    Intentionally does NOT enforce a specific image-name prefix. CI
+    exercises a narrow slice of OSISM image variants; production
+    deployments may publish images with names this code has never seen.
+    """
+    parts = body.strip().split()
+    return (
+        len(parts) >= 2
+        and bool(_MARKER_DATE_RE.fullmatch(parts[0]))
+        and bool(_QCOW2_FILENAME_RE.fullmatch(parts[1]))
+    )
+
 
 SUPPORTED_CLUSTERAPI_GARDENER_K8S_IMAGES = ["1.33"]
 SUPPORTED_CLUSTERAPI_K8S_IMAGES = ["1.32", "1.33", "1.34"]
@@ -72,10 +106,9 @@ class ImageClusterapi(Command):
 
         result = []
         for kubernetes_release in supported_cluterapi_k8s_images:
-            url = urljoin(base_url, f"last-{kubernetes_release}")
-
-            response = requests.get(url)
-            splitted = response.text.strip().split(" ")
+            marker_url = urljoin(base_url, f"last-{kubernetes_release}")
+            marker_body = fetch_text(marker_url, validate=_validate_marker)
+            splitted = marker_body.strip().split()
 
             logger.info(f"date: {splitted[0]}")
             logger.info(f"image: {splitted[1]}")
@@ -89,8 +122,8 @@ class ImageClusterapi(Command):
             logger.info(f"url: {url}")
 
             logger.info(f"checksum_url: {url}.CHECKSUM")
-            response_checksum = requests.get(f"{url}.CHECKSUM")
-            splitted_checksum = response_checksum.text.strip().split(" ")
+            checksum_body = fetch_text(f"{url}.CHECKSUM", validate=_is_sha256)
+            splitted_checksum = checksum_body.strip().split()
             logger.info(f"checksum: {splitted_checksum[0]}")
 
             from jinja2 import Template
@@ -193,10 +226,9 @@ class ImageClusterapiGardener(Command):
 
         result = []
         for kubernetes_release in supported_cluterapi_gardener_k8s_images:
-            url = urljoin(base_url, f"last-{kubernetes_release}-gardener")
-
-            response = requests.get(url)
-            splitted = response.text.strip().split(" ")
+            marker_url = urljoin(base_url, f"last-{kubernetes_release}-gardener")
+            marker_body = fetch_text(marker_url, validate=_validate_marker)
+            splitted = marker_body.strip().split()
 
             logger.info(f"date: {splitted[0]}")
             logger.info(f"image: {splitted[1]}")
@@ -210,8 +242,8 @@ class ImageClusterapiGardener(Command):
             logger.info(f"url: {url}")
 
             logger.info(f"checksum_url: {url}.CHECKSUM")
-            response_checksum = requests.get(f"{url}.CHECKSUM")
-            splitted_checksum = response_checksum.text.strip().split(" ")
+            checksum_body = fetch_text(f"{url}.CHECKSUM", validate=_is_sha256)
+            splitted_checksum = checksum_body.strip().split()
             logger.info(f"checksum: {splitted_checksum[0]}")
 
             from jinja2 import Template
@@ -319,11 +351,10 @@ class ImageGardenlinux(Command):
             )
             logger.info(f"url: {url}")
 
-            # Get checksum file
             checksum_url = f"{url}.sha256"
             logger.info(f"checksum_url: {checksum_url}")
-            response_checksum = requests.get(checksum_url)
-            checksum = response_checksum.text.strip().split()[0]
+            checksum_body = fetch_text(checksum_url, validate=_is_sha256)
+            checksum = checksum_body.strip().split()[0]
             logger.info(f"checksum: {checksum}")
 
             from jinja2 import Template
@@ -406,10 +437,9 @@ class ImageOctavia(Command):
         client = docker.from_env()
         container = client.containers.get("kolla-ansible")
         openstack_release = container.labels["de.osism.release.openstack"]
-        url = urljoin(base_url, f"last-{openstack_release}")
-
-        response = requests.get(url)
-        splitted = response.text.strip().split(" ")
+        marker_url = urljoin(base_url, f"last-{openstack_release}")
+        marker_body = fetch_text(marker_url, validate=_validate_marker)
+        splitted = marker_body.strip().split()
 
         logger.info(f"date: {splitted[0]}")
         logger.info(f"image: {splitted[1]}")
@@ -418,9 +448,8 @@ class ImageOctavia(Command):
         logger.info(f"url: {url}")
 
         logger.info(f"checksum_url: {url}.CHECKSUM")
-        response_checksum = requests.get(f"{url}.CHECKSUM")
-        logger.info(f"checksum_url_status: {response_checksum.status_code}")
-        splitted_checksum = response_checksum.text.strip().split(" ")
+        checksum_body = fetch_text(f"{url}.CHECKSUM", validate=_is_sha256)
+        splitted_checksum = checksum_body.strip().split()
         logger.info(f"checksum: {splitted_checksum[0]}")
 
         template = Template(TEMPLATE_IMAGE_OCTAVIA)
