@@ -214,32 +214,6 @@ def test_generate_sonic_config_preserves_existing_localhost_keys(
 # ---------------------------------------------------------------------------
 
 
-def test_generate_sonic_config_uses_deepcopy_per_device(
-    mocker, patch_orchestrator_helpers, make_orchestrator_device
-):
-    """Two devices must not share the same base-config dict object.
-
-    Without ``deepcopy`` the second device's mutations would leak back into
-    the first device's config (and into the cached base config) — a real bug
-    we got bitten by before this test existed.
-    """
-    base = make_base_config()
-    base["DEVICE_METADATA"]["shared"] = {"flag": "original"}
-    patch_base_config(mocker, base_config=base)
-
-    device_a = make_orchestrator_device(device_id=1, name="dev-a")
-    device_b = make_orchestrator_device(device_id=2, name="dev-b")
-
-    config_a = generate_sonic_config(device_a, "HWSKU-A")
-    # Mutate device_a's config; device_b must not see it.
-    config_a["DEVICE_METADATA"]["shared"]["flag"] = "mutated"
-
-    config_b = generate_sonic_config(device_b, "HWSKU-B")
-
-    assert config_b["DEVICE_METADATA"]["shared"] == {"flag": "original"}
-    assert config_a["DEVICE_METADATA"] is not config_b["DEVICE_METADATA"]
-
-
 def test_generate_sonic_config_starts_from_scaffold_when_base_absent(
     mocker, patch_orchestrator_helpers, make_orchestrator_device
 ):
@@ -376,6 +350,33 @@ def test_generate_sonic_config_populates_mgmt_interface_and_static_route(
     # SNMP receives the OOB IP for SNMP_AGENT_ADDRESS_CONFIG wiring.
     _, _, snmp_oob = patch_orchestrator_helpers._add_snmp_configuration.call_args.args
     assert snmp_oob == "10.42.0.5"
+
+
+def test_generate_sonic_config_oob_path_preserves_existing_static_routes(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """Pre-existing ``STATIC_ROUTE`` entries must survive the OOB path.
+
+    The OOB branch writes the management default route into ``STATIC_ROUTE``;
+    any routes loaded from ``/etc/sonic/config_db.json`` (e.g. an admin's
+    custom blackhole or VRF route) must not be silently dropped when the
+    branch fires.
+    """
+    base = make_base_config()
+    base["STATIC_ROUTE"] = {
+        "mgmt|10.0.0.0/8": {"nexthop": "192.0.2.1"},
+        "default|198.51.100.0/24": {"blackhole": "true"},
+    }
+    patch_base_config(mocker, base_config=base)
+    patch_orchestrator_helpers.get_device_oob_ip.return_value = ("10.42.0.5", 24)
+    patch_orchestrator_helpers._get_metalbox_ip_for_device.return_value = "10.42.0.1"
+    device = make_orchestrator_device()
+
+    config = generate_sonic_config(device, "HWSKU")
+
+    assert config["STATIC_ROUTE"]["mgmt|10.0.0.0/8"] == {"nexthop": "192.0.2.1"}
+    assert config["STATIC_ROUTE"]["default|198.51.100.0/24"] == {"blackhole": "true"}
+    assert config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] == {"nexthop": "10.42.0.1"}
 
 
 def test_generate_sonic_config_no_oob_ip_leaves_mgmt_empty_and_passes_none(

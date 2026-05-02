@@ -300,7 +300,8 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["MGMT_INTERFACE"]["eth0"] = {"admin_status": "up"}
         config["MGMT_INTERFACE"][f"eth0|{oob_ip}/{prefix_len}"] = {}
         metalbox_ip = _get_metalbox_ip_for_device(device)
-        config["STATIC_ROUTE"] = {}
+        # Write into the existing STATIC_ROUTE dict so any pre-existing
+        # routes loaded from /etc/sonic/config_db.json survive.
         config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] = {"nexthop": metalbox_ip}
     else:
         oob_ip = None
@@ -320,9 +321,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     # Add VRF configuration
     _add_vrf_configuration(config, vrf_info, netbox_interfaces)
 
-    # Set DATABASE VERSION from config_version parameter or default
-    if "VERSIONS" not in config:
-        config["VERSIONS"] = {}
+    # Set DATABASE VERSION from config_version parameter or default.
+    # VERSIONS itself is guaranteed by the TOP_LEVEL_SCAFFOLD_KEYS setdefault
+    # loop above; only the nested DATABASE entry still needs guarding.
     if "DATABASE" not in config["VERSIONS"]:
         config["VERSIONS"]["DATABASE"] = {}
 
