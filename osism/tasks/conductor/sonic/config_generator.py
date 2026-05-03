@@ -628,10 +628,12 @@ def _add_missing_breakout_ports(
             master_port = breakout_info["breakout_ports"][port_name]["master"]
 
             # Override with individual breakout port speed from NetBox if available
+            # Note: NetBox stores speed in kbps, SONiC expects Mbps (divide by 1000)
             if port_name in netbox_interfaces and netbox_interfaces[port_name]["speed"]:
-                port_speed = str(netbox_interfaces[port_name]["speed"])
+                netbox_speed = netbox_interfaces[port_name]["speed"]
+                port_speed = str(int(netbox_speed) // 1000)
                 logger.debug(
-                    f"Using NetBox speed {port_speed} for missing breakout port {port_name}"
+                    f"Using NetBox speed {netbox_speed} kbps -> {port_speed} Mbps for missing breakout port {port_name}"
                 )
             elif master_port in breakout_info["breakout_cfgs"]:
                 # Fallback to extracting speed from breakout mode
