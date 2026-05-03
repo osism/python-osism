@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "1498052e5c2709ad00863272b58a3ec7032acf2f4de3645dcc9b27121ad0a2b0"
+            "sha256": "f837048a5ee5a085261e8632ef5a1fd57da8c55562d1689848b69907185d6745"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -556,12 +556,12 @@
         },
         "gitpython": {
             "hashes": [
-                "sha256:489f590edfd6d20571b2c0e72c6a6ac6915ee8b8cd04572330e3842207a78905",
-                "sha256:dba27f922bd2b42cb54c87a8ab3cb6beb6bf07f3d564e21ac848913a05a8a3cd"
+                "sha256:024b0422d7f84d15cd794844e029ffebd4c5d42a7eb9b936b458697ef550a02c",
+                "sha256:42f9399c9eb33fc581014bedd76049dfbaf6375aa2a5754575966387280315e1"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.7'",
-            "version": "==3.1.47"
+            "version": "==3.1.49"
         },
         "google-auth": {
             "hashes": [
@@ -1936,11 +1936,11 @@
         },
         "rich-argparse": {
             "hashes": [
-                "sha256:0559b1f47a19bbeb82bf15f95a057f99bcbbc98385532f57937f9fc57acc501a",
-                "sha256:64fd2e948fc96e8a1a06e0e72c111c2ce7f3af74126d75c0f5f63926e7289cd1"
+                "sha256:679df3d832fa94ad6e4bdb07ded088cd7ea2dddc58ae9b2b46346a40b06cbc0c",
+                "sha256:d2a3ce7854654e2253c578763ab0a32f05016f23a55fadba7b9a91b6c0e92142"
             ],
-            "markers": "python_version >= '3.8'",
-            "version": "==1.7.2"
+            "markers": "python_version >= '3.9'",
+            "version": "==1.8.0"
         },
         "ruamel.yaml": {
             "hashes": [
