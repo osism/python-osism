@@ -1141,6 +1141,8 @@ class List(Command):
 class Validate(SonicCommandBase):
     """Validate SONiC config_db.json against the bundled YANG models.
 
+    Validation runs against Pydantic schemas generated from the SONiC YANG
+    models in files/sonic/yang_models/ via tools/sonic_yang_to_pydantic.py.
     Configurations can be sourced from a local file, NetBox local context,
     the on-disk export directory, or generated on-the-fly from NetBox.
     """
@@ -1188,13 +1190,6 @@ class Validate(SonicCommandBase):
             help="Generate config from NetBox in-memory and validate it.",
         )
         parser.add_argument(
-            "--yang-dir",
-            dest="yang_dir",
-            type=str,
-            default=None,
-            help="Override YANG model directory (default: SONIC_YANG_MODELS_DIR).",
-        )
-        parser.add_argument(
             "--format",
             dest="output_format",
             choices=["text", "json"],
@@ -1205,22 +1200,9 @@ class Validate(SonicCommandBase):
 
     def take_action(self, parsed_args):
         try:
-            from osism.tasks.conductor.sonic.validator import (
-                ValidatorUnavailable,
-                load_yang_context,
-                validate_config,
-            )
+            from osism.tasks.conductor.sonic.validator import validate_config
         except ImportError as exc:
             logger.error(f"Validator module unavailable: {exc}")
-            return 2
-
-        try:
-            ctx = load_yang_context(parsed_args.yang_dir)
-        except ValidatorUnavailable as exc:
-            logger.error(str(exc))
-            return 2
-        except Exception as exc:
-            logger.error(f"Failed to load YANG models: {exc}")
             return 2
 
         try:
@@ -1240,7 +1222,7 @@ class Validate(SonicCommandBase):
                 results.append((label, None))
                 worst_rc = max(worst_rc, 2)
                 continue
-            result = validate_config(config, ctx=ctx)
+            result = validate_config(config)
             results.append((label, result))
             if not result.valid:
                 worst_rc = max(worst_rc, 1)
@@ -1376,8 +1358,12 @@ class Validate(SonicCommandBase):
             else:
                 print(f"[FAIL]  {label}: {len(result.errors)} error(s)")
                 for err in result.errors:
-                    if err.path:
-                        print(f"        - {err.message} ({err.path})")
+                    table_prefix = f"{err.table}." if err.table else ""
+                    location = f"{table_prefix}{err.path}" if err.path else err.table
+                    if location:
+                        print(f"        - {err.message} ({location})")
                     else:
                         print(f"        - {err.message}")
+            for warning in getattr(result, "warnings", []) or []:
+                print(f"[WARN]  {label}: {warning}")
         print(f"\nSummary: {ok} valid, {fail} failed, {len(results)} total")
