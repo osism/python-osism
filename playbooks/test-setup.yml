@@ -2,6 +2,9 @@
 - name: Test python setup
   hosts: all
 
+  vars:
+    python_venv_dir: /tmp/venv
+
   tasks:
     - name: Run test script
       ansible.builtin.shell:
@@ -12,7 +15,5 @@
           set -o pipefail
           set -x
 
-          export PATH=$PATH:$HOME/.local/bin
-
-          pipenv install
-          pipenv run pip install --no-deps .
+          {{ python_venv_dir }}/bin/pipenv install
+          {{ python_venv_dir }}/bin/pipenv run pip install --no-deps .
