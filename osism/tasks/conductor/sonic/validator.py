@@ -1,20 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
-"""YANG-based validation for SONiC config_db.json configurations.
+"""SONiC ConfigDB validation against generated Pydantic schemas.
 
-Uses sonic-yang-mgmt (which wraps libyang) to validate that a generated
-SONiC ConfigDB JSON conforms to the bundled SONiC YANG models. The library
-performs the ConfigDB-table → YANG-tree translation internally and then
-runs full schema validation including types, leafrefs, must/when constraints
-and mandatory leaves.
+The schemas in `_generated/` are produced offline from the SONiC YANG models
+in `files/sonic/yang_models/` by `tools/sonic_yang_to_pydantic.py`. This
+validator does not depend on libyang or sonic-yang-mgmt at runtime — only on
+pydantic.
 """
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from loguru import logger
+from pydantic import ValidationError as PydValidationError
 
-from osism import settings
+from osism.tasks.conductor.sonic._generated import TABLE_MODELS
 
 
 @dataclass
@@ -41,96 +40,44 @@ class ValidationResult:
         }
 
 
-class ValidatorUnavailable(RuntimeError):
-    """Raised when the underlying sonic-yang-mgmt library cannot be imported."""
+def validate_config(config: Dict[str, Any]) -> ValidationResult:
+    """Validate a SONiC ConfigDB JSON dict against the generated schemas.
 
-
-def _import_sonic_yang():
-    try:
-        import sonic_yang  # type: ignore
-    except ImportError as exc:
-        raise ValidatorUnavailable(
-            "sonic-yang-mgmt is not importable. It is pinned in "
-            "requirements.sonic.txt as a VCS install from sonic-buildimage; "
-            "ensure pip installed it and that the libyang C library plus its "
-            "Python binding (apt: libyang-dev + python3-yang) are present on "
-            "the system."
-        ) from exc
-    return sonic_yang
-
-
-def load_yang_context(yang_dir: Optional[str] = None):
-    """Load all SONiC YANG models from yang_dir into a SonicYang context.
-
-    Args:
-        yang_dir: Directory containing sonic-*.yang files. Defaults to
-            settings.SONIC_YANG_MODELS_DIR.
-
-    Returns:
-        sonic_yang.SonicYang: a context with all models loaded.
-    """
-    sonic_yang = _import_sonic_yang()
-
-    yang_dir = yang_dir or settings.SONIC_YANG_MODELS_DIR
-    logger.debug(f"Loading SONiC YANG models from {yang_dir}")
-
-    ctx = sonic_yang.SonicYang(yang_dir, print_log_enabled=False)
-    ctx.loadYangModel()
-    return ctx
-
-
-def validate_config(
-    config: Dict[str, Any], ctx=None, yang_dir: Optional[str] = None
-) -> ValidationResult:
-    """Validate a SONiC config_db.json dict against the SONiC YANG models.
-
-    Args:
-        config: The ConfigDB JSON as a dict (top-level keys are tables).
-        ctx: Optional pre-loaded SonicYang context (reuse for batches).
-        yang_dir: Override the YANG model directory; ignored when ctx is given.
-
-    Returns:
-        ValidationResult with valid flag and any collected errors.
-    """
-    sonic_yang = _import_sonic_yang()
-
-    if ctx is None:
-        ctx = load_yang_context(yang_dir)
-
-    try:
-        ctx.loadData(configdbJson=config)
-        ctx.validate_data_tree()
-    except sonic_yang.SonicYangException as exc:
-        message = str(exc)
-        errors = _split_libyang_errors(message)
-        if not errors:
-            errors = [ValidationError(message=message)]
-        return ValidationResult(valid=False, errors=errors)
-    except Exception as exc:
-        return ValidationResult(
-            valid=False,
-            errors=[ValidationError(message=f"Unexpected validator error: {exc}")],
-        )
-
-    return ValidationResult(valid=True)
-
-
-def _split_libyang_errors(raw: str) -> List[ValidationError]:
-    """Best-effort parse of the multi-line error blob returned by libyang.
-
-    libyang concatenates multiple errors into one string via SonicYangException;
-    we split on newlines and try to extract a path hint when present.
+    Tables that have a schema in :data:`TABLE_MODELS` are validated strictly.
+    Tables not present in the schema registry — typically ones SONiC has not
+    yet modelled in upstream YANG — are reported as warnings rather than
+    errors, so the validator does not reject otherwise-valid configurations
+    just because YANG coverage lags.
     """
     errors: List[ValidationError] = []
-    for line in (line.strip() for line in raw.splitlines()):
-        if not line:
+    warnings: List[str] = []
+
+    for table_name, table_data in config.items():
+        model = TABLE_MODELS.get(table_name)
+        if model is None:
+            warnings.append(
+                f"No YANG schema for table {table_name!r} (validation skipped)"
+            )
             continue
-        path: Optional[str] = None
-        message = line
-        marker = "Schema location:"
-        if marker in line:
-            head, tail = line.split(marker, 1)
-            message = head.strip().rstrip(",;.")
-            path = tail.strip().split(",", 1)[0].strip()
-        errors.append(ValidationError(message=message, path=path))
-    return errors
+
+        try:
+            model.model_validate(table_data)
+        except PydValidationError as exc:
+            for err in exc.errors():
+                loc = ".".join(str(p) for p in err.get("loc", ()))
+                errors.append(
+                    ValidationError(
+                        message=err.get("msg", str(err)),
+                        path=loc or None,
+                        table=table_name,
+                    )
+                )
+        except Exception as exc:
+            errors.append(
+                ValidationError(
+                    message=f"Unexpected validator error: {exc}",
+                    table=table_name,
+                )
+            )
+
+    return ValidationResult(valid=not errors, errors=errors, warnings=warnings)

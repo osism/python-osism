@@ -19,7 +19,6 @@ COPY files/clustershell/clush.conf /etc/clustershell/clush.conf
 COPY files/clustershell/groups.conf /etc/clustershell/groups.conf
 
 COPY files/sonic/port_config/ /etc/sonic/port_config/
-COPY files/sonic/yang_models/ /etc/sonic/yang_models/
 COPY files/sonic/config_db.json /etc/sonic/config_db.json
 
 COPY files/netbox-manager/settings.toml /usr/local/config/settings.toml
@@ -46,7 +45,6 @@ apk add --no-cache \
   coreutils \
   git \
   less \
-  libyang \
   openssh-client \
   procps \
   skopeo \
