@@ -30,8 +30,13 @@ NETBOX_TOKEN = str(
 IGNORE_SSL_ERRORS = os.getenv("IGNORE_SSL_ERRORS", "True") == "True"
 
 # 43200 seconds = 12 hours
-GATHER_FACTS_SCHEDULE = float(os.getenv("GATHER_FACTS_SCHEDULE", "43200.0"))
-FACTS_MAX_AGE = int(os.getenv("FACTS_MAX_AGE", str(int(GATHER_FACTS_SCHEDULE))))
+_DEFAULT_FACTS_INTERVAL_SECONDS = 43200
+GATHER_FACTS_SCHEDULE = float(
+    os.getenv("GATHER_FACTS_SCHEDULE", str(_DEFAULT_FACTS_INTERVAL_SECONDS))
+)
+# Intentionally independent of GATHER_FACTS_SCHEDULE: setting the schedule to 0
+# to disable periodic gathering must not force every fact to look stale.
+FACTS_MAX_AGE = int(os.getenv("FACTS_MAX_AGE", str(_DEFAULT_FACTS_INTERVAL_SECONDS)))
 INVENTORY_RECONCILER_SCHEDULE = float(
     os.getenv("INVENTORY_RECONCILER_SCHEDULE", "600.0")
 )

@@ -395,9 +395,7 @@ def test_gather_facts_schedule_override_int_string_becomes_float(
     assert isinstance(settings_module.GATHER_FACTS_SCHEDULE, float)
 
 
-def test_facts_max_age_default_matches_int_of_gather_facts_schedule(
-    reload_settings, monkeypatch
-):
+def test_facts_max_age_default(reload_settings, monkeypatch):
     monkeypatch.delenv("GATHER_FACTS_SCHEDULE", raising=False)
     monkeypatch.delenv("FACTS_MAX_AGE", raising=False)
     reload_settings()
@@ -406,15 +404,25 @@ def test_facts_max_age_default_matches_int_of_gather_facts_schedule(
     assert isinstance(settings_module.FACTS_MAX_AGE, int)
 
 
-def test_facts_max_age_tracks_gather_facts_schedule_when_unset(
+def test_facts_max_age_independent_of_gather_facts_schedule(
+    reload_settings, monkeypatch
+):
+    monkeypatch.setenv("GATHER_FACTS_SCHEDULE", "0")
+    monkeypatch.delenv("FACTS_MAX_AGE", raising=False)
+    reload_settings()
+
+    # FACTS_MAX_AGE keeps its own default even if GATHER_FACTS_SCHEDULE is 0.
+    assert settings_module.FACTS_MAX_AGE == 43200
+
+
+def test_facts_max_age_independent_of_custom_gather_facts_schedule(
     reload_settings, monkeypatch
 ):
     monkeypatch.setenv("GATHER_FACTS_SCHEDULE", "120.5")
     monkeypatch.delenv("FACTS_MAX_AGE", raising=False)
     reload_settings()
 
-    # int(120.5) == 120 — the default for FACTS_MAX_AGE truncates the float.
-    assert settings_module.FACTS_MAX_AGE == 120
+    assert settings_module.FACTS_MAX_AGE == 43200
 
 
 def test_facts_max_age_explicit_override_wins(reload_settings, monkeypatch):
