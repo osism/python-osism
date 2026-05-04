@@ -24,7 +24,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from pyang import context, repository  # type: ignore[import-untyped]
 
@@ -110,6 +110,117 @@ def safe_field_name(yang_name: str) -> Tuple[str, Optional[str]]:
 @dataclass
 class PyType:
     annotation: str  # e.g. "str", "Annotated[int, Field(ge=1, le=100)]"
+
+
+@dataclass(frozen=True)
+class LeafrefConstraint:
+    """One cross-table reference: ``source_table.source_field`` must point at
+    an existing key in *one of* ``targets`` (modeled as YANG `union of leafref`).
+
+    ``is_leaf_list`` flags element-wise checks; ``source_is_simple_key`` is
+    true when the source leaf is the sole `key` of its YANG list, so the row
+    key in ConfigDB JSON directly carries the value.
+    """
+
+    source_table: str
+    source_field: str
+    targets: Tuple[Tuple[str, str], ...]
+    is_leaf_list: bool = False
+    source_is_simple_key: bool = False
+
+
+def parse_leafref_path(path: str) -> Optional[Tuple[str, str]]:
+    """Parse a YANG `leafref` XPath and return ``(target_table, target_field)``.
+
+    Handles the regular SONiC shape::
+
+        /<prefix>:sonic-X/<prefix>:TABLE/<prefix>:TABLE_LIST/<prefix>:field
+
+    Returns ``None`` for relative paths (`../...`) and for any path containing
+    XPath predicates (`[...]`) — those need richer resolution and are tracked
+    as separate follow-ups.
+    """
+    p = path.strip().strip('"').strip("'")
+    if not p.startswith("/"):
+        return None
+    if "[" in p or "]" in p:
+        return None
+    parts = [seg for seg in p.lstrip("/").split("/") if seg]
+    if len(parts) < 4:
+        return None
+    bare = [seg.split(":", 1)[-1] for seg in parts]
+    return bare[1], bare[-1]
+
+
+def extract_leafref_targets(type_stmt) -> List[Tuple[str, str]]:
+    """Walk a YANG `type` statement and return every leafref target it
+    declares — directly, via `union`, or via a typedef. Order is preserved
+    and duplicates are removed."""
+    base = type_stmt.arg
+    if base == "leafref":
+        path_stmt = type_stmt.search_one("path")
+        if path_stmt is None:
+            return []
+        parsed = parse_leafref_path(path_stmt.arg)
+        return [parsed] if parsed else []
+    if base == "union":
+        out: List[Tuple[str, str]] = []
+        seen: set = set()
+        for s in type_stmt.substmts:
+            if s.keyword != "type":
+                continue
+            for tgt in extract_leafref_targets(s):
+                if tgt not in seen:
+                    seen.add(tgt)
+                    out.append(tgt)
+        return out
+    td = getattr(type_stmt, "i_typedef", None)
+    if td is not None:
+        inner = td.search_one("type")
+        if inner is not None:
+            return extract_leafref_targets(inner)
+    return []
+
+
+def list_keys(list_stmt) -> List[str]:
+    """Return the leaf names that form a YANG `list`'s key (empty if none)."""
+    key_stmt = list_stmt.search_one("key")
+    if key_stmt is None:
+        return []
+    return key_stmt.arg.split()
+
+
+def collect_leafref_constraints(
+    table_name: str, list_or_container, leaves
+) -> List[LeafrefConstraint]:
+    """Inspect the leaves of one row schema and emit leafref constraints."""
+    if list_or_container.keyword == "list":
+        keys = list_keys(list_or_container)
+    else:
+        keys = []
+    constraints: List[LeafrefConstraint] = []
+    for leaf in leaves:
+        type_stmt = leaf.search_one("type")
+        if type_stmt is None:
+            continue
+        targets = extract_leafref_targets(type_stmt)
+        if not targets:
+            continue
+        # Drop targets that point back at the same source (no-op self-refs).
+        targets = [t for t in targets if t != (table_name, leaf.arg)]
+        if not targets:
+            continue
+        is_simple_key = len(keys) == 1 and leaf.arg == keys[0]
+        constraints.append(
+            LeafrefConstraint(
+                source_table=table_name,
+                source_field=leaf.arg,
+                targets=tuple(targets),
+                is_leaf_list=(leaf.keyword == "leaf-list"),
+                source_is_simple_key=is_simple_key,
+            )
+        )
+    return constraints
 
 
 def parse_range_part(part: str) -> Tuple[Optional[int], Optional[int]]:
@@ -345,9 +456,11 @@ def generate_row_class(class_name: str, leaves) -> str:
     )
 
 
-def generate_table(table_container) -> Tuple[str, str, str]:
+def generate_table(
+    table_container,
+) -> Tuple[str, str, str, List[LeafrefConstraint]]:
     """Generate code for one ConfigDB table container.
-    Returns (table_name, table_class, code_block).
+    Returns (table_name, table_class, code_block, leafref_constraints).
 
     Two patterns are recognised:
       1. table → list+ → leafs           (most common, e.g. PORT)
@@ -361,17 +474,22 @@ def generate_table(table_container) -> Tuple[str, str, str]:
 
     parts: List[str] = []
     row_classes: List[str] = []
+    constraints: List[LeafrefConstraint] = []
 
     if lists:
         for lst in lists:
             row_class = to_class_name(lst.arg) + "Row"
-            parts.append(generate_row_class(row_class, collect_leaves(lst)))
+            leaves = collect_leaves(lst)
+            parts.append(generate_row_class(row_class, leaves))
             row_classes.append(row_class)
+            constraints.extend(collect_leafref_constraints(table_name, lst, leaves))
     elif sub_containers:
         for sc in sub_containers:
             row_class = base + to_class_name(sc.arg) + "Row"
-            parts.append(generate_row_class(row_class, collect_leaves(sc)))
+            leaves = collect_leaves(sc)
+            parts.append(generate_row_class(row_class, leaves))
             row_classes.append(row_class)
+            constraints.extend(collect_leafref_constraints(table_name, sc, leaves))
     else:
         raise ValueError(f"table {table_name} has neither list nor container children")
 
@@ -382,7 +500,7 @@ def generate_table(table_container) -> Tuple[str, str, str]:
         row_type = f"Union[{', '.join(row_classes)}]"
     parts.append(f"class {table_class}(RootModel[Dict[str, {row_type}]]):\n    pass\n")
 
-    return table_name, table_class, "\n".join(parts)
+    return table_name, table_class, "\n".join(parts), constraints
 
 
 def load_yang_modules(yang_dir: Path):
@@ -444,12 +562,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     code_blocks: List[str] = []
     registry: List[Tuple[str, str]] = []
+    leafrefs: List[LeafrefConstraint] = []
     skipped: List[Tuple[str, str]] = []
     seen_tables: set = set()
 
     for path, module, container in find_table_containers(modules):
         try:
-            table_name, table_class, code = generate_table(container)
+            table_name, table_class, code, table_leafrefs = generate_table(container)
         except Exception as exc:  # pragma: no cover - generator-time only
             skipped.append((container.arg, f"{path.name}: {exc}"))
             continue
@@ -463,6 +582,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         code_blocks.append(f"\n# {path.name} :: {module.arg} :: {table_name}\n{code}")
         registry.append((table_name, table_class))
+        leafrefs.extend(table_leafrefs)
 
     body = "".join(code_blocks)
     body += "\n\nTABLE_MODELS: Dict[str, type[BaseModel]] = {\n"
@@ -480,23 +600,106 @@ def main(argv: Optional[List[str]] = None) -> int:
     out_file = output / "_schemas.py"
     out_file.write_text(schema_code)
 
+    leafrefs_file = output / "_leafrefs.py"
+    leafrefs_file.write_text(render_leafrefs_module(leafrefs))
+
     init_file = output / "__init__.py"
     init_file.write_text(
         "# SPDX-License-Identifier: Apache-2.0\n"
         "# AUTO-GENERATED — DO NOT EDIT BY HAND.\n"
         '"""Generated SONiC ConfigDB schemas."""\n\n'
+        "from ._leafrefs import LEAFREFS, LeafrefConstraint\n"
         "from ._schemas import TABLE_MODELS\n\n"
-        '__all__ = ["TABLE_MODELS"]\n'
+        '__all__ = ["LEAFREFS", "LeafrefConstraint", "TABLE_MODELS"]\n'
     )
 
     print(f"Wrote {len(registry)} table models -> {out_file}")
+    print(f"Wrote {len(leafrefs)} leafref constraints -> {leafrefs_file}")
     if skipped:
         print(f"Skipped {len(skipped)} containers:")
         for name, reason in skipped:
             print(f"  - {name}: {reason}")
 
-    format_with_black(out_file, init_file)
+    format_with_black(out_file, leafrefs_file, init_file)
     return 0
+
+
+def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
+    """Render the auto-generated `_leafrefs.py` module.
+
+    Constraints that share `(source_table, source_field)` — typically because
+    a table declares multiple `list` siblings with the same leafref leaf, e.g.
+    INTERFACE_LIST and INTERFACE_IPPREFIX_LIST both having `name` →
+    PORT/name — are merged: targets are unioned and the is_leaf_list /
+    source_is_simple_key flags become true if any contributing constraint had
+    them set.
+    """
+    merged: Dict[Tuple[str, str], LeafrefConstraint] = {}
+    for c in constraints:
+        key = (c.source_table, c.source_field)
+        if key not in merged:
+            merged[key] = c
+            continue
+        existing = merged[key]
+        seen: set = set()
+        new_targets: List[Tuple[str, str]] = []
+        for t in (*existing.targets, *c.targets):
+            if t not in seen:
+                seen.add(t)
+                new_targets.append(t)
+        merged[key] = LeafrefConstraint(
+            source_table=c.source_table,
+            source_field=c.source_field,
+            targets=tuple(new_targets),
+            is_leaf_list=existing.is_leaf_list or c.is_leaf_list,
+            source_is_simple_key=existing.source_is_simple_key
+            or c.source_is_simple_key,
+        )
+
+    sorted_constraints = sorted(
+        merged.values(), key=lambda c: (c.source_table, c.source_field)
+    )
+    lines: List[str] = []
+    lines.append("# SPDX-License-Identifier: Apache-2.0")
+    lines.append("# AUTO-GENERATED — DO NOT EDIT BY HAND.")
+    lines.append("# Regenerate with: python tools/sonic_yang_to_pydantic.py")
+    lines.append("# flake8: noqa: E501")
+    lines.append('"""SONiC ConfigDB cross-table leafref constraints."""')
+    lines.append("")
+    lines.append("from dataclasses import dataclass")
+    lines.append("from typing import Tuple")
+    lines.append("")
+    lines.append("")
+    lines.append("@dataclass(frozen=True)")
+    lines.append("class LeafrefConstraint:")
+    lines.append(
+        '    """A leafref from ``source_table.source_field`` to one of ``targets``."""'
+    )
+    lines.append("")
+    lines.append("    source_table: str")
+    lines.append("    source_field: str")
+    lines.append("    targets: Tuple[Tuple[str, str], ...]")
+    lines.append("    is_leaf_list: bool = False")
+    lines.append("    source_is_simple_key: bool = False")
+    lines.append("")
+    lines.append("")
+    lines.append("LEAFREFS: Tuple[LeafrefConstraint, ...] = (")
+    for c in sorted_constraints:
+        targets_repr = ", ".join(f"({t[0]!r}, {t[1]!r})" for t in c.targets)
+        if len(c.targets) == 1:
+            targets_repr += ","
+        lines.append("    LeafrefConstraint(")
+        lines.append(f"        source_table={c.source_table!r},")
+        lines.append(f"        source_field={c.source_field!r},")
+        lines.append(f"        targets=({targets_repr}),")
+        if c.is_leaf_list:
+            lines.append("        is_leaf_list=True,")
+        if c.source_is_simple_key:
+            lines.append("        source_is_simple_key=True,")
+        lines.append("    ),")
+    lines.append(")")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def format_with_black(*paths: Path) -> None:

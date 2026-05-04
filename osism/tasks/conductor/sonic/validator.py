@@ -9,11 +9,15 @@ pydantic.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from pydantic import ValidationError as PydValidationError
 
-from osism.tasks.conductor.sonic._generated import TABLE_MODELS
+from osism.tasks.conductor.sonic._generated import (
+    LEAFREFS,
+    LeafrefConstraint,
+    TABLE_MODELS,
+)
 
 
 @dataclass
@@ -80,4 +84,103 @@ def validate_config(config: Dict[str, Any]) -> ValidationResult:
                 )
             )
 
+    errors.extend(_check_leafrefs(config))
+
     return ValidationResult(valid=not errors, errors=errors, warnings=warnings)
+
+
+def _check_leafrefs(config: Dict[str, Any]) -> List[ValidationError]:
+    """Verify every cross-table leafref reference resolves to an existing key.
+
+    YANG `leafref` semantics say a leaf must point at an existing value in a
+    target path. In SONiC ConfigDB the row dict key carries the target list's
+    key value, so a missing reference is "value not in
+    ``config[target_table]``". Multi-target (union-of-leafref) succeeds if
+    *any* target accepts the value.
+
+    Composite-key parsing is intentionally skipped — when the source field is
+    encoded only inside a `|`-separated row key, we can't safely split without
+    YANG key metadata, so we only check explicit row-dict fields plus the
+    ``source_is_simple_key`` shortcut where the row key alone is the value.
+    """
+    errors: List[ValidationError] = []
+    for constraint in LEAFREFS:
+        rows = config.get(constraint.source_table)
+        if not isinstance(rows, dict):
+            continue
+        target_keysets = _collect_target_keysets(config, constraint)
+        # If the config does not declare any of the target tables, the
+        # references are unresolvable — flag them.
+        for row_key, row in rows.items():
+            for value in _iter_leafref_values(constraint, row_key, row):
+                if not _value_in_any_target(value, target_keysets):
+                    errors.append(
+                        ValidationError(
+                            message=_format_missing_message(constraint, value),
+                            path=f"{row_key}.{constraint.source_field}",
+                            table=constraint.source_table,
+                        )
+                    )
+    return errors
+
+
+def _collect_target_keysets(
+    config: Dict[str, Any], constraint: LeafrefConstraint
+) -> List[set]:
+    """Return one set of legal values per target. ``target_field == "name"``
+    (the list key) is the common case and corresponds to row keys; for
+    non-key targets we also accept matching values inside the rows."""
+    keysets: List[set] = []
+    for target_table, target_field in constraint.targets:
+        rows = config.get(target_table)
+        keys: set = set()
+        if isinstance(rows, dict):
+            for k, v in rows.items():
+                keys.add(k)
+                if isinstance(v, dict):
+                    inner = v.get(target_field)
+                    if isinstance(inner, str):
+                        keys.add(inner)
+                    elif isinstance(inner, list):
+                        for item in inner:
+                            if isinstance(item, str):
+                                keys.add(item)
+        keysets.append(keys)
+    return keysets
+
+
+def _iter_leafref_values(
+    constraint: LeafrefConstraint, row_key: str, row: Any
+) -> Iterable[str]:
+    """Yield the values from one row that this constraint should validate."""
+    raw: Any = None
+    if isinstance(row, dict) and constraint.source_field in row:
+        raw = row[constraint.source_field]
+    elif constraint.source_is_simple_key and "|" not in row_key:
+        # Single-key list: row key directly carries the leaf value.
+        raw = row_key
+
+    if raw is None:
+        return
+    if constraint.is_leaf_list:
+        if isinstance(raw, list):
+            for item in raw:
+                if isinstance(item, str):
+                    yield item
+        elif isinstance(raw, str):
+            yield raw
+    else:
+        if isinstance(raw, str):
+            yield raw
+
+
+def _value_in_any_target(value: str, keysets: List[set]) -> bool:
+    return any(value in ks for ks in keysets)
+
+
+def _format_missing_message(constraint: LeafrefConstraint, value: str) -> str:
+    targets = ", ".join(f"{t}.{f}" for t, f in constraint.targets)
+    return (
+        f"leafref {constraint.source_field}={value!r} does not resolve to "
+        f"an existing entry in {targets}"
+    )
