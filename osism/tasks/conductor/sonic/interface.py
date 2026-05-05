@@ -7,7 +7,12 @@ import os
 import re
 from loguru import logger
 
-from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS, PORT_CONFIG_PATH
+from .constants import (
+    ADMIN_STATUS_UP,
+    HIGH_SPEED_PORTS,
+    PORT_CONFIG_PATH,
+    PORT_TYPE_TO_SPEED_MAP,
+)
 from .cache import get_cached_device_interfaces
 
 # Global cache for port configurations to avoid repeated file reads
@@ -1052,7 +1057,7 @@ def detect_port_channels(device):
                 if portchannel_name not in portchannels:
                     portchannels[portchannel_name] = {
                         "members": [],
-                        "admin_status": "up",
+                        "admin_status": ADMIN_STATUS_UP,
                         "fast_rate": "true",
                         "min_links": "1",
                         "mtu": "9100",

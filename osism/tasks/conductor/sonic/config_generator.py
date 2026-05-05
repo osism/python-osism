@@ -38,7 +38,12 @@ from .connections import (
     get_connected_interface_ipv4_address,
 )
 from .cache import get_cached_device_interfaces
-from .constants import BGP_AF_L2VPN_EVPN_TAG, DEFAULT_SONIC_ROLES
+from .constants import (
+    ADMIN_STATUS_DOWN,
+    ADMIN_STATUS_UP,
+    BGP_AF_L2VPN_EVPN_TAG,
+    DEFAULT_SONIC_ROLES,
+)
 
 # Global cache for metalbox IPs per device to avoid duplicate lookups
 _metalbox_ip_cache: dict[int, Optional[str]] = {}
@@ -297,7 +302,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     # Add management interface configuration
     if oob_ip_result:
         oob_ip, prefix_len = oob_ip_result
-        config["MGMT_INTERFACE"]["eth0"] = {"admin_status": "up"}
+        config["MGMT_INTERFACE"]["eth0"] = {"admin_status": ADMIN_STATUS_UP}
         config["MGMT_INTERFACE"][f"eth0|{oob_ip}/{prefix_len}"] = {}
         metalbox_ip = _get_metalbox_ip_for_device(device)
         # Write into the existing STATIC_ROUTE dict so any pre-existing
@@ -376,12 +381,12 @@ def _add_port_configurations(
 
         # Set admin_status to "up" if port is connected or is a port channel member, otherwise "down"
         admin_status = (
-            "up"
+            ADMIN_STATUS_UP
             if (
                 port_name in connected_interfaces
                 or port_name in portchannel_info["member_mapping"]
             )
-            else "down"
+            else ADMIN_STATUS_DOWN
         )
 
         # Check if this port is a breakout port and adjust speed and lanes accordingly
@@ -651,12 +656,12 @@ def _add_missing_breakout_ports(
 
             # Set admin_status based on connection or port channel membership
             admin_status = (
-                "up"
+                ADMIN_STATUS_UP
                 if (
                     port_name in connected_interfaces
                     or port_name in portchannel_info["member_mapping"]
                 )
-                else "down"
+                else ADMIN_STATUS_DOWN
             )
 
             # Generate correct alias (breakout port always gets subport notation)
@@ -1023,12 +1028,14 @@ def _add_bgp_configurations(
                 vrf_name = get_vrf_for_interface(port_name)
 
                 ipv4_key = f"{vrf_name}|{neighbor_id}|ipv4_unicast"
-                config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
+                config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": ADMIN_STATUS_UP}
 
                 # Only add ipv6_unicast if v6only would be true (no transfer role IPv4)
                 if not has_transfer_ipv4:
                     ipv6_key = f"{vrf_name}|{neighbor_id}|ipv6_unicast"
-                    config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+                    config["BGP_NEIGHBOR_AF"][ipv6_key] = {
+                        "admin_status": ADMIN_STATUS_UP
+                    }
                     logger.debug(
                         f"Added BGP_NEIGHBOR_AF with ipv4_unicast and ipv6_unicast for interface {port_name} (no direct IPv4)"
                     )
@@ -1057,7 +1064,9 @@ def _add_bgp_configurations(
 
                     if is_switch_connection or has_l2vpn_tag:
                         l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
-                        config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
+                        config["BGP_NEIGHBOR_AF"][l2vpn_key] = {
+                            "admin_status": ADMIN_STATUS_UP
+                        }
                         logger.debug(
                             f"Added BGP_NEIGHBOR_AF l2vpn_evpn for interface {port_name} "
                             f"(connected to {connected_device.name})"
@@ -1090,8 +1099,8 @@ def _add_bgp_configurations(
 
         ipv4_key = f"{vrf_name}|{neighbor_id}|ipv4_unicast"
         ipv6_key = f"{vrf_name}|{neighbor_id}|ipv6_unicast"
-        config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
-        config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+        config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": ADMIN_STATUS_UP}
+        config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": ADMIN_STATUS_UP}
 
         # Add l2vpn_evpn only for switch-to-switch connections (default VRF)
         if vrf_name == "default":
@@ -1104,7 +1113,7 @@ def _add_bgp_configurations(
             )
             if is_switch_connection:
                 l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
-                config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
+                config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": ADMIN_STATUS_UP}
                 logger.debug(
                     f"Added BGP_NEIGHBOR_AF l2vpn_evpn for port channel {pc_name} "
                     f"(connected to switch {connected_device.name})"
@@ -1358,7 +1367,9 @@ def _add_bgp_configurations(
 
                     # Add BGP_NEIGHBOR_AF for IPv4 unicast
                     ipv4_af_key = f"{vrf_name}|{peer_ipv4}|ipv4_unicast"
-                    config["BGP_NEIGHBOR_AF"][ipv4_af_key] = {"admin_status": "true"}
+                    config["BGP_NEIGHBOR_AF"][ipv4_af_key] = {
+                        "admin_status": ADMIN_STATUS_UP
+                    }
 
                     logger.info(
                         f"Added BGP neighbor configuration for VLAN {vid} using peer IP {peer_ipv4} "
@@ -1695,7 +1706,7 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
                 members.append(sonic_interface_name)
 
         config["VLAN"][vlan_name] = {
-            "admin_status": "up",
+            "admin_status": ADMIN_STATUS_UP,
             "autostate": "enable",
             "members": members,
             "vlanid": str(vid),
@@ -1721,7 +1732,7 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
         vlan_name = f"Vlan{vid}"
         if "addresses" in interface_data and interface_data["addresses"]:
             # Add the VLAN interface
-            config["VLAN_INTERFACE"][vlan_name] = {"admin_status": "up"}
+            config["VLAN_INTERFACE"][vlan_name] = {"admin_status": ADMIN_STATUS_UP}
 
             # Add IP configuration for each address (IPv4 and IPv6)
             for address in interface_data["addresses"]:
@@ -1733,7 +1744,7 @@ def _add_loopback_configuration(config, loopback_info):
     """Add Loopback configuration from NetBox."""
     for loopback_name, loopback_data in loopback_info["loopbacks"].items():
         # Add the Loopback interface
-        config["LOOPBACK"][loopback_name] = {"admin_status": "up"}
+        config["LOOPBACK"][loopback_name] = {"admin_status": ADMIN_STATUS_UP}
 
         # Add base Loopback interface entry
         config["LOOPBACK_INTERFACE"][loopback_name] = {}
@@ -1934,7 +1945,7 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             # Create VLAN with the same ID as VNI
             vlan_name = f"Vlan{vni}"
             config["VLAN"][vlan_name] = {
-                "admin_status": "up",
+                "admin_status": ADMIN_STATUS_UP,
                 "autostate": "enable",
                 "vlanid": str(vni),
             }
