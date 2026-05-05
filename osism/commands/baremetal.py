@@ -370,6 +370,12 @@ class BaremetalDeploy(Command):
                 if node["target_raid_config"]:
                     deploy_steps = [
                         {
+                            "interface": "deploy",
+                            "step": "erase_devices_metadata",
+                            "args": {},
+                            "priority": 95,
+                        },
+                        {
                             "interface": "raid",
                             "step": "apply_configuration",
                             "args": {
@@ -377,7 +383,7 @@ class BaremetalDeploy(Command):
                                 "raid_config": node["target_raid_config"],
                             },
                             "priority": 90,
-                        }
+                        },
                     ]
 
                 try:
