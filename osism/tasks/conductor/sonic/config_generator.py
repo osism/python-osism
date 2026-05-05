@@ -2074,6 +2074,16 @@ def _add_portchannel_configuration(config, portchannel_info):
             )
 
 
+# Map common syslog severity aliases to the SONiC-accepted set.
+# SONiC schema accepts: none, debug, info, notice, warn, error, crit.
+_SYSLOG_SEVERITY_ALIASES = {
+    "informational": "info",
+    "warning": "warn",
+    "err": "error",
+    "critical": "crit",
+}
+
+
 def _add_log_server_configuration(config, device):
     """Add SYSLOG_SERVER configuration to device config.
 
@@ -2085,11 +2095,14 @@ def _add_log_server_configuration(config, device):
         proto = device.config_context.get("_segment_log_server_proto", "udp")
         severity = device.config_context.get("_segment_log_server_severity", "info")
         vrf = device.config_context.get("_segment_log_server_vrf", "mgmt")
+        proto = proto.strip().lower()
+        severity = severity.strip().lower()
+        severity = _SYSLOG_SEVERITY_ALIASES.get(severity, severity)
         config["SYSLOG_SERVER"] = {}
         for host in hosts:
             config["SYSLOG_SERVER"][host] = {}
             config["SYSLOG_SERVER"][host]["message-type"] = "log"
-            config["SYSLOG_SERVER"][host]["protocol"] = proto.upper()
+            config["SYSLOG_SERVER"][host]["protocol"] = proto
             config["SYSLOG_SERVER"][host]["remote-port"] = "514"
             config["SYSLOG_SERVER"][host]["severity"] = severity
             config["SYSLOG_SERVER"][host]["vrf_name"] = vrf
