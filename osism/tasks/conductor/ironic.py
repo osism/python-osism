@@ -354,21 +354,43 @@ def _prettify_for_display(obj):
 def _sync_ironic_device(
     request_id, device, node_attributes, ports_attributes, adopt, force
 ):
-    # NOTE: Pop target_raid_config from node_attributes since they cannot be set using node updates
-    target_raid_config = node_attributes.pop("target_raid_config", None)
     osism_utils.push_task_output(request_id, f"Processing device {device.name}\n")
     node = openstack.baremetal_node_show(device.name, ignore_missing=True)
     if not node:
         osism_utils.push_task_output(
             request_id, f"Creating baremetal node for {device.name}\n"
         )
-        # NOTE: Create node without automated_clean, so it can be
-        # transitioned fast from managable to available later. It
-        # is also safer to not clean during sync, so that nodes may
-        # later be adopted with their provisioned data.
-        node_attributes.update(dict(automated_clean=False))
-        node = openstack.baremetal_node_create(device.name, node_attributes)
-        if target_raid_config:
+        # NOTE: Create a stub node with only its name, so it can be updated in
+        # the next step. It is created without automated_clean, so it can be
+        # transitioned fast from managable to available later. It is also safer
+        # to not clean during sync, so that nodes may later be adopted with
+        # their provisioned data.
+        node = openstack.baremetal_node_create(
+            device.name,
+            dict(automated_clean=False, driver=node_attributes.get("driver")),
+        )
+
+    # NOTE: Check whether the baremetal node needs to be updated
+    node_updates = {}
+    deep_compare(node_attributes, node, node_updates)
+    if "driver_info" in node_updates:
+        # NOTE: The password is not returned by ironic, so we cannot make a comparision and it would always be updated. Therefore we pop it from the dictionary
+        password_key = driver_params[node_attributes["driver"]]["password"]
+        if password_key in node_updates["driver_info"]:
+            node_updates["driver_info"].pop(password_key, None)
+            if not node_updates["driver_info"]:
+                node_updates.pop("driver_info", None)
+    if node_updates or force:
+        osism_utils.push_task_output(
+            request_id,
+            f"Updating baremetal node for {device.name} with {node_updates}\n",
+        )
+        # NOTE: Pop target_raid_config from node_attributes since they cannot be set using node updates
+        target_raid_config = node_attributes.pop("target_raid_config", None)
+
+        # NOTE: Do the actual updates with all values in node_attributes. Otherwise nested dicts like e.g. driver_info will be overwritten as a whole and contain only changed values
+        node = openstack.baremetal_node_update(node["uuid"], node_attributes)
+        if ("target_raid_config" in node_updates or force) and target_raid_config:
             resp_ok, resp_content = openstack.baremetal_node_set_target_raid_config(
                 node["uuid"], target_raid_config
             )
@@ -376,32 +398,6 @@ def _sync_ironic_device(
                 raise Exception(
                     f"Error updating target_raid_config of baremetal node for {device.name}: {resp_content}"
                 )
-    else:
-        # NOTE: Check whether the baremetal node needs to be updated
-        node_updates = {}
-        deep_compare(node_attributes, node, node_updates)
-        if "driver_info" in node_updates:
-            # NOTE: The password is not returned by ironic, so we cannot make a comparision and it would always be updated. Therefore we pop it from the dictionary
-            password_key = driver_params[node_attributes["driver"]]["password"]
-            if password_key in node_updates["driver_info"]:
-                node_updates["driver_info"].pop(password_key, None)
-                if not node_updates["driver_info"]:
-                    node_updates.pop("driver_info", None)
-        if node_updates or force:
-            osism_utils.push_task_output(
-                request_id,
-                f"Updating baremetal node for {device.name} with {node_updates}\n",
-            )
-            # NOTE: Do the actual updates with all values in node_attributes. Otherwise nested dicts like e.g. driver_info will be overwritten as a whole and contain only changed values
-            node = openstack.baremetal_node_update(node["uuid"], node_attributes)
-            if ("target_raid_config" in node_updates or force) and target_raid_config:
-                resp_ok, resp_content = openstack.baremetal_node_set_target_raid_config(
-                    node["uuid"], target_raid_config
-                )
-                if not resp_ok:
-                    raise Exception(
-                        f"Error updating target_raid_config of baremetal node for {device.name}: {resp_content}"
-                    )
 
     node_ports = openstack.baremetal_port_list(
         details=False, attributes=dict(node_uuid=node["uuid"])
