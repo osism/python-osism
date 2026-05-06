@@ -12,7 +12,15 @@ from tabulate import tabulate
 import json
 import yaml
 from osism import settings, utils
+from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
+
+
+def _apply_metalbox_vars(play_vars, device):
+    metalbox_ip = _get_metalbox_primary_ip4(device)
+    if metalbox_ip:
+        play_vars["hosts_additional_entries"] = {"metalbox.osism.xyz": metalbox_ip}
+        play_vars["docker_insecure_registries"] = ["metalbox:5001"]
 
 
 class BaremetalList(Command):
@@ -169,7 +177,6 @@ class BaremetalDeploy(Command):
         setup_cloud_environment, get_openstack_connection, cleanup_cloud_environment = (
             get_cloud_helpers()
         )
-        from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
         from osism.tasks.conductor.utils import deep_decrypt, get_vault
 
         password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
@@ -297,11 +304,7 @@ class BaremetalDeploy(Command):
                         {"hostname_name": node.name, "hosts_type": "template"}
                     )
                     if device:
-                        metalbox_ip = _get_metalbox_primary_ip4(device)
-                        if metalbox_ip:
-                            play["vars"]["hosts_additional_entries"] = {
-                                "metalbox.osism.xyz": metalbox_ip
-                            }
+                        _apply_metalbox_vars(play["vars"], device)
                     if (
                         "netplan_parameters" in node.extra
                         and node.extra["netplan_parameters"]
@@ -430,7 +433,6 @@ class BaremetalDump(Command):
                 get_openstack_connection,
                 cleanup_cloud_environment,
             ) = get_cloud_helpers()
-            from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
             from osism.tasks.conductor.utils import deep_decrypt, get_vault
 
             password, temp_files, original_cwd, success = setup_cloud_environment(cloud)
@@ -510,11 +512,7 @@ class BaremetalDump(Command):
                     {"hostname_name": node.name, "hosts_type": "template"}
                 )
                 if device:
-                    metalbox_ip = _get_metalbox_primary_ip4(device)
-                    if metalbox_ip:
-                        play["vars"]["hosts_additional_entries"] = {
-                            "metalbox.osism.xyz": metalbox_ip
-                        }
+                    _apply_metalbox_vars(play["vars"], device)
 
                 # Get netplan_parameters from Ironic node extra (JSON string, needs parsing)
                 if (
@@ -561,7 +559,6 @@ class BaremetalDump(Command):
                 cleanup_cloud_environment(temp_files, original_cwd)
         else:
             # Fetch data from NetBox (default behavior, may show newer data)
-            from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
             from osism.tasks.conductor.utils import deep_decrypt, get_vault
 
             # Check if NetBox connection is available
@@ -625,11 +622,7 @@ class BaremetalDump(Command):
                 play["vars"].update(
                     {"hostname_name": device.name, "hosts_type": "template"}
                 )
-                metalbox_ip = _get_metalbox_primary_ip4(device)
-                if metalbox_ip:
-                    play["vars"]["hosts_additional_entries"] = {
-                        "metalbox.osism.xyz": metalbox_ip
-                    }
+                _apply_metalbox_vars(play["vars"], device)
 
                 # Get netplan_parameters from NetBox custom fields (already a dict, no JSON parsing needed)
                 if (
