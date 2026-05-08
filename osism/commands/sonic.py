@@ -15,6 +15,7 @@ from osism import utils
 from osism.utils.ssh import (
     cleanup_ssh_known_hosts_for_node,
     ensure_known_hosts_file,
+    remove_known_hosts_entries,
     KNOWN_HOSTS_PATH,
 )
 
@@ -98,7 +99,20 @@ class SonicCommandBase(Command):
 
         return ssh_host, ssh_username
 
-    def _create_ssh_connection(self, ssh_host, ssh_username):
+    @staticmethod
+    def _add_refresh_host_key_argument(parser):
+        """Add --refresh-host-key option for forcing SSH host key refresh."""
+        parser.add_argument(
+            "--refresh-host-key",
+            dest="refresh_host_key",
+            action="store_true",
+            help=(
+                "Remove the existing SSH host key entry before connecting. "
+                "Use after a switch redeployment when the host key has changed."
+            ),
+        )
+
+    def _create_ssh_connection(self, ssh_host, ssh_username, refresh_host_key=False):
         """Create and return SSH connection"""
         ssh_key_path = "/ansible/secrets/id_rsa.operator"
 
@@ -111,6 +125,17 @@ class SonicCommandBase(Command):
             logger.warning(
                 f"Could not initialize {KNOWN_HOSTS_PATH}, continuing with AutoAddPolicy"
             )
+
+        if refresh_host_key:
+            logger.info(
+                f"Refreshing SSH host key: removing known_hosts entries for {ssh_host}"
+            )
+            try:
+                remove_known_hosts_entries(ssh_host, KNOWN_HOSTS_PATH)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to refresh SSH host key for {ssh_host}, continuing: {e}"
+                )
 
         ssh = paramiko.SSHClient()
         # Load system host keys from centralized known_hosts file
@@ -293,6 +318,7 @@ class Load(SonicCommandBase):
             type=str,
             help="Hostname of the SONiC switch to load configuration",
         )
+        self._add_refresh_host_key_argument(parser)
         return parser
 
     def take_action(self, parsed_args):
@@ -329,7 +355,9 @@ class Load(SonicCommandBase):
             )
 
             # Create SSH connection
-            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            ssh = self._create_ssh_connection(
+                ssh_host, ssh_username, parsed_args.refresh_host_key
+            )
             if not ssh:
                 return 1
 
@@ -391,6 +419,7 @@ class Backup(SonicCommandBase):
         parser.add_argument(
             "hostname", type=str, help="Hostname of the SONiC switch to backup"
         )
+        self._add_refresh_host_key_argument(parser)
         return parser
 
     def take_action(self, parsed_args):
@@ -420,7 +449,9 @@ class Backup(SonicCommandBase):
             )
 
             # Create SSH connection
-            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            ssh = self._create_ssh_connection(
+                ssh_host, ssh_username, parsed_args.refresh_host_key
+            )
             if not ssh:
                 return 1
 
@@ -467,6 +498,7 @@ class Ztp(SonicCommandBase):
         parser.add_argument(
             "hostname", type=str, help="Hostname of the SONiC switch to manage ZTP"
         )
+        self._add_refresh_host_key_argument(parser)
         return parser
 
     def take_action(self, parsed_args):
@@ -501,7 +533,9 @@ class Ztp(SonicCommandBase):
                 )
 
             # Create SSH connection
-            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            ssh = self._create_ssh_connection(
+                ssh_host, ssh_username, parsed_args.refresh_host_key
+            )
             if not ssh:
                 return 1
 
@@ -555,6 +589,7 @@ class Reload(SonicCommandBase):
         parser.add_argument(
             "hostname", type=str, help="Hostname of the SONiC switch to reload"
         )
+        self._add_refresh_host_key_argument(parser)
         return parser
 
     def take_action(self, parsed_args):
@@ -591,7 +626,9 @@ class Reload(SonicCommandBase):
             )
 
             # Create SSH connection
-            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            ssh = self._create_ssh_connection(
+                ssh_host, ssh_username, parsed_args.refresh_host_key
+            )
             if not ssh:
                 return 1
 
@@ -664,6 +701,7 @@ class Reboot(SonicCommandBase):
         parser.add_argument(
             "hostname", type=str, help="Hostname of the SONiC switch to reboot"
         )
+        self._add_refresh_host_key_argument(parser)
         return parser
 
     def take_action(self, parsed_args):
@@ -690,7 +728,9 @@ class Reboot(SonicCommandBase):
             logger.info(f"Connecting to {hostname} ({ssh_host}) to reboot SONiC switch")
 
             # Create SSH connection
-            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            ssh = self._create_ssh_connection(
+                ssh_host, ssh_username, parsed_args.refresh_host_key
+            )
             if not ssh:
                 return 1
 
@@ -739,6 +779,7 @@ class Reset(SonicCommandBase):
             action="store_true",
             help="Force factory reset without confirmation prompt",
         )
+        self._add_refresh_host_key_argument(parser)
         return parser
 
     def take_action(self, parsed_args):
@@ -780,7 +821,9 @@ class Reset(SonicCommandBase):
             )
 
             # Create SSH connection
-            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            ssh = self._create_ssh_connection(
+                ssh_host, ssh_username, parsed_args.refresh_host_key
+            )
             if not ssh:
                 return 1
 
@@ -873,6 +916,7 @@ class Show(SonicCommandBase):
             nargs="*",
             help="Show command and parameters to execute (e.g., 'interfaces', 'version', 'ip route'). If not specified, executes 'show' to display available commands",
         )
+        self._add_refresh_host_key_argument(parser)
         return parser
 
     def take_action(self, parsed_args):
@@ -905,7 +949,9 @@ class Show(SonicCommandBase):
             logger.info(f"Executing command on {hostname} ({ssh_host}): {show_command}")
 
             # Create SSH connection
-            ssh = self._create_ssh_connection(ssh_host, ssh_username)
+            ssh = self._create_ssh_connection(
+                ssh_host, ssh_username, parsed_args.refresh_host_key
+            )
             if not ssh:
                 return 1
 
