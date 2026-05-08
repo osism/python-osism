@@ -12,7 +12,6 @@
         name:
           - curl
           - jq
-          - pipenv
           - python3-docker
           - python3-requests
 
@@ -25,3 +24,4 @@
   roles:
     - ensure-docker
     - ensure-pip
+    - ensure-pipenv
