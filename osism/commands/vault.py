@@ -69,7 +69,26 @@ class View(Command):
         path = parsed_args.path
         if not os.path.isabs(path):
             path = os.path.join("/opt/configuration", path)
-        subprocess.call(f"/usr/local/bin/ansible-vault view {path}", shell=True)
+
+        try:
+            with open(path, "rb") as fp:
+                content = fp.read()
+        except FileNotFoundError:
+            logger.error(f"File not found: {path}")
+            return 1
+        except PermissionError:
+            logger.error(f"Permission denied reading file: {path}")
+            return 1
+        except OSError as exc:
+            logger.error(f"Cannot read file {path}: {exc}")
+            return 1
+
+        if content.startswith(b"$ANSIBLE_VAULT"):
+            subprocess.call(f"/usr/local/bin/ansible-vault view {path}", shell=True)
+            return
+
+        logger.warning(f"File is not vault-encrypted, showing plain content: {path}")
+        sys.stdout.write(content.decode("utf-8", errors="replace"))
 
 
 class Decrypt(Command):
