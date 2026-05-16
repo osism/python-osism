@@ -177,6 +177,12 @@ def run_ansible_in_environment(
     # This ensures Ansible's Python process flushes stdout immediately
     env["PYTHONUNBUFFERED"] = "1"
 
+    # Disable SSH host key checking to prevent intermittent "Host key verification
+    # failed" errors. With high fork counts (e.g. 50), multiple SSH processes within
+    # a single ansible-playbook run read/write the shared known_hosts file
+    # simultaneously, causing race conditions and file corruption.
+    env["ANSIBLE_HOST_KEY_CHECKING"] = "False"
+
     # Use a unique SSH ControlPath directory per task to prevent race conditions
     # when multiple Celery workers connect to the same host simultaneously.
     # Without this, concurrent Ansible runs share the same ControlMaster socket,
