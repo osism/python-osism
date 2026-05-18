@@ -84,8 +84,9 @@ class View(Command):
             return 1
 
         if content.startswith(b"$ANSIBLE_VAULT"):
-            subprocess.call(f"/usr/local/bin/ansible-vault view {path}", shell=True)
-            return
+            return subprocess.call(
+                f"/usr/local/bin/ansible-vault view {path}", shell=True
+            )
 
         logger.warning(f"File is not vault-encrypted, showing plain content: {path}")
         sys.stdout.write(content.decode("utf-8", errors="replace"))
