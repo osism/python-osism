@@ -128,3 +128,16 @@ def test_decrypt_invokes_ansible_vault_without_shell(tmp_path):
     mock_call.assert_called_once_with(
         ["/usr/local/bin/ansible-vault", "decrypt", str(path)]
     )
+
+
+def test_decrypt_propagates_exit_code(tmp_path):
+    path = tmp_path / "secrets.yml"
+    path.write_bytes(b"$ANSIBLE_VAULT;1.1;AES256\nciphertext\n")
+    cmd = vault.Decrypt(MagicMock(), MagicMock())
+    parser = cmd.get_parser("test")
+    parsed_args = parser.parse_args([str(path)])
+
+    with patch("osism.commands.vault.subprocess.call", return_value=1):
+        rc = cmd.take_action(parsed_args)
+
+    assert rc == 1
