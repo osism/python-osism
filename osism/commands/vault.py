@@ -102,7 +102,7 @@ class Decrypt(Command):
         path = parsed_args.path
         if not os.path.isabs(path):
             path = os.path.join("/opt/configuration", path)
-        subprocess.call(["/usr/local/bin/ansible-vault", "decrypt", path])
+        return subprocess.call(["/usr/local/bin/ansible-vault", "decrypt", path])
 
 
 # Well-known paths where secrets.yml files are typically found
