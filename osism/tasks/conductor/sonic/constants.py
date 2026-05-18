@@ -2,6 +2,12 @@
 
 """Constants and mappings for SONiC configuration."""
 
+# admin_status values accepted by the generated SONiC schema
+# (Literal["up", "down"] on INTERFACE, PORTCHANNEL, VLAN, VLAN_INTERFACE,
+# LOOPBACK, MGMT_INTERFACE, BGP_NEIGHBOR, BGP_NEIGHBOR_AF, ...).
+ADMIN_STATUS_UP = "up"
+ADMIN_STATUS_DOWN = "down"
+
 # Tag to add AF L2VPN EVPN to BGP neighbor
 BGP_AF_L2VPN_EVPN_TAG = "bgp-af-l2vpn-evpn"
 
