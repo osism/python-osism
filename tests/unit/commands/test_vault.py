@@ -26,7 +26,7 @@ def test_view_invokes_ansible_vault_for_encrypted_file(tmp_path):
         _make_view().take_action(parsed_args)
 
     mock_call.assert_called_once_with(
-        f"/usr/local/bin/ansible-vault view {path}", shell=True
+        ["/usr/local/bin/ansible-vault", "view", str(path)]
     )
 
 
@@ -59,7 +59,7 @@ def test_view_resolves_relative_path_against_opt_configuration():
     expected = "/opt/configuration/environments/openstack/secure.yml"
     open_mock.assert_called_once_with(expected, "rb")
     mock_call.assert_called_once_with(
-        f"/usr/local/bin/ansible-vault view {expected}", shell=True
+        ["/usr/local/bin/ansible-vault", "view", expected]
     )
 
 
@@ -108,5 +108,23 @@ def test_view_invokes_ansible_vault_for_vault_variants(tmp_path, header):
         _make_view().take_action(parsed_args)
 
     mock_call.assert_called_once_with(
-        f"/usr/local/bin/ansible-vault view {path}", shell=True
+        ["/usr/local/bin/ansible-vault", "view", str(path)]
+    )
+
+
+# --- Decrypt.take_action ---
+
+
+def test_decrypt_invokes_ansible_vault_without_shell(tmp_path):
+    path = tmp_path / "secrets.yml"
+    path.write_bytes(b"$ANSIBLE_VAULT;1.1;AES256\nciphertext\n")
+    cmd = vault.Decrypt(MagicMock(), MagicMock())
+    parser = cmd.get_parser("test")
+    parsed_args = parser.parse_args([str(path)])
+
+    with patch("osism.commands.vault.subprocess.call") as mock_call:
+        cmd.take_action(parsed_args)
+
+    mock_call.assert_called_once_with(
+        ["/usr/local/bin/ansible-vault", "decrypt", str(path)]
     )
