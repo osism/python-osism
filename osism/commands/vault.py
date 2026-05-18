@@ -67,6 +67,9 @@ class View(Command):
 
     def take_action(self, parsed_args):
         path = parsed_args.path
+        if path is None:
+            logger.error("No path specified")
+            return 1
         if not os.path.isabs(path):
             path = os.path.join("/opt/configuration", path)
 
@@ -100,6 +103,9 @@ class Decrypt(Command):
 
     def take_action(self, parsed_args):
         path = parsed_args.path
+        if path is None:
+            logger.error("No path specified")
+            return 1
         if not os.path.isabs(path):
             path = os.path.join("/opt/configuration", path)
         return subprocess.call(["/usr/local/bin/ansible-vault", "decrypt", path])
