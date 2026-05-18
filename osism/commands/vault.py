@@ -84,9 +84,7 @@ class View(Command):
             return 1
 
         if content.startswith(b"$ANSIBLE_VAULT"):
-            return subprocess.call(
-                f"/usr/local/bin/ansible-vault view {path}", shell=True
-            )
+            return subprocess.call(["/usr/local/bin/ansible-vault", "view", path])
 
         logger.warning(f"File is not vault-encrypted, showing plain content: {path}")
         sys.stdout.write(content.decode("utf-8", errors="replace"))
@@ -104,7 +102,7 @@ class Decrypt(Command):
         path = parsed_args.path
         if not os.path.isabs(path):
             path = os.path.join("/opt/configuration", path)
-        subprocess.call(f"/usr/local/bin/ansible-vault decrypt {path}", shell=True)
+        subprocess.call(["/usr/local/bin/ansible-vault", "decrypt", path])
 
 
 # Well-known paths where secrets.yml files are typically found
