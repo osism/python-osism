@@ -112,7 +112,34 @@ def test_view_invokes_ansible_vault_for_vault_variants(tmp_path, header):
     )
 
 
+def test_view_requires_path(loguru_logs):
+    parser = _make_view().get_parser("test")
+    parsed_args = parser.parse_args([])
+
+    with patch("osism.commands.vault.subprocess.call") as mock_call:
+        rc = _make_view().take_action(parsed_args)
+
+    assert rc == 1
+    mock_call.assert_not_called()
+    errors = [r for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("No path" in r["message"] for r in errors)
+
+
 # --- Decrypt.take_action ---
+
+
+def test_decrypt_requires_path(loguru_logs):
+    cmd = vault.Decrypt(MagicMock(), MagicMock())
+    parser = cmd.get_parser("test")
+    parsed_args = parser.parse_args([])
+
+    with patch("osism.commands.vault.subprocess.call") as mock_call:
+        rc = cmd.take_action(parsed_args)
+
+    assert rc == 1
+    mock_call.assert_not_called()
+    errors = [r for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("No path" in r["message"] for r in errors)
 
 
 def test_decrypt_invokes_ansible_vault_without_shell(tmp_path):
