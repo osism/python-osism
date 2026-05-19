@@ -462,6 +462,43 @@ class TestAddPortConfigurations:
 
         assert config["PORT"]["Ethernet1"]["valid_speeds"] == "25000,10000,1000"
 
+    def test_alias_called_with_resolved_speed_and_breakout_flag(
+        self, config, device, mocker, patch_post_loop_hooks
+    ):
+        # A regular master port and a breakout child must reach
+        # convert_sonic_interface_to_alias with the resolved Mbps speed,
+        # the correct is_breakout flag and the full port_config.
+        alias = mocker.patch.object(
+            config_generator,
+            "convert_sonic_interface_to_alias",
+            return_value="a",
+        )
+        port_config = {
+            "Ethernet4": _port_info(index="4", lanes="5,6,7,8", speed="100000"),
+            "Ethernet1": _port_info(index="1", lanes="2", speed="0"),
+        }
+        breakout_info = {
+            "breakout_cfgs": {"Ethernet0": {"brkout_mode": "4x25G"}},
+            "breakout_ports": {"Ethernet1": {"master": "Ethernet0"}},
+        }
+
+        _add_port_configurations(
+            config,
+            port_config,
+            connected_interfaces=set(),
+            portchannel_info={"portchannels": {}, "member_mapping": {}},
+            breakout_info=breakout_info,
+            netbox_interfaces={},
+            vlan_info={"vlan_members": {}},
+            device=device,
+        )
+
+        calls = {c.args[0]: c.args for c in alias.call_args_list}
+        # Non-breakout master port: speed from port_config, is_breakout=False
+        assert calls["Ethernet4"] == ("Ethernet4", 100000, False, port_config)
+        # Breakout child: speed derived from "4x25G", is_breakout=True
+        assert calls["Ethernet1"] == ("Ethernet1", 25000, True, port_config)
+
     def test_post_loop_hooks_invoked(
         self, config, device, mocker, patch_post_loop_hooks
     ):
@@ -652,6 +689,7 @@ class TestAddMissingBreakoutPorts:
     @pytest.mark.parametrize(
         "brkout_mode, expected_speed",
         [
+            ("4x10G", "10000"),
             ("4x25G", "25000"),
             ("4x50G", "50000"),
             ("4x100G", "100000"),

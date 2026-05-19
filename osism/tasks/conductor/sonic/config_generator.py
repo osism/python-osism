@@ -638,7 +638,9 @@ def _add_missing_breakout_ports(
             elif master_port in breakout_info["breakout_cfgs"]:
                 # Fallback to extracting speed from breakout mode
                 brkout_mode = breakout_info["breakout_cfgs"][master_port]["brkout_mode"]
-                if "25G" in brkout_mode:
+                if "10G" in brkout_mode:
+                    port_speed = "10000"
+                elif "25G" in brkout_mode:
                     port_speed = "25000"
                 elif "50G" in brkout_mode:
                     port_speed = "50000"
