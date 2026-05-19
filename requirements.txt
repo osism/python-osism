@@ -14,7 +14,7 @@ fastapi==0.136.1
 flower==2.0.1
 hiredis==3.3.1
 jc==1.25.6
-keystoneauth1==5.13.1
+keystoneauth1==5.14.0
 kombu==5.6.2
 kubernetes==33.1.0
 loguru==0.7.3
