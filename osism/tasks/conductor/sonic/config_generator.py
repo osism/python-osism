@@ -1261,11 +1261,11 @@ def _add_bgp_configurations(
                         netbox_interface_name = netbox_interfaces[port_name][
                             "netbox_name"
                         ]
-                        if netbox_interface_name in interface_ips:
+                        if interface_ips and netbox_interface_name in interface_ips:
                             local_ipv4 = interface_ips[netbox_interface_name].split(
                                 "/"
                             )[0]
-                        elif netbox_interface_name in transfer_ips:
+                        elif transfer_ips and netbox_interface_name in transfer_ips:
                             local_ipv4 = transfer_ips[netbox_interface_name].split("/")[
                                 0
                             ]
