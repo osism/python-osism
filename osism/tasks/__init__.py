@@ -152,6 +152,7 @@ def run_ansible_in_environment(
     publish=True,
     locking=False,
     auto_release_time=3600,
+    ssh_retries=3,
 ):
     result = ""
     extracted_hosts = set()  # Local set for host deduplication
@@ -196,7 +197,7 @@ def run_ansible_in_environment(
     # connection a few times so these transient first-contact glitches no
     # longer abort the whole run.
     if "ANSIBLE_SSH_RETRIES" not in env:
-        env["ANSIBLE_SSH_RETRIES"] = "3"
+        env["ANSIBLE_SSH_RETRIES"] = str(ssh_retries)
 
     try:
         # handle sub environments
