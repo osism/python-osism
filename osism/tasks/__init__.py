@@ -185,6 +185,19 @@ def run_ansible_in_environment(
     logger.debug(f"Using per-task SSH ControlPath directory: {ssh_control_dir}")
     env["ANSIBLE_SSH_CONTROL_PATH_DIR"] = ssh_control_dir
 
+    # Because the per-task ControlPath directory above is unique per run and
+    # removed afterwards, there is no persistent ControlMaster socket reuse
+    # across runs anymore. Every run therefore cold-establishes the SSH
+    # connection to every host. With Ansible's default of ANSIBLE_SSH_RETRIES=0
+    # a single transient failure during this cold connection setup (e.g. a
+    # ControlMaster spawn race during the first task's connection burst)
+    # immediately fails the host as UNREACHABLE with "Permission denied
+    # (publickey)", even though an immediate re-run succeeds. Retry the
+    # connection a few times so these transient first-contact glitches no
+    # longer abort the whole run.
+    if "ANSIBLE_SSH_RETRIES" not in env:
+        env["ANSIBLE_SSH_RETRIES"] = "3"
+
     try:
         # handle sub environments
         if "." in environment:
