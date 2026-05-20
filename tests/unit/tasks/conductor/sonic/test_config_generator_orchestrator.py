@@ -352,15 +352,16 @@ def test_generate_sonic_config_populates_mgmt_interface_and_static_route(
     assert snmp_oob == "10.42.0.5"
 
 
-def test_generate_sonic_config_oob_path_preserves_existing_static_routes(
+def test_generate_sonic_config_static_route_dropped_on_regen(
     mocker, patch_orchestrator_helpers, make_orchestrator_device
 ):
-    """Pre-existing ``STATIC_ROUTE`` entries must survive the OOB path.
+    """Pre-existing ``STATIC_ROUTE`` entries must be dropped on regen.
 
-    The OOB branch writes the management default route into ``STATIC_ROUTE``;
-    any routes loaded from ``/etc/sonic/config_db.json`` (e.g. an admin's
-    custom blackhole or VRF route) must not be silently dropped when the
-    branch fires.
+    Per the ownership model, STATIC_ROUTE is a generated section fully owned
+    by the generator: it is reset on each regen, so routes loaded from
+    ``/etc/sonic/config_db.json`` (e.g. an operator's custom blackhole or VRF
+    route) do not survive. The OOB branch then writes the management default
+    route as the only entry.
     """
     base = make_base_config()
     base["STATIC_ROUTE"] = {
@@ -374,9 +375,7 @@ def test_generate_sonic_config_oob_path_preserves_existing_static_routes(
 
     config = generate_sonic_config(device, "HWSKU")
 
-    assert config["STATIC_ROUTE"]["mgmt|10.0.0.0/8"] == {"nexthop": "192.0.2.1"}
-    assert config["STATIC_ROUTE"]["default|198.51.100.0/24"] == {"blackhole": "true"}
-    assert config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] == {"nexthop": "10.42.0.1"}
+    assert config["STATIC_ROUTE"] == {"mgmt|0.0.0.0/0": {"nexthop": "10.42.0.1"}}
 
 
 def test_generate_sonic_config_no_oob_ip_leaves_mgmt_empty_and_passes_none(
@@ -462,6 +461,79 @@ def test_generate_sonic_config_version_existing_in_base_preserved(
 
     config = generate_sonic_config(device, "HWSKU", config_version=None)
 
+    assert config["VERSIONS"]["DATABASE"]["VERSION"] == "version_4_5_0"
+
+
+# ---------------------------------------------------------------------------
+# generate_sonic_config — ownership model: BGP_GLOBALS["default"]
+# ---------------------------------------------------------------------------
+
+
+def test_generate_sonic_config_bgp_globals_default_extra_fields_dropped_on_regen(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """Pre-existing BGP_GLOBALS['default'] fields must be dropped on regen.
+
+    Per the ownership model, BGP_GLOBALS is a generated section: entries
+    are unconditionally overwritten from NetBox data and hardcoded policy,
+    so pre-existing fields from /etc/sonic/config_db.json must not survive.
+
+    The orchestrator replaces BGP_GLOBALS['default'] wholesale rather than
+    merging into a pre-existing entry, so the default VRF follows the same
+    rule as every other generated section.
+    """
+    base = make_base_config()
+    base["BGP_GLOBALS"]["default"] = {
+        "router_id": "192.0.2.1",
+        "local_asn": "4200000001",
+        "custom_timer": "operator-value",  # not produced by the generator
+    }
+    patch_base_config(mocker, base_config=base)
+    device = make_orchestrator_device(primary_ip4=_ip("10.0.0.1/32"))
+
+    config = generate_sonic_config(device, "HWSKU")
+
+    assert "custom_timer" not in config["BGP_GLOBALS"]["default"]
+
+
+def test_generate_sonic_config_stale_owned_entries_dropped_on_regen(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """Owned-table entries removed from NetBox must not survive regen.
+
+    The section helpers are mocked here, so nothing repopulates the owned
+    tables: any entry present only because it was carried over from the base
+    config_db.json must be gone after regen. The inherited tables
+    (DEVICE_METADATA, VERSIONS) keep their base content.
+    """
+    base = make_base_config()
+    # Stale entries an operator/earlier run left behind, now absent from NetBox.
+    base["BGP_GLOBALS"]["old-vrf"] = {"router_id": "1.1.1.1"}
+    base["VLAN_MEMBER"]["Vlan999|Ethernet0"] = {"tagging_mode": "tagged"}
+    base["VXLAN_TUNNEL_MAP"]["vtepServ|map_999"] = {"vlan": "Vlan999", "vni": "999"}
+    base["SNMP_SERVER_USER"] = {"olduser": {"shaKey": "x"}}
+    base["SYSLOG_SERVER"] = {"10.9.9.9": {"severity": "info"}}
+    # Inherited tables: must be preserved across regen.
+    base["DEVICE_METADATA"]["localhost"] = {"type": "LeafRouter"}
+    base["VERSIONS"] = {"DATABASE": {"VERSION": "version_4_5_0"}}
+    patch_base_config(mocker, base_config=base)
+    device = make_orchestrator_device(primary_ip4=_ip("10.0.0.1/32"))
+
+    config = generate_sonic_config(device, "HWSKU", config_version=None)
+
+    # Scaffolded owned tables are emptied; the orchestrator rewrites only the
+    # default VRF in BGP_GLOBALS.
+    assert config["BGP_GLOBALS"] == {
+        "default": {"router_id": "10.0.0.1", "local_asn": "4200000001"}
+    }
+    assert config["VLAN_MEMBER"] == {}
+    assert config["VXLAN_TUNNEL_MAP"] == {}
+    # On-demand owned tables are dropped entirely (no mocked helper recreates
+    # them).
+    assert "SNMP_SERVER_USER" not in config
+    assert "SYSLOG_SERVER" not in config
+    # Inherited tables survive untouched.
+    assert config["DEVICE_METADATA"]["localhost"]["type"] == "LeafRouter"
     assert config["VERSIONS"]["DATABASE"]["VERSION"] == "version_4_5_0"
 
 
