@@ -44,5 +44,5 @@ watchdog = "==6.0.0"
 
 [dev-packages]
 pytest = "==9.0.3"
-pytest-cov = "==6.0.0"
+pytest-cov = "==6.3.0"
 pytest-mock = "==3.14.0"
