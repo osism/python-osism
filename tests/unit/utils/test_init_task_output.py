@@ -9,6 +9,7 @@ dependency most helpers share — it is patched per-test to return a
 ``MagicMock`` redis client.
 """
 
+import importlib
 from unittest.mock import call, mock_open
 
 import pytest
@@ -181,6 +182,8 @@ def test_fetch_task_output_timeout_when_xread_returns_none(mocker):
     with pytest.raises(TimeoutError):
         utils_pkg.fetch_task_output("task-1", timeout=10)
 
+    mock_r.close.assert_called_once_with()
+
 
 def test_fetch_task_output_data_resets_deadline(mocker):
     """When ``xread`` returns data the loop must reset its deadline.
@@ -239,6 +242,20 @@ def test_fetch_task_output_honours_explicit_timeout_kwarg(mocker):
     assert kwargs.get("block") == 42 * 1000
 
 
+def test_fetch_task_output_default_timeout_is_int_when_env_var_set(monkeypatch):
+    """``OSISM_TASK_TIMEOUT`` is read at import time; without an ``int`` cast
+    the default would be a ``str`` and ``time.time() + timeout`` would crash."""
+    monkeypatch.setenv("OSISM_TASK_TIMEOUT", "60")
+    try:
+        reloaded = importlib.reload(utils_pkg)
+        default_timeout = reloaded.fetch_task_output.__defaults__[0]
+        assert default_timeout == 60
+        assert isinstance(default_timeout, int)
+    finally:
+        monkeypatch.delenv("OSISM_TASK_TIMEOUT", raising=False)
+        importlib.reload(utils_pkg)
+
+
 # ---------------------------------------------------------------------------
 # push_task_output
 # ---------------------------------------------------------------------------
@@ -269,14 +286,17 @@ def test_finish_task_output_rc_none_publishes_only_quit(mocker):
     mock_r.xadd.assert_called_once_with("task-1", {"type": "action", "content": "quit"})
 
 
-def test_finish_task_output_rc_zero_publishes_only_quit(mocker):
-    """``if rc:`` is intentionally truthy — rc=0 must be treated like rc=None."""
+def test_finish_task_output_rc_zero_publishes_rc_then_quit(mocker):
+    """A successful exit (rc=0) must publish an rc message; only rc=None skips it."""
     mock_r = mocker.MagicMock()
     mocker.patch("osism.utils._init_redis", return_value=mock_r)
 
     utils_pkg.finish_task_output("task-1", rc=0)
 
-    mock_r.xadd.assert_called_once_with("task-1", {"type": "action", "content": "quit"})
+    assert mock_r.xadd.call_args_list == [
+        call("task-1", {"type": "rc", "content": 0}),
+        call("task-1", {"type": "action", "content": "quit"}),
+    ]
 
 
 def test_finish_task_output_nonzero_rc_publishes_rc_then_quit(mocker):
