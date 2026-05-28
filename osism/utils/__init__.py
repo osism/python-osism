@@ -369,7 +369,9 @@ def first(iterable, condition=lambda x: True):
 
 
 def fetch_task_output(
-    task_id, timeout=os.environ.get("OSISM_TASK_TIMEOUT", 300), enable_play_recap=False
+    task_id,
+    timeout=int(os.environ.get("OSISM_TASK_TIMEOUT", 300)),
+    enable_play_recap=False,
 ):
     r = _init_redis()
     rc = 0
@@ -401,6 +403,7 @@ def fetch_task_output(
                 elif message_type == "action" and message_content == "quit":
                     r.close()
                     return rc
+    r.close()
     raise TimeoutError
 
 
@@ -410,7 +413,7 @@ def push_task_output(task_id, line):
 
 def finish_task_output(task_id, rc=None):
     r = _init_redis()
-    if rc:
+    if rc is not None:
         r.xadd(task_id, {"type": "rc", "content": rc})
     r.xadd(task_id, {"type": "action", "content": "quit"})
 
