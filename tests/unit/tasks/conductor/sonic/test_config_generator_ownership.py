@@ -249,6 +249,4 @@ class TestOwnershipTaxonomyInvariants:
         are created only when NetBox carries their data. A table in both would
         be miscategorised about how it comes into existence.
         """
-        assert set(SCAFFOLDED_OWNED_TABLE_KEYS).isdisjoint(
-            ON_DEMAND_OWNED_TABLE_KEYS
-        )
+        assert set(SCAFFOLDED_OWNED_TABLE_KEYS).isdisjoint(ON_DEMAND_OWNED_TABLE_KEYS)
