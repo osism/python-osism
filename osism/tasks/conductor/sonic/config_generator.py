@@ -83,6 +83,38 @@ TOP_LEVEL_SCAFFOLD_KEYS = (
     "VERSIONS",
 )
 
+# Tables inherited from the device's image-provided base config_db.json:
+# their existing content is preserved across regen because the generator does
+# not emit it itself (see the ownership model on generate_sonic_config).
+INHERITED_TABLE_KEYS = ("DEVICE_METADATA", "VERSIONS")
+
+# Owned tables that are also scaffolded: every scaffold key except the
+# inherited ones. The orchestrator setdefault-creates these up front, so
+# downstream helpers can index into them unconditionally.
+SCAFFOLDED_OWNED_TABLE_KEYS = tuple(
+    key for key in TOP_LEVEL_SCAFFOLD_KEYS if key not in INHERITED_TABLE_KEYS
+)
+
+# Owned tables that are not scaffolded: helpers create and assign them on
+# demand (only when NetBox carries the corresponding data), so when that data
+# is absent the table is simply left out of the generated config.
+ON_DEMAND_OWNED_TABLE_KEYS = (
+    "ROUTE_REDISTRIBUTE",
+    "SNMP_SERVER",
+    "SNMP_AGENT_ADDRESS_CONFIG",
+    "SNMP_SERVER_GROUP_MEMBER",
+    "SNMP_SERVER_USER",
+    "SNMP_SERVER_PARAMS",
+    "SNMP_SERVER_TARGET",
+    "SYSLOG_SERVER",
+)
+
+# Tables fully owned by the generator and rebuilt from scratch on every regen.
+# Their base content is dropped up front so entries removed from NetBox (e.g.
+# a deleted VLAN_MEMBER, VRF, VXLAN_TUNNEL_MAP, or SNMP user) cannot survive as
+# stale config.
+OWNED_TABLE_KEYS = SCAFFOLDED_OWNED_TABLE_KEYS + ON_DEMAND_OWNED_TABLE_KEYS
+
 
 def natural_sort_key(port_name):
     """Extract numeric part from port name for natural sorting."""
@@ -101,6 +133,22 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
 
     Returns:
         dict: Minimal SONiC configuration dictionary
+
+    Config ownership model:
+        This generator owns config_db.json in full; operators must not make
+        manual adjustments to it. On every regen the tables listed in
+        OWNED_TABLE_KEYS are rebuilt from scratch from NetBox data and
+        hardcoded SONiC policy: their base content is dropped up front, so
+        neither pre-existing values nor entries removed from NetBox survive.
+        Operator customizations must be modeled in NetBox or expressed as
+        generator policy, not applied directly to config_db.json.
+
+        The generator builds on the device's image-provided base
+        config_db.json. A few fields it does not itself emit are inherited
+        from that base rather than regenerated — currently the
+        DEVICE_METADATA localhost device attributes (e.g. the device type)
+        and the DATABASE schema VERSION. These come from the image, not from
+        operator hand-edits.
     """
     # Get port configuration for the HWSKU
     port_config = get_port_config(hwsku)
@@ -191,6 +239,13 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         # Ensure we start fresh even on error
         config = {}
 
+    # Drop any owned-table content carried over from the on-disk base config.
+    # These tables are fully regenerated below from NetBox data and SONiC
+    # policy, so entries removed from NetBox must not survive as stale config.
+    # The inherited tables (DEVICE_METADATA, VERSIONS) keep their base content.
+    for _owned_key in OWNED_TABLE_KEYS:
+        config.pop(_owned_key, None)
+
     # Ensure the top-level scaffold keys the orchestrator and downstream
     # helpers index into directly are always present, even when the on-disk
     # base config is missing or only partially populated.
@@ -218,9 +273,11 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         primary_ip = str(device.primary_ip6.address).split("/")[0]
 
     if primary_ip:
-        if "default" not in config["BGP_GLOBALS"]:
-            config["BGP_GLOBALS"]["default"] = {}
-        config["BGP_GLOBALS"]["default"]["router_id"] = primary_ip
+        # BGP_GLOBALS is a generated section fully owned by this generator, so
+        # replace the default VRF entry wholesale rather than merging into a
+        # pre-existing one — pre-existing fields from config_db.json must not
+        # survive regen (see the ownership model in the docstring).
+        config["BGP_GLOBALS"]["default"] = {"router_id": primary_ip}
 
         # Calculate and add local_asn from router_id (only for IPv4)
         if device.primary_ip4:
@@ -300,8 +357,6 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["MGMT_INTERFACE"]["eth0"] = {"admin_status": "up"}
         config["MGMT_INTERFACE"][f"eth0|{oob_ip}/{prefix_len}"] = {}
         metalbox_ip = _get_metalbox_ip_for_device(device)
-        # Write into the existing STATIC_ROUTE dict so any pre-existing
-        # routes loaded from /etc/sonic/config_db.json survive.
         config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] = {"nexthop": metalbox_ip}
     else:
         oob_ip = None
