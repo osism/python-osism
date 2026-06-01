@@ -1983,9 +1983,15 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             # Add ROUTE_REDISTRIBUTE for VRF
             if "ROUTE_REDISTRIBUTE" not in config:
                 config["ROUTE_REDISTRIBUTE"] = {}
-            route_redistribute_key = f"{vrf_name}|connected|bgp|ipv4"
-            config["ROUTE_REDISTRIBUTE"][route_redistribute_key] = {}
-            logger.info(f"Added ROUTE_REDISTRIBUTE {route_redistribute_key}")
+            for proto, af in [
+                ("connected", "ipv4"),
+                ("connected", "ipv6"),
+                ("static", "ipv4"),
+                ("static", "ipv6"),
+            ]:
+                key = f"{vrf_name}|{proto}|bgp|{af}"
+                config["ROUTE_REDISTRIBUTE"][key] = {}
+                logger.info(f"Added ROUTE_REDISTRIBUTE {key}")
 
         elif "table_id" in vrf_data:
             # VRF with table_id (no RD set in NetBox)
