@@ -139,7 +139,7 @@ class Hostvars(Command):
             )
         except subprocess.CalledProcessError:
             logger.error(f"Host {host} not found in inventory.")
-            return
+            return 1
 
         data = json.loads(result)
         table = []
@@ -249,7 +249,7 @@ class Hosts(Command):
             )
         except subprocess.CalledProcessError:
             logger.error("Error loading inventory.")
-            return
+            return 1
 
         data = json.loads(result)
         table = []
