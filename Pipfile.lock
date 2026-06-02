@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "c66644c81de04396752af98703789fbc3781dd85645118eff9e16fed54d3da64"
+            "sha256": "051268db3cab9c1a671c086d4695d66fcff7707e7c2f4954ca3f21ca9fbd4014"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -1994,11 +1994,6 @@
             ],
             "markers": "python_version >= '3.7'",
             "version": "==5.0.3"
-        },
-        "sonic-yang-mgmt": {
-            "git": "https://github.com/sonic-net/sonic-buildimage.git",
-            "ref": "9ef3658e5315002006ea1d6da2524ad14f77c928",
-            "subdirectory": "src/sonic-yang-mgmt"
         },
         "sqlalchemy": {
             "hashes": [
