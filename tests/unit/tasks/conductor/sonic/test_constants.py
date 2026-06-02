@@ -11,6 +11,7 @@ from osism.tasks.conductor.sonic.constants import (
     PORT_CONFIG_PATH,
     PORT_TYPE_TO_SPEED_MAP,
     SUPPORTED_HWSKUS,
+    SUPPORTED_VENDORS,
 )
 
 # ---------------------------------------------------------------------------
@@ -147,4 +148,6 @@ def test_supported_hwskus_no_duplicates():
 def test_supported_hwskus_entry_invariants(hwsku):
     assert isinstance(hwsku, str)
     assert hwsku
-    assert hwsku.startswith("Accton-")
+    assert "-" in hwsku
+    vendor = hwsku.split("-")[0]
+    assert vendor in SUPPORTED_VENDORS
