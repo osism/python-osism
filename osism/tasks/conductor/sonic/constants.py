@@ -72,6 +72,12 @@ HIGH_SPEED_PORTS = {100000, 200000, 400000, 800000}  # 100G, 200G, 400G, 800G in
 # Path to SONiC port configuration files
 PORT_CONFIG_PATH = "/etc/sonic/port_config"
 
+# List of supported vendors
+SUPPORTED_VENDORS = [
+    "Accton",
+    "DellEMC",
+]
+
 # List of supported HWSKUs
 SUPPORTED_HWSKUS = [
     "Accton-AS4625-54T",
@@ -82,4 +88,5 @@ SUPPORTED_HWSKUS = [
     "Accton-AS7726-32X",
     "Accton-AS9716-32D",
     "Accton-AS9726-32D",
+    "DellEMC-S5212f-P-25G",
 ]
