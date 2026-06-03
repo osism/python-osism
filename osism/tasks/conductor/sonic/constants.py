@@ -5,6 +5,10 @@
 # Tag to add AF L2VPN EVPN to BGP neighbor
 BGP_AF_L2VPN_EVPN_TAG = "bgp-af-l2vpn-evpn"
 
+# BGP address-family (afi-safi) identifiers used in BGP_NEIGHBOR_AF keys
+BGP_AF_IPV4_UNICAST = "ipv4_unicast"
+BGP_AF_IPV6_UNICAST = "ipv6_unicast"
+
 # Default AS prefix for local ASN calculation
 DEFAULT_LOCAL_AS_PREFIX = 4200
 

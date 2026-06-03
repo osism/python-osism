@@ -824,3 +824,162 @@ def test_load_vip_addresses_cache_overwrites_existing(mocker, reset_vip_cache):
     connections.load_vip_addresses_cache()
 
     assert connections._vip_addresses_cache == []
+
+
+# ---------------------------------------------------------------------------
+# is_numbered_neighbor_address / get_connected_interface_ip{,v4,v6}_address(es)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "address, ip_version, expected",
+    [
+        ("192.0.2.1", 4, True),
+        ("192.0.2.1", 6, False),
+        ("2001:db8::1", 6, True),
+        ("2001:db8::1", 4, False),
+        # A prefix length is tolerated (parsed via ip_interface).
+        ("10.0.0.1/24", 4, True),
+        ("2001:db8::1/64", 6, True),
+        # Unparseable / non-address strings match no version.
+        ("not-an-ip", 4, False),
+        ("not-an-ip", 6, False),
+        # Link-local, loopback and multicast are not numbered neighbors.
+        ("169.254.0.1", 4, False),
+        ("fe80::1", 6, False),
+        ("127.0.0.1", 4, False),
+        ("::1", 6, False),
+        ("224.0.0.1", 4, False),
+        ("ff02::1", 6, False),
+    ],
+)
+def test_is_numbered_neighbor_address(address, ip_version, expected):
+    assert connections.is_numbered_neighbor_address(address, ip_version) is expected
+
+
+def _netbox_with_direct_ips(mocker, addresses):
+    """Build a NetBox stub whose connected interface carries ``addresses``."""
+    connected_iface = SimpleNamespace(id=2, name="peer-eth0")
+    interface = SimpleNamespace(
+        connected_endpoints=[connected_iface],
+        connected_endpoints_reachable=True,
+    )
+    nb = mocker.Mock()
+    nb.dcim.interfaces.get.return_value = interface
+    nb.ipam.ip_addresses.filter.return_value = [
+        SimpleNamespace(address=a) for a in addresses
+    ]
+    nb.ipam.fhrp_group_assignments.filter.return_value = []
+    return nb
+
+
+def test_get_connected_interface_ipv4_returns_direct_ipv4(mocker, reset_vip_cache):
+    device = SimpleNamespace(id=1)
+    nb = _netbox_with_direct_ips(mocker, ["2001:db8::1/64", "192.0.2.1/24"])
+    assert (
+        connections.get_connected_interface_ipv4_address(device, "Ethernet0", nb)
+        == "192.0.2.1"
+    )
+
+
+def test_get_connected_interface_ipv6_returns_direct_ipv6(mocker, reset_vip_cache):
+    device = SimpleNamespace(id=1)
+    nb = _netbox_with_direct_ips(mocker, ["192.0.2.1/24", "2001:db8::1/64"])
+    assert (
+        connections.get_connected_interface_ipv6_address(device, "Ethernet0", nb)
+        == "2001:db8::1"
+    )
+
+
+def test_get_connected_interface_ipv6_none_when_only_ipv4(mocker, reset_vip_cache):
+    device = SimpleNamespace(id=1)
+    nb = _netbox_with_direct_ips(mocker, ["192.0.2.1/24"])
+    assert (
+        connections.get_connected_interface_ipv6_address(device, "Ethernet0", nb)
+        is None
+    )
+
+
+def test_get_connected_interface_ipv6_returns_fhrp_vip(mocker, reset_vip_cache):
+    device = SimpleNamespace(id=1)
+    nb = _netbox_with_direct_ips(mocker, ["192.0.2.1/24"])
+    group = SimpleNamespace(id=7, name="vrrp-7")
+    nb.ipam.fhrp_group_assignments.filter.return_value = [SimpleNamespace(group=group)]
+    connections._vip_addresses_cache = [
+        SimpleNamespace(
+            address="2001:db8::ffff/64",
+            assigned_object_type="ipam.fhrpgroup",
+            assigned_object_id=7,
+        ),
+        SimpleNamespace(
+            address="192.0.2.254/24",
+            assigned_object_type="ipam.fhrpgroup",
+            assigned_object_id=7,
+        ),
+    ]
+    assert (
+        connections.get_connected_interface_ipv6_address(device, "Ethernet0", nb)
+        == "2001:db8::ffff"
+    )
+
+
+def test_get_connected_interface_ipv6_direct_wins_over_vip(mocker, reset_vip_cache):
+    # A directly-assigned IPv6 wins over an FHRP IPv6 VIP even when the FHRP
+    # lookup actually runs (here it runs because IPv4 has no direct address).
+    # This precedence is deliberate -- see get_connected_interface_ip_addresses.
+    device = SimpleNamespace(id=1)
+    nb = _netbox_with_direct_ips(mocker, ["2001:db8::1/64"])
+    group = SimpleNamespace(id=7, name="vrrp-7")
+    nb.ipam.fhrp_group_assignments.filter.return_value = [SimpleNamespace(group=group)]
+    connections._vip_addresses_cache = [
+        SimpleNamespace(
+            address="2001:db8::ffff/64",
+            assigned_object_type="ipam.fhrpgroup",
+            assigned_object_id=7,
+        ),
+        SimpleNamespace(
+            address="192.0.2.254/24",
+            assigned_object_type="ipam.fhrpgroup",
+            assigned_object_id=7,
+        ),
+    ]
+    ipv4, ipv6 = connections.get_connected_interface_ip_addresses(
+        device, "Ethernet0", nb
+    )
+    assert ipv6 == "2001:db8::1"  # direct beats the 2001:db8::ffff VIP
+    assert ipv4 == "192.0.2.254"  # no direct v4 -> FHRP VIP used
+
+
+def test_get_connected_interface_ipv6_skips_link_local(mocker, reset_vip_cache):
+    # A link-local IPv6 is not a valid numbered neighbor; the global address
+    # on the same interface is used instead.
+    device = SimpleNamespace(id=1)
+    nb = _netbox_with_direct_ips(mocker, ["fe80::1/64", "2001:db8::1/64"])
+    assert (
+        connections.get_connected_interface_ipv6_address(device, "Ethernet0", nb)
+        == "2001:db8::1"
+    )
+
+
+def test_get_connected_interface_ipv6_link_local_only_returns_none(
+    mocker, reset_vip_cache
+):
+    device = SimpleNamespace(id=1)
+    nb = _netbox_with_direct_ips(mocker, ["fe80::1/64"])
+    assert (
+        connections.get_connected_interface_ipv6_address(device, "Ethernet0", nb)
+        is None
+    )
+
+
+def test_get_connected_interface_ip_addresses_dual_stack_single_pass(
+    mocker, reset_vip_cache
+):
+    # Both families resolved from direct addresses in one call; the FHRP
+    # lookup is skipped entirely once both are satisfied.
+    device = SimpleNamespace(id=1)
+    nb = _netbox_with_direct_ips(mocker, ["192.0.2.1/24", "2001:db8::1/64"])
+    assert connections.get_connected_interface_ip_addresses(
+        device, "Ethernet0", nb
+    ) == ("192.0.2.1", "2001:db8::1")
+    nb.ipam.fhrp_group_assignments.filter.assert_not_called()

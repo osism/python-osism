@@ -6,6 +6,8 @@ This module provides unified helper functions for detecting connected devices
 using the NetBox connected_endpoints API, replacing legacy cable-based detection.
 """
 
+import ipaddress
+
 from loguru import logger
 from typing import Optional, Set, Tuple, List, Any, DefaultDict
 from collections import defaultdict
@@ -423,10 +425,41 @@ def get_device_bgp_neighbors_via_loopback(
     return bgp_neighbors
 
 
-def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
+def is_numbered_neighbor_address(address, ip_version):
+    """Return True if ``address`` can be used as a *numbered* BGP neighbor of
+    ``ip_version``.
+
+    ``address`` may be bare (``10.0.0.1``) or carry a prefix length
+    (``10.0.0.1/24``); it is parsed with :mod:`ipaddress`, which is more
+    robust than inspecting the string for ``.`` versus ``:``.
+
+    Link-local, loopback and multicast addresses are rejected: a numbered
+    session needs a routable address on both ends, so e.g. a
+    ``BGP_NEIGHBOR[...|fe80::...]`` entry would never come up -- link-local
+    peers require the unnumbered/``v6only`` form instead. An unparseable
+    address matches no version.
     """
-    Get the IPv4 address(es) of the connected endpoint interface for a given SONiC port.
-    Checks for direct IP addresses first, then for FHRP VIP addresses.
+    try:
+        ip = ipaddress.ip_interface(address).ip
+    except ValueError:
+        return False
+    if ip.version != ip_version:
+        return False
+    return not (ip.is_link_local or ip.is_loopback or ip.is_multicast)
+
+
+def get_connected_interface_ip_addresses(device, sonic_port_name, netbox):
+    """Return ``(ipv4, ipv6)`` peer addresses for the interface connected to
+    ``sonic_port_name`` using a single NetBox round-trip.
+
+    The connected interface, its directly-assigned IP addresses and its FHRP
+    VIPs are each fetched once and scanned for both address families, so a
+    caller that needs a dual-stack peer pays one set of lookups instead of
+    two. For each family a directly-assigned address takes precedence over an
+    FHRP VIP -- this precedence is inherited from the original IPv4-only
+    helper and is deliberate (do not "fix" it toward VIP peering). Only
+    addresses usable as numbered neighbors are returned (see
+    :func:`is_numbered_neighbor_address`).
 
     Args:
         device: The SONiC device
@@ -434,26 +467,25 @@ def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
         netbox: The NetBox API client
 
     Returns:
-        - For direct IP: The IPv4 address string of the connected interface
-        - For FHRP VIP: The first VIP address found (if multiple VIPs exist, logs all but returns first)
-        - None if no addresses found
+        A ``(ipv4, ipv6)`` tuple of address strings; either element is
+        ``None`` when no usable address of that family was found.
     """
     try:
         interface = netbox.dcim.interfaces.get(
             device_id=device.id, name=sonic_port_name
         )
         if not interface:
-            return None
+            return None, None
 
         # Check if interface has connected_endpoints using the modern API
         if not (
             hasattr(interface, "connected_endpoints") and interface.connected_endpoints
         ):
-            return None
+            return None, None
 
         # Ensure connected_endpoints_reachable is True
         if not getattr(interface, "connected_endpoints_reachable", False):
-            return None
+            return None, None
 
         # Process each connected endpoint to find the first valid interface
         connected_interface = None
@@ -463,27 +495,35 @@ def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
                 break
 
         if not connected_interface:
-            return None
+            return None, None
 
-        # First, try to get direct IPv4 addresses assigned to the connected interface
+        # First, collect directly-assigned addresses of the connected
+        # interface. A directly-assigned address wins over an FHRP VIP of the
+        # same family -- this precedence is deliberate, do not "fix" it toward
+        # VIP peering.
+        direct = {4: None, 6: None}
         ip_addresses = netbox.ipam.ip_addresses.filter(
             assigned_object_id=connected_interface.id,
         )
-
         for ip_address in ip_addresses:
-            # Check if it's an IPv4 address
-            if "/" in str(ip_address.address):
-                address = str(ip_address.address).split("/")[0]
-                if "." in address:  # IPv4 address
+            address = str(ip_address.address).split("/")[0]
+            for version in (4, 6):
+                if direct[version] is None and is_numbered_neighbor_address(
+                    address, version
+                ):
+                    direct[version] = address
                     logger.debug(
-                        f"Found direct IPv4 address {address} on connected interface "
-                        f"{connected_interface.name} for port {sonic_port_name}"
+                        f"Found direct IPv{version} address {address} on connected "
+                        f"interface {connected_interface.name} for port {sonic_port_name}"
                     )
-                    return address
 
-        # If no direct IP found, check for FHRP group membership and VIP addresses
+        # Only query FHRP when at least one family still lacks a direct address.
+        if direct[4] is not None and direct[6] is not None:
+            return direct[4], direct[6]
+
         logger.debug(
-            f"No direct IPv4 found on {connected_interface.name}, checking for FHRP VIP addresses"
+            f"Missing a direct address for at least one family on "
+            f"{connected_interface.name}, checking for FHRP VIP addresses"
         )
 
         # Get FHRP group assignments for the connected interface
@@ -503,49 +543,60 @@ def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
                 logger.debug(f"Could not query VIP addresses: {vip_e}")
                 all_vip_addresses = []
 
-        # Collect all VIP IPv4 addresses from all FHRP groups this interface belongs to
-        vip_addresses_found = []
-
+        # Collect the first matching VIP per family across all FHRP groups this
+        # interface belongs to.
+        vip = {4: None, 6: None}
         for assignment in fhrp_assignments:
             if not assignment.group:
                 continue
 
             # Find VIP addresses assigned to this specific FHRP group
-            for vip in all_vip_addresses:
+            for candidate in all_vip_addresses:
                 # Check if this VIP is assigned to the current FHRP group
-                if (
-                    hasattr(vip, "assigned_object_type")
-                    and vip.assigned_object_type == "ipam.fhrpgroup"
-                    and hasattr(vip, "assigned_object_id")
-                    and vip.assigned_object_id == assignment.group.id
+                if not (
+                    hasattr(candidate, "assigned_object_type")
+                    and candidate.assigned_object_type == "ipam.fhrpgroup"
+                    and hasattr(candidate, "assigned_object_id")
+                    and candidate.assigned_object_id == assignment.group.id
                 ):
-                    # Check if it's an IPv4 address
-                    if "/" in str(vip.address):
-                        address = str(vip.address).split("/")[0]
-                        if "." in address:  # IPv4 address
-                            vip_addresses_found.append(address)
-                            logger.debug(
-                                f"Found FHRP VIP address {address} for connected interface "
-                                f"{connected_interface.name} (FHRP group: {assignment.group.name or assignment.group.id}) "
-                                f"for port {sonic_port_name}"
-                            )
+                    continue
 
-        # Return the first VIP address found (for BGP neighbor compatibility)
-        if vip_addresses_found:
-            logger.debug(
-                f"Found {len(vip_addresses_found)} VIP addresses for port {sonic_port_name}: {vip_addresses_found}"
-            )
-            logger.debug(f"Returning first VIP address: {vip_addresses_found[0]}")
-            return vip_addresses_found[0]
+                address = str(candidate.address).split("/")[0]
+                for version in (4, 6):
+                    if vip[version] is None and is_numbered_neighbor_address(
+                        address, version
+                    ):
+                        vip[version] = address
+                        logger.debug(
+                            f"Found FHRP VIP IPv{version} address {address} for "
+                            f"connected interface {connected_interface.name} "
+                            f"(FHRP group: {assignment.group.name or assignment.group.id}) "
+                            f"for port {sonic_port_name}"
+                        )
 
-        logger.debug(
-            f"No IPv4 address (direct or FHRP VIP) found on connected interface "
-            f"{connected_interface.name} for port {sonic_port_name}"
-        )
-        return None
+        return (direct[4] or vip[4]), (direct[6] or vip[6])
 
     except Exception as e:
         logger.warning(
-            f"Could not get connected interface IPv4 for port {sonic_port_name}: {e}"
+            f"Could not get connected interface IP addresses for port "
+            f"{sonic_port_name}: {e}"
         )
-        return None
+        return None, None
+
+
+def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
+    """Get the IPv4 address of the connected endpoint interface for a SONiC port.
+
+    Thin wrapper around :func:`get_connected_interface_ip_addresses`; see that
+    function for the lookup details (direct IP first, then FHRP VIP).
+    """
+    return get_connected_interface_ip_addresses(device, sonic_port_name, netbox)[0]
+
+
+def get_connected_interface_ipv6_address(device, sonic_port_name, netbox):
+    """Get the IPv6 address of the connected endpoint interface for a SONiC port.
+
+    Thin wrapper around :func:`get_connected_interface_ip_addresses`; see that
+    function for the lookup details (direct IP first, then FHRP VIP).
+    """
+    return get_connected_interface_ip_addresses(device, sonic_port_name, netbox)[1]
