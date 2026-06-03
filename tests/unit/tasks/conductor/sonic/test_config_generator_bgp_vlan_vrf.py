@@ -60,10 +60,12 @@ def bgp_config():
 
 @pytest.fixture
 def patch_bgp(mocker):
-    """Patch the two connection helpers ``_add_bgp_configurations`` calls.
+    """Patch the connection helpers ``_add_bgp_configurations`` calls.
 
-    ``connected_device`` returns ``None`` and ``peer_ipv4`` returns ``None``
-    by default; tests override ``.return_value`` / ``.side_effect``.
+    ``connected_device`` returns ``None``; the connected-interface/port-channel
+    peer lookup ``peer_ipv4`` returns ``None`` and the combined VLAN peer
+    lookup ``peer_ips`` returns ``(None, None)`` by default. Tests override
+    ``.return_value`` / ``.side_effect``.
     """
     return SimpleNamespace(
         connected_device=mocker.patch.object(
@@ -75,6 +77,11 @@ def patch_bgp(mocker):
             config_generator,
             "get_connected_interface_ipv4_address",
             return_value=None,
+        ),
+        peer_ips=mocker.patch.object(
+            config_generator,
+            "get_connected_interface_ip_addresses",
+            return_value=(None, None),
         ),
     )
 
@@ -346,7 +353,7 @@ class TestBgpVlanInterfaces:
         }
 
     def test_untagged_member_with_peer_ip(self, bgp_config, patch_bgp):
-        patch_bgp.peer_ipv4.return_value = "192.0.2.20"
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", None)
         _call_bgp(
             bgp_config,
             netbox=object(),
@@ -361,8 +368,104 @@ class TestBgpVlanInterfaces:
             "admin_status": "true"
         }
 
+    def test_untagged_member_with_peer_ipv6(self, bgp_config, patch_bgp):
+        patch_bgp.peer_ips.return_value = (None, "2001:db8::20")
+        _call_bgp(
+            bgp_config,
+            netbox=object(),
+            netbox_interfaces={"Ethernet0": _nbif("eth0")},
+            # IPv6 SVI so the IPv6 peer is sourceable (see address-family gate).
+            vlan_info=self._vlan_info(
+                {"eth0": "untagged"}, addresses=["2001:db8::1/64"]
+            ),
+        )
+        assert bgp_config["BGP_NEIGHBOR"]["default|2001:db8::20"] == {
+            "peer_type": "external",
+            "v6only": "false",
+        }
+        assert bgp_config["BGP_NEIGHBOR_AF"]["default|2001:db8::20|ipv6_unicast"] == {
+            "admin_status": "true"
+        }
+        assert "default|2001:db8::20|ipv4_unicast" not in bgp_config["BGP_NEIGHBOR_AF"]
+
+    def test_dual_stack_peer_adds_both_neighbors(self, bgp_config, patch_bgp):
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", "2001:db8::20")
+        _call_bgp(
+            bgp_config,
+            netbox=object(),
+            netbox_interfaces={"Ethernet0": _nbif("eth0")},
+            vlan_info=self._vlan_info(
+                {"eth0": "untagged"},
+                addresses=["10.0.0.1/24", "2001:db8::1/64"],
+            ),
+        )
+        assert set(bgp_config["BGP_NEIGHBOR"]) == {
+            "default|192.0.2.20",
+            "default|2001:db8::20",
+        }
+        assert bgp_config["BGP_NEIGHBOR_AF"]["default|192.0.2.20|ipv4_unicast"] == {
+            "admin_status": "true"
+        }
+        assert bgp_config["BGP_NEIGHBOR_AF"]["default|2001:db8::20|ipv6_unicast"] == {
+            "admin_status": "true"
+        }
+
+    def test_ipv4_only_svi_skips_ipv6_peer(self, bgp_config, patch_bgp):
+        # The SVI sources only IPv4, so an IPv6 peer must not be emitted as a
+        # numbered neighbor -- it could never come up without a local v6 route.
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", "2001:db8::20")
+        _call_bgp(
+            bgp_config,
+            netbox=object(),
+            netbox_interfaces={"Ethernet0": _nbif("eth0")},
+            vlan_info=self._vlan_info({"eth0": "untagged"}, addresses=["10.0.0.1/24"]),
+        )
+        assert set(bgp_config["BGP_NEIGHBOR"]) == {"default|192.0.2.20"}
+        assert "default|2001:db8::20" not in bgp_config["BGP_NEIGHBOR"]
+        assert "default|2001:db8::20|ipv6_unicast" not in bgp_config["BGP_NEIGHBOR_AF"]
+
+    def test_ipv6_only_svi_skips_ipv4_peer(self, bgp_config, patch_bgp):
+        # Mirror of the above: an IPv6-only SVI must not emit an IPv4 neighbor.
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", "2001:db8::20")
+        _call_bgp(
+            bgp_config,
+            netbox=object(),
+            netbox_interfaces={"Ethernet0": _nbif("eth0")},
+            vlan_info=self._vlan_info(
+                {"eth0": "untagged"}, addresses=["2001:db8::1/64"]
+            ),
+        )
+        assert set(bgp_config["BGP_NEIGHBOR"]) == {"default|2001:db8::20"}
+        assert "default|192.0.2.20" not in bgp_config["BGP_NEIGHBOR"]
+
+    def test_link_local_only_svi_skipped(self, bgp_config, patch_bgp):
+        # A link-local-only SVI cannot source a numbered session in any family.
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", "2001:db8::20")
+        _call_bgp(
+            bgp_config,
+            netbox=object(),
+            netbox_interfaces={"Ethernet0": _nbif("eth0")},
+            vlan_info=self._vlan_info({"eth0": "untagged"}, addresses=["fe80::1/64"]),
+        )
+        assert bgp_config["BGP_NEIGHBOR"] == {}
+
+    def test_ipv6_peer_non_default_vrf_no_v6only(self, bgp_config, patch_bgp):
+        patch_bgp.peer_ips.return_value = (None, "2001:db8::20")
+        _call_bgp(
+            bgp_config,
+            netbox=object(),
+            netbox_interfaces={"Ethernet0": _nbif("eth0")},
+            vlan_info=self._vlan_info(
+                {"eth0": "untagged"}, addresses=["2001:db8::1/64"]
+            ),
+            vrf_info={"interface_vrf_mapping": {"Vlan100": "Vrf42"}},
+        )
+        entry = bgp_config["BGP_NEIGHBOR"]["Vrf42|2001:db8::20"]
+        assert "v6only" not in entry
+        assert "Vrf42|2001:db8::20|ipv6_unicast" in bgp_config["BGP_NEIGHBOR_AF"]
+
     def test_duplicate_peer_ip_deduped(self, bgp_config, patch_bgp):
-        patch_bgp.peer_ipv4.return_value = "192.0.2.20"
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", None)
         _call_bgp(
             bgp_config,
             netbox=object(),
@@ -373,6 +476,22 @@ class TestBgpVlanInterfaces:
             vlan_info=self._vlan_info({"eth0": "untagged", "eth1": "untagged"}),
         )
         assert list(bgp_config["BGP_NEIGHBOR"]) == ["default|192.0.2.20"]
+
+    def test_duplicate_peer_ipv6_deduped(self, bgp_config, patch_bgp):
+        patch_bgp.peer_ips.return_value = (None, "2001:db8::20")
+        _call_bgp(
+            bgp_config,
+            netbox=object(),
+            netbox_interfaces={
+                "Ethernet0": _nbif("eth0"),
+                "Ethernet1": _nbif("eth1"),
+            },
+            vlan_info=self._vlan_info(
+                {"eth0": "untagged", "eth1": "untagged"},
+                addresses=["2001:db8::1/64"],
+            ),
+        )
+        assert list(bgp_config["BGP_NEIGHBOR"]) == ["default|2001:db8::20"]
 
     @pytest.mark.parametrize(
         "vlan_info",
@@ -393,7 +512,7 @@ class TestBgpVlanInterfaces:
         ],
     )
     def test_skipped_cases(self, bgp_config, patch_bgp, vlan_info):
-        patch_bgp.peer_ipv4.return_value = "192.0.2.20"
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", None)
         _call_bgp(
             bgp_config,
             netbox=object(),
@@ -403,7 +522,7 @@ class TestBgpVlanInterfaces:
         assert bgp_config["BGP_NEIGHBOR"] == {}
 
     def test_no_peer_ip_warns(self, bgp_config, patch_bgp, loguru_logs):
-        patch_bgp.peer_ipv4.return_value = None
+        patch_bgp.peer_ips.return_value = (None, None)
         _call_bgp(
             bgp_config,
             netbox=object(),
@@ -418,7 +537,7 @@ class TestBgpVlanInterfaces:
         )
 
     def test_vlan_interface_name_used_for_vrf_lookup(self, bgp_config, patch_bgp):
-        patch_bgp.peer_ipv4.return_value = "192.0.2.20"
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", None)
         _call_bgp(
             bgp_config,
             netbox=object(),
@@ -433,7 +552,7 @@ class TestBgpVlanInterfaces:
     def test_member_not_in_netbox_interfaces_skipped(
         self, bgp_config, patch_bgp, loguru_logs
     ):
-        patch_bgp.peer_ipv4.return_value = "192.0.2.20"
+        patch_bgp.peer_ips.return_value = ("192.0.2.20", None)
         _call_bgp(
             bgp_config,
             netbox=object(),

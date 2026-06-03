@@ -36,9 +36,16 @@ from .connections import (
     get_connected_interfaces,
     get_connected_device_for_sonic_interface,
     get_connected_interface_ipv4_address,
+    get_connected_interface_ip_addresses,
+    is_numbered_neighbor_address,
 )
 from .cache import get_cached_device_interfaces
-from .constants import BGP_AF_L2VPN_EVPN_TAG, DEFAULT_SONIC_ROLES
+from .constants import (
+    BGP_AF_IPV4_UNICAST,
+    BGP_AF_IPV6_UNICAST,
+    BGP_AF_L2VPN_EVPN_TAG,
+    DEFAULT_SONIC_ROLES,
+)
 
 # Global cache for metalbox IPs per device to avoid duplicate lookups
 _metalbox_ip_cache: dict[int, Optional[str]] = {}
@@ -1090,12 +1097,12 @@ def _add_bgp_configurations(
                 neighbor_id = port_name
                 vrf_name = get_vrf_for_interface(port_name)
 
-                ipv4_key = f"{vrf_name}|{neighbor_id}|ipv4_unicast"
+                ipv4_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV4_UNICAST}"
                 config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
 
                 # Only add ipv6_unicast if v6only would be true (no transfer role IPv4)
                 if not has_transfer_ipv4:
-                    ipv6_key = f"{vrf_name}|{neighbor_id}|ipv6_unicast"
+                    ipv6_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV6_UNICAST}"
                     config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
                     logger.debug(
                         f"Added BGP_NEIGHBOR_AF with ipv4_unicast and ipv6_unicast for interface {port_name} (no direct IPv4)"
@@ -1156,8 +1163,8 @@ def _add_bgp_configurations(
         neighbor_id = pc_name
         vrf_name = get_vrf_for_interface(pc_name)
 
-        ipv4_key = f"{vrf_name}|{neighbor_id}|ipv4_unicast"
-        ipv6_key = f"{vrf_name}|{neighbor_id}|ipv6_unicast"
+        ipv4_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV4_UNICAST}"
+        ipv6_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV6_UNICAST}"
         config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
         config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
 
@@ -1346,6 +1353,25 @@ def _add_bgp_configurations(
             if not addresses:
                 continue
 
+            # Address families the local SVI can source. A numbered BGP
+            # session only comes up when the SVI itself carries a routable
+            # address in that family, so an IPv4-only SVI must not emit an
+            # IPv6 numbered neighbor (and vice versa); link-local-only
+            # addresses do not count (see is_numbered_neighbor_address).
+            local_address_families = {
+                version
+                for version in (4, 6)
+                if any(
+                    is_numbered_neighbor_address(addr, version) for addr in addresses
+                )
+            }
+            if not local_address_families:
+                logger.debug(
+                    f"VLAN {vid} SVI has no routable IP address, "
+                    f"skipping BGP configuration"
+                )
+                continue
+
             # Find untagged member interfaces for this VLAN
             # Only untagged members are relevant for VLAN BGP neighbors
             if vid not in vlan_info["vlan_members"]:
@@ -1387,35 +1413,50 @@ def _add_bgp_configurations(
                     )
                     continue
 
-                # Get peer IP address using the existing FHRP VIP detection logic
-                peer_ipv4 = None
+                # Look up both peer address families in a single NetBox
+                # round-trip (direct IP first, then FHRP VIP), then keep only
+                # the families the local SVI can actually source. A dual-stack
+                # peer yields one neighbor per address family.
+                peer_ip_afs = []
                 if netbox:
-                    peer_ipv4 = get_connected_interface_ipv4_address(
+                    peer_ipv4, peer_ipv6 = get_connected_interface_ip_addresses(
                         device, sonic_iface_name, netbox
                     )
+                    if peer_ipv4 and 4 in local_address_families:
+                        peer_ip_afs.append((peer_ipv4, BGP_AF_IPV4_UNICAST))
+                    if peer_ipv6 and 6 in local_address_families:
+                        peer_ip_afs.append((peer_ipv6, BGP_AF_IPV6_UNICAST))
 
-                if peer_ipv4:
+                if not peer_ip_afs:
+                    logger.debug(
+                        f"No peer IP address found for interface {sonic_iface_name} "
+                        f"(NetBox: {netbox_iface_name}) in VLAN {vid}"
+                    )
+                    continue
+
+                for peer_ip, address_family in peer_ip_afs:
                     # Avoid duplicate peer IPs across multiple untagged members
-                    if peer_ipv4 in peer_ips_found:
+                    if peer_ip in peer_ips_found:
                         logger.debug(
-                            f"Peer IP {peer_ipv4} already configured for VLAN {vid}, "
+                            f"Peer IP {peer_ip} already configured for VLAN {vid}, "
                             f"skipping duplicate from interface {sonic_iface_name}"
                         )
                         continue
 
-                    peer_ips_found.add(peer_ipv4)
+                    peer_ips_found.add(peer_ip)
 
                     # Get VRF for the VLAN interface (e.g., Vlan100)
                     vlan_interface_name = f"Vlan{vid}"
                     vrf_name = get_vrf_for_interface(vlan_interface_name)
 
                     # Create BGP neighbor with peer IP address (FHRP VIP or direct IP)
-                    neighbor_key = f"{vrf_name}|{peer_ipv4}"
+                    neighbor_key = f"{vrf_name}|{peer_ip}"
 
                     # Determine peer_type - for VLAN interfaces, default to external
                     peer_type = "external"
 
-                    # Set v6only=false for IPv4 BGP neighbor (only for default VRF)
+                    # The neighbor is reached over a numbered (global) address, so
+                    # v6only does not apply; set it to false for the default VRF.
                     bgp_neighbor_config = {
                         "peer_type": peer_type,
                     }
@@ -1424,18 +1465,14 @@ def _add_bgp_configurations(
 
                     config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
 
-                    # Add BGP_NEIGHBOR_AF for IPv4 unicast
-                    ipv4_af_key = f"{vrf_name}|{peer_ipv4}|ipv4_unicast"
-                    config["BGP_NEIGHBOR_AF"][ipv4_af_key] = {"admin_status": "true"}
+                    # Add BGP_NEIGHBOR_AF for the matching address family
+                    af_key = f"{vrf_name}|{peer_ip}|{address_family}"
+                    config["BGP_NEIGHBOR_AF"][af_key] = {"admin_status": "true"}
 
                     logger.info(
-                        f"Added BGP neighbor configuration for VLAN {vid} using peer IP {peer_ipv4} "
-                        f"from connected interface {sonic_iface_name} (NetBox: {netbox_iface_name})"
-                    )
-                else:
-                    logger.debug(
-                        f"No peer IPv4 address found for interface {sonic_iface_name} "
-                        f"(NetBox: {netbox_iface_name}) in VLAN {vid}"
+                        f"Added BGP neighbor configuration for VLAN {vid} using peer IP {peer_ip} "
+                        f"({address_family}) from connected interface {sonic_iface_name} "
+                        f"(NetBox: {netbox_iface_name})"
                     )
 
             if not peer_ips_found:
