@@ -87,3 +87,18 @@ def test_enable_returns_1_when_force_up_rejected():
     )
     result = _run_enable(["somehost"], conn)
     assert result == 1
+
+
+def test_migration_list_rejects_changes_since_after_changes_before():
+    # changes-since must be <= changes-before; this is invalid input and the
+    # check runs before any cloud setup is reached.
+    result = _run(
+        [
+            "--changes-since",
+            "2025-01-02T00:00:00",
+            "--changes-before",
+            "2025-01-01T00:00:00",
+        ],
+        MagicMock(),
+    )
+    assert result == 1

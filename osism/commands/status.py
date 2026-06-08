@@ -69,6 +69,7 @@ class Run(Command):
             )
         else:
             logger.error(f"Unknown resource type '{type_of_resource}'")
+            return 1
 
 
 class Database(Command):

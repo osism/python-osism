@@ -663,7 +663,7 @@ class ComputeMigrationList(Command):
                 logger.error(
                     "changes-since needs to be less or equal to changes-before"
                 )
-                return
+                return 1
 
         import openstack
         from osism.tasks.openstack import get_cloud_helpers
