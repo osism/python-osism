@@ -5,7 +5,7 @@ import os
 import subprocess
 
 from celery import Celery
-from celery.exceptions import MaxRetriesExceededError
+from celery.exceptions import MaxRetriesExceededError, Retry
 from loguru import logger
 from osism import settings, utils
 from osism.tasks import Config
@@ -43,6 +43,33 @@ def _finish_task_output_best_effort(task_id, rc):
         logger.exception(f"Failed to finish output for reconciler task {task_id}")
 
 
+def _publish_failure_best_effort(task_id, exc):
+    _push_task_output_best_effort(task_id, f"Reconciler failed: {exc}\n")
+    _finish_task_output_best_effort(task_id, 1)
+
+
+def _release_lock_best_effort(lock):
+    from pottery import ReleaseUnlockedLock
+
+    try:
+        lock.release()
+    except ReleaseUnlockedLock:
+        logger.warning(
+            "Lock auto-released before explicit release (auto_release_time exceeded)"
+        )
+    except Exception:
+        logger.exception("Failed to release reconciler lock")
+
+
+def _terminate_process_best_effort(process):
+    try:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+    except Exception:
+        logger.exception("Failed to terminate reconciler subprocess")
+
+
 def _retry_after_lock_timeout(task, publish):
     if publish and task.request.retries < LOCK_RETRY_MAX_RETRIES:
         _push_task_output_best_effort(
@@ -64,52 +91,64 @@ def _retry_after_lock_timeout(task, publish):
         raise
 
 
+def _execute_reconciler(task, publish):
+    lock = None
+    lock_acquired = False
+    process = None
+
+    try:
+        utils.check_task_lock_and_exit()
+
+        lock = utils.create_redlock(
+            key="lock_osism_tasks_reconciler_run",
+            auto_release_time=60,
+        )
+
+        if not lock.acquire(timeout=20):
+            return _retry_after_lock_timeout(task, publish)
+
+        lock_acquired = True
+        logger.info("RUN /run.sh")
+
+        process = subprocess.Popen(
+            "/run.sh",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=os.environ.copy(),
+        )
+
+        if publish:
+            for line in io.TextIOWrapper(process.stdout, encoding="utf-8"):
+                utils.push_task_output(task.request.id, line)
+
+        rc = process.wait(timeout=60)
+
+        if publish:
+            utils.finish_task_output(task.request.id, rc=rc)
+
+        return rc
+    except (Retry, MaxRetriesExceededError):
+        raise
+    except BaseException as exc:
+        if process is not None:
+            _terminate_process_best_effort(process)
+        logger.exception(f"Reconciler task {task.request.id} failed")
+        if publish:
+            _publish_failure_best_effort(task.request.id, exc)
+        raise
+    finally:
+        if lock_acquired:
+            _release_lock_best_effort(lock)
+
+
 @app.task(
     bind=True,
     name="osism.tasks.reconciler.run",
     max_retries=LOCK_RETRY_MAX_RETRIES,
 )
 def run(self, publish=True):
-    # Check if tasks are locked before execution
-    utils.check_task_lock_and_exit()
-
-    lock = utils.create_redlock(
-        key="lock_osism_tasks_reconciler_run",
-        auto_release_time=60,
-    )
-
-    if not lock.acquire(timeout=20):
-        return _retry_after_lock_timeout(self, publish)
-
-    logger.info("RUN /run.sh")
-
-    env = os.environ.copy()
-
-    p = subprocess.Popen(
-        "/run.sh",
-        shell=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        env=env,
-    )
-
-    if publish:
-        for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-            utils.push_task_output(self.request.id, line)
-
-    rc = p.wait(timeout=60)
-
-    if publish:
-        utils.finish_task_output(self.request.id, rc=rc)
-
-    from pottery import ReleaseUnlockedLock
-
-    try:
-        lock.release()
-    except ReleaseUnlockedLock:
-        logger.warning(
-            "Lock auto-released before explicit release (auto_release_time exceeded)"
-        )
+    return _execute_reconciler(self, publish)
 
 
 @app.task(bind=True, name="osism.tasks.reconciler.run_on_change")
