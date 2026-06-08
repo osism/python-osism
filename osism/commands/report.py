@@ -51,10 +51,10 @@ class Memory(Command):
 
             if result.returncode != 0:
                 logger.error("Error loading inventory.")
-                return
+                return 1
         except subprocess.TimeoutExpired:
             logger.error("Timeout loading inventory.")
-            return
+            return 1
 
         data = json.loads(result.stdout)
         hosts = get_hosts_from_inventory(data)
@@ -189,10 +189,10 @@ class Lldp(Command):
 
             if result.returncode != 0:
                 logger.error("Error loading inventory.")
-                return
+                return 1
         except subprocess.TimeoutExpired:
             logger.error("Timeout loading inventory.")
-            return
+            return 1
 
         data = json.loads(result.stdout)
         hosts = get_hosts_from_inventory(data)
@@ -358,10 +358,10 @@ class Bgp(Command):
 
             if result.returncode != 0:
                 logger.error("Error loading inventory.")
-                return
+                return 1
         except subprocess.TimeoutExpired:
             logger.error("Timeout loading inventory.")
-            return
+            return 1
 
         data = json.loads(result.stdout)
         hosts = get_hosts_from_inventory(data)
@@ -535,10 +535,10 @@ class Status(Command):
 
             if result.returncode != 0:
                 logger.error("Error loading inventory.")
-                return
+                return 1
         except subprocess.TimeoutExpired:
             logger.error("Timeout loading inventory.")
-            return
+            return 1
 
         data = json.loads(result.stdout)
         hosts = get_hosts_from_inventory(data)
