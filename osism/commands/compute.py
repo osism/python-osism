@@ -67,7 +67,7 @@ class ComputeEnable(Command):
                         "has been restarted, allowing these records to move to `completed` "
                         "before retrying this request."
                     )
-                    return
+                    return 1
 
             logger.info(f"Enabling nova-compute binary @ {host} ({service.id})")
             conn.compute.enable_service(
