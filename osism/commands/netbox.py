@@ -538,7 +538,7 @@ class Console(Command):
 
             if not token or not url:
                 logger.error("NetBox integration not configured.")
-                return
+                return 1
 
             subprocess.call(
                 ["/usr/local/bin/nbcli", "init"],
@@ -587,7 +587,7 @@ class Dump(Command):
         # Check if NetBox connection is available
         if not utils.nb:
             logger.error("NetBox integration not configured.")
-            return
+            return 1
 
         device = None
 
@@ -633,7 +633,7 @@ class Dump(Command):
 
         if not device:
             logger.error(f"Device '{host}' not found in NetBox.")
-            return
+            return 1
 
         # Prepare table data for display
         table = []

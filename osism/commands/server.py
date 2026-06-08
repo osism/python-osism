@@ -182,20 +182,20 @@ class ServerList(Command):
                         user_query = dict(domain_id=u_d.id)
                     else:
                         logger.error(f"No domain found for {user_domain}")
-                        return
+                        return 1
 
                 u = conn.identity.find_user(user, ignore_missing=True, **user_query)
                 if u and "id" in u:
                     user_id = u.id
                 else:
                     logger.error(f"No user found for {user}")
-                    return
+                    return 1
 
             if domain:
                 _domain = conn.identity.find_domain(domain)
                 if not _domain:
                     logger.error(f"Domain {domain} not found")
-                    return
+                    return 1
                 projects = list(conn.identity.projects(domain_id=_domain.id))
 
                 for project in projects:
@@ -234,14 +234,14 @@ class ServerList(Command):
                     _project_domain = conn.identity.find_domain(project_domain)
                     if not _project_domain:
                         logger.error(f"Project domain {project_domain} not found")
-                        return
+                        return 1
                     query = {"domain_id": _project_domain.id}
                     _project = conn.identity.find_project(project, **query)
                 else:
                     _project = conn.identity.find_project(project)
                 if not _project:
                     logger.error(f"Project {project} not found")
-                    return
+                    return 1
                 query = {"project_id": _project.id}
 
                 # Get domain name from project

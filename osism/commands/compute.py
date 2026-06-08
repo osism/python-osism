@@ -689,14 +689,14 @@ class ComputeMigrationList(Command):
                         user_query = dict(domain_id=u_d.id)
                     else:
                         logger.error(f"No domain found for {user_domain}")
-                        return
+                        return 1
 
                 u = conn.identity.find_user(user, ignore_missing=True, **user_query)
                 if u and "id" in u:
                     user_id = u.id
                 else:
                     logger.error(f"No user found for {user}")
-                    return
+                    return 1
 
             project_id = None
             if project:
@@ -708,7 +708,7 @@ class ComputeMigrationList(Command):
                         project_query = dict(domain_id=p_d.id)
                     else:
                         logger.error(f"No domain found for {project_domain}")
-                        return
+                        return 1
 
                 p = conn.identity.find_project(
                     project, ignore_missing=True, **project_query
@@ -717,7 +717,7 @@ class ComputeMigrationList(Command):
                     project_id = p.id
                 else:
                     logger.error(f"No project found for {project}")
-                    return
+                    return 1
 
             instance_uuid = None
             if server:
@@ -731,10 +731,10 @@ class ComputeMigrationList(Command):
                         raise openstack.exceptions.NotFoundException
                 except openstack.exceptions.DuplicateResource:
                     logger.error(f"Multiple servers where found for {server}")
-                    return
+                    return 1
                 except openstack.exceptions.NotFoundException:
                     logger.error(f"No server found for {server}")
-                    return
+                    return 1
 
             query = {}
             if host:
