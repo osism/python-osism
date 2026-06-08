@@ -83,6 +83,7 @@ class Run(Command):
             do_refresh = True
 
         tmp_task_ids = []
+        rc = 0
         while task_ids or do_refresh:
             if task_ids:
                 task_id = task_ids.pop()
@@ -121,14 +122,14 @@ class Run(Command):
                     if live:
                         utils.redis.ping()
                         try:
-                            rc = utils.fetch_task_output(task_id)
+                            task_rc = utils.fetch_task_output(task_id)
+                            if task_rc:
+                                rc = task_rc
                         except TimeoutError:
                             logger.error(
                                 f"Timeout while waiting for further output of task {task_id}"
                             )
-
-                        if len(task_ids) == 1:
-                            return rc
+                            rc = 1
                     else:
                         tmp_task_ids.insert(0, task_id)
 
@@ -154,3 +155,5 @@ class Run(Command):
                     tmp_task_ids = []
                 else:
                     do_refresh = False
+
+        return rc
