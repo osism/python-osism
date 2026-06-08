@@ -192,7 +192,7 @@ class BaremetalDeploy(Command):
                 node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
                 if not node:
                     logger.warning(f"Could not find node {name}")
-                    return
+                    return 1
                 deploy_nodes = [node]
 
             for node in deploy_nodes:
@@ -743,7 +743,7 @@ class BaremetalUndeploy(Command):
                 )
                 if not node:
                     logger.warning(f"Could not find node {name}")
-                    return
+                    return 1
                 deploy_nodes = [node]
 
             for node in deploy_nodes:
@@ -1054,7 +1054,7 @@ class BaremetalBurnIn(Command):
                 node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
                 if not node:
                     logger.warning(f"Could not find node {name}")
-                    return
+                    return 1
                 burn_in_nodes = [node]
 
             for node in burn_in_nodes:
@@ -1211,7 +1211,7 @@ class BaremetalClean(Command):
                 node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
                 if not node:
                     logger.warning(f"Could not find node {name}")
-                    return
+                    return 1
                 clean_nodes = [node]
 
             for node in clean_nodes:
@@ -1335,7 +1335,7 @@ class BaremetalProvide(Command):
                 node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
                 if not node:
                     logger.warning(f"Could not find node {name}")
-                    return
+                    return 1
                 provide_nodes = [node]
 
             for node in provide_nodes:
@@ -1405,7 +1405,7 @@ class BaremetalMaintenanceSet(Command):
             node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
             if not node:
                 logger.warning(f"Could not find node {name}")
-                return
+                return 1
             try:
                 conn.baremetal.set_node_maintenance(node, reason=reason)
             except Exception as exc:
@@ -1453,7 +1453,7 @@ class BaremetalMaintenanceUnset(Command):
             node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
             if not node:
                 logger.warning(f"Could not find node {name}")
-                return
+                return 1
             try:
                 conn.baremetal.unset_node_maintenance(node)
             except Exception as exc:
@@ -1505,7 +1505,7 @@ class BaremetalPowerOn(Command):
             node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
             if not node:
                 logger.warning(f"Could not find node {name}")
-                return
+                return 1
 
             try:
                 conn.baremetal.set_node_power_state(node.id, "power on")
@@ -1564,7 +1564,7 @@ class BaremetalPowerOff(Command):
             node = conn.baremetal.find_node(name, ignore_missing=True, details=True)
             if not node:
                 logger.warning(f"Could not find node {name}")
-                return
+                return 1
 
             target = "soft power off" if soft else "power off"
 
@@ -1645,7 +1645,7 @@ class BaremetalDelete(Command):
                 )
                 if not node:
                     logger.warning(f"Could not find node {name}")
-                    return
+                    return 1
                 delete_nodes = [node]
 
             for node in delete_nodes:

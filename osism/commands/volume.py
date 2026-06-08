@@ -67,7 +67,7 @@ class VolumeList(Command):
                 _domain = conn.identity.find_domain(domain)
                 if not _domain:
                     logger.error(f"Domain {domain} not found")
-                    return
+                    return 1
                 projects = list(conn.identity.projects(domain_id=_domain.id))
 
                 for project in projects:
@@ -106,14 +106,14 @@ class VolumeList(Command):
                     _project_domain = conn.identity.find_domain(project_domain)
                     if not _project_domain:
                         logger.error(f"Project domain {project_domain} not found")
-                        return
+                        return 1
                     query = {"domain_id": _project_domain.id}
                     _project = conn.identity.find_project(project, **query)
                 else:
                     _project = conn.identity.find_project(project)
                 if not _project:
                     logger.error(f"Project {project} not found")
-                    return
+                    return 1
                 query = {"project_id": _project.id}
 
                 for volume in conn.block_storage.volumes(all_projects=True, **query):
