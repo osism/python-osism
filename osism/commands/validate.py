@@ -60,6 +60,7 @@ class Run(Command):
                 logger.error(
                     f"Timeout while waiting for further output of task {t.task_id} (sync inventory)"
                 )
+                return 1
         else:
             if format == "log":
                 logger.info(

@@ -102,6 +102,7 @@ class Ironic(Command):
                     logger.error(
                         f"Timeout while waiting for further output of task {task.task_id} (sync ironic)"
                     )
+                return 1
         else:
             if node_name:
                 logger.info(
@@ -376,6 +377,7 @@ class Sync(Command):
                     logger.error(
                         f"Timeout while waiting for further output of task {task.task_id} (sync netbox)"
                     )
+                return 1
         else:
             if node_name:
                 logger.info(
