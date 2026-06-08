@@ -181,3 +181,32 @@ def test_execute_reconciler_does_not_convert_retry_to_failure(mocker):
 
     finish.assert_not_called()
     lock.release.assert_not_called()
+
+
+def test_explicit_and_periodic_runs_use_shared_lock(mocker):
+    task = _task()
+    lock = MagicMock()
+    lock.acquire.return_value = False
+    create_lock = mocker.patch(
+        "osism.tasks.reconciler.utils.create_redlock",
+        return_value=lock,
+    )
+    mocker.patch("osism.tasks.reconciler.utils.check_task_lock_and_exit")
+    mocker.patch(
+        "osism.tasks.reconciler._retry_after_lock_timeout",
+        side_effect=Retry(),
+    )
+
+    with pytest.raises(Retry):
+        reconciler._execute_reconciler(task, publish=True)
+    reconciler.run_on_change.run()
+
+    execution_locks = [
+        item
+        for item in create_lock.call_args_list
+        if item.kwargs.get("auto_release_time") == 60
+    ]
+    assert len(execution_locks) == 2
+    assert all(
+        item.kwargs["key"] == reconciler.RECONCILER_LOCK_KEY for item in execution_locks
+    )

@@ -16,6 +16,7 @@ app.config_from_object(Config)
 LOCK_RETRY_MAX_RETRIES = 5
 LOCK_RETRY_DELAY = 5
 LOCK_TIMEOUT_RC = 1
+RECONCILER_LOCK_KEY = "lock_osism_tasks_reconciler_execution"
 
 
 @app.on_after_configure.connect
@@ -100,7 +101,7 @@ def _execute_reconciler(task, publish):
         utils.check_task_lock_and_exit()
 
         lock = utils.create_redlock(
-            key="lock_osism_tasks_reconciler_run",
+            key=RECONCILER_LOCK_KEY,
             auto_release_time=60,
         )
 
@@ -154,7 +155,7 @@ def run(self, publish=True):
 @app.task(bind=True, name="osism.tasks.reconciler.run_on_change")
 def run_on_change(self):
     lock = utils.create_redlock(
-        key="lock_osism_tasks_reconciler_run_on_change",
+        key=RECONCILER_LOCK_KEY,
         auto_release_time=60,
     )
 
