@@ -169,7 +169,7 @@ class BaremetalDeploy(Command):
             logger.error(
                 "Please confirm that you wish to rebuild all nodes by specifying '--yes-i-really-really-mean-it'"
             )
-            return
+            return 1
 
         import openstack
         from osism.tasks.openstack import get_cloud_helpers
@@ -720,7 +720,7 @@ class BaremetalUndeploy(Command):
             logger.error(
                 "Please confirm that you wish to undeploy all nodes by specifying '--yes-i-really-really-mean-it'"
             )
-            return
+            return 1
 
         from osism.tasks.openstack import get_cloud_helpers
 
@@ -1188,7 +1188,7 @@ class BaremetalClean(Command):
             logger.error(
                 "Please confirm that you wish to clean all nodes by specifying '--yes-i-really-really-mean-it'"
             )
-            return
+            return 1
 
         clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
 
@@ -1622,7 +1622,7 @@ class BaremetalDelete(Command):
             logger.error(
                 "Please confirm that you wish to delete all nodes by specifying '--yes-i-really-really-mean-it'"
             )
-            return
+            return 1
 
         from osism.tasks.openstack import get_cloud_helpers
 

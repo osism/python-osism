@@ -154,3 +154,33 @@ def test_burnin_no_stressor_returns_1():
         ["node1", "--no-cpu", "--no-memory", "--no-disk"]
     )
     assert cmd.take_action(parsed_args) == 1
+
+
+# When --all is requested for a destructive operation without the
+# --yes-i-really-really-mean-it confirmation, the command refuses to proceed
+# and must return a non-zero exit code rather than reporting success. The
+# confirmation guard runs before any cloud setup, so no mocking is needed.
+
+
+def test_deploy_all_without_confirmation_returns_1():
+    cmd = baremetal.BaremetalDeploy(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(["--all", "--rebuild"])
+    assert cmd.take_action(parsed_args) == 1
+
+
+def test_undeploy_all_without_confirmation_returns_1():
+    cmd = baremetal.BaremetalUndeploy(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(["--all"])
+    assert cmd.take_action(parsed_args) == 1
+
+
+def test_clean_all_without_confirmation_returns_1():
+    cmd = baremetal.BaremetalClean(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(["--all"])
+    assert cmd.take_action(parsed_args) == 1
+
+
+def test_delete_all_without_confirmation_returns_1():
+    cmd = baremetal.BaremetalDelete(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(["--all"])
+    assert cmd.take_action(parsed_args) == 1
