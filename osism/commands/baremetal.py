@@ -163,7 +163,7 @@ class BaremetalDeploy(Command):
 
         if not all_nodes and not name:
             logger.error("Please specify a node name or use --all")
-            return
+            return 1
 
         if all_nodes and rebuild and not yes_i_really_really_mean_it:
             logger.error(
@@ -714,7 +714,7 @@ class BaremetalUndeploy(Command):
 
         if not all_nodes and not name:
             logger.error("Please specify a node name or use --all")
-            return
+            return 1
 
         if all_nodes and not yes_i_really_really_mean_it:
             logger.error(
@@ -1023,7 +1023,7 @@ class BaremetalBurnIn(Command):
 
         if not all_nodes and not name:
             logger.error("Please specify a node name or use --all")
-            return
+            return 1
 
         clean_steps = []
         for step, activated in stressor.items():
@@ -1033,7 +1033,7 @@ class BaremetalBurnIn(Command):
             logger.error(
                 f"Please specify at least one of {', '.join(stressor.keys())} for burn-in"
             )
-            return
+            return 1
 
         from osism.tasks.openstack import get_cloud_helpers
 
@@ -1182,7 +1182,7 @@ class BaremetalClean(Command):
 
         if not all_nodes and not name:
             logger.error("Please specify a node name or use --all")
-            return
+            return 1
 
         if all_nodes and not yes_i_really_really_mean_it:
             logger.error(
@@ -1314,7 +1314,7 @@ class BaremetalProvide(Command):
 
         if not all_nodes and not name:
             logger.error("Please specify a node name or use --all")
-            return
+            return 1
 
         from osism.tasks.openstack import get_cloud_helpers
 
@@ -1488,7 +1488,7 @@ class BaremetalPowerOn(Command):
 
         if not name:
             logger.error("Please specify a node name")
-            return
+            return 1
 
         from osism.tasks.openstack import get_cloud_helpers
 
@@ -1547,7 +1547,7 @@ class BaremetalPowerOff(Command):
 
         if not name:
             logger.error("Please specify a node name")
-            return
+            return 1
 
         from osism.tasks.openstack import get_cloud_helpers
 
@@ -1616,7 +1616,7 @@ class BaremetalDelete(Command):
 
         if not all_nodes and not name:
             logger.error("Please specify a node name or use --all")
-            return
+            return 1
 
         if all_nodes and not yes_i_really_really_mean_it:
             logger.error(

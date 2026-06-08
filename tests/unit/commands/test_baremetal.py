@@ -117,3 +117,40 @@ def test_ping_exception_returns_1():
 
     with patch.dict("osism.utils.__dict__", {"nb": fake_nb}):
         assert cmd.take_action(parsed_args) == 1
+
+
+# --- Argument-validation failure paths ---
+#
+# These commands validate their arguments at the very top of take_action,
+# before any cloud setup. When neither a node name nor --all is given (or, for
+# the power commands, when no node name is given) the command must report a
+# non-zero exit code rather than silently succeeding. No mocking is required
+# because the validation branch returns before any infrastructure access.
+MISSING_NODE_COMMANDS = [
+    baremetal.BaremetalDeploy,
+    baremetal.BaremetalUndeploy,
+    baremetal.BaremetalBurnIn,
+    baremetal.BaremetalClean,
+    baremetal.BaremetalProvide,
+    baremetal.BaremetalPowerOn,
+    baremetal.BaremetalPowerOff,
+    baremetal.BaremetalDelete,
+]
+
+
+@pytest.mark.parametrize("cls", MISSING_NODE_COMMANDS)
+def test_missing_node_argument_returns_1(cls):
+    cmd = cls(MagicMock(), MagicMock())
+    # Neither a node name nor --all: the argument-validation branch fires.
+    parsed_args = cmd.get_parser("test").parse_args([])
+    assert cmd.take_action(parsed_args) == 1
+
+
+def test_burnin_no_stressor_returns_1():
+    cmd = baremetal.BaremetalBurnIn(MagicMock(), MagicMock())
+    # Select a node so the node check passes, but disable every stressor so the
+    # "at least one stressor" validation branch fires before any cloud setup.
+    parsed_args = cmd.get_parser("test").parse_args(
+        ["node1", "--no-cpu", "--no-memory", "--no-disk"]
+    )
+    assert cmd.take_action(parsed_args) == 1
