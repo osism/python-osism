@@ -49,3 +49,25 @@ def test_project_not_found_returns_1():
     conn.identity.find_project.return_value = None
     result = _run(["--project", "p"], conn)
     assert result == 1
+
+
+def _run_migrate(args, conn):
+    cmd = server.ServerMigrate(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(args)
+    setup = MagicMock(return_value=("pw", [], None, True))
+    getconn = MagicMock(return_value=conn)
+    cleanup = MagicMock()
+    with patch(
+        "osism.tasks.openstack.get_cloud_helpers",
+        return_value=(setup, getconn, cleanup),
+    ):
+        return cmd.take_action(parsed_args)
+
+
+def test_migrate_returns_1_when_server_not_active_or_paused():
+    conn = MagicMock()
+    conn.compute.get_server.return_value = MagicMock(
+        id="i1", name="n1", status="SHUTOFF"
+    )
+    result = _run_migrate(["someinstance"], conn)
+    assert result == 1

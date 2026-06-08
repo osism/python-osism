@@ -451,7 +451,7 @@ class BaremetalDump(Command):
 
                 if not node:
                     logger.error(f"Could not find node {name} in Ironic")
-                    return
+                    return 1
 
                 # Get default vars from NetBox local_context_data if available
                 default_vars = {}
@@ -570,7 +570,7 @@ class BaremetalDump(Command):
             # Check if NetBox connection is available
             if not utils.nb:
                 logger.error("NetBox connection not available")
-                return
+                return 1
 
             try:
                 # Try to find device by name first
@@ -585,7 +585,7 @@ class BaremetalDump(Command):
                 # If device not found, error out
                 if not device:
                     logger.error(f"Could not find device {name} in NetBox")
-                    return
+                    return 1
 
                 # Get default vars from NetBox local_context_data if available.
                 # Remove frr_parameters and netplan_parameters as they are
@@ -865,14 +865,14 @@ class BaremetalPing(Command):
 
         if not utils.nb:
             logger.error("NetBox connection not available")
-            return
+            return 1
 
         try:
             if name:
                 devices = [utils.nb.dcim.devices.get(name=name)]
                 if not devices[0]:
                     logger.error(f"Device {name} not found in NetBox")
-                    return
+                    return 1
             else:
                 # Use the NETBOX_FILTER_CONDUCTOR_IRONIC setting to get devices
                 devices = set()
@@ -958,7 +958,7 @@ class BaremetalPing(Command):
 
         except Exception as e:
             logger.error(f"Error during ping operation: {e}")
-            return
+            return 1
 
 
 class BaremetalBurnIn(Command):

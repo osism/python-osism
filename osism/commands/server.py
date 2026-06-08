@@ -79,7 +79,7 @@ class ServerMigrate(Command):
                 logger.info(
                     f"{server[0]} ({server[1]}) in status {server[2]} cannot be live migrated"
                 )
-                return
+                return 1
 
             if yes:
                 answer = "yes"
