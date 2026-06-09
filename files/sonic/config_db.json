@@ -335,7 +335,7 @@
     "MGMT_PORT": {
         "eth0": {
             "admin_status": "up",
-            "autoneg": "true",
+            "autoneg": "on",
             "description": "Management0",
             "mtu": "1500",
             "speed": "1000"
