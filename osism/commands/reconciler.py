@@ -64,6 +64,7 @@ class Sync(Command):
                 logger.error(
                     f"Timeout while waiting for further output of task {t.task_id} (sync inventory)"
                 )
+                return 1
         else:
             logger.info(
                 f"Task {t.task_id} (sync inventory) is running in background. No more output."
