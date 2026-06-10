@@ -113,6 +113,8 @@ def export_config_to_file(device, config):
     """Export SONiC configuration to local file with diff checking.
 
     Only writes to file if configuration has changed compared to existing file.
+    The serial-number→hostname symlink is reconciled on every call, even when
+    the configuration itself is unchanged.
 
     Args:
         device: NetBox device object
@@ -197,22 +199,39 @@ def export_config_to_file(device, config):
 
             logger.info(f"Exported SONiC config for device {device.name} to {filepath}")
 
-            # Create hostname symlink if using serial number identifier
-            if (
-                identifier_type == "serial-number"
-                and hasattr(device, "serial")
-                and device.serial
-            ):
-                try:
-                    hostname = get_device_hostname(device)
-                    hostname_filename = f"{prefix}{hostname}{suffix}"
-                    hostname_filepath = os.path.join(export_dir, hostname_filename)
+        # Reconcile the hostname symlink on every run, not only when the
+        # config changed, so a missing or stale link is repaired even when
+        # the exported content is unchanged
+        if (
+            identifier_type == "serial-number"
+            and hasattr(device, "serial")
+            and device.serial
+        ):
+            try:
+                hostname = get_device_hostname(device)
+                hostname_filename = f"{prefix}{hostname}{suffix}"
+                hostname_filepath = os.path.join(export_dir, hostname_filename)
 
+                logger.debug(
+                    f"Attempting to create symlink: {hostname_filepath} -> {filename}"
+                )
+                logger.debug(f"Hostname: {hostname}, Serial: {device.serial}")
+
+                if hostname_filepath == filepath:
+                    # hostname equals the serial: the just-written config file
+                    # already lives at the hostname path; a symlink would
+                    # replace the config with a self-reference
                     logger.debug(
-                        f"Attempting to create symlink: {hostname_filepath} -> {filename}"
+                        f"Skipping hostname symlink for device {device.name}: hostname path equals config path"
                     )
-                    logger.debug(f"Hostname: {hostname}, Serial: {device.serial}")
-
+                elif (
+                    os.path.islink(hostname_filepath)
+                    and os.readlink(hostname_filepath) == filename
+                ):
+                    logger.debug(
+                        f"Hostname symlink {hostname_filepath} already points to {filename}"
+                    )
+                else:
                     # Create symlink from hostname file to serial number file
                     if os.path.exists(hostname_filepath) or os.path.islink(
                         hostname_filepath
@@ -226,14 +245,14 @@ def export_config_to_file(device, config):
                     logger.info(
                         f"Created hostname symlink {hostname_filepath} -> {filename}"
                     )
-                except Exception as symlink_error:
-                    logger.error(
-                        f"Failed to create hostname symlink for device {device.name}: {symlink_error}"
-                    )
-            else:
-                logger.debug(
-                    f"Symlink conditions not met - identifier_type: {identifier_type}, has_serial: {hasattr(device, 'serial')}, serial_value: {getattr(device, 'serial', None)}"
+            except Exception as symlink_error:
+                logger.error(
+                    f"Failed to create hostname symlink for device {device.name}: {symlink_error}"
                 )
+        else:
+            logger.debug(
+                f"Symlink conditions not met - identifier_type: {identifier_type}, has_serial: {hasattr(device, 'serial')}, serial_value: {getattr(device, 'serial', None)}"
+            )
 
         return config_changed
 
