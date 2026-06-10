@@ -202,6 +202,25 @@ def test_save_config_save_failure_returns_false(mock_nb, loguru_logs):
     assert _has_log(loguru_logs, "ERROR", "Failed to save local context")
 
 
+def test_save_config_changed_path_save_failure_creates_no_journal(
+    mock_nb, loguru_logs
+):
+    """A failed save on the changed path must not leave an orphaned journal
+    entry claiming the update succeeded — journal creation follows the save."""
+    device = _make_save_device(
+        local_context_data={"sonic_config": {"PORT": {"Ethernet0": {}}}}
+    )
+    device.save.side_effect = RuntimeError("netbox write failed")
+
+    result = save_config_to_netbox(
+        device, {"PORT": {"Ethernet1": {}}}, return_diff=True
+    )
+
+    assert result == (False, None)
+    mock_nb.extras.journal_entries.create.assert_not_called()
+    assert _has_log(loguru_logs, "ERROR", "Failed to save local context")
+
+
 def test_save_config_save_failure_bool_form(mock_nb):
     device = _make_save_device(local_context_data=None)
     device.save.side_effect = RuntimeError("boom")

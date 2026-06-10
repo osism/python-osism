@@ -68,10 +68,19 @@ def save_config_to_netbox(device, config, return_diff=False):
             diff_output = "\n".join(unified_diff)
             if diff_output:
                 logger.info(f"Diff:\n{diff_output}")
+            else:
+                logger.info(f"Diff: {diff}")
 
-                # Save diff to device journal log
+            # Update existing local context
+            device.local_context_data = new_config_data
+            device.save()
+            logger.info(f"Updated SONiC local context for device {device.name}")
+
+            # Save diff to device journal log only after the save succeeded,
+            # so a failed save cannot leave a journal entry claiming success
+            if diff_output:
                 try:
-                    journal_entry = utils.nb.extras.journal_entries.create(
+                    utils.nb.extras.journal_entries.create(
                         assigned_object_type="dcim.device",
                         assigned_object_id=device.id,
                         kind="info",
@@ -84,13 +93,7 @@ def save_config_to_netbox(device, config, return_diff=False):
                     logger.error(
                         f"Failed to save diff to journal for device {device.name}: {e}"
                     )
-            else:
-                logger.info(f"Diff: {diff}")
 
-            # Update existing local context
-            device.local_context_data = new_config_data
-            device.save()
-            logger.info(f"Updated SONiC local context for device {device.name}")
             return (True, diff_output) if return_diff else True
         else:
             # Create new local context (no existing context to compare)
