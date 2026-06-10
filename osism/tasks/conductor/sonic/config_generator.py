@@ -90,10 +90,26 @@ TOP_LEVEL_SCAFFOLD_KEYS = (
     "VERSIONS",
 )
 
-# Tables inherited from the device's image-provided base config_db.json:
-# their existing content is preserved across regen because the generator does
-# not emit it itself (see the ownership model on generate_sonic_config).
+# Tables inherited from the device's image-provided base config_db.json: not
+# dropped on regen, so their base content is preserved, while the generator
+# updates only selected fields in place (DEVICE_METADATA localhost attributes,
+# VERSIONS.DATABASE.VERSION) rather than rebuilding them wholesale (see the
+# ownership model on generate_sonic_config).
 INHERITED_TABLE_KEYS = ("DEVICE_METADATA", "VERSIONS")
+
+# Tables read from the device's image-provided base config_db.json but never
+# modified by the generator: their values are consumed (via a defensive
+# config.get(...), so a missing table is tolerated). They are neither dropped
+# nor written, so an image-provided table passes through to the output
+# unchanged -- the same output behaviour as a pass-through table, the
+# difference being only that the generator depends on this one as an input.
+# Distinct from inherited tables, which the generator also writes selected
+# fields into; the distinction is read-only vs. read-and-update, not the access
+# syntax (inherited tables are read via config.get() too). Empty for now; the
+# first consumer is the gNMI listen port, read from TELEMETRY. Must stay
+# disjoint from OWNED_TABLE_KEYS -- an image-consumed table dropped up front
+# would always read back empty.
+IMAGE_CONSUMED_TABLE_KEYS = ()
 
 # Owned tables that are also scaffolded: every scaffold key except the
 # inherited ones. The orchestrator setdefault-creates these up front, so
@@ -146,25 +162,36 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         dict: Minimal SONiC configuration dictionary
 
     Config ownership model:
-        This generator owns the tables listed in OWNED_TABLE_KEYS; operators
-        must not make manual adjustments to them. On every regen those tables
-        are rebuilt from scratch from NetBox data and hardcoded SONiC policy:
-        their base content is dropped up front, so neither pre-existing values
-        nor entries removed from NetBox survive. Operator customizations to
-        owned tables must be modeled in NetBox or expressed as generator
-        policy, not applied directly to config_db.json.
-
-        Tables that are neither owned nor inherited are not emitted by the
-        generator and pass through unchanged from the device's base
-        config_db.json. The generator does not currently police them, so they
-        are not a supported place for operator customizations either.
-
         The generator builds on the device's image-provided base
-        config_db.json. A few fields it does not itself emit are inherited
-        from that base rather than regenerated — currently the
-        DEVICE_METADATA localhost device attributes (e.g. the device type)
-        and the DATABASE schema VERSION. These come from the image, not from
-        operator hand-edits.
+        config_db.json and classifies every table it touches into one of four
+        categories. Operator hand-edits to config_db.json are unsupported in
+        all of them: customizations must be modeled in NetBox or expressed as
+        generator policy, never applied directly to the file.
+
+        - Owned (OWNED_TABLE_KEYS): fully owned by the generator and rebuilt
+          from scratch every regen from NetBox data and hardcoded SONiC
+          policy. Their base content is dropped up front, so neither
+          pre-existing values nor entries removed from NetBox survive.
+        - Inherited (INHERITED_TABLE_KEYS): not dropped on regen, so the
+          image base content is preserved, while the generator updates
+          selected fields in place — currently DEVICE_METADATA localhost
+          attributes (hostname, hwsku, platform, mac) and the
+          VERSIONS.DATABASE.VERSION. Scaffold-created when absent, so they
+          always exist at access time even on a fresh base config.
+        - Image-consumed (IMAGE_CONSUMED_TABLE_KEYS): read from the image
+          base config but never modified by the generator. The defining
+          property is behavioural (read-only), not the access syntax:
+          inherited tables are also read via config.get(), so .get() alone
+          does not distinguish the two. Empty for now.
+        - Pass-through: every table the generator never references. Left
+          untouched and unmanaged; not a supported place for operator
+          customizations either.
+
+        A static guard test (see test_config_generator_ownership.py) parses
+        this module and fails the build if it references a table that is not
+        owned, inherited, or image-consumed — so a newly handled table cannot
+        silently fall into the unpoliced pass-through tier and reintroduce
+        stale config.
     """
     # Get port configuration for the HWSKU
     port_config = get_port_config(hwsku)
