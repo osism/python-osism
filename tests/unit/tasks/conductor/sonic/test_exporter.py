@@ -430,6 +430,78 @@ def test_export_replaces_dangling_symlink(tmp_path, export_settings, patch_hostn
     assert os.readlink(link) == "osism_ABC123_config_db.json"
 
 
+def test_export_unchanged_config_repairs_missing_symlink(
+    tmp_path, export_settings, patch_hostname
+):
+    """Symlink reconciliation is independent of a content change: an unchanged
+    config with a missing hostname link still gets the link created."""
+    export_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    config = {"PORT": {"Ethernet0": {}}}
+    (tmp_path / "osism_ABC123_config_db.json").write_text(json.dumps(config))
+
+    assert export_config_to_file(device, config) is False
+
+    link = tmp_path / "osism_sw-1_config_db.json"
+    assert link.is_symlink()
+    assert os.readlink(link) == "osism_ABC123_config_db.json"
+
+
+def test_export_unchanged_config_repoints_stale_symlink(
+    tmp_path, export_settings, patch_hostname
+):
+    """A hostname link pointing at the wrong target is repointed even when
+    the exported content is unchanged."""
+    export_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    config = {"PORT": {"Ethernet0": {}}}
+    (tmp_path / "osism_ABC123_config_db.json").write_text(json.dumps(config))
+    link = tmp_path / "osism_sw-1_config_db.json"
+    link.symlink_to("osism_OTHER_config_db.json")
+
+    assert export_config_to_file(device, config) is False
+
+    assert os.readlink(link) == "osism_ABC123_config_db.json"
+
+
+def test_export_existing_correct_symlink_left_untouched(
+    tmp_path, export_settings, patch_hostname, mocker
+):
+    """A link that already points at the config file is not removed and
+    recreated on every run."""
+    export_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    config = {"PORT": {"Ethernet0": {}}}
+    (tmp_path / "osism_ABC123_config_db.json").write_text(json.dumps(config))
+    link = tmp_path / "osism_sw-1_config_db.json"
+    link.symlink_to("osism_ABC123_config_db.json")
+    remove_spy = mocker.spy(os, "remove")
+    symlink_spy = mocker.spy(os, "symlink")
+
+    assert export_config_to_file(device, config) is False
+
+    remove_spy.assert_not_called()
+    symlink_spy.assert_not_called()
+    assert os.readlink(link) == "osism_ABC123_config_db.json"
+
+
+def test_export_hostname_equals_serial_keeps_config_file(
+    tmp_path, export_settings, patch_hostname
+):
+    """When the serial equals the hostname the config file already lives at
+    the hostname path — no self-referential symlink may replace it."""
+    export_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="sw-1")
+    config = {"PORT": {"Ethernet0": {}}}
+
+    assert export_config_to_file(device, config) is True
+
+    target = tmp_path / "osism_sw-1_config_db.json"
+    assert target.exists()
+    assert not target.is_symlink()
+    assert json.loads(target.read_text()) == config
+
+
 def test_export_symlink_failure_still_returns_true(
     tmp_path, export_settings, patch_hostname, mocker, loguru_logs
 ):
