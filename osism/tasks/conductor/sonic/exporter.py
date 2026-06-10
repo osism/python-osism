@@ -28,6 +28,10 @@ def save_config_to_netbox(device, config, return_diff=False):
     Returns:
         bool or tuple: If return_diff is False, returns True if config was saved (changed), False if no changes.
                       If return_diff is True, returns (changed, diff_output) tuple.
+
+    Raises:
+        Exception: If persisting the local context to NetBox fails, so a
+                   failed save is distinguishable from "no changes".
     """
     try:
         # Get existing local context data
@@ -106,7 +110,7 @@ def save_config_to_netbox(device, config, return_diff=False):
 
     except Exception as e:
         logger.error(f"Failed to save local context for device {device.name}: {e}")
-        return (False, None) if return_diff else False
+        raise
 
 
 def export_config_to_file(device, config):
@@ -122,6 +126,10 @@ def export_config_to_file(device, config):
 
     Returns:
         bool: True if config was written (changed), False if no changes
+
+    Raises:
+        Exception: If the export fails, so a failed write is distinguishable
+                   from "no changes".
     """
     try:
         # Get configuration from settings
@@ -258,4 +266,4 @@ def export_config_to_file(device, config):
 
     except Exception as e:
         logger.error(f"Failed to export config for device {device.name}: {e}")
-        return False
+        raise
