@@ -361,6 +361,28 @@ def test_export_unreadable_file_is_overwritten(
     assert _has_log(loguru_logs, "WARNING", "Could not read existing config file")
 
 
+def test_export_write_failure_preserves_previous_export(
+    tmp_path, export_settings, patch_hostname, mocker, loguru_logs
+):
+    """The export is written atomically: a mid-write failure must leave the
+    previous export intact instead of truncating it, and not leak a temp file."""
+    export_settings(tmp_path, identifier="hostname")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    target = tmp_path / "osism_sw-1_config_db.json"
+    old_config = {"PORT": {"Ethernet9": {}}}
+    target.write_text(json.dumps(old_config))
+    mocker.patch(
+        "osism.tasks.conductor.sonic.exporter.json.dump",
+        side_effect=OSError("no space left on device"),
+    )
+
+    assert export_config_to_file(device, {"PORT": {"Ethernet0": {}}}) is False
+
+    assert json.loads(target.read_text()) == old_config
+    assert not (tmp_path / "osism_sw-1_config_db.json.tmp").exists()
+    assert _has_log(loguru_logs, "ERROR", "Failed to export config")
+
+
 # --- symlink handling -------------------------------------------------------
 
 
