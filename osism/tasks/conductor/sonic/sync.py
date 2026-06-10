@@ -25,6 +25,10 @@ from .cache import clear_interface_cache, get_interface_cache_stats
 def sync_sonic(device_name=None, task_id=None, show_diff=True):
     """Sync SONiC configurations for eligible devices.
 
+    Caches are always cleared and the task output is always finished, even
+    when the sync exits early or a device fails. Failures are reported to the
+    task layer via a non-zero rc.
+
     Args:
         device_name (str, optional): Name of specific device to sync. If None, sync all eligible devices.
         task_id (str, optional): Task ID for output logging.
@@ -54,194 +58,218 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
     # Dictionary to store configurations for all devices
     device_configs = {}
 
-    logger.debug(f"Supported HWSKUs: {', '.join(SUPPORTED_HWSKUS)}")
+    rc = 0
 
-    devices = []
+    try:
+        logger.debug(f"Supported HWSKUs: {', '.join(SUPPORTED_HWSKUS)}")
 
-    if device_name:
-        # When specific device is requested, fetch it directly
-        try:
-            device = utils.nb.dcim.devices.get(name=device_name)
-            if device:
-                # Check if device role matches allowed roles
-                if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
-                    devices.append(device)
-                    logger.debug(
-                        f"Found device: {device.name} with role: {device.role.slug}"
-                    )
+        devices = []
+
+        if device_name:
+            # When specific device is requested, fetch it directly
+            try:
+                device = utils.nb.dcim.devices.get(name=device_name)
+                if device:
+                    # Check if device role matches allowed roles
+                    if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
+                        devices.append(device)
+                        logger.debug(
+                            f"Found device: {device.name} with role: {device.role.slug}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Device {device_name} has role '{device.role.slug if device.role else 'None'}' "
+                            f"which is not in allowed SONiC roles: {', '.join(DEFAULT_SONIC_ROLES)}"
+                        )
+                        rc = 1
+                        return device_configs
                 else:
-                    logger.warning(
-                        f"Device {device_name} has role '{device.role.slug if device.role else 'None'}' "
-                        f"which is not in allowed SONiC roles: {', '.join(DEFAULT_SONIC_ROLES)}"
-                    )
+                    logger.error(f"Device {device_name} not found in NetBox")
+                    rc = 1
                     return device_configs
-            else:
-                logger.error(f"Device {device_name} not found in NetBox")
+            except Exception as e:
+                logger.error(f"Error fetching device {device_name}: {e}")
+                rc = 1
                 return device_configs
-        except Exception as e:
-            logger.error(f"Error fetching device {device_name}: {e}")
-            return device_configs
-    else:
-        # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
-        nb_device_query_list = get_nb_device_query_list_sonic()
+        else:
+            # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
+            nb_device_query_list = get_nb_device_query_list_sonic()
 
-        for nb_device_query in nb_device_query_list:
-            # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
-            for device in utils.nb.dcim.devices.filter(**nb_device_query):
-                # Check if device role matches allowed roles
-                if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
-                    devices.append(device)
-                    logger.debug(
-                        f"Found device: {device.name} with role: {device.role.slug}"
+            for nb_device_query in nb_device_query_list:
+                # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
+                for device in utils.nb.dcim.devices.filter(**nb_device_query):
+                    # Check if device role matches allowed roles
+                    if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
+                        devices.append(device)
+                        logger.debug(
+                            f"Found device: {device.name} with role: {device.role.slug}"
+                        )
+
+        logger.info(f"Found {len(devices)} devices matching criteria")
+
+        # Find interconnected spine/superspine groups for special AS calculation
+        # When processing a single device, we need to consider all spine/superspine devices
+        # to properly detect interconnected groups, not just the requested device
+        if device_name and devices:
+            # Check if the single device is a spine/superspine
+            target_device = devices[0]
+            if target_device.role and target_device.role.slug in [
+                "spine",
+                "superspine",
+            ]:
+                # Fetch ALL spine/superspine devices to properly detect groups
+                logger.debug(
+                    "Single spine/superspine device detected, fetching all spine/superspine devices for group detection"
+                )
+                all_spine_devices = []
+                nb_device_query_list = get_nb_device_query_list_sonic()
+                for nb_device_query in nb_device_query_list:
+                    for device in utils.nb.dcim.devices.filter(**nb_device_query):
+                        if device.role and device.role.slug in ["spine", "superspine"]:
+                            all_spine_devices.append(device)
+                spine_groups = find_interconnected_devices(
+                    all_spine_devices, ["spine", "superspine"]
+                )
+            else:
+                # For non-spine devices, use the original logic
+                spine_groups = find_interconnected_devices(
+                    devices, ["spine", "superspine"]
+                )
+        else:
+            # For multi-device processing, use the original logic
+            spine_groups = find_interconnected_devices(devices, ["spine", "superspine"])
+
+        logger.info(f"Found {len(spine_groups)} interconnected spine/superspine groups")
+
+        # Create mapping from device ID to its assigned AS number
+        device_as_mapping = {}
+
+        # Calculate AS numbers for spine/superspine groups
+        for group in spine_groups:
+            min_as = calculate_minimum_as_for_group(group)
+            if min_as:
+                for device in group:
+                    device_as_mapping[device.id] = min_as
+                logger.debug(
+                    f"Assigned AS {min_as} to {len(group)} devices in spine/superspine group"
+                )
+
+        # Generate SONIC configuration for each device
+        for device in devices:
+            # Get HWSKU from sonic_parameters custom field, default to None
+            hwsku = None
+            if (
+                hasattr(device, "custom_fields")
+                and "sonic_parameters" in device.custom_fields
+                and device.custom_fields["sonic_parameters"]
+                and "hwsku" in device.custom_fields["sonic_parameters"]
+            ):
+                hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
+
+            # Get config_version from sonic_parameters custom field, default to None
+            config_version = None
+            if (
+                hasattr(device, "custom_fields")
+                and "sonic_parameters" in device.custom_fields
+                and device.custom_fields["sonic_parameters"]
+                and "config_version" in device.custom_fields["sonic_parameters"]
+            ):
+                config_version = device.custom_fields["sonic_parameters"][
+                    "config_version"
+                ]
+                logger.debug(
+                    f"Device {device.name} has custom config_version: {config_version}"
+                )
+
+            # Skip devices without HWSKU
+            if not hwsku:
+                logger.debug(f"Skipping device {device.name}: no HWSKU configured")
+                continue
+
+            logger.debug(f"Processing device: {device.name} with HWSKU: {hwsku}")
+
+            # Output current device being processed if task_id is available
+            if task_id:
+                utils.push_task_output(task_id, f"Processing device: {device.name}\n")
+
+            # Validate that HWSKU is supported
+            if hwsku not in SUPPORTED_HWSKUS:
+                logger.warning(
+                    f"Device {device.name} has unsupported HWSKU: {hwsku}. Supported HWSKUs: {', '.join(SUPPORTED_HWSKUS)}"
+                )
+                continue
+
+            # A failing device must not abort the sync of the remaining
+            # devices, but it has to surface in the task rc
+            try:
+                # Generate SONIC configuration based on device HWSKU
+                sonic_config = generate_sonic_config(
+                    device, hwsku, device_as_mapping, config_version
+                )
+
+                # Store configuration in the dictionary
+                device_configs[device.name] = sonic_config
+
+                # Save the generated configuration to NetBox config context (only if changed)
+                if show_diff:
+                    netbox_changed, diff_output = save_config_to_netbox(
+                        device, sonic_config, return_diff=True
                     )
 
-    logger.info(f"Found {len(devices)} devices matching criteria")
+                    # Output diff to task if available and there are changes
+                    if task_id and netbox_changed and diff_output:
+                        utils.push_task_output(task_id, f"\n{'='*60}\n")
+                        utils.push_task_output(
+                            task_id, f"Configuration diff for {device.name}:\n"
+                        )
+                        utils.push_task_output(task_id, f"{'='*60}\n")
+                        utils.push_task_output(task_id, f"{diff_output}\n")
+                        utils.push_task_output(task_id, f"{'='*60}\n\n")
+                    elif task_id and netbox_changed and not diff_output:
+                        # First-time configuration (no diff available)
+                        utils.push_task_output(
+                            task_id,
+                            f"First-time configuration created for {device.name}\n",
+                        )
+                else:
+                    netbox_changed = save_config_to_netbox(device, sonic_config)
 
-    # Find interconnected spine/superspine groups for special AS calculation
-    # When processing a single device, we need to consider all spine/superspine devices
-    # to properly detect interconnected groups, not just the requested device
-    if device_name and devices:
-        # Check if the single device is a spine/superspine
-        target_device = devices[0]
-        if target_device.role and target_device.role.slug in ["spine", "superspine"]:
-            # Fetch ALL spine/superspine devices to properly detect groups
+                # Export the generated configuration to local file (only if changed)
+                file_changed = export_config_to_file(device, sonic_config)
+
+                if netbox_changed or file_changed:
+                    logger.info(f"Configuration updated for device {device.name}")
+                else:
+                    logger.info(f"No configuration changes for device {device.name}")
+
+                logger.info(
+                    f"Generated SONiC config for device {device.name} with {len(sonic_config.get('PORT', {}))} ports"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to sync SONiC configuration for device {device.name}: {e}"
+                )
+                rc = 1
+
+        logger.info(f"Generated SONiC configurations for {len(device_configs)} devices")
+
+        # Log cache statistics
+        cache_stats = get_interface_cache_stats()
+        if cache_stats:
             logger.debug(
-                "Single spine/superspine device detected, fetching all spine/superspine devices for group detection"
+                f"Interface cache stats: {cache_stats['cached_devices']} devices, {cache_stats['total_interfaces']} interfaces"
             )
-            all_spine_devices = []
-            nb_device_query_list = get_nb_device_query_list_sonic()
-            for nb_device_query in nb_device_query_list:
-                for device in utils.nb.dcim.devices.filter(**nb_device_query):
-                    if device.role and device.role.slug in ["spine", "superspine"]:
-                        all_spine_devices.append(device)
-            spine_groups = find_interconnected_devices(
-                all_spine_devices, ["spine", "superspine"]
-            )
-        else:
-            # For non-spine devices, use the original logic
-            spine_groups = find_interconnected_devices(devices, ["spine", "superspine"])
-    else:
-        # For multi-device processing, use the original logic
-        spine_groups = find_interconnected_devices(devices, ["spine", "superspine"])
+    finally:
+        # Cleanup must run on every exit path — the caches are module-level
+        # and would otherwise leak into the next run
+        clear_interface_cache()
+        clear_all_caches()
+        clear_vip_addresses_cache()
+        logger.debug("Cleared all caches after sync_sonic task completion")
 
-    logger.info(f"Found {len(spine_groups)} interconnected spine/superspine groups")
-
-    # Create mapping from device ID to its assigned AS number
-    device_as_mapping = {}
-
-    # Calculate AS numbers for spine/superspine groups
-    for group in spine_groups:
-        min_as = calculate_minimum_as_for_group(group)
-        if min_as:
-            for device in group:
-                device_as_mapping[device.id] = min_as
-            logger.debug(
-                f"Assigned AS {min_as} to {len(group)} devices in spine/superspine group"
-            )
-
-    # Generate SONIC configuration for each device
-    for device in devices:
-        # Get HWSKU from sonic_parameters custom field, default to None
-        hwsku = None
-        if (
-            hasattr(device, "custom_fields")
-            and "sonic_parameters" in device.custom_fields
-            and device.custom_fields["sonic_parameters"]
-            and "hwsku" in device.custom_fields["sonic_parameters"]
-        ):
-            hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
-
-        # Get config_version from sonic_parameters custom field, default to None
-        config_version = None
-        if (
-            hasattr(device, "custom_fields")
-            and "sonic_parameters" in device.custom_fields
-            and device.custom_fields["sonic_parameters"]
-            and "config_version" in device.custom_fields["sonic_parameters"]
-        ):
-            config_version = device.custom_fields["sonic_parameters"]["config_version"]
-            logger.debug(
-                f"Device {device.name} has custom config_version: {config_version}"
-            )
-
-        # Skip devices without HWSKU
-        if not hwsku:
-            logger.debug(f"Skipping device {device.name}: no HWSKU configured")
-            continue
-
-        logger.debug(f"Processing device: {device.name} with HWSKU: {hwsku}")
-
-        # Output current device being processed if task_id is available
+        # Finish task output if task_id is available
         if task_id:
-            utils.push_task_output(task_id, f"Processing device: {device.name}\n")
-
-        # Validate that HWSKU is supported
-        if hwsku not in SUPPORTED_HWSKUS:
-            logger.warning(
-                f"Device {device.name} has unsupported HWSKU: {hwsku}. Supported HWSKUs: {', '.join(SUPPORTED_HWSKUS)}"
-            )
-            continue
-
-        # Generate SONIC configuration based on device HWSKU
-        sonic_config = generate_sonic_config(
-            device, hwsku, device_as_mapping, config_version
-        )
-
-        # Store configuration in the dictionary
-        device_configs[device.name] = sonic_config
-
-        # Save the generated configuration to NetBox config context (only if changed)
-        if show_diff:
-            netbox_changed, diff_output = save_config_to_netbox(
-                device, sonic_config, return_diff=True
-            )
-
-            # Output diff to task if available and there are changes
-            if task_id and netbox_changed and diff_output:
-                utils.push_task_output(task_id, f"\n{'='*60}\n")
-                utils.push_task_output(
-                    task_id, f"Configuration diff for {device.name}:\n"
-                )
-                utils.push_task_output(task_id, f"{'='*60}\n")
-                utils.push_task_output(task_id, f"{diff_output}\n")
-                utils.push_task_output(task_id, f"{'='*60}\n\n")
-            elif task_id and netbox_changed and not diff_output:
-                # First-time configuration (no diff available)
-                utils.push_task_output(
-                    task_id, f"First-time configuration created for {device.name}\n"
-                )
-        else:
-            netbox_changed = save_config_to_netbox(device, sonic_config)
-
-        # Export the generated configuration to local file (only if changed)
-        file_changed = export_config_to_file(device, sonic_config)
-
-        if netbox_changed or file_changed:
-            logger.info(f"Configuration updated for device {device.name}")
-        else:
-            logger.info(f"No configuration changes for device {device.name}")
-
-        logger.info(
-            f"Generated SONiC config for device {device.name} with {len(sonic_config['PORT'])} ports"
-        )
-
-    logger.info(f"Generated SONiC configurations for {len(device_configs)} devices")
-
-    # Log cache statistics and cleanup
-    cache_stats = get_interface_cache_stats()
-    if cache_stats:
-        logger.debug(
-            f"Interface cache stats: {cache_stats['cached_devices']} devices, {cache_stats['total_interfaces']} interfaces"
-        )
-
-    clear_interface_cache()
-    clear_all_caches()
-    clear_vip_addresses_cache()
-    logger.debug("Cleared all caches after sync_sonic task completion")
-
-    # Finish task output if task_id is available
-    if task_id:
-        utils.finish_task_output(task_id, rc=0)
+            utils.finish_task_output(task_id, rc=rc)
 
     # Return the dictionary with all device configurations
     return device_configs

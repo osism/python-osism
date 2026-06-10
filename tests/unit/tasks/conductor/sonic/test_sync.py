@@ -449,6 +449,81 @@ def test_no_task_id_suppresses_task_output(mock_nb, patch_sync_deps):
 
 
 # ---------------------------------------------------------------------------
+# Failure handling and cleanup
+# ---------------------------------------------------------------------------
+
+
+def _assert_caches_cleaned(deps):
+    """The end-of-run cleanup must have run: interface and generator caches
+    are cleared a second time (after the initial clear) and the VIP cache once."""
+    assert deps.clear_interface_cache.call_count == 2
+    assert deps.clear_all_caches.call_count == 2
+    deps.clear_vip_addresses_cache.assert_called_once_with()
+
+
+@pytest.mark.parametrize("path", ["disallowed_role", "not_found", "lookup_raises"])
+def test_early_return_cleans_caches_and_reports_failure(
+    mock_nb, patch_sync_deps, path
+):
+    """Single-device early returns happen after the module-level caches are
+    loaded — cleanup and task finalization must still run, with rc=1."""
+    deps = patch_sync_deps
+    if path == "disallowed_role":
+        mock_nb.dcim.devices.get.return_value = make_device(
+            name="sw-1", role_slug="router"
+        )
+    elif path == "not_found":
+        mock_nb.dcim.devices.get.return_value = None
+    else:
+        mock_nb.dcim.devices.get.side_effect = RuntimeError("netbox down")
+
+    result = sync_sonic(device_name="sw-1", task_id="t")
+
+    assert result == {}
+    _assert_caches_cleaned(deps)
+    deps.finish_task_output.assert_called_once_with("t", rc=1)
+
+
+def test_mid_loop_exception_continues_and_reports_failure(
+    mock_nb, patch_sync_deps, loguru_logs
+):
+    """A device failing mid-loop must not abort the remaining devices, must
+    not leak the module-level caches, and must surface as rc=1."""
+    deps = patch_sync_deps
+    bad = make_device(name="bad-1", device_id=1, role_slug="leaf")
+    good = make_device(name="good-1", device_id=2, role_slug="leaf")
+    deps.get_nb_device_query_list_sonic.return_value = [{}]
+    mock_nb.dcim.devices.filter.return_value = [bad, good]
+    deps.generate_sonic_config.side_effect = [
+        RuntimeError("generation failed"),
+        {"PORT": {"Ethernet0": {}}},
+    ]
+
+    result = sync_sonic(task_id="t")
+
+    assert result == {"good-1": {"PORT": {"Ethernet0": {}}}}
+    _assert_caches_cleaned(deps)
+    deps.finish_task_output.assert_called_once_with("t", rc=1)
+    assert _has_log(
+        loguru_logs, "ERROR", "Failed to sync SONiC configuration for device bad-1"
+    )
+
+
+def test_config_without_port_section_is_handled(mock_nb, patch_sync_deps, loguru_logs):
+    """A config lacking the PORT section must not raise in the summary log."""
+    deps = patch_sync_deps
+    device = make_device(name="sw-1", role_slug="leaf")
+    mock_nb.dcim.devices.get.return_value = device
+    deps.generate_sonic_config.return_value = {"VLAN": {}}
+
+    result = sync_sonic(device_name="sw-1", task_id="t")
+
+    assert result == {"sw-1": {"VLAN": {}}}
+    deps.finish_task_output.assert_called_once_with("t", rc=0)
+    assert _has_log(loguru_logs, "INFO", "with 0 ports")
+
+
+# ---------------------------------------------------------------------------
 # Cache stats
 # ---------------------------------------------------------------------------
 
