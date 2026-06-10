@@ -181,9 +181,19 @@ def export_config_to_file(device, config):
                 config_changed = True
 
         if config_changed:
-            # Export configuration to JSON file
-            with open(filepath, "w") as f:
-                json.dump(config, f, indent=2)
+            # Write to a temporary file and rename it into place so a failed
+            # write (ENOSPC, killed process) cannot truncate the previous export
+            tmp_filepath = f"{filepath}.tmp"
+            try:
+                with open(tmp_filepath, "w") as f:
+                    json.dump(config, f, indent=2)
+                os.replace(tmp_filepath, filepath)
+            except Exception:
+                try:
+                    os.remove(tmp_filepath)
+                except OSError:
+                    pass
+                raise
 
             logger.info(f"Exported SONiC config for device {device.name} to {filepath}")
 
