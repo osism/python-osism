@@ -462,9 +462,7 @@ def _assert_caches_cleaned(deps):
 
 
 @pytest.mark.parametrize("path", ["disallowed_role", "not_found", "lookup_raises"])
-def test_early_return_cleans_caches_and_reports_failure(
-    mock_nb, patch_sync_deps, path
-):
+def test_early_return_cleans_caches_and_reports_failure(mock_nb, patch_sync_deps, path):
     """Single-device early returns happen after the module-level caches are
     loaded — cleanup and task finalization must still run, with rc=1."""
     deps = patch_sync_deps
@@ -506,6 +504,40 @@ def test_mid_loop_exception_continues_and_reports_failure(
     deps.finish_task_output.assert_called_once_with("t", rc=1)
     assert _has_log(
         loguru_logs, "ERROR", "Failed to sync SONiC configuration for device bad-1"
+    )
+
+
+def test_netbox_save_failure_reports_nonzero_rc(mock_nb, patch_sync_deps, loguru_logs):
+    """A raising ``save_config_to_netbox`` must not finish the task as rc=0
+    — a failed write is not "no changes"."""
+    deps = patch_sync_deps
+    device = make_device(name="sw-1", role_slug="leaf")
+    mock_nb.dcim.devices.get.return_value = device
+    deps.save_config_to_netbox.side_effect = RuntimeError("netbox write failed")
+
+    sync_sonic(device_name="sw-1", task_id="t")
+
+    deps.export_config_to_file.assert_not_called()
+    _assert_caches_cleaned(deps)
+    deps.finish_task_output.assert_called_once_with("t", rc=1)
+    assert _has_log(
+        loguru_logs, "ERROR", "Failed to sync SONiC configuration for device sw-1"
+    )
+
+
+def test_file_export_failure_reports_nonzero_rc(mock_nb, patch_sync_deps, loguru_logs):
+    """A raising ``export_config_to_file`` surfaces as rc=1 as well."""
+    deps = patch_sync_deps
+    device = make_device(name="sw-1", role_slug="leaf")
+    mock_nb.dcim.devices.get.return_value = device
+    deps.export_config_to_file.side_effect = OSError("disk full")
+
+    sync_sonic(device_name="sw-1", task_id="t")
+
+    _assert_caches_cleaned(deps)
+    deps.finish_task_output.assert_called_once_with("t", rc=1)
+    assert _has_log(
+        loguru_logs, "ERROR", "Failed to sync SONiC configuration for device sw-1"
     )
 
 

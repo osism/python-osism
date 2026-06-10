@@ -191,20 +191,19 @@ def test_save_config_journal_failure_still_saves(mock_nb, loguru_logs):
     assert _has_log(loguru_logs, "ERROR", "Failed to save diff to journal")
 
 
-def test_save_config_save_failure_returns_false(mock_nb, loguru_logs):
-    """A raising ``device.save()`` is caught, logged, and reported as no-change."""
+def test_save_config_save_failure_raises(mock_nb, loguru_logs):
+    """A raising ``device.save()`` is logged and re-raised so a failed save
+    stays distinguishable from "no changes" at the task layer."""
     device = _make_save_device(local_context_data=None)
     device.save.side_effect = RuntimeError("netbox write failed")
 
-    result = save_config_to_netbox(device, {"PORT": {}}, return_diff=True)
+    with pytest.raises(RuntimeError, match="netbox write failed"):
+        save_config_to_netbox(device, {"PORT": {}}, return_diff=True)
 
-    assert result == (False, None)
     assert _has_log(loguru_logs, "ERROR", "Failed to save local context")
 
 
-def test_save_config_changed_path_save_failure_creates_no_journal(
-    mock_nb, loguru_logs
-):
+def test_save_config_changed_path_save_failure_creates_no_journal(mock_nb, loguru_logs):
     """A failed save on the changed path must not leave an orphaned journal
     entry claiming the update succeeded — journal creation follows the save."""
     device = _make_save_device(
@@ -212,20 +211,11 @@ def test_save_config_changed_path_save_failure_creates_no_journal(
     )
     device.save.side_effect = RuntimeError("netbox write failed")
 
-    result = save_config_to_netbox(
-        device, {"PORT": {"Ethernet1": {}}}, return_diff=True
-    )
+    with pytest.raises(RuntimeError, match="netbox write failed"):
+        save_config_to_netbox(device, {"PORT": {"Ethernet1": {}}}, return_diff=True)
 
-    assert result == (False, None)
     mock_nb.extras.journal_entries.create.assert_not_called()
     assert _has_log(loguru_logs, "ERROR", "Failed to save local context")
-
-
-def test_save_config_save_failure_bool_form(mock_nb):
-    device = _make_save_device(local_context_data=None)
-    device.save.side_effect = RuntimeError("boom")
-
-    assert save_config_to_netbox(device, {"PORT": {}}) is False
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +366,8 @@ def test_export_write_failure_preserves_previous_export(
         side_effect=OSError("no space left on device"),
     )
 
-    assert export_config_to_file(device, {"PORT": {"Ethernet0": {}}}) is False
+    with pytest.raises(OSError, match="no space left on device"):
+        export_config_to_file(device, {"PORT": {"Ethernet0": {}}})
 
     assert json.loads(target.read_text()) == old_config
     assert not (tmp_path / "osism_sw-1_config_db.json.tmp").exists()
@@ -536,7 +527,7 @@ def test_export_hostname_mode_makes_no_symlink(
 # --- error handling ---------------------------------------------------------
 
 
-def test_export_makedirs_failure_returns_false(
+def test_export_makedirs_failure_raises(
     tmp_path, export_settings, patch_hostname, mocker, loguru_logs
 ):
     export_settings(tmp_path, identifier="hostname")
@@ -546,6 +537,7 @@ def test_export_makedirs_failure_returns_false(
     )
     device = SimpleNamespace(name="sw-1", serial="ABC123")
 
-    assert export_config_to_file(device, {"PORT": {}}) is False
+    with pytest.raises(OSError, match="read-only filesystem"):
+        export_config_to_file(device, {"PORT": {}})
 
     assert _has_log(loguru_logs, "ERROR", "Failed to export config")
