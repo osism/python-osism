@@ -395,6 +395,44 @@ def test_generate_sonic_config_no_oob_ip_leaves_mgmt_empty_and_passes_none(
     assert snmp_oob is None
 
 
+def test_generate_sonic_config_no_oob_ip_drops_stale_acl_tables(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """Stale ACL_TABLE / ACL_RULE entries must not survive a regen without
+    an OOB IP.
+
+    ACL_TABLE and ACL_RULE are on-demand owned tables: when the device has
+    no OOB IP, nothing re-emits them, so entries carried over from the base
+    config_db.json (e.g. the SSH ACL of an earlier regen, before the OOB IP
+    was removed from NetBox) must be gone — leaving them would keep an SSH
+    lockdown pointing at a subnet the device no longer manages.
+    """
+    base = make_base_config()
+    base["ACL_TABLE"] = {
+        "SSH_ONLY": {
+            "policy_desc": "SSH_ONLY",
+            "type": "CTRLPLANE",
+            "services": ["SSH"],
+        }
+    }
+    base["ACL_RULE"] = {
+        "SSH_ONLY|RULE_1": {
+            "PRIORITY": "9999",
+            "PACKET_ACTION": "ACCEPT",
+            "SRC_IP": "10.42.0.0/24",
+            "IP_TYPE": "IP",
+        }
+    }
+    patch_base_config(mocker, base_config=base)
+    patch_orchestrator_helpers.get_device_oob_ip.return_value = None
+    device = make_orchestrator_device()
+
+    config = generate_sonic_config(device, "HWSKU")
+
+    assert "ACL_TABLE" not in config
+    assert "ACL_RULE" not in config
+
+
 # ---------------------------------------------------------------------------
 # generate_sonic_config — breakout merge
 # ---------------------------------------------------------------------------

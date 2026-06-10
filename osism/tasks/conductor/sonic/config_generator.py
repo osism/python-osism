@@ -118,6 +118,8 @@ ON_DEMAND_OWNED_TABLE_KEYS = (
     "SNMP_SERVER_PARAMS",
     "SNMP_SERVER_TARGET",
     "SYSLOG_SERVER",
+    "ACL_TABLE",
+    "ACL_RULE",
 )
 
 # Tables fully owned by the generator and rebuilt from scratch on every regen.
