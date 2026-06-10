@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for ``_add_ctrlplane_acls`` in ``config_generator`` (#2330)."""
+"""Unit tests for ``_add_ctrlplane_acls`` in ``config_generator`` (#2329, #2330)."""
 
 import pytest
 
@@ -11,12 +11,17 @@ from osism.tasks.conductor.sonic.config_generator import (
 )
 
 
-def test_add_ctrlplane_acls_emits_snmp_and_gnmi_ctrlplane_tables():
+def test_add_ctrlplane_acls_emits_ssh_snmp_and_gnmi_ctrlplane_tables():
     config = {}
 
     _add_ctrlplane_acls(config, "10.42.0.5", 24)
 
     assert config["ACL_TABLE"] == {
+        "SSH_ONLY": {
+            "policy_desc": "SSH_ONLY",
+            "type": "CTRLPLANE",
+            "services": ["SSH"],
+        },
         "SNMP_ONLY": {
             "policy_desc": "SNMP_ONLY",
             "type": "CTRLPLANE",
@@ -36,6 +41,12 @@ def test_add_ctrlplane_acls_rules_accept_network_normalised_oob_subnet():
 
     _add_ctrlplane_acls(config, "10.42.0.5", 24)
 
+    assert config["ACL_RULE"]["SSH_ONLY|RULE_1"] == {
+        "PRIORITY": "9999",
+        "PACKET_ACTION": "ACCEPT",
+        "SRC_IP": "10.42.0.0/24",
+        "IP_TYPE": "IP",
+    }
     assert config["ACL_RULE"]["SNMP_ONLY|RULE_1"] == {
         "PRIORITY": "9999",
         "PACKET_ACTION": "ACCEPT",
@@ -51,16 +62,38 @@ def test_add_ctrlplane_acls_rules_accept_network_normalised_oob_subnet():
     }
 
 
-def test_add_ctrlplane_acls_gnmi_rule_requires_dst_port_snmp_does_not():
+@pytest.mark.parametrize(
+    "oob_ip,prefix_len,expected_src",
+    [
+        ("10.42.0.5", 24, "10.42.0.0/24"),  # host bits stripped
+        ("192.168.45.123", 26, "192.168.45.64/26"),  # non-octet boundary
+        ("10.42.0.0", 24, "10.42.0.0/24"),  # already the network address
+    ],
+)
+def test_add_ctrlplane_acls_normalises_src_ip_to_network_address(
+    oob_ip, prefix_len, expected_src
+):
+    """The OOB IP is a host address — every rule must carry its subnet."""
+    config = {}
+
+    _add_ctrlplane_acls(config, oob_ip, prefix_len)
+
+    for rule_key in ("SSH_ONLY|RULE_1", "SNMP_ONLY|RULE_1", "GNMI_ONLY|RULE_1"):
+        assert config["ACL_RULE"][rule_key]["SRC_IP"] == expected_src
+
+
+def test_add_ctrlplane_acls_gnmi_rule_requires_dst_port_ssh_and_snmp_do_not():
     """caclmgrd's EXTERNAL_CLIENT service has no built-in destination port;
     without L4_DST_PORT in the rule it skips the whole table and the gNMI
-    restriction would silently not exist. SNMP has a fixed service port
-    (161) in caclmgrd's ACL_SERVICES, so its rule must not pin one."""
+    restriction would silently not exist. SSH and SNMP have fixed service
+    ports (22, 161) in caclmgrd's ACL_SERVICES, so their rules must not pin
+    one."""
     config = {}
 
     _add_ctrlplane_acls(config, "10.42.0.5", 24)
 
     assert config["ACL_RULE"]["GNMI_ONLY|RULE_1"]["L4_DST_PORT"] == "8080"
+    assert "L4_DST_PORT" not in config["ACL_RULE"]["SSH_ONLY|RULE_1"]
     assert "L4_DST_PORT" not in config["ACL_RULE"]["SNMP_ONLY|RULE_1"]
 
 
@@ -102,24 +135,30 @@ def test_add_ctrlplane_acls_unusable_gnmi_port_falls_back_to_default(port):
 
 
 def test_add_ctrlplane_acls_merges_into_co_owned_tables_per_key():
-    """ACL_TABLE / ACL_RULE are multi-owner (SSH, SNMP, gNMI): the helper must
-    merge only its own keys, never rebind the table wholesale, so a sibling
-    control-plane helper's entries survive. Stale carry-over from a prior regen
-    is cleared by the central owned-table drop in generate_sonic_config, not
-    here (see the ownership model and MULTI_OWNER_OWNED_TABLE_KEYS)."""
+    """ACL_TABLE / ACL_RULE are multi-owner: the helper must merge only its
+    own keys, never rebind the table wholesale, so a sibling control-plane
+    helper's entries survive. Stale carry-over from a prior regen is cleared
+    by the central owned-table drop in generate_sonic_config, not here (see
+    the ownership model and MULTI_OWNER_OWNED_TABLE_KEYS)."""
     config = {
-        "ACL_TABLE": {"SSH_ONLY": {"type": "CTRLPLANE", "services": ["SSH"]}},
-        "ACL_RULE": {"SSH_ONLY|RULE_1": {"PRIORITY": "9999"}},
+        "ACL_TABLE": {"NTP_ONLY": {"type": "CTRLPLANE", "services": ["NTP"]}},
+        "ACL_RULE": {"NTP_ONLY|RULE_1": {"PRIORITY": "9999"}},
     }
 
     _add_ctrlplane_acls(config, "10.42.0.5", 24)
 
     # A sibling helper's entries are left untouched ...
-    assert config["ACL_TABLE"]["SSH_ONLY"] == {"type": "CTRLPLANE", "services": ["SSH"]}
-    assert config["ACL_RULE"]["SSH_ONLY|RULE_1"] == {"PRIORITY": "9999"}
+    assert config["ACL_TABLE"]["NTP_ONLY"] == {"type": "CTRLPLANE", "services": ["NTP"]}
+    assert config["ACL_RULE"]["NTP_ONLY|RULE_1"] == {"PRIORITY": "9999"}
     # ... and this helper's own entries are added alongside them.
-    assert set(config["ACL_TABLE"]) == {"SSH_ONLY", "SNMP_ONLY", "GNMI_ONLY"}
+    assert set(config["ACL_TABLE"]) == {
+        "NTP_ONLY",
+        "SSH_ONLY",
+        "SNMP_ONLY",
+        "GNMI_ONLY",
+    }
     assert set(config["ACL_RULE"]) == {
+        "NTP_ONLY|RULE_1",
         "SSH_ONLY|RULE_1",
         "SNMP_ONLY|RULE_1",
         "GNMI_ONLY|RULE_1",

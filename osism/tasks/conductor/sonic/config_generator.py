@@ -431,7 +431,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["MGMT_INTERFACE"][f"eth0|{oob_ip}/{prefix_len}"] = {}
         metalbox_ip = _get_metalbox_ip_for_device(device)
         config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] = {"nexthop": metalbox_ip}
-        # Restrict control-plane services (SNMP, gNMI) to the OOB network
+        # Restrict control-plane services (SSH, SNMP, gNMI) to the OOB network
         _add_ctrlplane_acls(config, oob_ip, prefix_len)
     else:
         oob_ip = None
@@ -2369,15 +2369,15 @@ def _get_gnmi_port(config):
 
 
 def _add_ctrlplane_acls(config, oob_ip, prefix_len):
-    """Add control-plane ACLs restricting SNMP and gNMI to the OOB network.
+    """Add control-plane ACLs restricting SSH, SNMP and gNMI to the OOB network.
 
-    Emits ACL_TABLE entries of type CTRLPLANE bound to the SNMP and
+    Emits ACL_TABLE entries of type CTRLPLANE bound to the SSH, SNMP and
     EXTERNAL_CLIENT (gNMI/telemetry) caclmgrd services, plus one ACL_RULE
     per table accepting only the device's OOB management subnet (the
     network-normalised oob_ip/prefix_len). caclmgrd installs an implicit
     default-drop for every service bound in a CTRLPLANE table, so sources
-    outside the OOB subnet can no longer reach SNMP or gNMI. The SSH_ONLY
-    table (#2329) belongs here as well once implemented.
+    outside the OOB subnet -- e.g. front-panel interfaces with IPs in the
+    default VRF -- can no longer reach SSH, SNMP or gNMI.
 
     caclmgrd's EXTERNAL_CLIENT service has no built-in destination port
     (verified against sonic-host-services 202211 through master): the rule
@@ -2387,13 +2387,12 @@ def _add_ctrlplane_acls(config, oob_ip, prefix_len):
     ACL_TABLE and ACL_RULE are generator-owned (ON_DEMAND_OWNED_TABLE_KEYS),
     so they are rebuilt from scratch on every regen and stay absent when the
     device has no OOB IP. They are also multi-owner
-    (MULTI_OWNER_OWNED_TABLE_KEYS): the SSH_ONLY table (#2329) belongs here as
-    well once implemented, so this helper merges only its own SNMP_ONLY /
-    GNMI_ONLY keys per key rather than rebinding the table wholesale -- the
-    central owned-table drop in generate_sonic_config clears stale entries up
-    front, and per-key merge lets coexisting control-plane helpers compose. The
-    rules are IPv4 (SRC_IP); a non-IPv4 OOB IP logs a warning and emits nothing
-    rather than failing the whole config generation.
+    (MULTI_OWNER_OWNED_TABLE_KEYS): this helper merges only its own SSH_ONLY /
+    SNMP_ONLY / GNMI_ONLY keys per key rather than rebinding the table
+    wholesale -- the central owned-table drop in generate_sonic_config clears
+    stale entries up front, and per-key merge lets coexisting control-plane
+    helpers compose. The rules are IPv4 (SRC_IP); a non-IPv4 OOB IP logs a
+    warning and emits nothing rather than failing the whole config generation.
     """
     network = ipaddress.ip_network(f"{oob_ip}/{prefix_len}", strict=False)
     if network.version != 4:
@@ -2409,6 +2408,11 @@ def _add_ctrlplane_acls(config, oob_ip, prefix_len):
         "IP_TYPE": "IP",
     }
     config.setdefault("ACL_TABLE", {})
+    config["ACL_TABLE"]["SSH_ONLY"] = {
+        "policy_desc": "SSH_ONLY",
+        "type": "CTRLPLANE",
+        "services": ["SSH"],
+    }
     config["ACL_TABLE"]["SNMP_ONLY"] = {
         "policy_desc": "SNMP_ONLY",
         "type": "CTRLPLANE",
@@ -2420,6 +2424,7 @@ def _add_ctrlplane_acls(config, oob_ip, prefix_len):
         "services": ["EXTERNAL_CLIENT"],
     }
     config.setdefault("ACL_RULE", {})
+    config["ACL_RULE"]["SSH_ONLY|RULE_1"] = dict(accept_from_oob)
     config["ACL_RULE"]["SNMP_ONLY|RULE_1"] = dict(accept_from_oob)
     config["ACL_RULE"]["GNMI_ONLY|RULE_1"] = {
         **accept_from_oob,
