@@ -94,6 +94,7 @@ def patch_orchestrator_helpers(mocker):
         _add_vlan_configuration=patch("_add_vlan_configuration"),
         _add_loopback_configuration=patch("_add_loopback_configuration"),
         _add_log_server_configuration=patch("_add_log_server_configuration"),
+        _add_ssh_acl_configuration=patch("_add_ssh_acl_configuration"),
         _add_snmp_configuration=patch("_add_snmp_configuration"),
         _add_vrf_configuration=patch("_add_vrf_configuration"),
         _add_portchannel_configuration=patch("_add_portchannel_configuration"),
@@ -351,6 +352,9 @@ def test_generate_sonic_config_populates_mgmt_interface_and_static_route(
     # SNMP receives the OOB IP for SNMP_AGENT_ADDRESS_CONFIG wiring.
     _, _, snmp_oob = patch_orchestrator_helpers._add_snmp_configuration.call_args.args
     assert snmp_oob == "10.42.0.5"
+    # The SSH control-plane ACL is wired with the full OOB result.
+    ssh_acl_mock = patch_orchestrator_helpers._add_ssh_acl_configuration
+    ssh_acl_mock.assert_called_once_with(config, device, ("10.42.0.5", 24))
 
 
 def test_generate_sonic_config_static_route_dropped_on_regen(
@@ -393,6 +397,8 @@ def test_generate_sonic_config_no_oob_ip_leaves_mgmt_empty_and_passes_none(
     assert "mgmt|0.0.0.0/0" not in config["STATIC_ROUTE"]
     _, _, snmp_oob = patch_orchestrator_helpers._add_snmp_configuration.call_args.args
     assert snmp_oob is None
+    # Without an OOB IP there is no subnet to permit — no SSH ACL is emitted.
+    patch_orchestrator_helpers._add_ssh_acl_configuration.assert_not_called()
 
 
 def test_generate_sonic_config_no_oob_ip_drops_stale_acl_tables(
@@ -431,6 +437,7 @@ def test_generate_sonic_config_no_oob_ip_drops_stale_acl_tables(
 
     assert "ACL_TABLE" not in config
     assert "ACL_RULE" not in config
+    patch_orchestrator_helpers._add_ssh_acl_configuration.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -376,6 +376,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["MGMT_INTERFACE"][f"eth0|{oob_ip}/{prefix_len}"] = {}
         metalbox_ip = _get_metalbox_ip_for_device(device)
         config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] = {"nexthop": metalbox_ip}
+
+        # Restrict control-plane SSH to the OOB management network
+        _add_ssh_acl_configuration(config, device, oob_ip_result)
     else:
         oob_ip = None
 
@@ -2202,6 +2205,40 @@ def _add_log_server_configuration(config, device):
             config["SYSLOG_SERVER"][host]["vrf_name"] = vrf
 
             logger.debug(f"Added syslog_server {host}")
+
+
+def _add_ssh_acl_configuration(config, device, oob_ip_result):
+    """Add a control-plane ACL restricting SSH to the management network.
+
+    Emits an ACL_TABLE of type CTRLPLANE bound to the SSH service plus an
+    ACL_RULE that accepts SSH only from the device's OOB management subnet
+    (derived from the same data as MGMT_INTERFACE). Once a CTRLPLANE table
+    binds a service, caclmgrd installs an implicit default-drop for it, so
+    sources outside the permitted subnet — e.g. front-panel interfaces with
+    IPs in the default VRF — can no longer reach SSH.
+    """
+    oob_ip, prefix_len = oob_ip_result
+    oob_network = ipaddress.IPv4Network(f"{oob_ip}/{prefix_len}", strict=False)
+
+    config["ACL_TABLE"] = {
+        "SSH_ONLY": {
+            "policy_desc": "SSH_ONLY",
+            "type": "CTRLPLANE",
+            "services": ["SSH"],
+        }
+    }
+    config["ACL_RULE"] = {
+        "SSH_ONLY|RULE_1": {
+            "PRIORITY": "9999",
+            "PACKET_ACTION": "ACCEPT",
+            "SRC_IP": str(oob_network),
+            "IP_TYPE": "IP",
+        }
+    }
+
+    logger.debug(
+        f"Added SSH control-plane ACL permitting {oob_network} for device {device.name}"
+    )
 
 
 def _add_snmp_configuration(config, device, oob_ip):
