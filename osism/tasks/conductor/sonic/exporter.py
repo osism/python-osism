@@ -15,8 +15,10 @@ from .device import get_device_hostname
 def save_config_to_netbox(device, config, return_diff=False):
     """Save SONiC configuration to NetBox device local context with diff checking.
 
-    Checks for existing local context and only saves if configuration has changed.
-    Logs diff when changes are detected.
+    Owns only the ``sonic_config`` key of the device's local context: sibling
+    keys (e.g. ``frr_parameters``, ``netplan_parameters``) are preserved and
+    excluded from diff checking. Only saves if the SONiC configuration has
+    changed. Logs diff when changes are detected.
 
     Args:
         device: NetBox device object
@@ -30,16 +32,17 @@ def save_config_to_netbox(device, config, return_diff=False):
     try:
         # Get existing local context data
         existing_local_context = device.local_context_data or {}
+        existing_sonic_config = existing_local_context.get("sonic_config")
 
-        # Prepare new local context data
-        new_config_data = {"sonic_config": config}
+        # Replace only the sonic_config key, preserving sibling keys
+        new_config_data = {**existing_local_context, "sonic_config": config}
         diff_output = None
 
-        if existing_local_context:
-            # Compare existing local context with new config
+        if existing_sonic_config is not None:
+            # Compare only the owned sonic_config key with the new config
 
             # Generate diff
-            diff = DeepDiff(existing_local_context, new_config_data, ignore_order=True)
+            diff = DeepDiff(existing_sonic_config, config, ignore_order=True)
 
             if not diff:
                 logger.info(
@@ -50,10 +53,10 @@ def save_config_to_netbox(device, config, return_diff=False):
             # Log the unified diff
             logger.info(f"Configuration changes detected for device {device.name}:")
             existing_json = json.dumps(
-                existing_local_context, indent=2, sort_keys=True
+                {"sonic_config": existing_sonic_config}, indent=2, sort_keys=True
             ).splitlines()
             new_json = json.dumps(
-                new_config_data, indent=2, sort_keys=True
+                {"sonic_config": config}, indent=2, sort_keys=True
             ).splitlines()
             unified_diff = difflib.unified_diff(
                 existing_json,

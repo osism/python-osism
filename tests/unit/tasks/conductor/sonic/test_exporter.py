@@ -121,6 +121,59 @@ def test_save_config_change_bool_form(mock_nb):
     assert result is True
 
 
+def test_save_config_preserves_sibling_context_keys(mock_nb):
+    """Only the ``sonic_config`` key is owned — sibling keys like
+    ``frr_parameters`` must survive a config update untouched."""
+    frr = {"asn": 4200000001, "loopback": "10.0.0.1"}
+    device = _make_save_device(
+        local_context_data={
+            "frr_parameters": frr,
+            "sonic_config": {"PORT": {"Ethernet0": {}}},
+        }
+    )
+
+    result = save_config_to_netbox(device, {"PORT": {"Ethernet1": {}}})
+
+    assert result is True
+    device.save.assert_called_once_with()
+    assert device.local_context_data == {
+        "frr_parameters": frr,
+        "sonic_config": {"PORT": {"Ethernet1": {}}},
+    }
+
+
+def test_save_config_sibling_only_context_is_first_time(mock_nb):
+    """A context holding only sibling keys has no ``sonic_config`` to diff:
+    the first-time path adds the key and keeps the siblings."""
+    frr = {"asn": 4200000001}
+    device = _make_save_device(local_context_data={"frr_parameters": frr})
+
+    result = save_config_to_netbox(device, {"PORT": {}}, return_diff=True)
+
+    assert result == (True, None)
+    device.save.assert_called_once_with()
+    assert device.local_context_data == {
+        "frr_parameters": frr,
+        "sonic_config": {"PORT": {}},
+    }
+    # First-time configuration creates no journal entry.
+    mock_nb.extras.journal_entries.create.assert_not_called()
+
+
+def test_save_config_sibling_keys_do_not_trigger_change(mock_nb):
+    """Diffing covers only ``sonic_config`` — sibling keys must not register
+    as removals and force a save when the SONiC config itself is unchanged."""
+    config = {"PORT": {"Ethernet0": {}}}
+    device = _make_save_device(
+        local_context_data={"frr_parameters": {"asn": 1}, "sonic_config": config}
+    )
+
+    result = save_config_to_netbox(device, config)
+
+    assert result is False
+    device.save.assert_not_called()
+
+
 def test_save_config_journal_failure_still_saves(mock_nb, loguru_logs):
     """A failing journal create is logged but must not block the save."""
     mock_nb.extras.journal_entries.create.side_effect = RuntimeError("journal down")
