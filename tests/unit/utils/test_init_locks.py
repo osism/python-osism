@@ -406,3 +406,223 @@ def test_create_netbox_semaphore_same_url_identical_key(mocker):
     sem_b = utils_pkg.create_netbox_semaphore("https://same.example")
 
     assert sem_a.key == sem_b.key
+
+
+# ---------------------------------------------------------------------------
+# set_task_lock
+# ---------------------------------------------------------------------------
+
+_TASK_LOCK_KEY = "osism:task_lock"
+_ISO_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+
+
+def _captured_lock_payload(mock_r):
+    """Return the JSON payload ``set_task_lock`` wrote to redis as a dict."""
+    mock_r.set.assert_called_once()
+    args = mock_r.set.call_args.args
+    assert args[0] == _TASK_LOCK_KEY
+    return json.loads(args[1])
+
+
+def test_set_task_lock_user_none_falls_back_to_operator_user(mocker):
+    mock_r = mocker.MagicMock()
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+    mocker.patch("osism.utils.settings.OPERATOR_USER", "operator-x")
+
+    assert utils_pkg.set_task_lock(user=None) is True
+
+    assert _captured_lock_payload(mock_r)["user"] == "operator-x"
+
+
+def test_set_task_lock_explicit_user_used_directly(mocker):
+    mock_r = mocker.MagicMock()
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+    mocker.patch("osism.utils.settings.OPERATOR_USER", "operator-x")
+
+    assert utils_pkg.set_task_lock(user="alice") is True
+
+    assert _captured_lock_payload(mock_r)["user"] == "alice"
+
+
+def test_set_task_lock_reason_none_stored_as_null(mocker):
+    mock_r = mocker.MagicMock()
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+    mocker.patch("osism.utils.settings.OPERATOR_USER", "operator-x")
+
+    utils_pkg.set_task_lock(reason=None)
+
+    assert _captured_lock_payload(mock_r)["reason"] is None
+
+
+def test_set_task_lock_payload_contents(mocker):
+    mock_r = mocker.MagicMock()
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+    mocker.patch("osism.utils.settings.OPERATOR_USER", "operator-x")
+
+    utils_pkg.set_task_lock(user="alice", reason="maintenance")
+
+    payload = _captured_lock_payload(mock_r)
+    assert payload["locked"] is True
+    assert payload["user"] == "alice"
+    assert payload["reason"] == "maintenance"
+    assert _ISO_TIMESTAMP_RE.match(payload["timestamp"])
+
+
+def test_set_task_lock_redis_failure_returns_false(mocker, loguru_logs):
+    mock_r = mocker.MagicMock()
+    mock_r.set.side_effect = RuntimeError("redis down")
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+    mocker.patch("osism.utils.settings.OPERATOR_USER", "operator-x")
+
+    assert utils_pkg.set_task_lock(user="alice") is False
+
+    errors = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("Failed to set task lock" in m for m in errors)
+    assert any("redis down" in m for m in errors)
+
+
+# ---------------------------------------------------------------------------
+# remove_task_lock
+# ---------------------------------------------------------------------------
+
+
+def test_remove_task_lock_deletes_key_returns_true(mocker):
+    mock_r = mocker.MagicMock()
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    assert utils_pkg.remove_task_lock() is True
+
+    mock_r.delete.assert_called_once_with(_TASK_LOCK_KEY)
+
+
+def test_remove_task_lock_failure_returns_false(mocker, loguru_logs):
+    mock_r = mocker.MagicMock()
+    mock_r.delete.side_effect = RuntimeError("redis down")
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    assert utils_pkg.remove_task_lock() is False
+
+    errors = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("Failed to remove task lock" in m for m in errors)
+
+
+# ---------------------------------------------------------------------------
+# is_task_locked
+# ---------------------------------------------------------------------------
+
+
+def test_is_task_locked_returns_none_when_unset(mocker):
+    mock_r = mocker.MagicMock()
+    mock_r.get.return_value = None
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    assert utils_pkg.is_task_locked() is None
+
+    mock_r.get.assert_called_once_with(_TASK_LOCK_KEY)
+
+
+def test_is_task_locked_decodes_and_parses_json(mocker):
+    """The raw redis value is byte-decoded via ``.decode("utf-8")`` before
+    being parsed; a mock value lets us assert the decode call explicitly."""
+    raw = mocker.MagicMock(name="lock-bytes")
+    raw.decode.return_value = '{"locked": true, "user": "alice"}'
+    mock_r = mocker.MagicMock()
+    mock_r.get.return_value = raw
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    result = utils_pkg.is_task_locked()
+
+    raw.decode.assert_called_once_with("utf-8")
+    assert result == {"locked": True, "user": "alice"}
+
+
+def test_is_task_locked_get_failure_returns_none(mocker, loguru_logs):
+    mock_r = mocker.MagicMock()
+    mock_r.get.side_effect = RuntimeError("redis down")
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    assert utils_pkg.is_task_locked() is None
+
+    errors = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("Failed to check task lock status" in m for m in errors)
+
+
+def test_is_task_locked_invalid_json_returns_none(mocker, loguru_logs):
+    mock_r = mocker.MagicMock()
+    mock_r.get.return_value = b"not-json"
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    assert utils_pkg.is_task_locked() is None
+
+    errors = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("Failed to check task lock status" in m for m in errors)
+
+
+# ---------------------------------------------------------------------------
+# check_task_lock_and_exit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "lock_info",
+    [None, {"locked": False}],
+    ids=["no_lock", "locked_false"],
+)
+def test_check_task_lock_and_exit_no_lock_does_not_exit(mocker, lock_info):
+    mocker.patch("osism.utils.is_task_locked", return_value=lock_info)
+    exit_mock = mocker.patch("builtins.exit")
+
+    assert utils_pkg.check_task_lock_and_exit() is None
+
+    exit_mock.assert_not_called()
+
+
+def test_check_task_lock_and_exit_locked_logs_and_exits(mocker, loguru_logs):
+    mocker.patch(
+        "osism.utils.is_task_locked",
+        return_value={
+            "locked": True,
+            "user": "alice",
+            "timestamp": "2026-01-02T03:04:05",
+            "reason": "maintenance",
+        },
+    )
+    exit_mock = mocker.patch("builtins.exit")
+
+    utils_pkg.check_task_lock_and_exit()
+
+    exit_mock.assert_called_once_with(1)
+    errors = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("locked by alice at 2026-01-02T03:04:05" in m for m in errors)
+    assert any("Reason: maintenance" in m for m in errors)
+    assert any("osism unlock" in m for m in errors)
+
+
+def test_check_task_lock_and_exit_no_reason_skips_reason_line(mocker, loguru_logs):
+    mocker.patch(
+        "osism.utils.is_task_locked",
+        return_value={
+            "locked": True,
+            "user": "alice",
+            "timestamp": "2026-01-02T03:04:05",
+            "reason": None,
+        },
+    )
+    mocker.patch("builtins.exit")
+
+    utils_pkg.check_task_lock_and_exit()
+
+    errors = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert not any(m.startswith("Reason:") for m in errors)
+
+
+def test_check_task_lock_and_exit_missing_fields_default_unknown(mocker, loguru_logs):
+    mocker.patch("osism.utils.is_task_locked", return_value={"locked": True})
+    exit_mock = mocker.patch("builtins.exit")
+
+    utils_pkg.check_task_lock_and_exit()
+
+    exit_mock.assert_called_once_with(1)
+    errors = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("locked by unknown at unknown" in m for m in errors)
+    assert not any(m.startswith("Reason:") for m in errors)
