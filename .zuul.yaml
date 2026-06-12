@@ -135,6 +135,11 @@
     pre-run: playbooks/pre.yml
     run: playbooks/test-unit.yml
 
+- job:
+    name: python-osism-integration-tests
+    pre-run: playbooks/pre.yml
+    run: playbooks/test-integration.yml
+
 - project:
     merge-mode: squash-merge
     default-branch: main
@@ -148,6 +153,7 @@
         - container-image-python-osism-frontend-build
         - python-osism-test-setup
         - python-osism-unit-tests
+        - python-osism-integration-tests
     periodic-daily:
       jobs:
         - flake8
@@ -156,6 +162,7 @@
         - python-black
         - python-osism-test-setup
         - python-osism-unit-tests
+        - python-osism-integration-tests
     periodic-midnight:
       jobs:
         - container-image-python-osism-push
