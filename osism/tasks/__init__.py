@@ -13,7 +13,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from osism import utils
+from osism import settings, utils
 
 # Regex pattern for extracting hosts from Ansible output
 HOST_PATTERN = re.compile(r"^(ok|changed|failed|skipping|unreachable):\s+\[([^\]]+)\]")
@@ -23,11 +23,14 @@ class Config:
     broker_connection_retry_on_startup = True
     enable_utc = True
     enable_ironic = os.environ.get("ENABLE_IRONIC", "True")
-    broker_url = "redis://redis"
-    result_backend = "redis://redis"
+    broker_url = os.environ.get(
+        "CELERY_BROKER_URL",
+        f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/{settings.REDIS_DB}",
+    )
+    result_backend = os.environ.get("CELERY_RESULT_BACKEND", broker_url)
     task_create_missing_queues = True
     task_default_queue = "default"
-    task_track_started = (True,)
+    task_track_started = True
     task_routes = {
         "osism.tasks.ansible.*": {"queue": "osism-ansible"},
         "osism.tasks.ceph.*": {"queue": "ceph-ansible"},
