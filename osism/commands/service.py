@@ -17,6 +17,8 @@ class Run(Command):
         return parser
 
     def take_action(self, parsed_args):
+        from osism.tasks import Config
+
         # Check if tasks are locked before proceeding
         utils.check_task_lock_and_exit()
 
@@ -47,8 +49,16 @@ class Run(Command):
             ]
             ps = [
                 subprocess.Popen(
-                    f"celery -A {t} --broker=redis://redis beat -s /tmp/celerybeat-schedule-{t}.db",
-                    shell=True,
+                    [
+                        "celery",
+                        "-A",
+                        t,
+                        "--broker",
+                        Config.broker_url,
+                        "beat",
+                        "-s",
+                        f"/tmp/celerybeat-schedule-{t}.db",
+                    ]
                 )
                 for t in ts
             ]
@@ -57,10 +67,7 @@ class Run(Command):
                 p.wait()
 
         elif service == "flower":
-            p = subprocess.Popen(
-                "celery --broker=redis://redis flower",
-                shell=True,
-            )
+            p = subprocess.Popen(["celery", "--broker", Config.broker_url, "flower"])
             p.wait()
 
         elif service == "reconciler":
