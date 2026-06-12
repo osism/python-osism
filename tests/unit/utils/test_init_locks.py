@@ -240,3 +240,147 @@ def test_exit_does_not_swallow_exceptions(mocker):
             raise ValueError("boom")
 
     release.assert_called_once_with()
+
+
+# ---------------------------------------------------------------------------
+# create_redlock
+# ---------------------------------------------------------------------------
+
+
+def _patch_redlock(mocker, *, redis=None, lock=None):
+    """Wire the dependencies ``create_redlock`` touches.
+
+    ``logging.getLogger`` is patched to a mock so the test never mutates the
+    real (process-global) ``pottery`` logger level. ``pottery.Redlock`` is
+    patched on the ``pottery`` module because the production code imports it
+    lazily inside the function (``from pottery import Redlock``).
+
+    Returns ``(redlock_cls, redis, lock, pottery_logger, get_logger)``.
+    """
+    redis = redis if redis is not None else mocker.MagicMock(name="redis")
+    lock = lock if lock is not None else mocker.MagicMock(name="redlock")
+    mocker.patch("osism.utils._init_redis", return_value=redis)
+    redlock_cls = mocker.patch("pottery.Redlock", return_value=lock)
+    pottery_logger = mocker.MagicMock(name="pottery-logger")
+    get_logger = mocker.patch("logging.getLogger", return_value=pottery_logger)
+    return redlock_cls, redis, lock, pottery_logger, get_logger
+
+
+def test_create_redlock_returns_configured_instance(mocker):
+    redlock_cls, redis, lock, _logger, _get_logger = _patch_redlock(mocker)
+
+    result = utils_pkg.create_redlock("my-lock")
+
+    assert result is lock
+    redlock_cls.assert_called_once_with(
+        key="my-lock", masters={redis}, auto_release_time=3600
+    )
+
+
+def test_create_redlock_custom_auto_release_time(mocker):
+    redlock_cls, redis, _lock, _logger, _get_logger = _patch_redlock(mocker)
+
+    utils_pkg.create_redlock("my-lock", auto_release_time=600)
+
+    redlock_cls.assert_called_once_with(
+        key="my-lock", masters={redis}, auto_release_time=600
+    )
+
+
+def test_create_redlock_sets_pottery_logger_to_critical(mocker):
+    import logging
+
+    _cls, _redis, _lock, pottery_logger, get_logger = _patch_redlock(mocker)
+
+    utils_pkg.create_redlock("my-lock")
+
+    get_logger.assert_called_once_with("pottery")
+    pottery_logger.setLevel.assert_called_once_with(logging.CRITICAL)
+
+
+def test_create_redlock_suppresses_construction_output(mocker, capsys):
+    """stdout/stderr written while ``Redlock`` is constructed must be
+    swallowed by the ``redirect_stdout``/``redirect_stderr`` to devnull."""
+    import sys
+
+    lock = mocker.MagicMock(name="redlock")
+
+    def _noisy(**kwargs):
+        print("stdout-noise")
+        print("stderr-noise", file=sys.stderr)
+        return lock
+
+    mocker.patch("osism.utils._init_redis", return_value=mocker.MagicMock())
+    mocker.patch("pottery.Redlock", side_effect=_noisy)
+    mocker.patch("logging.getLogger", return_value=mocker.MagicMock())
+
+    result = utils_pkg.create_redlock("my-lock")
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+    assert result is lock
+
+
+# ---------------------------------------------------------------------------
+# create_netbox_semaphore
+# ---------------------------------------------------------------------------
+
+
+def _expected_semaphore_key(url):
+    """Mirror the key the helper builds, including RedisSemaphore's prefix."""
+    url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+    return f"semaphore:netbox_semaphore_{url_hash}"
+
+
+def test_create_netbox_semaphore_uses_settings_default(mocker):
+    mocker.patch("osism.utils._init_redis", return_value=mocker.MagicMock())
+    mocker.patch("osism.utils.settings.NETBOX_MAX_CONNECTIONS", 7)
+
+    sem = utils_pkg.create_netbox_semaphore("https://nb.example")
+
+    assert isinstance(sem, utils_pkg.RedisSemaphore)
+    assert sem.maxsize == 7
+
+
+def test_create_netbox_semaphore_explicit_max_connections(mocker):
+    mocker.patch("osism.utils._init_redis", return_value=mocker.MagicMock())
+    mocker.patch("osism.utils.settings.NETBOX_MAX_CONNECTIONS", 5)
+
+    sem = utils_pkg.create_netbox_semaphore("https://nb.example", max_connections=20)
+
+    assert sem.maxsize == 20
+
+
+def test_create_netbox_semaphore_key_timeout_and_client(mocker):
+    redis = mocker.MagicMock()
+    init_redis = mocker.patch("osism.utils._init_redis", return_value=redis)
+    mocker.patch("osism.utils.settings.NETBOX_MAX_CONNECTIONS", 5)
+    url = "https://nb.example"
+
+    sem = utils_pkg.create_netbox_semaphore(url)
+
+    assert sem.key == _expected_semaphore_key(url)
+    assert sem.timeout == 30
+    assert sem.redis is redis
+    init_redis.assert_called_once_with()
+
+
+def test_create_netbox_semaphore_different_urls_differ(mocker):
+    mocker.patch("osism.utils._init_redis", return_value=mocker.MagicMock())
+    mocker.patch("osism.utils.settings.NETBOX_MAX_CONNECTIONS", 5)
+
+    sem_a = utils_pkg.create_netbox_semaphore("https://a.example")
+    sem_b = utils_pkg.create_netbox_semaphore("https://b.example")
+
+    assert sem_a.key != sem_b.key
+
+
+def test_create_netbox_semaphore_same_url_identical_key(mocker):
+    mocker.patch("osism.utils._init_redis", return_value=mocker.MagicMock())
+    mocker.patch("osism.utils.settings.NETBOX_MAX_CONNECTIONS", 5)
+
+    sem_a = utils_pkg.create_netbox_semaphore("https://same.example")
+    sem_b = utils_pkg.create_netbox_semaphore("https://same.example")
+
+    assert sem_a.key == sem_b.key
