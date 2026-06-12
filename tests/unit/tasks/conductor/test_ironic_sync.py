@@ -41,11 +41,23 @@ def _make_node(
     }
 
 
+class _Device:
+    """NetBox device stand-in; a plain class so instances are hashable.
+
+    ``sync_ironic`` collects devices in a ``set``, which ``SimpleNamespace``
+    does not support (it defines ``__eq__`` without ``__hash__``).
+    """
+
+    def __init__(self, name, custom_fields):
+        self.name = name
+        self.custom_fields = custom_fields
+
+
 def _make_device(name="node1", provision_state=None, **custom_fields):
     """Build a NetBox device stand-in with a ``custom_fields`` dict."""
     fields = {"provision_state": provision_state}
     fields.update(custom_fields)
-    return SimpleNamespace(name=name, custom_fields=fields)
+    return _Device(name, fields)
 
 
 def _validation(management=True, boot=True, mgmt_reason="", boot_reason=""):
