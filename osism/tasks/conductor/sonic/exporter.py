@@ -15,10 +15,28 @@ from .device import get_device_hostname
 def save_config_to_netbox(device, config, return_diff=False):
     """Save SONiC configuration to NetBox device local context with diff checking.
 
-    Owns only the ``sonic_config`` key of the device's local context: sibling
-    keys (e.g. ``frr_parameters``, ``netplan_parameters``) are preserved and
-    excluded from diff checking. Only saves if the SONiC configuration has
-    changed. Logs diff when changes are detected.
+    Ownership regime -- partitioned key ownership:
+        The device ``local_context_data`` is co-owned with other generators
+        (``frr_parameters``, ``netplan_parameters``, ...), so this function
+        owns only its own ``sonic_config`` key: it carries the existing context
+        forward and overwrites just that key, so the value written back to
+        ``local_context_data`` always still holds the sibling keys. It must
+        never write back a context containing only ``sonic_config``, which
+        would drop them. Diff checking is likewise scoped to ``sonic_config``,
+        so a sibling change neither registers as a SONiC change nor triggers a
+        save.
+
+        This differs deliberately from the ``config_db.json`` regime in
+        generate_sonic_config (table-level ownership), where the generator owns
+        whole tables and drops-and-rebuilds them: that store has no external
+        co-owner, so wholesale replacement of an owned table is safe. Here it is
+        not. The deciding factor is the external co-owner. Do not "simplify"
+        this into writing back a fresh ``{"sonic_config": ...}`` that omits the
+        existing context; the sibling-preservation tests in test_exporter.py
+        enforce that the written-back value keeps the siblings.
+
+        Only saves if the SONiC configuration has changed; logs the diff when
+        changes are detected.
 
     Args:
         device: NetBox device object
