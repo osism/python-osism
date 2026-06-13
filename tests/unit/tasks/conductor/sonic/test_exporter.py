@@ -35,6 +35,21 @@ def _has_log(records, level, substring):
 # ---------------------------------------------------------------------------
 
 
+# Surfaced when a sibling-preservation assertion fails, so an author who
+# reverts the exporter to wholesale replacement is told why the test fails
+# rather than reading it as a stale test and "fixing" it. The full reasoning
+# lives on the save_config_to_netbox docstring; this points there.
+_PARTITIONED_KEY_OWNERSHIP = (
+    "local_context_data uses partitioned key ownership: sibling keys such as "
+    "frr_parameters and netplan_parameters are co-owned by other generators. "
+    "save_config_to_netbox must carry the existing context forward and "
+    "overwrite only the sonic_config key; the value written back to "
+    "local_context_data must still hold the sibling keys. Writing back a "
+    "context that drops them is the regression this guards -- see the "
+    "save_config_to_netbox docstring."
+)
+
+
 def _make_save_device(local_context_data=None, device_id=1, name="sw-1"):
     """Build a NetBox-shaped device whose ``save`` is observable."""
     return SimpleNamespace(
@@ -139,7 +154,7 @@ def test_save_config_preserves_sibling_context_keys(mock_nb):
     assert device.local_context_data == {
         "frr_parameters": frr,
         "sonic_config": {"PORT": {"Ethernet1": {}}},
-    }
+    }, _PARTITIONED_KEY_OWNERSHIP
 
 
 def test_save_config_sibling_only_context_is_first_time(mock_nb):
@@ -155,7 +170,7 @@ def test_save_config_sibling_only_context_is_first_time(mock_nb):
     assert device.local_context_data == {
         "frr_parameters": frr,
         "sonic_config": {"PORT": {}},
-    }
+    }, _PARTITIONED_KEY_OWNERSHIP
     # First-time configuration creates no journal entry.
     mock_nb.extras.journal_entries.create.assert_not_called()
 
@@ -170,7 +185,11 @@ def test_save_config_sibling_keys_do_not_trigger_change(mock_nb):
 
     result = save_config_to_netbox(device, config)
 
-    assert result is False
+    assert result is False, (
+        "Diffing must cover only the owned sonic_config key; an unchanged "
+        "SONiC config must not save just because sibling keys are present. "
+        + _PARTITIONED_KEY_OWNERSHIP
+    )
     device.save.assert_not_called()
 
 

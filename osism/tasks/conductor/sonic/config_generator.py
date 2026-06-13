@@ -204,6 +204,17 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         owned, inherited, or image-consumed — so a newly handled table cannot
         silently fall into the unpoliced pass-through tier and reintroduce
         stale config.
+
+        The four categories above are *table-level ownership*, which applies to
+        config_db.json: the generator owns whole tables and may drop-and-rebuild
+        them because the file has no external co-owner. SONiC config is also
+        written to the NetBox device local_context_data, a store co-owned with
+        other generators (frr_parameters, netplan_parameters). That store uses a
+        different regime — *partitioned key ownership*: own only the
+        sonic_config key — carry the existing context forward and overwrite
+        just that key, never writing back a context that drops the co-owners'
+        keys (see save_config_to_netbox in exporter.py). The deciding factor is
+        the external co-owner.
     """
     # Get port configuration for the HWSKU
     port_config = get_port_config(hwsku)
