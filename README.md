@@ -19,3 +19,15 @@ Run a single test module:
 ```
 pipenv run pytest tests/unit/test_smoke.py
 ```
+
+## Running integration tests
+
+The integration tests in `tests/integration/` exercise the Celery/Redis task
+core (broker, queue routing, worker, result backend, Redis streams and locks)
+end-to-end. They require a reachable Redis and start a Celery worker from the
+same virtualenv; they are skipped automatically when Redis is not running.
+
+```
+docker run -d -p 6379:6379 redis:7-alpine
+REDIS_HOST=localhost pipenv run pytest tests/integration
+```
