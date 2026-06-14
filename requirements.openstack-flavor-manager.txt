@@ -1,1 +1,1 @@
-openstack-flavor-manager==0.20260227.0
+openstack-flavor-manager==0.20260614.0
