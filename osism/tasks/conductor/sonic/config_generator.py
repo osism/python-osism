@@ -142,6 +142,18 @@ ON_DEMAND_OWNED_TABLE_KEYS = (
 # stale config.
 OWNED_TABLE_KEYS = SCAFFOLDED_OWNED_TABLE_KEYS + ON_DEMAND_OWNED_TABLE_KEYS
 
+# Owned tables written by more than one section helper. Single-owner tables may
+# be reassigned wholesale (config["X"] = {...}); these may not -- each helper
+# must merge only its own named entries (config.setdefault("X", {}) then
+# config["X"]["MY_KEY"] = ...), or whichever helper runs second drops the
+# first's entries. ACL_TABLE/ACL_RULE are co-owned by the control-plane ACL
+# helpers (SSH, SNMP, gNMI). They are listed here ahead of those helpers so the
+# per-key pattern is enforced from the first one that lands; they join
+# ON_DEMAND_OWNED_TABLE_KEYS in the same change (so the central drop clears them
+# before any helper merges). The per-key rule is enforced by
+# test_config_generator_ownership.py::TestMultiOwnerTableGuard.
+MULTI_OWNER_OWNED_TABLE_KEYS = ("ACL_TABLE", "ACL_RULE")
+
 
 def natural_sort_key(port_name):
     """Extract numeric part from port name for natural sorting."""

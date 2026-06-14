@@ -23,6 +23,7 @@ from osism.tasks.conductor.sonic import config_generator
 from osism.tasks.conductor.sonic.config_generator import (
     IMAGE_CONSUMED_TABLE_KEYS,
     INHERITED_TABLE_KEYS,
+    MULTI_OWNER_OWNED_TABLE_KEYS,
     ON_DEMAND_OWNED_TABLE_KEYS,
     OWNED_TABLE_KEYS,
     SCAFFOLDED_OWNED_TABLE_KEYS,
@@ -497,3 +498,206 @@ class TestStaticTableReferenceGuard:
             "pop, config.update, config |= {...}) or extend "
             "_config_table_keys_referenced_in_source to understand the new one."
         )
+
+
+# ---------------------------------------------------------------------------
+# Multi-owner table guard: co-owned tables must be merged, never reassigned
+# ---------------------------------------------------------------------------
+
+
+def _wholesale_reassignments_of(table_keys, source):
+    """Find every form that rebinds a whole table in table_keys on ``config``.
+
+    A wholesale rebind replaces the entire table object, dropping any named
+    entries other helpers merged into it -- the #2337/#2338 clobber. It can be
+    written several ways, all flagged here:
+      - ``config["X"] = <expr>`` -- subscript assignment,
+      - ``config.update({"X": ...})`` / ``config.update(X=...)`` -- outer merge,
+      - ``config |= {"X": ...}`` -- outer aug-or merge,
+      - ``config = {**config, "X": ...}`` / ``config = config | {"X": ...}`` --
+        reassignment merge.
+    These mirror the wholesale-write forms the mutation backstop
+    (test_config_mutations_are_statically_analyzable) recognizes, so together
+    they cover every way config can be written: no analyzable form rebinds a
+    listed table without being caught.
+
+    In-place forms that mutate the table dict rather than rebinding it are NOT
+    flagged: per-key subscript writes (``config["X"]["k"] = ...``, whose target
+    is a Subscript of a Subscript), ``config["X"].update(...)`` and
+    ``config["X"] |= ...`` (the receiver/target is ``config["X"]``, not
+    ``config``), and ``config.setdefault("X", {})`` / ``config.get("X")``
+    (which read or create-if-absent, never replace). Returns a list of
+    (lineno, source) pairs.
+    """
+    keys = set(table_keys)
+    offenders = []
+
+    def flag_if_listed(node, names):
+        if any(name in keys for name in names):
+            offenders.append((node.lineno, ast.unparse(node)))
+
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                # config["X"] = ...
+                if (
+                    isinstance(target, ast.Subscript)
+                    and _is_config(target.value)
+                    and isinstance(target.slice, ast.Constant)
+                ):
+                    flag_if_listed(node, [target.slice.value])
+            # config = {**config, "X": ...} / config = config | {"X": ...}
+            if any(_is_config(target) for target in node.targets):
+                value = node.value
+                if isinstance(value, ast.Dict):
+                    flag_if_listed(node, _literal_dict_keys(value))
+                elif isinstance(value, ast.BinOp) and isinstance(value.op, ast.BitOr):
+                    flag_if_listed(
+                        node,
+                        _literal_dict_keys(value.left)
+                        + _literal_dict_keys(value.right),
+                    )
+        # config |= {"X": ...}  (outer aug-or; config["X"] |= ... targets a Subscript)
+        elif isinstance(node, ast.AugAssign):
+            if _is_config(node.target) and isinstance(node.op, ast.BitOr):
+                flag_if_listed(node, _literal_dict_keys(node.value))
+        # config.update({"X": ...}) / config.update(X=...) / .update(**{"X": ...})
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and _is_config(func.value)
+                and func.attr == "update"
+            ):
+                names = list(_literal_dict_keys(node.args[0])) if node.args else []
+                for keyword in node.keywords:
+                    if keyword.arg is not None:
+                        names.append(keyword.arg)
+                    else:
+                        names.extend(_literal_dict_keys(keyword.value))
+                flag_if_listed(node, names)
+
+    return offenders
+
+
+class TestMultiOwnerWholesaleDetector:
+    """The detector behind the multi-owner guard flags the clobber form only.
+
+    Synthetic-source tests that pin what the detector does, independently of
+    the live generator, so the guard below is proven to catch a violation
+    rather than passing vacuously.
+    """
+
+    def test_flags_wholesale_table_reassignment(self):
+        """config["X"] = {...} replaces the whole table and is flagged."""
+        source = 'config["ACL_TABLE"] = {"SSH_ONLY": {"type": "CTRLPLANE"}}\n'
+        offenders = _wholesale_reassignments_of({"ACL_TABLE"}, source)
+        assert [src for _, src in offenders] == [
+            "config['ACL_TABLE'] = {'SSH_ONLY': {'type': 'CTRLPLANE'}}"
+        ]
+
+    def test_flags_outer_update_merge(self):
+        """config.update({"X": ...}) rebinds the whole table and is flagged."""
+        source = 'config.update({"ACL_TABLE": {"SSH_ONLY": {}}})\n'
+        assert _wholesale_reassignments_of({"ACL_TABLE"}, source)
+
+    def test_flags_outer_update_keyword(self):
+        """config.update(X=...) is the same rebind in keyword form."""
+        source = 'config.update(ACL_TABLE={"SSH_ONLY": {}})\n'
+        assert _wholesale_reassignments_of({"ACL_TABLE"}, source)
+
+    def test_flags_outer_aug_or_merge(self):
+        """config |= {"X": ...} rebinds the whole table and is flagged."""
+        source = 'config |= {"ACL_TABLE": {"SSH_ONLY": {}}}\n'
+        assert _wholesale_reassignments_of({"ACL_TABLE"}, source)
+
+    def test_flags_reassignment_merge(self):
+        """config = {**config, "X": ...} rebinds the whole table and is flagged."""
+        source = 'config = {**config, "ACL_TABLE": {"SSH_ONLY": {}}}\n'
+        assert _wholesale_reassignments_of({"ACL_TABLE"}, source)
+
+    def test_allows_per_key_merge_forms(self):
+        """Forms that mutate the table in place are not flagged.
+
+        Each touches an *inner* object -- the table dict itself
+        (config["ACL_TABLE"]) -- rather than rebinding the table on config, so
+        no other helper's entries are dropped.
+        """
+        source = (
+            'config.setdefault("ACL_TABLE", {})\n'
+            'config["ACL_TABLE"]["SSH_ONLY"] = {"type": "CTRLPLANE"}\n'
+            'config["ACL_TABLE"].update({"SNMP_ONLY": {}})\n'
+            'config["ACL_TABLE"] |= {"GNMI_ONLY": {}}\n'
+            'config["ACL_RULE"]["SNMP_ONLY|RULE_1"] = {"PRIORITY": "1"}\n'
+        )
+        assert _wholesale_reassignments_of({"ACL_TABLE", "ACL_RULE"}, source) == []
+
+    def test_ignores_tables_outside_the_set(self):
+        """A wholesale assignment of a single-owner table is left alone."""
+        source = (
+            'config["SNMP_SERVER"] = {"SYSTEM": {}}\n'
+            'config.update({"SYSLOG_SERVER": {}})\n'
+        )
+        assert _wholesale_reassignments_of({"ACL_TABLE"}, source) == []
+
+
+class TestMultiOwnerTableGuard:
+    """Tables co-owned by several helpers must be merged per key, never rebound.
+
+    ACL_TABLE/ACL_RULE are written by more than one control-plane helper (SSH,
+    SNMP, gNMI). If a helper rebinds the whole table (config["ACL_TABLE"] = {..})
+    instead of merging its own keys, it drops every other helper's entries --
+    the #2337/#2338 hazard, where whichever helper runs second leaves the other
+    service unrestricted. This guard forbids the rebind form for these tables,
+    so coexisting helpers compose. It is armed before the ACL helpers land: the
+    tables are listed now, so the first PR to write one is forced onto the
+    per-key pattern rather than establishing the unsafe one.
+    """
+
+    def test_no_wholesale_reassignment_of_multi_owner_tables(self):
+        source = Path(config_generator.__file__).read_text()
+        offenders = _wholesale_reassignments_of(MULTI_OWNER_OWNED_TABLE_KEYS, source)
+        assert not offenders, (
+            "config_generator.py rebinds a multi-owner table wholesale, dropping "
+            "entries other helpers merged into it:\n"
+            + "\n".join(f"  line {lineno}: {src}" for lineno, src in offenders)
+            + "\n\nTables in MULTI_OWNER_OWNED_TABLE_KEYS are written by several "
+            "helpers, so each must merge only its own named entries -- "
+            'config.setdefault("X", {}) then config["X"]["MY_KEY"] = ... -- '
+            "rather than reassigning the whole table. The central owned-table "
+            "drop already clears the table once up front, so no stale entry "
+            "survives without per-helper purging."
+        )
+
+    def test_referenced_multi_owner_tables_are_owned(self):
+        """A multi-owner table, once written, must also be generator-owned.
+
+        Per-key merge only stays clean if the table was dropped up front: the
+        central reset clears OWNED_TABLE_KEYS before any helper runs, so a stale
+        entry from a prior regen cannot survive the merge. A multi-owner table
+        that is referenced but not owned would accumulate stale entries -- so as
+        soon as the ACL helpers add ACL_TABLE/ACL_RULE, they must land in
+        OWNED_TABLE_KEYS too. Forward-declared tables not yet referenced are
+        skipped.
+        """
+        referenced = _config_table_keys_referenced_in_source()
+        for key in MULTI_OWNER_OWNED_TABLE_KEYS:
+            if key in referenced:
+                assert key in OWNED_TABLE_KEYS, (
+                    f"{key} is multi-owner and referenced by the generator but "
+                    "is not in OWNED_TABLE_KEYS, so the central drop does not "
+                    "clear it -- stale entries would survive the per-key merge. "
+                    "Add it to ON_DEMAND_OWNED_TABLE_KEYS."
+                )
+
+    def test_multi_owner_tables_are_not_inherited_or_consumed(self):
+        """Multi-owner tables belong to the owned/dropped regime only.
+
+        Inherited and image-consumed tables are preserved, not dropped; a
+        multi-owner table in either category would be merged into without the
+        up-front clear the per-key pattern relies on. Holds before and after the
+        ACL helpers land.
+        """
+        multi_owner = set(MULTI_OWNER_OWNED_TABLE_KEYS)
+        assert multi_owner.isdisjoint(INHERITED_TABLE_KEYS)
+        assert multi_owner.isdisjoint(IMAGE_CONSUMED_TABLE_KEYS)
