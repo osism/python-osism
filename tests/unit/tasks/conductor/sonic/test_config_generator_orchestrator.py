@@ -95,6 +95,7 @@ def patch_orchestrator_helpers(mocker):
         _add_loopback_configuration=patch("_add_loopback_configuration"),
         _add_log_server_configuration=patch("_add_log_server_configuration"),
         _add_snmp_configuration=patch("_add_snmp_configuration"),
+        _add_ctrlplane_acls=patch("_add_ctrlplane_acls"),
         _add_vrf_configuration=patch("_add_vrf_configuration"),
         _add_portchannel_configuration=patch("_add_portchannel_configuration"),
         get_cached_device_interfaces=patch(
@@ -393,6 +394,43 @@ def test_generate_sonic_config_no_oob_ip_leaves_mgmt_empty_and_passes_none(
     assert "mgmt|0.0.0.0/0" not in config["STATIC_ROUTE"]
     _, _, snmp_oob = patch_orchestrator_helpers._add_snmp_configuration.call_args.args
     assert snmp_oob is None
+
+
+def test_generate_sonic_config_oob_ip_wires_ctrlplane_acls(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """With an OOB IP the orchestrator delegates the control-plane ACLs
+    (#2330) to ``_add_ctrlplane_acls`` with the raw OOB IP and prefix —
+    network normalisation is the helper's job."""
+    patch_base_config(mocker)
+    patch_orchestrator_helpers.get_device_oob_ip.return_value = ("10.42.0.5", 24)
+    device = make_orchestrator_device()
+
+    config = generate_sonic_config(device, "HWSKU")
+
+    patch_orchestrator_helpers._add_ctrlplane_acls.assert_called_once_with(
+        config, "10.42.0.5", 24
+    )
+
+
+def test_generate_sonic_config_no_oob_ip_skips_ctrlplane_acls(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """Without an OOB IP no control-plane ACLs are wired and the owned
+    ACL_TABLE / ACL_RULE tables stay absent — stale base-config content is
+    removed by the up-front owned-table drop, not re-created."""
+    base = make_base_config()
+    base["ACL_TABLE"] = {"SNMP_ONLY": {"type": "CTRLPLANE"}}
+    base["ACL_RULE"] = {"SNMP_ONLY|RULE_1": {"PRIORITY": "9999"}}
+    patch_base_config(mocker, base_config=base)
+    patch_orchestrator_helpers.get_device_oob_ip.return_value = None
+    device = make_orchestrator_device()
+
+    config = generate_sonic_config(device, "HWSKU")
+
+    patch_orchestrator_helpers._add_ctrlplane_acls.assert_not_called()
+    assert "ACL_TABLE" not in config
+    assert "ACL_RULE" not in config
 
 
 # ---------------------------------------------------------------------------
