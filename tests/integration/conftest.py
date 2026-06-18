@@ -25,7 +25,26 @@ WORKER_QUEUE = "osism-ansible"
 # Celery treats a ``-n`` value without ``@`` as the host part (yielding
 # ``celery@ci-worker``), so the node name must be given explicitly.
 WORKER_NAME = "ci-worker@%h"
+# Node-name prefix the worker registers under (``ci-worker@<hostname>``). Used
+# to gate readiness on *this* worker rather than any worker on the broker.
+WORKER_NODE_PREFIX = WORKER_NAME.split("@", 1)[0] + "@"
 WORKER_BOOT_TIMEOUT = 60
+
+
+def _require_redis():
+    """Return ``True`` when an unreachable Redis must fail the session.
+
+    Set ``OSISM_REQUIRE_REDIS=1`` (as the CI job does) to turn the
+    skip-when-unreachable behaviour into a hard failure, so a Redis-startup
+    problem surfaces as a red job instead of an all-skipped green one. Left
+    unset locally, the suite keeps skipping when Redis is not running.
+    """
+    return os.environ.get("OSISM_REQUIRE_REDIS", "").lower() not in (
+        "",
+        "0",
+        "false",
+        "no",
+    )
 
 
 def _redis_reachable():
@@ -49,12 +68,18 @@ def _redis_reachable():
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip integration-marked tests when Redis is not reachable."""
+    """Skip integration-marked tests when Redis is not reachable.
+
+    With ``OSISM_REQUIRE_REDIS`` set, an unreachable Redis fails the session
+    instead -- otherwise an all-skipped run exits 0 and a broken Redis would
+    pass the CI gate green.
+    """
     if _redis_reachable():
         return
-    skip = pytest.mark.skip(
-        reason=f"Redis is not reachable on {settings.REDIS_HOST}:{settings.REDIS_PORT}"
-    )
+    reason = f"Redis is not reachable on {settings.REDIS_HOST}:{settings.REDIS_PORT}"
+    if _require_redis():
+        pytest.exit(f"{reason} but OSISM_REQUIRE_REDIS is set", returncode=1)
+    skip = pytest.mark.skip(reason=reason)
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip)
@@ -100,7 +125,10 @@ def celery_worker(celery_app):
                 raise RuntimeError(
                     f"Celery worker exited early with code {proc.returncode}"
                 )
-            if celery_app.control.inspect().ping():
+            # Gate on *this* worker, not any worker answering on the broker, so a
+            # shared local broker cannot let the fixture pass before it is up.
+            replies = celery_app.control.inspect().ping() or {}
+            if any(name.startswith(WORKER_NODE_PREFIX) for name in replies):
                 break
             time.sleep(1)
         else:

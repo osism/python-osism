@@ -17,6 +17,24 @@
           docker run -d --name redis -p 6379:6379 redis:7-alpine
       changed_when: true
 
+    - name: Wait for Redis to be ready
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          for i in $(seq 1 30); do
+            if docker exec redis redis-cli ping | grep -q PONG; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Redis did not become ready within 30s" >&2
+          exit 1
+      changed_when: false
+
     - name: Install dependencies
       ansible.builtin.shell:
         executable: /bin/bash
@@ -41,3 +59,6 @@
           {{ python_venv_dir }}/bin/pipenv run pytest tests/integration
       environment:
         REDIS_HOST: localhost
+        # Fail the session if Redis is unreachable instead of skipping every
+        # test, so a Redis-startup failure turns the job red rather than green.
+        OSISM_REQUIRE_REDIS: "1"
