@@ -31,3 +31,10 @@ same virtualenv; they are skipped automatically when Redis is not running.
 docker run -d -p 6379:6379 redis:7-alpine
 REDIS_HOST=localhost pipenv run pytest tests/integration
 ```
+
+> **Warning:** The suite mutates live state on the configured Redis. Most keys
+> are per-run (UUID-based), but the task-lock test reads, writes and removes the
+> fixed global key `osism:task_lock` on the selected `REDIS_DB`. Always point it
+> at a disposable Redis (such as the throwaway container above); running it
+> against a Redis shared with a real OSISM deployment would clobber an active
+> operator lock.
