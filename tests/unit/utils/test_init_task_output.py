@@ -695,3 +695,47 @@ def test_check_ansible_facts_explicit_max_age_overrides_settings(mocker, loguru_
 
     warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
     assert any("older than 10 seconds" in m for m in warnings)
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1"])
+def test_check_ansible_facts_local_hosts_never_stale(mocker, loguru_logs, host):
+    import time as time_mod
+
+    now = time_mod.time()
+    mock_r = mocker.MagicMock()
+    mock_r.scan.return_value = (0, [f"ansible_facts{host}".encode("utf-8")])
+    # Far older than the threshold, but local hosts must be skipped because
+    # 'osism sync facts' never refreshes them (not part of the inventory).
+    mock_r.get.return_value = _facts_payload(now - 9999)
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    utils_pkg.check_ansible_facts(max_age=10)
+
+    warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
+    assert not any("stale" in m for m in warnings)
+
+
+def test_check_ansible_facts_local_host_skipped_real_host_still_stale(
+    mocker, loguru_logs
+):
+    import time as time_mod
+
+    now = time_mod.time()
+    mock_r = mocker.MagicMock()
+    mock_r.scan.return_value = (
+        0,
+        [b"ansible_factslocalhost", b"ansible_factshost-a"],
+    )
+    mock_r.get.side_effect = [
+        _facts_payload(now - 9999),
+        _facts_payload(now - 9999),
+    ]
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    utils_pkg.check_ansible_facts(max_age=10)
+
+    warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
+    # Only the real inventory host is reported; localhost is excluded.
+    assert any("stale for 1 host(s)" in m for m in warnings)
+    assert any("host-a" in m for m in warnings)
+    assert not any("localhost" in m for m in warnings)
