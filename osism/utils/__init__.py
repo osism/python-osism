@@ -18,6 +18,12 @@ _nb_initialized = False
 _secondary_nb_initialized = False
 _cleanup_registered = False
 
+# Hosts whose cached facts are a byproduct of locally executed or delegated
+# plays rather than regular inventory hosts. Their facts are never refreshed by
+# 'osism sync facts' (which only targets inventory hosts), so excluding them
+# from the freshness check avoids permanent, unactionable stale warnings.
+LOCAL_FACT_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
 
 def _init_redis():
     global _redis
@@ -604,6 +610,11 @@ def check_ansible_facts(max_age=None):
         try:
             key_str = key.decode() if isinstance(key, bytes) else key
             hostname = key_str.replace("ansible_facts", "", 1)
+
+            # Skip localhost and friends: their facts are never refreshed via
+            # 'osism sync facts', so reporting them as stale is misleading.
+            if hostname in LOCAL_FACT_HOSTS:
+                continue
 
             data = r.get(key)
             if not data:
