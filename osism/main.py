@@ -34,5 +34,5 @@ def main(argv=sys.argv[1:]):
     return result
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main(sys.argv[1:]))
