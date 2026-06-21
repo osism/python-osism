@@ -24,23 +24,51 @@ def test_add_log_server_configuration_defaults():
     for host in ("10.1.1.1", "10.1.1.2"):
         assert config["SYSLOG_SERVER"][host] == {
             "message-type": "log",
-            "protocol": "UDP",
+            "protocol": "udp",
             "remote-port": "514",
             "severity": "info",
             "vrf_name": "mgmt",
         }
 
 
-def test_add_log_server_configuration_protocol_uppercased():
+@pytest.mark.parametrize(
+    "proto_in, proto_out",
+    [("tcp", "tcp"), ("TCP", "tcp"), ("Udp", "udp")],
+)
+def test_add_log_server_configuration_protocol_lowercased(proto_in, proto_out):
     config = {}
     device = _device_with_ctx(
         _segment_log_server_hosts=["10.1.1.1"],
-        _segment_log_server_proto="tcp",
+        _segment_log_server_proto=proto_in,
     )
 
     _add_log_server_configuration(config, device)
 
-    assert config["SYSLOG_SERVER"]["10.1.1.1"]["protocol"] == "TCP"
+    assert config["SYSLOG_SERVER"]["10.1.1.1"]["protocol"] == proto_out
+
+
+@pytest.mark.parametrize(
+    "severity_in, severity_out",
+    [
+        ("warning", "warn"),
+        ("WARNING", "warn"),
+        ("informational", "info"),
+        ("err", "error"),
+        ("critical", "crit"),
+        ("warn", "warn"),
+        ("info", "info"),
+    ],
+)
+def test_add_log_server_configuration_severity_aliases(severity_in, severity_out):
+    config = {}
+    device = _device_with_ctx(
+        _segment_log_server_hosts=["10.1.1.1"],
+        _segment_log_server_severity=severity_in,
+    )
+
+    _add_log_server_configuration(config, device)
+
+    assert config["SYSLOG_SERVER"]["10.1.1.1"]["severity"] == severity_out
 
 
 def test_add_log_server_configuration_custom_severity_and_vrf():
