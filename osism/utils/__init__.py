@@ -119,6 +119,28 @@ class RedisSemaphore:
     a maximum concurrency limit.
     """
 
+    # Holders older than this many seconds are considered crashed and reclaimed.
+    HOLDER_EXPIRY = 60
+
+    # Atomic check-and-acquire executed server-side so that the capacity check
+    # and the slot reservation cannot be interleaved by another client. Without
+    # this, two clients could both observe a free slot (ZCARD) and both take it
+    # (ZADD), admitting more than ``maxsize`` holders. Cleanup of expired
+    # holders happens inside the same call using the caller-supplied ``now`` so
+    # the reclaim boundary advances on every retry.
+    _ACQUIRE_LUA = """
+    local now = tonumber(ARGV[1])
+    local maxsize = tonumber(ARGV[2])
+    local identifier = ARGV[3]
+    local expiry = tonumber(ARGV[4])
+    redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - expiry)
+    if redis.call('ZCARD', KEYS[1]) < maxsize then
+        redis.call('ZADD', KEYS[1], now, identifier)
+        return 1
+    end
+    return 0
+    """
+
     def __init__(self, redis_client, key, maxsize, timeout=None):
         """Initialize the semaphore.
 
@@ -145,16 +167,21 @@ class RedisSemaphore:
         """
         timeout = timeout or self.timeout or 10
         identifier = str(uuid.uuid4())
-        now = time.time()
-        end_time = now + timeout
+        end_time = time.time() + timeout
 
         while time.time() < end_time:
-            # Clean up expired holders
-            self.redis.zremrangebyscore(self.key, 0, now - 60)
-
-            # Try to acquire
-            if self.redis.zcard(self.key) < self.maxsize:
-                self.redis.zadd(self.key, {identifier: now})
+            now = time.time()
+            # Atomic cleanup + capacity check + reservation (see _ACQUIRE_LUA).
+            acquired = self.redis.eval(
+                self._ACQUIRE_LUA,
+                1,
+                self.key,
+                now,
+                self.maxsize,
+                identifier,
+                self.HOLDER_EXPIRY,
+            )
+            if acquired:
                 self.identifier = identifier
                 return True
 
