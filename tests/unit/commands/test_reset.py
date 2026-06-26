@@ -192,5 +192,8 @@ def test_facts_limit_returns_nonzero_on_redis_error(mock_redis, loguru_logs):
         rc = _make().take_action(_parse("-l", "control"))
 
     assert rc == 1
+    # The limited path deletes all matched keys in a single batched call, so a
+    # RedisError must surface after exactly one delete attempt without retrying.
+    assert mock_redis.delete.call_count == 1
     errors = [r for r in loguru_logs if r["level"] == "ERROR"]
     assert any("Failed to reset Ansible fact cache" in r["message"] for r in errors)
