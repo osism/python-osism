@@ -84,6 +84,19 @@ def test_facts_returns_nonzero_on_redis_error(mock_redis, loguru_logs):
 # --- limited path ---
 
 
+@pytest.mark.parametrize("limit", ["", "   "])
+def test_facts_empty_limit_returns_nonzero_and_touches_nothing(
+    mock_redis, loguru_logs, limit
+):
+    rc = _make().take_action(_parse("-l", limit))
+
+    assert rc == 1
+    mock_redis.scan.assert_not_called()
+    mock_redis.delete.assert_not_called()
+    errors = [r for r in loguru_logs if r["level"] == "ERROR"]
+    assert any("--limit must not be empty." in r["message"] for r in errors)
+
+
 def test_facts_limit_deletes_only_selected_hosts(mock_redis):
     mock_redis.delete.return_value = 1
     ok = MagicMock()

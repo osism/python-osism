@@ -31,6 +31,9 @@ class Facts(Command):
         return parser
 
     def take_action(self, parsed_args):
+        if parsed_args.limit is not None and not parsed_args.limit.strip():
+            logger.error("--limit must not be empty.")
+            return 1
         if parsed_args.limit:
             return self._reset_limited(parsed_args.limit)
         return self._reset_all()
