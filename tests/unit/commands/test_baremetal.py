@@ -46,6 +46,38 @@ def test_node_not_found_returns_1(cls):
     assert _run_not_found(cls) == 1
 
 
+# --- BaremetalList output ---
+
+
+def test_list_includes_uuid_column(capsys):
+    # The node UUID must be shown so it can be cross-referenced with Ironic logs.
+    cmd = baremetal.BaremetalList(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args([])
+
+    node = {
+        "name": "node1",
+        "id": "11111111-2222-3333-4444-555555555555",
+        "power_state": "power on",
+        "provision_state": "active",
+        "maintenance": False,
+    }
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = [node]
+
+    setup = MagicMock(return_value=("pw", [], None, True))
+    getconn = MagicMock(return_value=conn)
+    cleanup = MagicMock()
+    with patch(
+        "osism.tasks.openstack.get_cloud_helpers",
+        return_value=(setup, getconn, cleanup),
+    ):
+        cmd.take_action(parsed_args)
+
+    out = capsys.readouterr().out
+    assert "UUID" in out
+    assert node["id"] in out
+
+
 # --- BaremetalDump failure paths ---
 
 
