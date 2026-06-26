@@ -84,6 +84,7 @@ class BaremetalList(Command):
             for b in baremetal:
                 row = [
                     b["name"],
+                    b["id"],
                     b["power_state"] if b["power_state"] is not None else "n/a",
                     b["provision_state"],
                     b["maintenance"],
@@ -94,6 +95,7 @@ class BaremetalList(Command):
 
             headers = [
                 "Name",
+                "UUID",
                 "Power State",
                 "Provision State",
                 "Maintenance",
@@ -104,8 +106,8 @@ class BaremetalList(Command):
 
                 for row in result:
                     info = get_baremetal_node_netbox_info(row[0])
-                    row.insert(1, info.get("device_role") or "N/A")
-                headers.insert(1, "Device Role")
+                    row.insert(2, info.get("device_role") or "N/A")
+                headers.insert(2, "Device Role")
 
             print(
                 tabulate(
