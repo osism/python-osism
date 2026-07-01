@@ -56,6 +56,10 @@ _metalbox_devices_cache: Optional[dict] = None
 # VXLAN VTEP name used for VXLAN tunnel configuration
 VXLAN_VTEP_NAME = "vtepServ"
 
+# Default listen port of the SONiC telemetry/gNMI container, used for the
+# GNMI_ONLY control-plane ACL rule when TELEMETRY|gnmi does not set a port.
+DEFAULT_GNMI_PORT = "8080"
+
 # Top-level scaffold keys that the orchestrator and downstream helpers index
 # into directly. Kept as a single source of truth so that the production code
 # and the test helpers cannot drift apart when keys are added or removed.
@@ -105,11 +109,11 @@ INHERITED_TABLE_KEYS = ("DEVICE_METADATA", "VERSIONS")
 # difference being only that the generator depends on this one as an input.
 # Distinct from inherited tables, which the generator also writes selected
 # fields into; the distinction is read-only vs. read-and-update, not the access
-# syntax (inherited tables are read via config.get() too). Empty for now; the
-# first consumer is the gNMI listen port, read from TELEMETRY. Must stay
-# disjoint from OWNED_TABLE_KEYS -- an image-consumed table dropped up front
-# would always read back empty.
-IMAGE_CONSUMED_TABLE_KEYS = ()
+# syntax (inherited tables are read via config.get() too). For example, the
+# gNMI listen port is read from TELEMETRY. Must stay disjoint from
+# OWNED_TABLE_KEYS -- an image-consumed table dropped up front would always
+# read back empty.
+IMAGE_CONSUMED_TABLE_KEYS = ("TELEMETRY",)
 
 # Owned tables that are also scaffolded: every scaffold key except the
 # inherited ones. The orchestrator setdefault-creates these up front, so
@@ -126,6 +130,8 @@ SCAFFOLDED_OWNED_TABLE_KEYS = tuple(
 # defaults (location "Data Center", contact "info@example.com") even when the
 # device has no SNMP data in NetBox.
 ON_DEMAND_OWNED_TABLE_KEYS = (
+    "ACL_RULE",
+    "ACL_TABLE",
     "ROUTE_REDISTRIBUTE",
     "SNMP_SERVER",
     "SNMP_AGENT_ADDRESS_CONFIG",
@@ -194,7 +200,8 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
           base config but never modified by the generator. The defining
           property is behavioural (read-only), not the access syntax:
           inherited tables are also read via config.get(), so .get() alone
-          does not distinguish the two. Empty for now.
+          does not distinguish the two. IMAGE_CONSUMED_TABLE_KEYS lists the
+          current members.
         - Pass-through: every table the generator never references. Left
           untouched and unmanaged; not a supported place for operator
           customizations either.
@@ -424,6 +431,8 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         config["MGMT_INTERFACE"][f"eth0|{oob_ip}/{prefix_len}"] = {}
         metalbox_ip = _get_metalbox_ip_for_device(device)
         config["STATIC_ROUTE"]["mgmt|0.0.0.0/0"] = {"nexthop": metalbox_ip}
+        # Restrict control-plane services (SNMP, gNMI) to the OOB network
+        _add_ctrlplane_acls(config, oob_ip, prefix_len)
     else:
         oob_ip = None
 
@@ -2326,3 +2335,93 @@ def _add_snmp_configuration(config, device, oob_ip):
                 counter += 1
 
                 logger.debug(f"Added snmp_server_target {host}")
+
+
+def _get_gnmi_port(config):
+    """Return the gNMI server port for the GNMI_ONLY control-plane ACL rule.
+
+    The telemetry/gNMI container reads its listen port from
+    TELEMETRY|gnmi|port and falls back to 8080 when unset, so the ACL rule
+    follows the same lookup against the (image-consumed) TELEMETRY table,
+    treating a present-but-empty value (null, "") as unset like the
+    container does. A malformed value (non-numeric or outside 1-65535)
+    also falls back to the default, with a warning, rather than
+    propagating: the rule must always carry a bindable L4_DST_PORT --
+    caclmgrd otherwise skips the whole EXTERNAL_CLIENT table and gNMI
+    would silently stay unrestricted -- and the container cannot bind such
+    a value either, so the substituted default cannot mismatch a live gNMI
+    listener.
+    """
+    port = config.get("TELEMETRY", {}).get("gnmi", {}).get("port")
+    if port is None or str(port).strip() == "":
+        return DEFAULT_GNMI_PORT
+    try:
+        port_number = int(str(port).strip())
+    except ValueError:
+        port_number = -1
+    if not 1 <= port_number <= 65535:
+        logger.warning(
+            f"TELEMETRY|gnmi|port value {port!r} is not a usable TCP port; "
+            f"using default {DEFAULT_GNMI_PORT} for the GNMI_ONLY ACL rule"
+        )
+        return DEFAULT_GNMI_PORT
+    return str(port_number)
+
+
+def _add_ctrlplane_acls(config, oob_ip, prefix_len):
+    """Add control-plane ACLs restricting SNMP and gNMI to the OOB network.
+
+    Emits ACL_TABLE entries of type CTRLPLANE bound to the SNMP and
+    EXTERNAL_CLIENT (gNMI/telemetry) caclmgrd services, plus one ACL_RULE
+    per table accepting only the device's OOB management subnet (the
+    network-normalised oob_ip/prefix_len). caclmgrd installs an implicit
+    default-drop for every service bound in a CTRLPLANE table, so sources
+    outside the OOB subnet can no longer reach SNMP or gNMI. The SSH_ONLY
+    table (#2329) belongs here as well once implemented.
+
+    caclmgrd's EXTERNAL_CLIENT service has no built-in destination port
+    (verified against sonic-host-services 202211 through master): the rule
+    must carry it in L4_DST_PORT, otherwise caclmgrd skips the whole table
+    and the gNMI restriction would silently not exist.
+
+    ACL_TABLE and ACL_RULE are generator-owned (ON_DEMAND_OWNED_TABLE_KEYS),
+    so they are rebuilt from scratch on every regen and stay absent when the
+    device has no OOB IP. They are also multi-owner
+    (MULTI_OWNER_OWNED_TABLE_KEYS): the SSH_ONLY table (#2329) belongs here as
+    well once implemented, so this helper merges only its own SNMP_ONLY /
+    GNMI_ONLY keys per key rather than rebinding the table wholesale -- the
+    central owned-table drop in generate_sonic_config clears stale entries up
+    front, and per-key merge lets coexisting control-plane helpers compose. The
+    rules are IPv4 (SRC_IP); a non-IPv4 OOB IP logs a warning and emits nothing
+    rather than failing the whole config generation.
+    """
+    network = ipaddress.ip_network(f"{oob_ip}/{prefix_len}", strict=False)
+    if network.version != 4:
+        logger.warning(
+            f"OOB IP {oob_ip}/{prefix_len} is not IPv4; skipping control-plane ACLs"
+        )
+        return
+
+    accept_from_oob = {
+        "PRIORITY": "9999",
+        "PACKET_ACTION": "ACCEPT",
+        "SRC_IP": str(network),
+        "IP_TYPE": "IP",
+    }
+    config.setdefault("ACL_TABLE", {})
+    config["ACL_TABLE"]["SNMP_ONLY"] = {
+        "policy_desc": "SNMP_ONLY",
+        "type": "CTRLPLANE",
+        "services": ["SNMP"],
+    }
+    config["ACL_TABLE"]["GNMI_ONLY"] = {
+        "policy_desc": "GNMI_ONLY",
+        "type": "CTRLPLANE",
+        "services": ["EXTERNAL_CLIENT"],
+    }
+    config.setdefault("ACL_RULE", {})
+    config["ACL_RULE"]["SNMP_ONLY|RULE_1"] = dict(accept_from_oob)
+    config["ACL_RULE"]["GNMI_ONLY|RULE_1"] = {
+        **accept_from_oob,
+        "L4_DST_PORT": _get_gnmi_port(config),
+    }
