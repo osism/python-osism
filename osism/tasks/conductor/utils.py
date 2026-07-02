@@ -220,7 +220,7 @@ def _get_conductor_redfish_credentials(device):
             configuration = get_configuration()
             return configuration.get("ironic_parameters", {})
 
-        node_attributes = _prepare_node_attributes(device, get_ironic_parameters)
+        node_attributes, _ = _prepare_node_attributes(device, get_ironic_parameters)
 
         # Extract Redfish credentials if available
         if (
@@ -252,7 +252,7 @@ def _get_conductor_redfish_address(device):
             configuration = get_configuration()
             return configuration.get("ironic_parameters", {})
 
-        node_attributes = _prepare_node_attributes(device, get_ironic_parameters)
+        node_attributes, _ = _prepare_node_attributes(device, get_ironic_parameters)
 
         # Extract Redfish address if available
         if (
