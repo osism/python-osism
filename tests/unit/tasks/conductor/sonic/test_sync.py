@@ -19,7 +19,7 @@ from unittest.mock import call
 
 import pytest
 
-from osism.tasks.conductor.sonic.sync import sync_sonic
+from osism.tasks.conductor.sonic.sync import _get_sonic_parameter, sync_sonic
 
 
 def _has_log(records, level, substring):
@@ -32,6 +32,7 @@ def make_device(
     role_slug="leaf",
     hwsku="Accton-AS7326-56X",
     config_version=None,
+    version=None,
 ):
     """Build a NetBox-shaped device the orchestrator can consume.
 
@@ -43,6 +44,8 @@ def make_device(
         params["hwsku"] = hwsku
     if config_version is not None:
         params["config_version"] = config_version
+    if version is not None:
+        params["version"] = version
     role = SimpleNamespace(slug=role_slug) if role_slug is not None else None
     return SimpleNamespace(
         id=device_id,
@@ -83,6 +86,7 @@ def patch_sync_deps(mocker):
         ),
         save_config_to_netbox=patch("save_config_to_netbox", return_value=(True, None)),
         export_config_to_file=patch("export_config_to_file", return_value=False),
+        export_firmware_link=patch("export_firmware_link", return_value=False),
         clear_interface_cache=patch("clear_interface_cache"),
         clear_all_caches=patch("clear_all_caches"),
         clear_vip_addresses_cache=patch("clear_vip_addresses_cache"),
@@ -92,6 +96,35 @@ def patch_sync_deps(mocker):
         push_task_output=patch("utils.push_task_output"),
         finish_task_output=patch("utils.finish_task_output"),
     )
+
+
+# ---------------------------------------------------------------------------
+# _get_sonic_parameter
+# ---------------------------------------------------------------------------
+
+
+def test_get_sonic_parameter_returns_value_when_present():
+    device = SimpleNamespace(custom_fields={"sonic_parameters": {"hwsku": "X"}})
+    assert _get_sonic_parameter(device, "hwsku") == "X"
+
+
+@pytest.mark.parametrize(
+    "custom_fields",
+    [
+        {},  # no sonic_parameters key
+        {"sonic_parameters": None},  # present but null
+        {"sonic_parameters": {}},  # present but empty
+        {"sonic_parameters": {"hwsku": "X"}},  # other keys only
+        None,  # no custom_fields at all
+    ],
+)
+def test_get_sonic_parameter_missing_yields_none(custom_fields):
+    device = SimpleNamespace(custom_fields=custom_fields)
+    assert _get_sonic_parameter(device, "version") is None
+
+
+def test_get_sonic_parameter_without_custom_fields_attribute():
+    assert _get_sonic_parameter(SimpleNamespace(), "version") is None
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +332,94 @@ def test_config_version_read_from_custom_fields(mock_nb, patch_sync_deps):
     sync_sonic(device_name="sw-1")
 
     assert deps.generate_sonic_config.call_args.args[3] == "4_2_0"
+
+
+def test_firmware_version_drives_firmware_link(mock_nb, patch_sync_deps):
+    """``sonic_parameters.version`` is passed to ``export_firmware_link`` so the
+    per-device ZTP firmware symlink is reconciled, independent of the config."""
+    deps = patch_sync_deps
+    device = make_device(name="sw-1", role_slug="leaf", version="4.4.2")
+    mock_nb.dcim.devices.get.return_value = device
+
+    sync_sonic(device_name="sw-1")
+
+    deps.export_firmware_link.assert_called_once_with(device, "4.4.2")
+
+
+def test_firmware_link_called_with_none_when_version_absent(mock_nb, patch_sync_deps):
+    """A device without ``sonic_parameters.version`` still calls the firmware
+    link with ``None`` so a link left behind by a cleared version is removed."""
+    deps = patch_sync_deps
+    device = make_device(name="sw-1", role_slug="leaf")
+    mock_nb.dcim.devices.get.return_value = device
+
+    sync_sonic(device_name="sw-1")
+
+    deps.export_firmware_link.assert_called_once_with(device, None)
+
+
+def test_firmware_link_reconciled_without_hwsku(mock_nb, patch_sync_deps):
+    """Firmware reconciliation is not gated on config eligibility: a freshly
+    registered device with serial and version but no hwsku yet — the exact
+    ZTP bring-up case the feature serves — still gets its firmware link."""
+    deps = patch_sync_deps
+    device = make_device(name="sw-1", role_slug="leaf", hwsku=None, version="4.4.2")
+    mock_nb.dcim.devices.get.return_value = device
+
+    sync_sonic(device_name="sw-1")
+
+    deps.export_firmware_link.assert_called_once_with(device, "4.4.2")
+    deps.generate_sonic_config.assert_not_called()
+
+
+def test_firmware_link_reconciled_with_unsupported_hwsku(mock_nb, patch_sync_deps):
+    """An unsupported HWSKU skips config generation but must not skip the
+    firmware link reconciliation."""
+    deps = patch_sync_deps
+    device = make_device(
+        name="sw-1", role_slug="leaf", hwsku="Unsupported-HWSKU", version="4.4.2"
+    )
+    mock_nb.dcim.devices.get.return_value = device
+
+    sync_sonic(device_name="sw-1")
+
+    deps.export_firmware_link.assert_called_once_with(device, "4.4.2")
+    deps.generate_sonic_config.assert_not_called()
+
+
+def test_firmware_link_reconciled_when_config_generation_fails(
+    mock_nb, patch_sync_deps
+):
+    """The firmware link is reconciled before the config steps, so a failing
+    config generation cannot prevent it."""
+    deps = patch_sync_deps
+    device = make_device(name="sw-1", role_slug="leaf", version="4.4.2")
+    mock_nb.dcim.devices.get.return_value = device
+    deps.generate_sonic_config.side_effect = RuntimeError("config generation failed")
+
+    sync_sonic(device_name="sw-1", task_id="t-1")
+
+    deps.export_firmware_link.assert_called_once_with(device, "4.4.2")
+    deps.finish_task_output.assert_called_once_with("t-1", rc=1)
+
+
+def test_firmware_link_failure_reports_nonzero_rc(
+    mock_nb, patch_sync_deps, loguru_logs
+):
+    """A raising ``export_firmware_link`` surfaces as rc=1 but must not abort
+    the device's config sync."""
+    deps = patch_sync_deps
+    device = make_device(name="sw-1", role_slug="leaf", version="4.4.2")
+    mock_nb.dcim.devices.get.return_value = device
+    deps.export_firmware_link.side_effect = OSError("permission denied")
+
+    result = sync_sonic(device_name="sw-1", task_id="t-1")
+
+    deps.finish_task_output.assert_called_once_with("t-1", rc=1)
+    assert _has_log(loguru_logs, "ERROR", "Failed to reconcile firmware symlink")
+    # The config steps still ran despite the firmware failure
+    deps.export_config_to_file.assert_called_once()
+    assert "sw-1" in result
 
 
 # ---------------------------------------------------------------------------

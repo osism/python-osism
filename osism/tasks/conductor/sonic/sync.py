@@ -18,8 +18,25 @@ from .config_generator import (
     _load_metalbox_devices_cache,
 )
 from .constants import DEFAULT_SONIC_ROLES, SUPPORTED_HWSKUS
-from .exporter import save_config_to_netbox, export_config_to_file
+from .exporter import (
+    save_config_to_netbox,
+    export_config_to_file,
+    export_firmware_link,
+)
 from .cache import clear_interface_cache, get_interface_cache_stats
+
+
+def _get_sonic_parameter(device, key):
+    """Return ``sonic_parameters[key]`` from a device's custom fields, or None.
+
+    Centralises the nested ``custom_fields -> sonic_parameters -> <key>``
+    lookup so the per-field reads in ``sync_sonic`` (hwsku, config_version,
+    version) stay short and consistent. Missing custom fields, a missing or
+    empty ``sonic_parameters``, or a missing key all yield None.
+    """
+    custom_fields = getattr(device, "custom_fields", None) or {}
+    sonic_parameters = custom_fields.get("sonic_parameters") or {}
+    return sonic_parameters.get(key)
 
 
 def sync_sonic(device_name=None, task_id=None, show_diff=True):
@@ -156,30 +173,40 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
 
         # Generate SONIC configuration for each device
         for device in devices:
-            # Get HWSKU from sonic_parameters custom field, default to None
-            hwsku = None
-            if (
-                hasattr(device, "custom_fields")
-                and "sonic_parameters" in device.custom_fields
-                and device.custom_fields["sonic_parameters"]
-                and "hwsku" in device.custom_fields["sonic_parameters"]
-            ):
-                hwsku = device.custom_fields["sonic_parameters"]["hwsku"]
+            # Read the per-device SONiC settings from the sonic_parameters
+            # custom field (all default to None when unset).
+            hwsku = _get_sonic_parameter(device, "hwsku")
 
-            # Get config_version from sonic_parameters custom field, default to None
-            config_version = None
-            if (
-                hasattr(device, "custom_fields")
-                and "sonic_parameters" in device.custom_fields
-                and device.custom_fields["sonic_parameters"]
-                and "config_version" in device.custom_fields["sonic_parameters"]
-            ):
-                config_version = device.custom_fields["sonic_parameters"][
-                    "config_version"
-                ]
+            # config_version overrides the generated CONFIG DB VERSION
+            config_version = _get_sonic_parameter(device, "config_version")
+            if config_version:
                 logger.debug(
                     f"Device {device.name} has custom config_version: {config_version}"
                 )
+
+            # version drives the per-device ZTP firmware symlink (see
+            # export_firmware_link), independent of config_version above.
+            version = _get_sonic_parameter(device, "version")
+            if version:
+                logger.debug(
+                    f"Device {device.name} has SONiC firmware version: {version}"
+                )
+
+            # Reconcile the firmware symlink before any config-eligibility
+            # gate: during ZTP a switch needs its firmware before it is
+            # eligible for config generation (a freshly registered device may
+            # carry serial and version but no hwsku yet), and a link left
+            # behind by a cleared version must be removed even when the
+            # config steps are skipped or fail below. A failure surfaces in
+            # the task rc but must not abort the device's config sync.
+            firmware_changed = False
+            try:
+                firmware_changed = export_firmware_link(device, version)
+            except Exception as e:
+                logger.error(
+                    f"Failed to reconcile firmware symlink for device {device.name}: {e}"
+                )
+                rc = 1
 
             # Skip devices without HWSKU
             if not hwsku:
@@ -237,7 +264,7 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
                 # Export the generated configuration to local file (only if changed)
                 file_changed = export_config_to_file(device, sonic_config)
 
-                if netbox_changed or file_changed:
+                if netbox_changed or file_changed or firmware_changed:
                     logger.info(f"Configuration updated for device {device.name}")
                 else:
                     logger.info(f"No configuration changes for device {device.name}")

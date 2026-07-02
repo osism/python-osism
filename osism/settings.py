@@ -70,6 +70,24 @@ SONIC_EXPORT_PREFIX = os.getenv("SONIC_EXPORT_PREFIX", "osism_")
 SONIC_EXPORT_SUFFIX = os.getenv("SONIC_EXPORT_SUFFIX", "_config_db.json")
 SONIC_EXPORT_IDENTIFIER = os.getenv("SONIC_EXPORT_IDENTIFIER", "serial-number")
 
+# SONiC ZTP firmware configuration
+#
+# The ZTP firmware install uses a dynamic-url built from
+# <prefix><identifier><suffix> (see osism/ansible-collection-services#2131),
+# so every switch fetches its firmware image via a per-device name during ZTP.
+# sync_sonic creates that per-device name as a symlink to the version-specific
+# image <prefix><version><suffix>, driven by the device's
+# sonic_parameters.version custom field. The defaults mirror the ansible
+# httpd role and place the links in the same httpd-served directory as the
+# config exports (SONIC_EXPORT_DIR), which stays the single source of truth
+# for the base export path unless a separate firmware directory is set.
+SONIC_FIRMWARE_DIR = os.getenv("SONIC_FIRMWARE_DIR", SONIC_EXPORT_DIR)
+SONIC_FIRMWARE_PREFIX = os.getenv(
+    "SONIC_FIRMWARE_PREFIX", "sonic-broadcom-enterprise-base_"
+)
+SONIC_FIRMWARE_SUFFIX = os.getenv("SONIC_FIRMWARE_SUFFIX", ".bin")
+SONIC_FIRMWARE_IDENTIFIER = os.getenv("SONIC_FIRMWARE_IDENTIFIER", "serial-number")
+
 
 NETBOX_SECONDARIES = (
     os.getenv("NETBOX_SECONDARIES", read_secret("NETBOX_SECONDARIES")) or "[]"
