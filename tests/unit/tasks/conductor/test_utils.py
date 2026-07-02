@@ -8,6 +8,8 @@ from ansible.parsing.vault import VaultLib
 
 from osism.tasks.conductor.utils import (
     DELETE_SENTINEL,
+    _get_conductor_redfish_address,
+    _get_conductor_redfish_credentials,
     _is_secret_key,
     deep_compare,
     deep_decrypt,
@@ -478,3 +480,98 @@ def test_load_yaml_file_does_not_call_get_vault_for_plain_file(tmp_path):
 
     assert result == {"foo": 1}
     get_vault.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _get_conductor_redfish_credentials / _get_conductor_redfish_address
+#
+# _prepare_node_attributes returns a (node_attributes, template_vars) tuple.
+# Both helpers must unpack it before indexing into node_attributes; treating
+# the tuple as a dict makes the "driver_info" membership test fall through and
+# silently drops the conductor credential/address fallback.
+# ---------------------------------------------------------------------------
+
+
+def _patch_prepare(node_attributes, template_vars=None):
+    """Patch _prepare_node_attributes to return the tuple it produces."""
+    return patch(
+        "osism.tasks.conductor.ironic._prepare_node_attributes",
+        return_value=(node_attributes, template_vars or {}),
+    )
+
+
+def test_get_conductor_redfish_credentials_returns_username_and_password():
+    node_attributes = {
+        "driver": "redfish",
+        "driver_info": {
+            "redfish_username": "admin",
+            "redfish_password": "s3cret",
+        },
+    }
+
+    with _patch_prepare(node_attributes, {"ignored": "template_vars"}):
+        assert _get_conductor_redfish_credentials(object()) == ("admin", "s3cret")
+
+
+def test_get_conductor_redfish_credentials_none_device_returns_none_pair():
+    assert _get_conductor_redfish_credentials(None) == (None, None)
+
+
+def test_get_conductor_redfish_credentials_non_redfish_driver_returns_none_pair():
+    node_attributes = {
+        "driver": "ipmi",
+        "driver_info": {"ipmi_username": "root", "ipmi_password": "calvin"},
+    }
+
+    with _patch_prepare(node_attributes):
+        assert _get_conductor_redfish_credentials(object()) == (None, None)
+
+
+def test_get_conductor_redfish_credentials_missing_driver_info_returns_none_pair():
+    with _patch_prepare({"driver": "redfish"}):
+        assert _get_conductor_redfish_credentials(object()) == (None, None)
+
+
+def test_get_conductor_redfish_credentials_swallows_exception():
+    with patch(
+        "osism.tasks.conductor.ironic._prepare_node_attributes",
+        side_effect=RuntimeError("boom"),
+    ):
+        assert _get_conductor_redfish_credentials(object()) == (None, None)
+
+
+def test_get_conductor_redfish_address_returns_address():
+    node_attributes = {
+        "driver": "redfish",
+        "driver_info": {"redfish_address": "https://bmc.example"},
+    }
+
+    with _patch_prepare(node_attributes, {"ignored": "template_vars"}):
+        assert _get_conductor_redfish_address(object()) == "https://bmc.example"
+
+
+def test_get_conductor_redfish_address_none_device_returns_none():
+    assert _get_conductor_redfish_address(None) is None
+
+
+def test_get_conductor_redfish_address_non_redfish_driver_returns_none():
+    node_attributes = {
+        "driver": "ipmi",
+        "driver_info": {"ipmi_address": "1.2.3.4"},
+    }
+
+    with _patch_prepare(node_attributes):
+        assert _get_conductor_redfish_address(object()) is None
+
+
+def test_get_conductor_redfish_address_missing_driver_info_returns_none():
+    with _patch_prepare({"driver": "redfish"}):
+        assert _get_conductor_redfish_address(object()) is None
+
+
+def test_get_conductor_redfish_address_swallows_exception():
+    with patch(
+        "osism.tasks.conductor.ironic._prepare_node_attributes",
+        side_effect=RuntimeError("boom"),
+    ):
+        assert _get_conductor_redfish_address(object()) is None
