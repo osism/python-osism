@@ -3,14 +3,16 @@
 """Unit tests for ``osism.tasks.conductor.sonic.exporter``.
 
 Covers ``save_config_to_netbox`` (NetBox local-context persistence with diff
-checking + journal logging) and ``export_config_to_file`` (on-disk export with
-diff checking, filename selection, and the serial-number→hostname symlink).
+checking + journal logging), ``export_config_to_file`` (on-disk export with
+diff checking, filename selection, and the serial-number→hostname symlink), and
+``export_firmware_link`` (the per-device ZTP firmware symlink pointing at the
+version-specific image).
 
 ``save_config_to_netbox`` reuses the shared ``mock_nb`` fixture (it patches
 ``osism.utils.nb``, which ``exporter.utils.nb`` resolves to). The file-export
-tests drive a real filesystem under ``tmp_path`` where that reads more clearly
-than asserting on mocked ``os`` calls, and fall back to patching ``os.*`` only
-to inject the two error paths (symlink / makedirs failures).
+and firmware-link tests drive a real filesystem under ``tmp_path`` where that
+reads more clearly than asserting on mocked ``os`` calls, and fall back to
+patching ``os.*`` only to inject the error paths (symlink / makedirs failures).
 """
 
 import json
@@ -22,6 +24,7 @@ import pytest
 
 from osism.tasks.conductor.sonic.exporter import (
     export_config_to_file,
+    export_firmware_link,
     save_config_to_netbox,
 )
 
@@ -560,3 +563,286 @@ def test_export_makedirs_failure_raises(
         export_config_to_file(device, {"PORT": {}})
 
     assert _has_log(loguru_logs, "ERROR", "Failed to export config")
+
+
+# ---------------------------------------------------------------------------
+# export_firmware_link
+# ---------------------------------------------------------------------------
+
+_FW_PREFIX = "sonic-broadcom-enterprise-base_"
+_FW_SUFFIX = ".bin"
+
+
+@pytest.fixture
+def firmware_settings(mocker):
+    """Patch the four ``SONIC_FIRMWARE_*`` settings the firmware link reads."""
+
+    def _set(
+        firmware_dir,
+        identifier="serial-number",
+        prefix=_FW_PREFIX,
+        suffix=_FW_SUFFIX,
+    ):
+        mocker.patch(
+            "osism.tasks.conductor.sonic.exporter.settings.SONIC_FIRMWARE_DIR",
+            str(firmware_dir),
+        )
+        mocker.patch(
+            "osism.tasks.conductor.sonic.exporter.settings.SONIC_FIRMWARE_PREFIX",
+            prefix,
+        )
+        mocker.patch(
+            "osism.tasks.conductor.sonic.exporter.settings.SONIC_FIRMWARE_SUFFIX",
+            suffix,
+        )
+        mocker.patch(
+            "osism.tasks.conductor.sonic.exporter.settings.SONIC_FIRMWARE_IDENTIFIER",
+            identifier,
+        )
+
+    return _set
+
+
+# --- version gating ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("version", ["", None])
+def test_firmware_no_version_skips(
+    tmp_path, firmware_settings, patch_hostname, loguru_logs, version
+):
+    """No ``sonic_parameters.version`` and no pre-existing link → nothing is
+    created and nothing is removed."""
+    firmware_settings(tmp_path)
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+
+    assert export_firmware_link(device, version) is False
+
+    assert list(tmp_path.iterdir()) == []
+    assert _has_log(loguru_logs, "DEBUG", "No SONiC firmware version configured")
+
+
+def test_firmware_no_version_missing_serial_does_not_warn(
+    tmp_path, firmware_settings, patch_hostname, loguru_logs
+):
+    """The link is reconciled for every in-scope device on every sync, so a
+    missing serial on the no-version path must not spam warnings."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="")
+
+    assert export_firmware_link(device, None) is False
+
+    assert not _has_log(loguru_logs, "WARNING", "Serial number not found")
+
+
+# --- identifier / target naming --------------------------------------------
+
+
+def test_firmware_serial_identifier_links_to_version_image(
+    tmp_path, firmware_settings, patch_hostname
+):
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+
+    assert export_firmware_link(device, "4.4.2") is True
+
+    link = tmp_path / f"{_FW_PREFIX}ABC123{_FW_SUFFIX}"
+    assert link.is_symlink()
+    assert os.readlink(link) == f"{_FW_PREFIX}4.4.2{_FW_SUFFIX}"
+
+
+def test_firmware_hostname_identifier_uses_hostname(
+    tmp_path, firmware_settings, patch_hostname
+):
+    firmware_settings(tmp_path, identifier="hostname")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+
+    assert export_firmware_link(device, "4.4.2") is True
+
+    link = tmp_path / f"{_FW_PREFIX}sw-1{_FW_SUFFIX}"
+    assert link.is_symlink()
+    assert os.readlink(link) == f"{_FW_PREFIX}4.4.2{_FW_SUFFIX}"
+
+
+@pytest.mark.parametrize("serial", ["", None])
+def test_firmware_serial_missing_falls_back_to_hostname(
+    tmp_path, firmware_settings, patch_hostname, loguru_logs, serial
+):
+    """An empty or absent serial in serial-number mode warns and names the link
+    by hostname instead."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = (
+        SimpleNamespace(name="sw-1", serial=serial)
+        if serial is not None
+        else SimpleNamespace(name="sw-1")
+    )
+
+    assert export_firmware_link(device, "4.4.2") is True
+
+    link = tmp_path / f"{_FW_PREFIX}sw-1{_FW_SUFFIX}"
+    assert link.is_symlink()
+    assert os.readlink(link) == f"{_FW_PREFIX}4.4.2{_FW_SUFFIX}"
+    assert _has_log(loguru_logs, "WARNING", "Serial number not found")
+
+
+def test_firmware_link_name_equals_version_image_skips(
+    tmp_path, firmware_settings, patch_hostname
+):
+    """When the identifier equals the version the link name equals the image
+    name — no self-referential symlink may shadow the actual image."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="4.4.2")
+
+    assert export_firmware_link(device, "4.4.2") is False
+
+    assert list(tmp_path.iterdir()) == []
+
+
+# --- reconciliation ---------------------------------------------------------
+
+
+def test_firmware_existing_correct_symlink_left_untouched(
+    tmp_path, firmware_settings, patch_hostname, mocker
+):
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    link = tmp_path / f"{_FW_PREFIX}ABC123{_FW_SUFFIX}"
+    link.symlink_to(f"{_FW_PREFIX}4.4.2{_FW_SUFFIX}")
+    remove_spy = mocker.spy(os, "remove")
+    symlink_spy = mocker.spy(os, "symlink")
+
+    assert export_firmware_link(device, "4.4.2") is False
+
+    remove_spy.assert_not_called()
+    symlink_spy.assert_not_called()
+    assert os.readlink(link) == f"{_FW_PREFIX}4.4.2{_FW_SUFFIX}"
+
+
+def test_firmware_repoints_stale_symlink(tmp_path, firmware_settings, patch_hostname):
+    """A link pointing at the wrong version image is repointed (e.g. after the
+    device's version changed in NetBox)."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    link = tmp_path / f"{_FW_PREFIX}ABC123{_FW_SUFFIX}"
+    link.symlink_to(f"{_FW_PREFIX}4.4.1{_FW_SUFFIX}")
+
+    assert export_firmware_link(device, "4.4.2") is True
+
+    assert os.readlink(link) == f"{_FW_PREFIX}4.4.2{_FW_SUFFIX}"
+
+
+def test_firmware_replaces_existing_regular_file_with_symlink(
+    tmp_path, firmware_settings, patch_hostname
+):
+    """A regular file at the link path is removed before the symlink is
+    created."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    link = tmp_path / f"{_FW_PREFIX}ABC123{_FW_SUFFIX}"
+    link.write_bytes(b"stale image")
+
+    assert export_firmware_link(device, "4.4.2") is True
+
+    assert link.is_symlink()
+    assert os.readlink(link) == f"{_FW_PREFIX}4.4.2{_FW_SUFFIX}"
+
+
+# --- removal on cleared version ----------------------------------------------
+
+
+@pytest.mark.parametrize("version", ["", None])
+def test_firmware_cleared_version_removes_managed_link(
+    tmp_path, firmware_settings, patch_hostname, version
+):
+    """Clearing ``sonic_parameters.version`` removes a previously created
+    link, so ZTP stops serving a withdrawn image."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    link = tmp_path / f"{_FW_PREFIX}ABC123{_FW_SUFFIX}"
+    link.symlink_to(f"{_FW_PREFIX}4.4.2{_FW_SUFFIX}")
+
+    assert export_firmware_link(device, version) is True
+
+    assert not os.path.lexists(link)
+
+
+def test_firmware_cleared_version_keeps_regular_file(
+    tmp_path, firmware_settings, patch_hostname
+):
+    """An operator-placed real image at the link path is never clobbered by
+    the removal path."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    image = tmp_path / f"{_FW_PREFIX}ABC123{_FW_SUFFIX}"
+    image.write_bytes(b"real image")
+
+    assert export_firmware_link(device, None) is False
+
+    assert image.exists() and not image.is_symlink()
+    assert image.read_bytes() == b"real image"
+
+
+def test_firmware_cleared_version_keeps_foreign_symlink(
+    tmp_path, firmware_settings, patch_hostname, loguru_logs
+):
+    """A symlink whose target lies outside the managed
+    ``<prefix><version><suffix>`` namespace is not ours to remove."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    link = tmp_path / f"{_FW_PREFIX}ABC123{_FW_SUFFIX}"
+    link.symlink_to("some-other-image.bin")
+
+    assert export_firmware_link(device, None) is False
+
+    assert link.is_symlink()
+    assert os.readlink(link) == "some-other-image.bin"
+    assert _has_log(loguru_logs, "DEBUG", "outside the managed namespace")
+
+
+def test_firmware_cleared_version_keeps_absolute_target_symlink(
+    tmp_path, firmware_settings, patch_hostname
+):
+    """A symlink pointing outside the firmware directory is kept even when
+    its basename happens to match the managed naming scheme."""
+    firmware_settings(tmp_path, identifier="serial-number")
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+    link = tmp_path / f"{_FW_PREFIX}ABC123{_FW_SUFFIX}"
+    link.symlink_to(f"/elsewhere/{_FW_PREFIX}4.4.2{_FW_SUFFIX}")
+
+    assert export_firmware_link(device, None) is False
+
+    assert link.is_symlink()
+
+
+# --- error handling ---------------------------------------------------------
+
+
+def test_firmware_symlink_failure_raises(
+    tmp_path, firmware_settings, patch_hostname, mocker, loguru_logs
+):
+    firmware_settings(tmp_path, identifier="serial-number")
+    mocker.patch(
+        "osism.tasks.conductor.sonic.exporter.os.symlink",
+        side_effect=OSError("permission denied"),
+    )
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+
+    with pytest.raises(OSError, match="permission denied"):
+        export_firmware_link(device, "4.4.2")
+
+    assert _has_log(loguru_logs, "ERROR", "Failed to reconcile firmware symlink")
+
+
+def test_firmware_makedirs_failure_raises(
+    tmp_path, firmware_settings, patch_hostname, mocker, loguru_logs
+):
+    firmware_settings(tmp_path, identifier="serial-number")
+    mocker.patch(
+        "osism.tasks.conductor.sonic.exporter.os.makedirs",
+        side_effect=OSError("read-only filesystem"),
+    )
+    device = SimpleNamespace(name="sw-1", serial="ABC123")
+
+    with pytest.raises(OSError, match="read-only filesystem"):
+        export_firmware_link(device, "4.4.2")
+
+    assert _has_log(loguru_logs, "ERROR", "Failed to reconcile firmware symlink")

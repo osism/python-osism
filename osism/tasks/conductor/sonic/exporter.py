@@ -285,3 +285,143 @@ def export_config_to_file(device, config):
     except Exception as e:
         logger.error(f"Failed to export config for device {device.name}: {e}")
         raise
+
+
+def _remove_managed_firmware_link(device, link_path, prefix, suffix):
+    """Remove a device's firmware symlink once no version is configured.
+
+    Only a symlink whose target lies in the managed
+    ``<prefix><version><suffix>`` namespace is removed; anything else at the
+    link path -- a regular file such as an operator-placed image, or a symlink
+    pointing elsewhere -- is not ours and is left alone.
+
+    Returns:
+        bool: True if a managed link was removed, False otherwise.
+    """
+    if not os.path.islink(link_path):
+        logger.debug(
+            f"No SONiC firmware version configured for device {device.name}, "
+            "no managed firmware symlink to remove"
+        )
+        return False
+
+    target_name = os.readlink(link_path)
+    if not (
+        target_name.startswith(prefix)
+        and target_name.endswith(suffix)
+        and len(target_name) > len(prefix) + len(suffix)
+        and os.sep not in target_name
+    ):
+        logger.debug(
+            f"Keeping firmware symlink {link_path} -> {target_name} for device "
+            f"{device.name}: target is outside the managed namespace"
+        )
+        return False
+
+    os.remove(link_path)
+    logger.info(
+        f"Removed firmware symlink {link_path} -> {target_name} for device "
+        f"{device.name}: no SONiC firmware version configured"
+    )
+    return True
+
+
+def export_firmware_link(device, version):
+    """Reconcile the per-device SONiC ZTP firmware symlink for a device.
+
+    PR osism/ansible-collection-services#2131 switched the ZTP firmware
+    install to a dynamic-url built from ``<prefix><identifier><suffix>``
+    (identifier ``serial-number`` by default), so during ZTP each switch
+    fetches ``<prefix><serial><suffix>``. This function creates that
+    per-device name as a *relative* symlink to the version-specific image
+    ``<prefix><version><suffix>`` in the same firmware directory, using the
+    version from the device's ``sonic_parameters.version`` custom field.
+
+    The symlink is reconciled on every call: a missing, stale, or wrongly
+    pointed link is repaired even when nothing else changed, and when the
+    version is unset a previously created link is removed so ZTP stops
+    serving a withdrawn image (see ``_remove_managed_firmware_link`` for the
+    guard that keeps operator-placed files safe). The target image is
+    provided out of band (e.g. downloaded by metalbox), so the link may be
+    dangling until that image is present -- creating a symlink does not require
+    the target to exist.
+
+    Args:
+        device: NetBox device object
+        version: SONiC firmware version string (e.g. "4.4.2"), or a falsy
+            value when the device has no ``sonic_parameters.version`` set.
+
+    Returns:
+        bool: True if the symlink was created, repointed, or removed; False
+              if it already matched the desired state (correct target, or no
+              version and no managed link).
+
+    Raises:
+        Exception: If reconciling the symlink fails, so a failed link is
+                   distinguishable from "no changes".
+    """
+    try:
+        firmware_dir = settings.SONIC_FIRMWARE_DIR
+        prefix = settings.SONIC_FIRMWARE_PREFIX
+        suffix = settings.SONIC_FIRMWARE_SUFFIX
+        identifier_type = settings.SONIC_FIRMWARE_IDENTIFIER
+
+        # Determine the per-device identifier the switch requests during ZTP
+        if identifier_type == "serial-number":
+            identifier = (
+                device.serial if hasattr(device, "serial") and device.serial else None
+            )
+            if not identifier:
+                # Expected for most devices on the removal path (no version
+                # configured), so only warn when a link is being created
+                fallback_log = logger.warning if version else logger.debug
+                fallback_log(
+                    f"Serial number not found for device {device.name}, "
+                    "falling back to hostname for firmware symlink"
+                )
+                identifier = get_device_hostname(device)
+        else:
+            identifier = get_device_hostname(device)
+
+        link_name = f"{prefix}{identifier}{suffix}"
+        link_path = os.path.join(firmware_dir, link_name)
+
+        if not version:
+            return _remove_managed_firmware_link(device, link_path, prefix, suffix)
+
+        os.makedirs(firmware_dir, exist_ok=True)
+
+        # Relative target within firmware_dir, matching the served httpd layout
+        target_name = f"{prefix}{version}{suffix}"
+
+        if link_name == target_name:
+            # The device identifier equals the version: a symlink here would
+            # point to itself and shadow the actual image
+            logger.debug(
+                f"Skipping firmware symlink for device {device.name}: "
+                "link name equals version image name"
+            )
+            return False
+
+        if os.path.islink(link_path) and os.readlink(link_path) == target_name:
+            logger.debug(
+                f"Firmware symlink {link_path} already points to {target_name}"
+            )
+            return False
+
+        if os.path.exists(link_path) or os.path.islink(link_path):
+            logger.debug(f"Removing existing firmware file/symlink: {link_path}")
+            os.remove(link_path)
+
+        os.symlink(target_name, link_path)
+        logger.info(
+            f"Created firmware symlink {link_path} -> {target_name} "
+            f"for device {device.name}"
+        )
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Failed to reconcile firmware symlink for device {device.name}: {e}"
+        )
+        raise
