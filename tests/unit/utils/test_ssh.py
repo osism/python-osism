@@ -318,8 +318,8 @@ def test_remove_no_entry_found(mocker, loguru_logs):
     assert _has_log(loguru_logs, "DEBUG", "No SSH known_hosts entries found to clean")
 
 
-def test_remove_nonzero_returncode_continues(mocker, loguru_logs):
-    """returncode != 0 -> warning, but success not flipped to False."""
+def test_remove_nonzero_returncode_fails(mocker, loguru_logs):
+    """returncode != 0 signals a genuine failure -> warning and success False."""
     mocker.patch("osism.utils.ssh.os.path.exists", return_value=True)
     mocker.patch("osism.utils.ssh.get_host_identifiers", return_value=["node01"])
     mocker.patch(
@@ -327,7 +327,7 @@ def test_remove_nonzero_returncode_continues(mocker, loguru_logs):
         return_value=_run_result(returncode=1, stderr="some failure"),
     )
 
-    assert remove_known_hosts_entries("node01") is True
+    assert remove_known_hosts_entries("node01") is False
     assert _has_log(loguru_logs, "WARNING", "non-zero exit code")
 
 

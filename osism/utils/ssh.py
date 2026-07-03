@@ -161,10 +161,15 @@ def remove_known_hosts_entries(
                 else:
                     logger.debug(f"No SSH known_hosts entries found for {identifier}")
             else:
-                # Log stderr for debugging but don't fail entirely
+                # ssh-keygen -R returns 0 even when the host is absent from the
+                # file, and the non-existent-file case is already short-circuited
+                # above. A non-zero exit therefore signals a genuine failure (e.g.
+                # a corrupt or unreadable known_hosts), so the cleanup did not
+                # succeed and a stale host key may survive.
                 logger.warning(
                     f"ssh-keygen returned non-zero exit code for {identifier}: {result.stderr.strip()}"
                 )
+                success = False
 
         except subprocess.TimeoutExpired:
             logger.error(
