@@ -11,6 +11,7 @@ from tabulate import tabulate
 import yaml
 
 from osism.commands.octavia import wait_for_amphora_boot
+from osism.utils import mariadb
 
 
 def _load_kolla_configuration():
@@ -79,16 +80,12 @@ def _get_octavia_database_connection():
     if password is None:
         return None
 
-    # Determine database user based on ProxySQL configuration
-    enable_proxysql = config.get("enable_proxysql", False)
-    db_user = "octavia_shard_0" if enable_proxysql else "octavia"
-
     try:
-        connection = pymysql.connect(
-            host=vip_address,
+        connection = mariadb.connect(
+            vip_address,
+            "octavia",
+            password,
             port=3306,
-            user=db_user,
-            password=password,
             database="octavia",
             cursorclass=pymysql.cursors.DictCursor,
             connect_timeout=10,
