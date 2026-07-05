@@ -30,7 +30,7 @@ python-openstackclient==9.0.0
 redfish==3.3.5
 setuptools==82.0.1
 sqlmodel==0.0.39
-sushy==5.11.0
+sushy==5.11.1
 tabulate==0.10.0
 transitions==0.9.3
 uvicorn[standard]==0.49.0
