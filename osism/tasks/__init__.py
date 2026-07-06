@@ -394,6 +394,7 @@ def run_command(
             key=f"lock-{command}",
             auto_release_time=auto_release_time,
         )
+        lock.acquire()
 
     p = subprocess.Popen(
         [command] + list(arguments),

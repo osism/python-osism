@@ -655,15 +655,13 @@ def test_run_command_publish_false_no_streaming(command_mocks):
     command_mocks.finish.assert_not_called()
 
 
-def test_run_command_locking_never_acquires(command_mocks):
-    # Pinned quirk: with locking=True a redlock is created and released but
-    # acquire() is never called in the current implementation.
+def test_run_command_locking_lifecycle(command_mocks):
     tasks.run_command("req-1", "echo", {}, locking=True)
     command_mocks.create_redlock.assert_called_once_with(
         key="lock-echo", auto_release_time=3600
     )
     lock = command_mocks.create_redlock.return_value
-    lock.acquire.assert_not_called()
+    lock.acquire.assert_called_once()
     lock.release.assert_called_once()
 
 
