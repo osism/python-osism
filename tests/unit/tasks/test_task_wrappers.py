@@ -428,8 +428,8 @@ def test_reconciler_run_publishes_output(mocker):
     lock.release.assert_called_once_with()
 
 
-def test_reconciler_run_without_publish_skips_output(mocker):
-    """With ``publish=False`` no output is published but the process is waited on."""
+def test_reconciler_run_without_publish_drains_but_skips_output(mocker):
+    """With ``publish=False`` stdout is still drained but nothing is published."""
     mocker.patch("osism.tasks.reconciler.utils.check_task_lock_and_exit")
     lock = mocker.MagicMock()
     lock.acquire.return_value = True
@@ -437,11 +437,17 @@ def test_reconciler_run_without_publish_skips_output(mocker):
     push = mocker.patch("osism.tasks.reconciler.utils.push_task_output")
     finish = mocker.patch("osism.tasks.reconciler.utils.finish_task_output")
     proc = mocker.MagicMock()
+    # Real bytes so the production ``TextIOWrapper`` drain loop consumes the
+    # pipe; if the loop were skipped a filled pipe would deadlock ``wait()``.
+    proc.stdout = io.BytesIO(b"noise one\nnoise two\n")
     proc.wait.return_value = 0
     mocker.patch("osism.tasks.reconciler.subprocess.Popen", return_value=proc)
 
     reconciler.run.__wrapped__(publish=False)
 
+    # The drain loop wrapped and exhausted the pipe (``TextIOWrapper`` closes
+    # the buffer on completion) even though nothing is forwarded downstream.
+    assert proc.stdout.closed
     push.assert_not_called()
     finish.assert_not_called()
     proc.wait.assert_called_once_with(timeout=60)
@@ -493,8 +499,8 @@ def test_run_on_change_returns_none_when_lock_not_acquired(mocker):
     assert result is None
 
 
-def test_run_on_change_runs_script_without_publishing(mocker):
-    """``run_on_change`` spawns ``/run.sh`` with no ``env`` kwarg and no output."""
+def test_run_on_change_drains_script_output_into_log(mocker, loguru_logs):
+    """``run_on_change`` spawns ``/run.sh`` and drains its output into the log."""
     check = mocker.patch("osism.tasks.reconciler.utils.check_task_lock_and_exit")
     lock = mocker.MagicMock()
     lock.acquire.return_value = True
@@ -502,18 +508,27 @@ def test_run_on_change_runs_script_without_publishing(mocker):
     push = mocker.patch("osism.tasks.reconciler.utils.push_task_output")
     finish = mocker.patch("osism.tasks.reconciler.utils.finish_task_output")
     proc = mocker.MagicMock()
+    # Real bytes so the production ``TextIOWrapper`` drain loop consumes the
+    # pipe; without draining a filled pipe would deadlock the bare ``wait()``.
+    proc.stdout = io.BytesIO(b"reconcile line\n")
     popen = mocker.patch("osism.tasks.reconciler.subprocess.Popen", return_value=proc)
 
     reconciler.run_on_change.__wrapped__()
 
-    # The exact-match assertion also proves there is no ``env`` kwarg.
+    # ``stdout=PIPE`` is required to drain; the exact match also proves there
+    # is no ``env`` kwarg (unlike ``run``).
     popen.assert_called_once_with(
         "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
-    proc.wait.assert_called_once_with()
+    # Pipe fully consumed (``TextIOWrapper`` closes the buffer on completion)
+    # and each line forwarded to the log.
+    assert proc.stdout.closed
+    assert _has_log(loguru_logs, "INFO", "reconcile line")
+    # A timeout backstops the final reap, matching ``run``.
+    proc.wait.assert_called_once_with(timeout=60)
+    # ``run_on_change`` publishes nowhere and has no task-lock check.
     push.assert_not_called()
     finish.assert_not_called()
-    # ``run_on_change`` has no task-lock check, unlike ``run``.
     check.assert_not_called()
     lock.release.assert_called_once_with()
 
@@ -527,6 +542,7 @@ def test_run_on_change_warns_when_lock_already_released(mocker, loguru_logs):
     )
     mocker.patch("osism.tasks.reconciler.utils.create_redlock", return_value=lock)
     proc = mocker.MagicMock()
+    proc.stdout = io.BytesIO(b"")
     mocker.patch("osism.tasks.reconciler.subprocess.Popen", return_value=proc)
 
     # Must not propagate.
