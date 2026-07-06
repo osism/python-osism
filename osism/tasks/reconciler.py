@@ -47,9 +47,12 @@ def run(self, publish=True):
             env=env,
         )
 
-        if publish:
-            for line in io.TextIOWrapper(p.stdout, encoding="utf-8"):
-                utils.push_task_output(self.request.id, line)
+        # Always drain stdout so a chatty /run.sh cannot fill the pipe buffer
+        # and deadlock on wait(); only forward the lines when publishing.
+        with io.TextIOWrapper(p.stdout, encoding="utf-8") as stdout:
+            for line in stdout:
+                if publish:
+                    utils.push_task_output(self.request.id, line)
 
         rc = p.wait(timeout=60)
 
@@ -78,7 +81,14 @@ def run_on_change(self):
         p = subprocess.Popen(
             "/run.sh", shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
-        p.wait()
+
+        # Drain stdout into the log so a chatty /run.sh cannot fill the pipe
+        # buffer and deadlock on wait(); run_on_change publishes nowhere.
+        with io.TextIOWrapper(p.stdout, encoding="utf-8") as stdout:
+            for line in stdout:
+                logger.info(line.rstrip())
+
+        p.wait(timeout=60)
 
         from pottery import ReleaseUnlockedLock
 
