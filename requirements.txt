@@ -1,4 +1,4 @@
-ClusterShell==1.9.3
+ClusterShell==1.10
 boto3==1.43.40
 GitPython==3.1.50
 Jinja2==3.1.6
