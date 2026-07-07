@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-ClusterShell = "==1.9.3"
+ClusterShell = "==1.10"
 GitPython = "==3.1.50"
 Jinja2 = "==3.1.6"
 PyMySQL = "==1.2.0"
