@@ -332,22 +332,20 @@ class Database(Command):
                 logger.error("Failed to load database password")
             return 1
 
-        # Determine database user based on ProxySQL configuration
-        enable_proxysql = config.get("enable_proxysql", False)
-        db_user = "root_shard_0" if enable_proxysql else "root"
-
         # Connect to MariaDB
         if format == "log":
-            logger.info(f"Connecting to MariaDB at {vip_address} as {db_user}...")
+            logger.info(f"Connecting to MariaDB at {vip_address}...")
 
         import pymysql
 
+        from osism.utils import mariadb
+
         try:
-            connection = pymysql.connect(
-                host=vip_address,
+            connection = mariadb.connect(
+                vip_address,
+                "root",
+                password,
                 port=3306,
-                user=db_user,
-                password=password,
                 connect_timeout=10,
             )
         except pymysql.Error as exc:
