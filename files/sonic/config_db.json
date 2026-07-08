@@ -420,7 +420,7 @@
         "monitoring": {}
     },
     "SNMP_SERVER_GROUP_ACCESS": {
-        "monitoring|Default|usm|auth-no-priv": {
+        "monitoring|Default|usm|auth-priv": {
             "contextMatch": "exact",
             "notifyView": "None",
             "readView": "rview",
