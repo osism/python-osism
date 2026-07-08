@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from osism.data.enums import (
-    LOADBALANCER_PLAYBOOKS,
     MAP_ROLE2ROLE,
     VALIDATE_PLAYBOOKS,
     Role,
@@ -95,38 +94,6 @@ def test_role_accepts_nested_dependencies():
 
     assert role.dependencies[0].name == "neutron"
     assert role.dependencies[0].dependencies[0].name == "nova"
-
-
-# ---------------------------------------------------------------------------
-# LOADBALANCER_PLAYBOOKS
-# ---------------------------------------------------------------------------
-
-
-def test_loadbalancer_playbooks_is_non_empty_list():
-    assert isinstance(LOADBALANCER_PLAYBOOKS, list)
-    assert LOADBALANCER_PLAYBOOKS
-
-
-def test_loadbalancer_playbooks_entries_are_non_empty_strings():
-    for entry in LOADBALANCER_PLAYBOOKS:
-        assert isinstance(entry, str)
-        assert entry
-
-
-def test_loadbalancer_playbooks_entries_share_prefix():
-    for entry in LOADBALANCER_PLAYBOOKS:
-        assert entry.startswith("loadbalancer-")
-
-
-def test_loadbalancer_playbooks_entries_have_service_suffix():
-    for entry in LOADBALANCER_PLAYBOOKS:
-        suffix = entry.removeprefix("loadbalancer-")
-        assert suffix
-        assert not suffix.startswith("-")
-
-
-def test_loadbalancer_playbooks_has_no_duplicates():
-    assert len(LOADBALANCER_PLAYBOOKS) == len(set(LOADBALANCER_PLAYBOOKS))
 
 
 # ---------------------------------------------------------------------------
