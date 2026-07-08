@@ -23,34 +23,6 @@ class Role:
         self.dependencies = dependencies or []
 
 
-LOADBALANCER_PLAYBOOKS = [
-    "loadbalancer-aodh",
-    "loadbalancer-barbican",
-    "loadbalancer-blazar",
-    "loadbalancer-ceph-rgw",
-    "loadbalancer-cinder",
-    "loadbalancer-designate",
-    "loadbalancer-glance",
-    "loadbalancer-gnocchi",
-    "loadbalancer-grafana",
-    "loadbalancer-heat",
-    "loadbalancer-horizon",
-    "loadbalancer-ironic",
-    "loadbalancer-keystone",
-    "loadbalancer-magnum",
-    "loadbalancer-manila",
-    "loadbalancer-mariadb",
-    "loadbalancer-memcached",
-    "loadbalancer-neutron",
-    "loadbalancer-nova",
-    "loadbalancer-octavia",
-    "loadbalancer-opensearch",
-    "loadbalancer-placement",
-    "loadbalancer-prometheus",
-    "loadbalancer-rabbitmq",
-    "loadbalancer-skydive",
-]
-
 VALIDATE_PLAYBOOKS = {
     "barbican-config": {
         "runtime": "kolla-ansible",
@@ -158,7 +130,7 @@ MAP_ROLE2ROLE = {
                     dependencies=[
                         Role("opensearch"),
                         Role(
-                            "mariadb-ng",
+                            "mariadb",
                             dependencies=[
                                 Role("horizon"),
                                 Role(
@@ -187,7 +159,7 @@ MAP_ROLE2ROLE = {
                 Role("openvswitch", dependencies=[Role("ovn")]),
                 Role("memcached"),
                 Role("redis"),
-                Role("rabbitmq-ng"),
+                Role("rabbitmq"),
             ],
         ),
         Role(
@@ -242,13 +214,13 @@ MAP_ROLE2ROLE = {
                     dependencies=[
                         Role("letsencrypt"),
                         Role("opensearch"),
-                        Role("mariadb-ng"),
+                        Role("mariadb"),
                     ],
                 ),
                 Role("openvswitch", dependencies=[Role("ovn")]),
                 Role("memcached"),
                 Role("redis"),
-                Role("rabbitmq-ng"),
+                Role("rabbitmq"),
             ],
         ),
     ],
@@ -386,13 +358,13 @@ MAP_ROLE2ROLE = {
                     dependencies=[
                         Role("letsencrypt"),
                         Role("opensearch"),
-                        Role("mariadb-ng"),
+                        Role("mariadb"),
                     ],
                 ),
                 Role("openvswitch", dependencies=[Role("ovn")]),
                 Role("memcached"),
                 Role("redis"),
-                Role("rabbitmq-ng"),
+                Role("rabbitmq"),
             ],
         ),
     ],

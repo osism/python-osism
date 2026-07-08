@@ -279,7 +279,6 @@ class Run(Command):
         timeout,
         task_timeout,
     ):
-        from celery import group
         from osism.data.playbooks import MAP_ROLE2ENVIRONMENT, MAP_ROLE2RUNTIME
         from osism.tasks import ansible, ceph, kolla, kubernetes
 
@@ -312,24 +311,6 @@ class Run(Command):
             t = kubernetes.run.si(
                 environment, role, arguments, auto_release_time=task_timeout
             )
-        elif role == "loadbalancer-ng":
-            if sub:
-                environment = f"{environment}.{sub}"
-            g = group(
-                kolla.run.si(
-                    environment, playbook, arguments, auto_release_time=task_timeout
-                )
-                for playbook in enums.LOADBALANCER_PLAYBOOKS
-            )
-            t = (
-                kolla.run.si(
-                    environment,
-                    "loadbalancer-ng",
-                    arguments,
-                    auto_release_time=task_timeout,
-                )
-                | g
-            )
         elif environment == "kolla":
             if sub:
                 environment = f"{environment}.{sub}"
@@ -337,10 +318,7 @@ class Run(Command):
             if role.startswith("kolla-"):
                 role = role[6:]
 
-            if role in ["mariadb-ng", "rabbitmq-ng"]:
-                kolla_arguments = [f"-e kolla_action_ng={action}"] + arguments
-            else:
-                kolla_arguments = [f"-e kolla_action={action}"] + arguments
+            kolla_arguments = [f"-e kolla_action={action}"] + arguments
 
             if (
                 role not in ["common"]
