@@ -33,7 +33,7 @@ sqlmodel==0.0.39
 sushy==5.11.1
 tabulate==0.10.0
 transitions==0.9.3
-uvicorn[standard]==0.50.2
+uvicorn[standard]==0.51.0
 validators==0.35.0
 watchdog==6.0.0
 websockets==16.0
