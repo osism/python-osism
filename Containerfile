@@ -41,6 +41,7 @@ apk add --no-cache --virtual .build-deps \
   musl-dev \
   openldap-dev
 apk add --no-cache \
+  aria2 \
   cdrkit \
   coreutils \
   git \
