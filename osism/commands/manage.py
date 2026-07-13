@@ -468,8 +468,12 @@ class ImageOctavia(Command):
             "--cloud",
             cloud,
             "--deactivate",
+            # One web-download attempt only: the amphora image source is
+            # chronically slow, so retrying web-download just wastes another
+            # multi-minute doomed transfer. On the first failure the default
+            # --prefetch on-stuck falls back to aria2 + glance-direct.
             "--stuck-retry",
-            "1",
+            "0",
         ]
 
         task_signature = openstack.image_manager.si(
