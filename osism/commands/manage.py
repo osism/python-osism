@@ -481,7 +481,10 @@ class ImageOctavia(Command):
                 f"It takes a moment until task {task.task_id} (image-manager) has been started and output is visible here."
             )
 
-        return handle_task(task, wait, format="script", timeout=3600)
+        # A larger budget than the other image tasks: on a stuck web-download
+        # the image-manager falls back to aria2 + glance-direct, which adds a
+        # local download and staging on top of the import.
+        return handle_task(task, wait, format="script", timeout=5400)
 
 
 class Images(Command):
