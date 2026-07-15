@@ -129,7 +129,8 @@ def set_maintenance(
                           If not provided, uses utils.secondary_nb_list.
 
     Returns:
-        bool: True if lock was acquired and operation succeeded, False if lock could not be acquired.
+        bool: True if the lock was acquired and all matching updates succeeded;
+              False if the lock could not be acquired or an update failed.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -139,6 +140,7 @@ def set_maintenance(
         auto_release_time=300,
     )
     if lock.acquire(timeout=120):
+        success = True
         try:
             # Process primary NetBox
             if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
@@ -148,6 +150,7 @@ def set_maintenance(
                 if not _update_netbox_device_field(
                     utils.nb, device_name, "maintenance", state
                 ):
+                    success = False
                     logger.error(
                         f"Could not set maintenance for {device_name} on {utils.nb.base_url}"
                     )
@@ -175,12 +178,13 @@ def set_maintenance(
                 if not _update_netbox_device_field(
                     nb, device_name, "maintenance", state
                 ):
+                    success = False
                     logger.error(
                         f"Could not set maintenance for {device_name} on {nb.base_url}"
                     )
         finally:
             lock.release()
-        return True
+        return success
     else:
         logger.error(f"Could not acquire lock for node {device_name}")
         return False
@@ -202,7 +206,8 @@ def set_provision_state(
                           If not provided, uses utils.secondary_nb_list.
 
     Returns:
-        bool: True if lock was acquired and operation succeeded, False if lock could not be acquired.
+        bool: True if the lock was acquired and all matching updates succeeded;
+              False if the lock could not be acquired or an update failed.
     """
     # Check if tasks are locked before execution
     utils.check_task_lock_and_exit()
@@ -212,6 +217,7 @@ def set_provision_state(
         auto_release_time=300,
     )
     if lock.acquire(timeout=120):
+        success = True
         try:
             # Process primary NetBox
             if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
@@ -221,6 +227,7 @@ def set_provision_state(
                 if not _update_netbox_device_field(
                     utils.nb, device_name, "provision_state", state
                 ):
+                    success = False
                     logger.error(
                         f"Could not set provision state for {device_name} on {utils.nb.base_url}"
                     )
@@ -248,12 +255,13 @@ def set_provision_state(
                 if not _update_netbox_device_field(
                     nb, device_name, "provision_state", state
                 ):
+                    success = False
                     logger.error(
                         f"Could not set provision state for {device_name} on {nb.base_url}"
                     )
         finally:
             lock.release()
-        return True
+        return success
     else:
         logger.error(f"Could not acquire lock for node {device_name}")
         return False
@@ -275,7 +283,8 @@ def set_power_state(
                           If not provided, uses utils.secondary_nb_list.
 
     Returns:
-        bool: True if lock was acquired and operation succeeded, False if lock could not be acquired.
+        bool: True if the lock was acquired and all matching updates succeeded;
+              False if the lock could not be acquired or an update failed.
     """
     # Convert None to "n/a" for clearer user feedback
     if state is None:
@@ -289,6 +298,7 @@ def set_power_state(
         auto_release_time=300,
     )
     if lock.acquire(timeout=120):
+        success = True
         try:
             # Process primary NetBox
             if _matches_netbox_filter(utils.nb, netbox_filter, is_primary=True):
@@ -298,6 +308,7 @@ def set_power_state(
                 if not _update_netbox_device_field(
                     utils.nb, device_name, "power_state", state
                 ):
+                    success = False
                     logger.error(
                         f"Could not set power state for {device_name} on {utils.nb.base_url}"
                     )
@@ -325,12 +336,13 @@ def set_power_state(
                 if not _update_netbox_device_field(
                     nb, device_name, "power_state", state
                 ):
+                    success = False
                     logger.error(
                         f"Could not set power state for {device_name} on {nb.base_url}"
                     )
         finally:
             lock.release()
-        return True
+        return success
     else:
         logger.error(f"Could not acquire lock for node {device_name}")
         return False
