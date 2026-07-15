@@ -389,7 +389,9 @@ def get_interfaces_by_device(self, device_name):
 
 @app.task(bind=True, name="osism.tasks.netbox.get_addresses_by_device_and_interface")
 def get_addresses_by_device_and_interface(self, device_name, interface_name):
-    return utils.nb.dcim.addresses.filter(device=device_name, interface=interface_name)
+    return utils.nb.ipam.ip_addresses.filter(
+        device=device_name, interface=interface_name
+    )
 
 
 @app.task(bind=True, name="osism.tasks.netbox.manage")
