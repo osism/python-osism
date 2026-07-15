@@ -79,8 +79,10 @@ def _matches_netbox_filter(nb, netbox_filter, is_primary=False):
 
     filter_lower = netbox_filter.lower()
 
-    # Check if primary NetBox matches 'primary' filter
-    if is_primary and "primary" in filter_lower:
+    # Check if primary NetBox matches the 'primary' keyword. Mirror the field
+    # checks below (filter as a substring of the value) so that filters which
+    # merely contain "primary" (e.g. a site "primary-region") do not select it.
+    if is_primary and filter_lower in "primary":
         return True
 
     # Check URL
