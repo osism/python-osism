@@ -5,6 +5,8 @@ import os
 import subprocess
 
 from cliff.command import Command
+from loguru import logger
+
 from osism import utils
 
 
@@ -39,9 +41,11 @@ class Run(Command):
         elif queue == "osism-kubernetes":
             tasks = "kubernetes"
             queue = "kubernetes"
-        # kolla-ansible, ceph-ansible, osism-ansible
-        else:
+        elif queue in ["kolla-ansible", "ceph-ansible", "osism-ansible"]:
             tasks = queue[:-8]
+        else:
+            logger.error(f"Unknown worker type: {queue}")
+            return 1
 
         # NOTE: use python interface in the future, works for the moment
         if tasks == "osism":
