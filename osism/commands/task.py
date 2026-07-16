@@ -13,7 +13,7 @@ class Revoke(Command):
         from celery import Celery
         from osism.tasks import Config
 
-        task = parsed_args.task
+        task = parsed_args.task[0]
 
         app = Celery("task")
         app.config_from_object(Config)
