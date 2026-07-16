@@ -8,11 +8,30 @@ from loguru import logger
 from osism import utils
 
 
+class _PassthroughParser(argparse.ArgumentParser):
+    """Argument parser that forwards unrecognized arguments to Ansible.
+
+    ``argparse.REMAINDER`` only starts capturing at the first *positional*
+    token, but everything forwarded to Ansible here is option-like (``-e``,
+    ``--limit``, ...) and there is no natural leading positional, so a
+    remainder would reject exactly the arguments it exists to forward.
+    Delegating ``parse_args()`` to ``parse_known_args()`` lets the parser
+    consume only its own options and forward everything else verbatim,
+    preserving order.
+    """
+
+    def parse_args(self, args=None, namespace=None):
+        namespace, arguments = self.parse_known_args(args, namespace)
+        namespace.arguments = arguments
+        return namespace
+
+
 class Sync(Command):
     def get_parser(self, prog_name):
-        parser = super(Sync, self).get_parser(prog_name)
-        parser.add_argument(
-            "arguments", nargs=argparse.REMAINDER, help="Other arguments for Ansible"
+        parser = _PassthroughParser(
+            prog=prog_name,
+            description=self.get_description(),
+            allow_abbrev=False,
         )
         return parser
 
