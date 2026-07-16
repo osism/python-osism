@@ -6,6 +6,7 @@ import subprocess
 import time
 
 from cliff.command import Command
+from loguru import logger
 
 from osism import utils
 
@@ -100,6 +101,10 @@ class Run(Command):
             finally:
                 observer.stop()
                 observer.join()
+
+        else:
+            logger.error(f"Unknown service type: {service}")
+            return 1
 
     def watchdog_inventory_on_any_event(self, event):
         from osism.tasks import reconciler
