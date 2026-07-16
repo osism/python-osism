@@ -531,7 +531,7 @@ class Images(Command):
             action="store_true",
         )
         parser.add_argument(
-            "--cloud", type=str, help="Cloud name in clouds.yaml", default="openstack"
+            "--cloud", type=str, help="Cloud name in clouds.yaml", default="admin"
         )
         parser.add_argument(
             "--filter",
