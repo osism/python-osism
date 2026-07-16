@@ -15,6 +15,10 @@ class Run(Command):
         logger.info(
             "The osism reconciler command is deprecated and will be removed. Use osism service reconciler."
         )
+
+        # Check if tasks are locked before starting the worker
+        utils.check_task_lock_and_exit()
+
         # NOTE: use python interface in the future, works for the moment
         default_concurrency = min(multiprocessing.cpu_count(), 4)
         concurrency = int(
