@@ -29,6 +29,15 @@ def _stub_args(**overrides) -> MagicMock:
     return args
 
 
+def test_images_cloud_default_matches_shipped_profile():
+    # The shipped cfg-cookiecutter clouds.yml provides 'admin' (not 'openstack'),
+    # so a bare `osism manage images` must default to a profile that exists.
+    cmd = manage.Images(MagicMock(), MagicMock())
+    parser = cmd.get_parser("manage images")
+    args = parser.parse_args([])
+    assert args.cloud == "admin"
+
+
 def test_w1_octavia_wires_validators_to_call_sites():
     cmd = manage.ImageOctavia(MagicMock(), MagicMock())
     args = _stub_args()
