@@ -40,84 +40,92 @@ def get_rabbitmq_node_addresses():
 
         node_addresses = []
         for host in rabbitmq_hosts:
-            # Get ansible facts from Redis cache
-            facts_data = utils.redis.get(f"ansible_facts{host}")
-            if not facts_data:
-                logger.error(f"No ansible facts found in cache for {host}")
-                continue
+            # A failure on one host must not discard the addresses already
+            # collected for the other nodes.
+            try:
+                # Get ansible facts from Redis cache
+                facts_data = utils.redis.get(f"ansible_facts{host}")
+                if not facts_data:
+                    logger.error(f"No ansible facts found in cache for {host}")
+                    continue
 
-            facts = json.loads(facts_data)
+                facts = json.loads(facts_data)
 
-            # Get hostvars for this host to find internal_interface
-            hostvar_inventory_path = get_inventory_path(
-                "/ansible/inventory/hosts.yml", prefer_minified=False
-            )
-            result = subprocess.check_output(
-                f"ansible-inventory -i {hostvar_inventory_path} --host {host}",
-                shell=True,
-                stderr=subprocess.DEVNULL,
-            )
-            hostvars = json.loads(result)
+                # Get hostvars for this host to find internal_interface
+                hostvar_inventory_path = get_inventory_path(
+                    "/ansible/inventory/hosts.yml", prefer_minified=False
+                )
+                result = subprocess.check_output(
+                    f"ansible-inventory -i {hostvar_inventory_path} --host {host}",
+                    shell=True,
+                    stderr=subprocess.DEVNULL,
+                )
+                hostvars = json.loads(result)
 
-            internal_interface_raw = hostvars.get("internal_interface")
-            if not internal_interface_raw:
-                logger.error(f"internal_interface not found in hostvars for {host}")
-                continue
+                internal_interface_raw = hostvars.get("internal_interface")
+                if not internal_interface_raw:
+                    logger.error(f"internal_interface not found in hostvars for {host}")
+                    continue
 
-            # Resolve Jinja2 template if present (e.g., "{{ ansible_local.testbed_network_devices.management }}")
-            internal_interface = internal_interface_raw
-            template_match = re.match(r"\{\{\s*(.+?)\s*\}\}", internal_interface_raw)
-            if template_match:
-                path = template_match.group(1).strip()
-                parts = path.split(".")
-                value = facts
-                for part in parts:
-                    if isinstance(value, dict):
-                        value = value.get(part)
+                # Resolve Jinja2 template if present (e.g., "{{ ansible_local.testbed_network_devices.management }}")
+                internal_interface = internal_interface_raw
+                template_match = re.match(
+                    r"\{\{\s*(.+?)\s*\}\}", internal_interface_raw
+                )
+                if template_match:
+                    path = template_match.group(1).strip()
+                    parts = path.split(".")
+                    value = facts
+                    for part in parts:
+                        if isinstance(value, dict):
+                            value = value.get(part)
+                        else:
+                            value = None
+                            break
+                    if value and isinstance(value, str):
+                        internal_interface = value
                     else:
-                        value = None
-                        break
-                if value and isinstance(value, str):
-                    internal_interface = value
-                else:
+                        logger.error(
+                            f"Could not resolve template '{internal_interface_raw}' from facts for {host}"
+                        )
+                        continue
+
+                logger.debug(f"Internal interface for {host}: {internal_interface}")
+
+                # Look for the interface in ansible facts
+                # Interface names with special chars are normalized (e.g., eth0.100 -> ansible_eth0_100)
+                normalized_interface = internal_interface.replace(".", "_").replace(
+                    "-", "_"
+                )
+                interface_key = f"ansible_{normalized_interface}"
+
+                interface_facts = facts.get(interface_key)
+                if not interface_facts:
                     logger.error(
-                        f"Could not resolve template '{internal_interface_raw}' from facts for {host}"
+                        f"Interface {internal_interface} ({interface_key}) not found in ansible facts for {host}"
                     )
                     continue
 
-            logger.debug(f"Internal interface for {host}: {internal_interface}")
+                # Get IPv4 address
+                ipv4_info = interface_facts.get("ipv4")
+                if not ipv4_info:
+                    logger.error(
+                        f"No IPv4 address found for interface {internal_interface} on {host}"
+                    )
+                    continue
 
-            # Look for the interface in ansible facts
-            # Interface names with special chars are normalized (e.g., eth0.100 -> ansible_eth0_100)
-            normalized_interface = internal_interface.replace(".", "_").replace(
-                "-", "_"
-            )
-            interface_key = f"ansible_{normalized_interface}"
+                ipv4_address = ipv4_info.get("address")
+                if not ipv4_address:
+                    logger.error(
+                        f"No IPv4 address found for interface {internal_interface} on {host}"
+                    )
+                    continue
 
-            interface_facts = facts.get(interface_key)
-            if not interface_facts:
-                logger.error(
-                    f"Interface {internal_interface} ({interface_key}) not found in ansible facts for {host}"
-                )
+                logger.debug(f"IPv4 address for {host}: {ipv4_address}")
+                node_addresses.append((ipv4_address, host))
+            except Exception as exc:
+                logger.error(f"Failed to resolve address for {host}: {exc}")
                 continue
-
-            # Get IPv4 address
-            ipv4_info = interface_facts.get("ipv4")
-            if not ipv4_info:
-                logger.error(
-                    f"No IPv4 address found for interface {internal_interface} on {host}"
-                )
-                continue
-
-            ipv4_address = ipv4_info.get("address")
-            if not ipv4_address:
-                logger.error(
-                    f"No IPv4 address found for interface {internal_interface} on {host}"
-                )
-                continue
-
-            logger.debug(f"IPv4 address for {host}: {ipv4_address}")
-            node_addresses.append((ipv4_address, host))
 
         if not node_addresses:
             logger.error("Could not retrieve address for any RabbitMQ node")
