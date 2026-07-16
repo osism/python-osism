@@ -771,6 +771,13 @@ def run_openstack_command_with_cloud(
     )
 
     try:
+        if not cloud_setup_success:
+            logger.error(
+                "Aborting command execution: cloud environment setup failed "
+                f"for cloud '{cloud}'"
+            )
+            return 1
+
         return run_command(
             request_id,
             command,
@@ -807,6 +814,13 @@ def image_manager(
         )
 
         try:
+            if not cloud_setup_success:
+                logger.error(
+                    "Aborting command execution: cloud environment setup failed "
+                    f"for cloud '{cloud}'"
+                )
+                return 1
+
             with tempfile.TemporaryDirectory() as temp_dir:
                 for config in configs:
                     with tempfile.NamedTemporaryFile(
@@ -898,6 +912,13 @@ def project_manager(
     )
 
     try:
+        if not cloud_setup_success:
+            logger.error(
+                "Aborting command execution: cloud environment setup failed "
+                f"for cloud '{cloud}'"
+            )
+            return 1
+
         # Change to working directory required by openstack-project-manager
         os.chdir("/openstack-project-manager")
 
@@ -938,6 +959,13 @@ def project_manager_sync(
     )
 
     try:
+        if not cloud_setup_success:
+            logger.error(
+                "Aborting command execution: cloud environment setup failed "
+                f"for cloud '{cloud}'"
+            )
+            return 1
+
         # Change to working directory required by openstack-project-manager
         os.chdir("/openstack-project-manager")
 
