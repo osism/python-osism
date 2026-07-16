@@ -36,19 +36,27 @@ def _mask_inventory_secrets(data: dict) -> dict:
     """Mask secret values in inventory data before returning via API.
 
     Masks values for keys matching secret patterns (password, secret,
-    ironic_osism_*) and values that are Ansible Vault encrypted.
+    ironic_osism_*) and values that are Ansible Vault encrypted, at any
+    nesting depth inside dicts and lists.
     """
     masked: dict = {}
     for key, value in data.items():
         if _is_secret_key(key):
             masked[key] = "***"
-        elif isinstance(value, str) and value.strip().startswith("$ANSIBLE_VAULT;"):
-            masked[key] = "***"
-        elif isinstance(value, dict):
-            masked[key] = _mask_inventory_secrets(value)
         else:
-            masked[key] = value
+            masked[key] = _mask_inventory_value(value)
     return masked
+
+
+def _mask_inventory_value(value):
+    """Mask secrets in a single inventory value, recursing into containers."""
+    if isinstance(value, str) and value.strip().startswith("$ANSIBLE_VAULT;"):
+        return "***"
+    if isinstance(value, dict):
+        return _mask_inventory_secrets(value)
+    if isinstance(value, list):
+        return [_mask_inventory_value(item) for item in value]
+    return value
 
 
 class NotificationBaremetal(BaseModel):
