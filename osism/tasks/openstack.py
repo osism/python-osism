@@ -211,51 +211,23 @@ def get_baremetal_node_ports(node_uuid):
     return port_list
 
 
-def get_baremetal_node_parameters(node_uuid):
-    """Get kernel append params, netplan params, and FRR params for a node.
+def _mask_node_secret_parameters(
+    node_name, kernel_append_params, netplan_parameters, frr_parameters
+):
+    """Mask secret values in a node's kernel/netplan/FRR parameters.
 
-    Extracts parameters from the Ironic node's extra field and masks
-    any secret values (from NetBox secrets custom field) with '***'.
+    Encapsulates the dependency on ``osism.tasks.conductor.utils`` (vault
+    handling and secret masking), so callers -- and their tests -- do not need
+    to reach into conductor implementation details. Secrets are read from the
+    node's NetBox ``secrets`` custom field; any failure along the NetBox/vault
+    path degrades to returning the parameters unmasked.
 
     Returns:
-        dict with kernel_append_params, netplan_parameters, frr_parameters
+        The ``(kernel_append_params, netplan_parameters, frr_parameters)``
+        triple with secret values replaced by ``***``.
     """
-    import json
     from osism.tasks.conductor.utils import deep_decrypt, get_vault, mask_secrets
 
-    conn = utils.get_openstack_connection()
-    node = conn.baremetal.get_node(node_uuid)
-
-    extra = getattr(node, "extra", {}) or {}
-
-    # Parse instance_info from extra (stored as JSON string)
-    instance_info = {}
-    if "instance_info" in extra:
-        try:
-            instance_info = json.loads(extra["instance_info"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    kernel_append_params = instance_info.get("kernel_append_params", "")
-
-    # Parse netplan_parameters from extra
-    netplan_parameters = {}
-    if "netplan_parameters" in extra:
-        try:
-            netplan_parameters = json.loads(extra["netplan_parameters"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    # Parse frr_parameters from extra
-    frr_parameters = {}
-    if "frr_parameters" in extra:
-        try:
-            frr_parameters = json.loads(extra["frr_parameters"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    # Mask secret values in all parameters
-    node_name = getattr(node, "name", None)
     secret_values = set()
     if utils.nb and node_name:
         try:
@@ -325,6 +297,58 @@ def get_baremetal_node_parameters(node_uuid):
         netplan_parameters = mask_secrets(
             netplan_parameters, mask="***", secret_values=secret_values
         )
+
+    return kernel_append_params, netplan_parameters, frr_parameters
+
+
+def get_baremetal_node_parameters(node_uuid):
+    """Get kernel append params, netplan params, and FRR params for a node.
+
+    Extracts parameters from the Ironic node's extra field and masks
+    any secret values (from NetBox secrets custom field) with '***'.
+
+    Returns:
+        dict with kernel_append_params, netplan_parameters, frr_parameters
+    """
+    import json
+
+    conn = utils.get_openstack_connection()
+    node = conn.baremetal.get_node(node_uuid)
+
+    extra = getattr(node, "extra", {}) or {}
+
+    # Parse instance_info from extra (stored as JSON string)
+    instance_info = {}
+    if "instance_info" in extra:
+        try:
+            instance_info = json.loads(extra["instance_info"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    kernel_append_params = instance_info.get("kernel_append_params", "")
+
+    # Parse netplan_parameters from extra
+    netplan_parameters = {}
+    if "netplan_parameters" in extra:
+        try:
+            netplan_parameters = json.loads(extra["netplan_parameters"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Parse frr_parameters from extra
+    frr_parameters = {}
+    if "frr_parameters" in extra:
+        try:
+            frr_parameters = json.loads(extra["frr_parameters"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    node_name = getattr(node, "name", None)
+    kernel_append_params, netplan_parameters, frr_parameters = (
+        _mask_node_secret_parameters(
+            node_name, kernel_append_params, netplan_parameters, frr_parameters
+        )
+    )
 
     return {
         "kernel_append_params": kernel_append_params or None,
