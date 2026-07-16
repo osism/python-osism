@@ -835,7 +835,8 @@ def image_manager(
                 try:
                     images_index = sanitized_args.index("--images")
                     sanitized_args.pop(images_index)
-                    sanitized_args.pop(images_index)
+                    if images_index < len(sanitized_args):
+                        sanitized_args.pop(images_index)
                 except ValueError:
                     pass
                 sanitized_args.extend(["--images", temp_dir])
