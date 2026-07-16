@@ -54,5 +54,5 @@ class Sync(Command):
             f"It takes a moment until task {t.task_id} (sync configuration) has been started and output is visible here."
         )
 
-        rc = handle_task(t, True, format, 60)
+        rc = handle_task(t, True, "log", 60)
         return rc
