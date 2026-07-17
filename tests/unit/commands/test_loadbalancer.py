@@ -20,7 +20,6 @@ from osism.commands import loadbalancer
 
 from ._helpers import parse_args
 
-
 # --- _load_kolla_configuration ---
 
 

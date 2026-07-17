@@ -19,7 +19,6 @@ from osism.commands import migrate
 
 from ._helpers import make_command, parse_args
 
-
 NODES = [("10.0.0.1", "node1"), ("10.0.0.2", "node2")]
 BASE_URL = "http://10.0.0.1:15672/api"
 AUTH = ("openstack", "secret")
