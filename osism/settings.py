@@ -70,6 +70,10 @@ SONIC_EXPORT_PREFIX = os.getenv("SONIC_EXPORT_PREFIX", "osism_")
 SONIC_EXPORT_SUFFIX = os.getenv("SONIC_EXPORT_SUFFIX", "_config_db.json")
 SONIC_EXPORT_IDENTIFIER = os.getenv("SONIC_EXPORT_IDENTIFIER", "serial-number")
 
+# Directory holding the per-HWSKU port_config .ini files (bundled in the
+# repo under files/sonic/port_config and installed by the Dockerfile)
+SONIC_PORT_CONFIG_PATH = os.getenv("SONIC_PORT_CONFIG_PATH", "/etc/sonic/port_config")
+
 # SONiC ZTP firmware configuration
 #
 # The ZTP firmware install uses a dynamic-url built from
