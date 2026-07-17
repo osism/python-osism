@@ -670,6 +670,42 @@ def test_generate_sonic_config_handles_interfaces_without_optional_fields(
     patch_orchestrator_helpers._add_port_configurations.assert_called_once()
 
 
+def test_generate_sonic_config_normalizes_interface_speeds_to_mbps(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """Explicit NetBox speeds are stored in kbps and must be converted to
+    Mbps at collection time; speeds derived from the port type are already
+    Mbps and pass through unchanged — ``netbox_interfaces`` carries a
+    single unit for all downstream consumers."""
+    patch_base_config(mocker)
+    iface_explicit = SimpleNamespace(
+        name="Ethernet0",
+        speed=100_000_000,  # 100 G in kbps
+        type=SimpleNamespace(value="100gbase-x-qsfp28"),
+        tags=[],
+    )
+    iface_derived = SimpleNamespace(
+        name="Ethernet1",
+        speed=None,
+        type=SimpleNamespace(value="100gbase-x-qsfp28"),
+        tags=[],
+    )
+    patch_orchestrator_helpers.get_cached_device_interfaces.return_value = [
+        iface_explicit,
+        iface_derived,
+    ]
+    patch_orchestrator_helpers.get_speed_from_port_type.return_value = 100_000
+
+    generate_sonic_config(make_orchestrator_device(), "HWSKU")
+
+    args, _ = patch_orchestrator_helpers._add_port_configurations.call_args
+    netbox_interfaces = args[5]
+    assert netbox_interfaces["Ethernet0"]["speed"] == 100_000
+    assert netbox_interfaces["Ethernet0"]["speed_explicit"] is True
+    assert netbox_interfaces["Ethernet1"]["speed"] == 100_000
+    assert netbox_interfaces["Ethernet1"]["speed_explicit"] is False
+
+
 def test_generate_sonic_config_get_cached_interfaces_failure_logged(
     mocker, patch_orchestrator_helpers, make_orchestrator_device
 ):
