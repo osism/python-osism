@@ -2268,14 +2268,14 @@ def _add_snmp_configuration(config, device, oob_ip):
     in the config_context of the device.
     """
 
-    # Create vault instance for Custom Field decryption
-    vault = get_vault()
-
-    # Decrypt secrets Custom Field
+    # Decrypt the secrets Custom Field. The vault needs the key file and
+    # Redis, and get_vault() logs ERRORs where those are absent, so it is
+    # only built when there are secrets to decrypt.
     node_secrets = device.custom_fields.get("secrets", {})
     if node_secrets is None:
         node_secrets = {}
-    deep_decrypt(node_secrets, vault)
+    if node_secrets:
+        deep_decrypt(node_secrets, get_vault())
 
     # Configure SNMP location and contact
     location = device.config_context.get("_segment_snmp_server_location", "Data Center")

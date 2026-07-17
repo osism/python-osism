@@ -169,3 +169,42 @@ def test_add_snmp_configuration_secrets_none_treated_as_empty(patch_snmp_secrets
         "shaKey": "OBFUSCATEDAUTHSECRET",
         "aesKey": "OBFUSCATEDPRIVSECRET",
     }
+
+
+def test_add_snmp_configuration_no_secrets_skips_vault(mocker):
+    """Without encrypted secrets there is nothing to decrypt, so the vault
+    (which needs the container key file and Redis) must not be built at
+    all -- ``get_vault`` logs ERRORs in environments without a vault."""
+    get_vault_mock = mocker.patch(
+        "osism.tasks.conductor.sonic.config_generator.get_vault"
+    )
+    deep_decrypt_mock = mocker.patch(
+        "osism.tasks.conductor.sonic.config_generator.deep_decrypt"
+    )
+    config = {}
+
+    _add_snmp_configuration(config, _snmp_device(), oob_ip=None)
+    _add_snmp_configuration(
+        config, _snmp_device(custom_fields={"secrets": None}), oob_ip=None
+    )
+
+    get_vault_mock.assert_not_called()
+    deep_decrypt_mock.assert_not_called()
+    assert "SNMP_SERVER" in config
+
+
+def test_add_snmp_configuration_with_secrets_uses_vault(mocker):
+    get_vault_mock = mocker.patch(
+        "osism.tasks.conductor.sonic.config_generator.get_vault"
+    )
+    deep_decrypt_mock = mocker.patch(
+        "osism.tasks.conductor.sonic.config_generator.deep_decrypt",
+        side_effect=lambda data, vault: None,
+    )
+    config = {}
+    device = _snmp_device(custom_fields={"secrets": {"snmp_auth": "$ANSIBLE_VAULT..."}})
+
+    _add_snmp_configuration(config, device, oob_ip=None)
+
+    get_vault_mock.assert_called_once()
+    deep_decrypt_mock.assert_called_once()
