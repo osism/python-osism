@@ -40,7 +40,12 @@ class Sync(Command):
             "--task-timeout",
             default=os.environ.get("OSISM_TASK_TIMEOUT", 300),
             type=int,
-            help="Timeout for a scheduled task that has not been executed yet",
+            help=(
+                "Seconds to wait for further task output before giving up. "
+                "This is an output-inactivity timeout (it resets on each line). "
+                "A queued task emits no output while it waits to run, so that "
+                "wait counts against this timeout in full."
+            ),
         )
         return parser
 
