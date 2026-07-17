@@ -114,12 +114,24 @@ fi
 
 # --- Phase 2: seed with netbox-manager -------------------------------------
 # The CLI is installed from the checkout so a Zuul Depends-On on a
-# netbox-manager change is honored for code and data alike.
+# netbox-manager change is honored for code and data alike. It goes into a
+# dedicated venv: netbox-manager pins different versions of packages that
+# python-osism also pins (e.g. pynetbox), and installing it into the
+# project venv would silently mutate those pins.
+SEED_VENV="${SEED_VENV:-${REPO_ROOT}/.venv-sonic-e2e}"
+if [[ ! -x "${SEED_VENV}/bin/pip" ]]; then
+  echo ">>> Creating seeding venv ${SEED_VENV}"
+  python3 -m venv "${SEED_VENV}"
+fi
+# netbox-manager drives Ansible through ansible-runner, which resolves
+# ansible-playbook via PATH -- the venv's bin must therefore be on PATH,
+# not merely used for the netbox-manager entry point itself.
+export PATH="${SEED_VENV}/bin:${PATH}"
 echo ">>> Installing netbox-manager from ${NETBOX_MANAGER_DIR}"
-pipenv run pip install --quiet "${NETBOX_MANAGER_DIR}"
+"${SEED_VENV}/bin/pip" install --quiet "${NETBOX_MANAGER_DIR}"
 
 echo ">>> Installing the netbox.netbox Ansible collection"
-pipenv run ansible-galaxy collection install -r "${NETBOX_MANAGER_DIR}/requirements.yml"
+"${SEED_VENV}/bin/ansible-galaxy" collection install -r "${NETBOX_MANAGER_DIR}/requirements.yml"
 
 export NETBOX_MANAGER_URL="http://127.0.0.1:${NETBOX_PORT}"
 export NETBOX_MANAGER_TOKEN="${NETBOX_TOKEN}"
@@ -129,7 +141,7 @@ export NETBOX_MANAGER_RESOURCES="${NETBOX_MANAGER_DIR}/example/resources"
 export NETBOX_MANAGER_IGNORE_SSL_ERRORS=true
 
 echo ">>> Seeding NetBox with the netbox-manager example data"
-pipenv run netbox-manager run --fail-fast
+"${SEED_VENV}/bin/netbox-manager" run --fail-fast
 
 # Scenario overlay (spec phase 4): a second run with
 # NETBOX_MANAGER_RESOURCES=${REPO_ROOT}/tests/e2e/resources goes here once
