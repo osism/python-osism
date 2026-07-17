@@ -40,6 +40,27 @@ def get_speed_from_port_type(port_type):
     return speed
 
 
+def get_interface_speed(interface):
+    """Get the speed of a NetBox interface in Mbps.
+
+    Explicitly set NetBox speeds are stored in kbps and are converted;
+    when unset, the speed is derived from the interface type (already Mbps).
+
+    Args:
+        interface: NetBox interface object
+
+    Returns:
+        int: Speed in Mbps, or None if neither an explicit speed nor a
+        recognized port type is available
+    """
+    speed = getattr(interface, "speed", None)
+    if speed:
+        return int(speed) // 1000
+    if hasattr(interface, "type") and interface.type:
+        return get_speed_from_port_type(interface.type.value)
+    return None
+
+
 def convert_netbox_interface_to_sonic(device_interface, device=None):
     """Convert NetBox interface name to SONiC interface name with device-specific mapping.
 
@@ -724,17 +745,9 @@ def detect_breakout_ports(device):
 
                                 # Determine breakout mode based on number of subports and speed
                                 num_subports = len(breakout_group)
-                                interface_speed = getattr(
-                                    breakout_group[0][1], "speed", None
+                                interface_speed = get_interface_speed(
+                                    breakout_group[0][1]
                                 )
-                                if (
-                                    not interface_speed
-                                    and hasattr(breakout_group[0][1], "type")
-                                    and breakout_group[0][1].type
-                                ):
-                                    interface_speed = get_speed_from_port_type(
-                                        breakout_group[0][1].type.value
-                                    )
 
                                 # Calculate breakout mode
                                 if interface_speed == 10000 and num_subports == 4:
@@ -830,15 +843,7 @@ def detect_breakout_ports(device):
                                     for iface in interfaces:
                                         if iface.name == ethernet_name:
                                             # Check if this interface has 100G speed
-                                            iface_speed = getattr(iface, "speed", None)
-                                            if (
-                                                not iface_speed
-                                                and hasattr(iface, "type")
-                                                and iface.type
-                                            ):
-                                                iface_speed = get_speed_from_port_type(
-                                                    iface.type.value
-                                                )
+                                            iface_speed = get_interface_speed(iface)
 
                                             # 400G breakout uses 100G per port
                                             if iface_speed == 100000:
@@ -898,13 +903,7 @@ def detect_breakout_ports(device):
                     for iface in interfaces:
                         if iface.name == ethernet_name:
                             # Check if this interface has a speed that suggests breakout
-                            iface_speed = getattr(iface, "speed", None)
-                            if (
-                                not iface_speed
-                                and hasattr(iface, "type")
-                                and iface.type
-                            ):
-                                iface_speed = get_speed_from_port_type(iface.type.value)
+                            iface_speed = get_interface_speed(iface)
 
                             # Only consider as breakout if speed is 50G or less AND we have 4 consecutive ports
                             # This prevents regular 100G ports from being treated as breakout ports
@@ -919,15 +918,7 @@ def detect_breakout_ports(device):
                     master_port = f"Ethernet{base_port}"
 
                     # Determine breakout mode based on speed
-                    interface_speed = getattr(sonic_breakout_group[0][1], "speed", None)
-                    if (
-                        not interface_speed
-                        and hasattr(sonic_breakout_group[0][1], "type")
-                        and sonic_breakout_group[0][1].type
-                    ):
-                        interface_speed = get_speed_from_port_type(
-                            sonic_breakout_group[0][1].type.value
-                        )
+                    interface_speed = get_interface_speed(sonic_breakout_group[0][1])
 
                     if interface_speed == 25000:
                         brkout_mode = "4x25G"

@@ -25,6 +25,7 @@ from osism.tasks.conductor.sonic.interface import (
     convert_netbox_interface_to_sonic,
     convert_sonic_interface_to_alias,
     get_connected_interfaces,
+    get_interface_speed,
     get_port_config,
     get_speed_from_port_type,
 )
@@ -95,6 +96,34 @@ def test_get_speed_from_port_type_unknown_returns_none():
 def test_get_speed_from_port_type_numeric_input_coerced():
     # Defensive: integer-like input is str()-coerced; not in the map → None.
     assert get_speed_from_port_type(1234) is None
+
+
+# ---------------------------------------------------------------------------
+# get_interface_speed
+# ---------------------------------------------------------------------------
+
+
+def test_get_interface_speed_explicit_kbps_converted_to_mbps():
+    # An explicitly set NetBox speed is stored in kbps and takes precedence
+    # over the port type.
+    iface = SimpleNamespace(
+        speed=100_000_000, type=SimpleNamespace(value="10gbase-x-sfpp")
+    )
+    assert get_interface_speed(iface) == 100_000
+
+
+def test_get_interface_speed_derived_from_port_type_already_mbps():
+    iface = SimpleNamespace(speed=None, type=SimpleNamespace(value="100gbase-x-qsfp28"))
+    assert get_interface_speed(iface) == 100_000
+
+
+@pytest.mark.parametrize("speed", [None, 0])
+def test_get_interface_speed_without_speed_and_type_returns_none(speed):
+    assert get_interface_speed(SimpleNamespace(speed=speed, type=None)) is None
+
+
+def test_get_interface_speed_without_speed_attribute_returns_none():
+    assert get_interface_speed(SimpleNamespace()) is None
 
 
 # ---------------------------------------------------------------------------
