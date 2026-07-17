@@ -148,6 +148,13 @@ echo ">>> Seeding NetBox with the netbox-manager example data"
 # the regression-scenario seed data exists.
 
 # --- Phase 3: generate SONiC configurations ---------------------------------
+# The conductor import chain needs ansible-core, which lives in the
+# project's optional [ansible] extra (the container image installs it via
+# requirements.ansible.txt). The unit tests stub it out in conftest.py, so
+# a venv that runs the unit suite does not necessarily satisfy this import.
+echo ">>> Ensuring the osism[ansible] extra is installed"
+pipenv run pip install --quiet ".[ansible]"
+
 EXPORT_DIR="$(mktemp -d)"
 export NETBOX_API="http://127.0.0.1:${NETBOX_PORT}"
 export SONIC_EXPORT_DIR="${EXPORT_DIR}"
