@@ -143,9 +143,13 @@ export NETBOX_MANAGER_IGNORE_SSL_ERRORS=true
 echo ">>> Seeding NetBox with the netbox-manager example data"
 "${SEED_VENV}/bin/netbox-manager" run --fail-fast
 
-# Scenario overlay (spec phase 4): a second run with
-# NETBOX_MANAGER_RESOURCES=${REPO_ROOT}/tests/e2e/resources goes here once
-# the regression-scenario seed data exists.
+# Scenario overlay: a second seeding pass adds the breakout / speed-unit
+# regression devices that the base example does not cover. It reuses the
+# site / tenant / roles created above and brings its own device type.
+echo ">>> Seeding NetBox with the E2E scenario overlay"
+export NETBOX_MANAGER_DEVICETYPE_LIBRARY="${REPO_ROOT}/tests/e2e/scenario/devicetypes"
+export NETBOX_MANAGER_RESOURCES="${REPO_ROOT}/tests/e2e/scenario/resources"
+"${SEED_VENV}/bin/netbox-manager" run --fail-fast --skipmtl
 
 # --- Phase 3: generate SONiC configurations ---------------------------------
 # The conductor import chain needs ansible-core, which lives in the
