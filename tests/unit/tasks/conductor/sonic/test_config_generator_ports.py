@@ -212,7 +212,7 @@ class TestAddPortConfigurations:
             device=device,
         )
 
-        assert config["PORT"]["Ethernet0"]["speed"] == "100"
+        assert config["PORT"]["Ethernet0"]["speed"] == "100000"
 
     def test_derived_netbox_speed_only_used_when_port_speed_empty(
         self, config, device, mocker, patch_post_loop_hooks
@@ -244,9 +244,9 @@ class TestAddPortConfigurations:
 
         # Existing speed is kept when explicit=False
         assert config["PORT"]["Ethernet0"]["speed"] == "40000"
-        # speed "0" / "" → derived NetBox speed is applied (kbps → Mbps)
-        assert config["PORT"]["Ethernet4"]["speed"] == "25"
-        assert config["PORT"]["Ethernet8"]["speed"] == "25"
+        # speed "0" / "" → derived NetBox speed (already Mbps) is applied
+        assert config["PORT"]["Ethernet4"]["speed"] == "25000"
+        assert config["PORT"]["Ethernet8"]["speed"] == "25000"
 
     def test_breakout_port_speed_from_netbox(
         self, config, device, mocker, patch_post_loop_hooks
@@ -277,8 +277,8 @@ class TestAddPortConfigurations:
             device=device,
         )
 
-        # 25000 kbps → 25 Mbps for breakout port
-        assert config["PORT"]["Ethernet1"]["speed"] == "25"
+        # NetBox speed (already Mbps) is used as-is for breakout port
+        assert config["PORT"]["Ethernet1"]["speed"] == "25000"
 
     @pytest.mark.parametrize(
         "brkout_mode, expected_speed",
@@ -664,7 +664,7 @@ class TestAddMissingBreakoutPorts:
         assert config["PORT"]["Ethernet1"] == {"sentinel": True}
         alias.assert_not_called()
 
-    def test_speed_from_netbox_converts_kbps_to_mbps(self, config, mocker):
+    def test_speed_from_netbox_used_as_mbps(self, config, mocker):
         mocker.patch.object(
             config_generator, "convert_sonic_interface_to_alias", return_value="a"
         )
@@ -672,8 +672,9 @@ class TestAddMissingBreakoutPorts:
             "breakout_cfgs": {"Ethernet0": {"brkout_mode": "4x100G"}},
             "breakout_ports": {"Ethernet1": {"master": "Ethernet0"}},
         }
-        # NetBox stores speed in kbps; 25 G = 25_000_000 kbps -> 25_000 Mbps
-        netbox_interfaces = {"Ethernet1": _nb_iface(speed=25_000_000)}
+        # netbox_interfaces speeds are normalized to Mbps at collection time;
+        # a 100 G breakout port derived from its port type carries 100_000
+        netbox_interfaces = {"Ethernet1": _nb_iface(speed=100_000)}
 
         _add_missing_breakout_ports(
             config,
@@ -684,7 +685,11 @@ class TestAddMissingBreakoutPorts:
             netbox_interfaces=netbox_interfaces,
         )
 
-        assert config["PORT"]["Ethernet1"]["speed"] == "25000"
+        assert config["PORT"]["Ethernet1"]["speed"] == "100000"
+        assert (
+            config["PORT"]["Ethernet1"]["valid_speeds"]
+            == "100000,50000,25000,10000,1000"
+        )
 
     @pytest.mark.parametrize(
         "brkout_mode, expected_speed",
