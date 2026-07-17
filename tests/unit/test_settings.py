@@ -583,6 +583,20 @@ def test_sonic_export_identifier_override(reload_settings, monkeypatch):
     assert settings_module.SONIC_EXPORT_IDENTIFIER == "asset-tag"
 
 
+def test_sonic_port_config_path_default(reload_settings, monkeypatch):
+    monkeypatch.delenv("SONIC_PORT_CONFIG_PATH", raising=False)
+    reload_settings()
+
+    assert settings_module.SONIC_PORT_CONFIG_PATH == "/etc/sonic/port_config"
+
+
+def test_sonic_port_config_path_override(reload_settings, monkeypatch):
+    monkeypatch.setenv("SONIC_PORT_CONFIG_PATH", "/tmp/port_config")
+    reload_settings()
+
+    assert settings_module.SONIC_PORT_CONFIG_PATH == "/tmp/port_config"
+
+
 # ---------------------------------------------------------------------------
 # NETBOX_SECONDARIES
 # ---------------------------------------------------------------------------
