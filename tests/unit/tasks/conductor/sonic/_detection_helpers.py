@@ -22,7 +22,8 @@ def _make_iface(name, *, speed=None, type_value=None, lag=None):
     """Build a NetBox-shaped interface stub.
 
     ``type_value`` becomes ``interface.type.value`` (set ``None`` for no type),
-    ``speed`` mirrors ``interface.speed``, and ``lag`` is the LAG-parent stub.
+    ``speed`` mirrors ``interface.speed`` (kbps, as stored by NetBox), and
+    ``lag`` is the LAG-parent stub.
     """
     return SimpleNamespace(
         name=name,

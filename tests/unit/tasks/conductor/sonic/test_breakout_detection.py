@@ -203,11 +203,11 @@ def test_detect_breakout_ports_cache_raises_returns_empty(
 @pytest.mark.parametrize(
     "speed, expected_mode",
     [
-        (10000, "4x10G"),
-        (25000, "4x25G"),
-        (50000, "4x50G"),
-        (100000, "4x100G"),
-        (200000, "4x200G"),
+        (10_000_000, "4x10G"),
+        (25_000_000, "4x25G"),
+        (50_000_000, "4x50G"),
+        (100_000_000, "4x100G"),
+        (200_000_000, "4x200G"),
     ],
 )
 def test_detect_breakout_ports_netbox_format_supported_speeds(
@@ -241,7 +241,7 @@ def test_detect_breakout_ports_netbox_unsupported_speed_skipped(
 ):
     # 40G with 4 subports is not in the supported speed table → continue.
     device = _make_sonic_device()
-    interfaces = _netbox_breakout_interfaces(speed=40000)
+    interfaces = _netbox_breakout_interfaces(speed=40_000_000)
     port_config = _port_config_for_port()
 
     patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
@@ -274,7 +274,7 @@ def test_detect_breakout_ports_netbox_8_lane_master_uses_offset_2(
     # 400G master with 8 lanes — subport offsets multiply by 2, so the
     # breakout sub-ports map to Ethernet0,2,4,6 instead of 0,1,2,3.
     device = _make_sonic_device()
-    interfaces = _netbox_breakout_interfaces(speed=100000)
+    interfaces = _netbox_breakout_interfaces(speed=100_000_000)
     port_config = _port_config_for_port(lanes="1,2,3,4,5,6,7,8")
 
     patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
@@ -300,7 +300,7 @@ def test_detect_breakout_ports_netbox_single_subport_not_breakout(
     patch_breakout_helpers,
 ):
     device = _make_sonic_device()
-    interfaces = [_make_iface("Eth1/49/1", speed=100000)]
+    interfaces = [_make_iface("Eth1/49/1", speed=100_000_000)]
     port_config = _port_config_for_port()
 
     patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
@@ -321,7 +321,7 @@ def test_detect_breakout_ports_netbox_processed_groups_dedup(
     # twice on the first iter — once for the sonic name, once for the master
     # — and not at all on the others).
     device = _make_sonic_device()
-    interfaces = _netbox_breakout_interfaces(speed=100000)
+    interfaces = _netbox_breakout_interfaces(speed=100_000_000)
     port_config = _port_config_for_port()
 
     patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
@@ -339,8 +339,8 @@ def test_detect_breakout_ports_netbox_two_independent_groups(
 ):
     # Two distinct breakout groups (Eth1/49 and Eth1/50) yield two masters.
     device = _make_sonic_device()
-    interfaces = _netbox_breakout_interfaces(speed=100000) + [
-        _make_iface(f"Eth1/50/{i}", speed=100000) for i in (1, 2, 3, 4)
+    interfaces = _netbox_breakout_interfaces(speed=100_000_000) + [
+        _make_iface(f"Eth1/50/{i}", speed=100_000_000) for i in (1, 2, 3, 4)
     ]
     port_config = {
         **_port_config_for_port(),
@@ -369,7 +369,7 @@ def test_detect_breakout_ports_netbox_two_independent_groups(
 
 def test_detect_breakout_ports_sonic_400g_first_group(patch_breakout_helpers):
     device = _make_sonic_device()
-    interfaces = [_make_iface(f"Ethernet{n}", speed=100000) for n in (0, 2, 4, 6)]
+    interfaces = [_make_iface(f"Ethernet{n}", speed=100_000_000) for n in (0, 2, 4, 6)]
     port_config = _port_config_for_port(
         alias="Eth1/1", lanes="1,2,3,4,5,6,7,8", speed="400000"
     )
@@ -393,7 +393,9 @@ def test_detect_breakout_ports_sonic_400g_first_group(patch_breakout_helpers):
 def test_detect_breakout_ports_sonic_400g_second_group(patch_breakout_helpers):
     # Master ``Ethernet8`` → physical port ``1/2`` (the 2nd 400G cage).
     device = _make_sonic_device()
-    interfaces = [_make_iface(f"Ethernet{n}", speed=100000) for n in (8, 10, 12, 14)]
+    interfaces = [
+        _make_iface(f"Ethernet{n}", speed=100_000_000) for n in (8, 10, 12, 14)
+    ]
     port_config = _port_config_for_port(
         sonic_port="Ethernet8",
         alias="Eth1/2",
@@ -416,7 +418,7 @@ def test_detect_breakout_ports_sonic_400g_speed_mismatch_skipped(
     # 8-lane master, but the four interfaces are at 50G — not 100G — so the
     # 400G branch's per-port speed check fails and the group is rejected.
     device = _make_sonic_device()
-    interfaces = [_make_iface(f"Ethernet{n}", speed=50000) for n in (0, 2, 4, 6)]
+    interfaces = [_make_iface(f"Ethernet{n}", speed=50_000_000) for n in (0, 2, 4, 6)]
     port_config = _port_config_for_port(
         alias="Eth1/1", lanes="1,2,3,4,5,6,7,8", speed="400000"
     )
@@ -435,7 +437,7 @@ def test_detect_breakout_ports_sonic_400g_4_lane_master_falls_through(
     # Master ``Ethernet0`` only has 4 lanes — not a 400G port. Four
     # consecutive interfaces at 25G then trigger the SONiC standard branch.
     device = _make_sonic_device()
-    interfaces = [_make_iface(f"Ethernet{n}", speed=25000) for n in range(4)]
+    interfaces = [_make_iface(f"Ethernet{n}", speed=25_000_000) for n in range(4)]
     port_config = _port_config_for_port(alias="Eth1/1")
 
     patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
@@ -462,8 +464,8 @@ def test_detect_breakout_ports_sonic_400g_4_lane_master_falls_through(
 @pytest.mark.parametrize(
     "speed, expected_mode",
     [
-        (25000, "4x25G"),
-        (50000, "4x50G"),
+        (25_000_000, "4x25G"),
+        (50_000_000, "4x50G"),
     ],
 )
 def test_detect_breakout_ports_sonic_standard_supported_speeds(
@@ -473,7 +475,7 @@ def test_detect_breakout_ports_sonic_standard_supported_speeds(
     interfaces = [_make_iface(f"Ethernet{n}", speed=speed) for n in range(4)]
     # The 400G branch peeks at ``Ethernet0`` in the port_config; provide a
     # 4-lane entry so it skips the 400G code path cleanly.
-    port_config = _port_config_for_port(alias="Eth1/1", speed=str(speed))
+    port_config = _port_config_for_port(alias="Eth1/1", speed=str(speed // 1000))
     patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
 
     result = detect_breakout_ports(device)
@@ -496,7 +498,7 @@ def test_detect_breakout_ports_sonic_standard_at_100g_skipped(
     # Regular 100G ports (4 consecutive Ethernet0..3) are NOT a breakout —
     # the speed filter (``<= 50000``) excludes them.
     device = _make_sonic_device()
-    interfaces = [_make_iface(f"Ethernet{n}", speed=100000) for n in range(4)]
+    interfaces = [_make_iface(f"Ethernet{n}", speed=100_000_000) for n in range(4)]
     port_config = _port_config_for_port(alias="Eth1/1")
     patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
 
@@ -511,7 +513,7 @@ def test_detect_breakout_ports_sonic_standard_only_three_interfaces(
 ):
     # A 3-port group is incomplete — no breakout configured.
     device = _make_sonic_device()
-    interfaces = [_make_iface(f"Ethernet{n}", speed=25000) for n in range(3)]
+    interfaces = [_make_iface(f"Ethernet{n}", speed=25_000_000) for n in range(3)]
     port_config = _port_config_for_port(alias="Eth1/1")
     patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
 
