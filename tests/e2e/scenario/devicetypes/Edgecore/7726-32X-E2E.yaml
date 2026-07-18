@@ -1,0 +1,22 @@
+---
+# Minimal device type for the SONiC E2E port-channel scenario.
+#
+# Not a faithful model of the real 7726-32X; it defines only a management
+# port and two data ports used as LAG members. Config generation is driven
+# by the hwsku custom field (Accton-AS7726-32X on the scenario device), not
+# by this device type -- the device type only controls which NetBox
+# interfaces exist. The LAG interface itself is created in the resources
+# overlay (type: lag) with these two ports as members.
+manufacturer: Edgecore
+model: 7726-32X-E2E
+slug: edgecore-7726-32x-e2e
+u_height: 1.0
+is_full_depth: true
+interfaces:
+  - name: eth0
+    type: 1000base-t
+    mgmt_only: true
+  - name: Ethernet0
+    type: 100gbase-x-qsfp28
+  - name: Ethernet4
+    type: 100gbase-x-qsfp28

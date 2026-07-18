@@ -1,0 +1,42 @@
+---
+# Port-channel (LAG) scenario for the SONiC E2E golden test.
+#
+# The base example models no LAGs, so PORTCHANNEL / PORTCHANNEL_MEMBER /
+# PORTCHANNEL_INTERFACE are emitted-but-empty. This device bonds two data
+# ports into PortChannel1: a NetBox LAG interface (type: lag) with the two
+# ports referencing it via their lag field, exactly as real deployments
+# model it. Reuses the site / location / rack / tenant / roles / tags from
+# the earlier overlay files (processed first by filename order).
+
+- device:
+    name: e2e-portchannel
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-7726-32x-e2e
+    device_role: leaf
+    face: front
+    position: 3
+    tags:
+      - managed-by-metalbox
+      - managed-by-osism
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS7726-32X
+        version: 4.5.0
+
+- device_interface:
+    device: e2e-portchannel
+    name: PortChannel1
+    type: lag
+
+- device_interface:
+    device: e2e-portchannel
+    name: Ethernet0
+    lag: PortChannel1
+
+- device_interface:
+    device: e2e-portchannel
+    name: Ethernet4
+    lag: PortChannel1
