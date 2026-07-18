@@ -235,12 +235,12 @@ class Sync(Command):
             base_url = nb.base_url
             # Make simple GET request without auth to test reachability
             requests.get(base_url, timeout=timeout, verify=not ignore_ssl_errors)
+        except requests.exceptions.SSLError:
+            return "Error: SSL error"
         except requests.exceptions.Timeout:
             return "Error: Timeout"
         except requests.exceptions.ConnectionError:
             return "Error: Connection refused"
-        except requests.exceptions.SSLError:
-            return "Error: SSL error"
         except Exception as e:
             error_msg = str(e)
             short_msg = error_msg[:50] if len(error_msg) > 50 else error_msg
