@@ -1,0 +1,83 @@
+---
+# EVPN / VXLAN / VRF scenario for the SONiC E2E golden test.
+#
+# The base example assigns no VRFs, so the whole EVPN/VXLAN/VRF subsystem
+# is emitted-but-empty. Config generation keys purely on NetBox VRF objects
+# assigned to interfaces (interface.vrf); no config_context or tags are
+# involved.
+#
+#   VrfStorage (rd 2001, a pure number) -> becomes VNI 2001 and populates
+#     VRF, VXLAN_TUNNEL, VXLAN_TUNNEL_MAP, VXLAN_EVPN_NVO,
+#     BGP_GLOBALS_AF (l2vpn_evpn, route-target 2001:1) and
+#     BGP_GLOBALS_ROUTE_ADVERTISE, plus side effects (Vlan2001, its
+#     VLAN_INTERFACE, ROUTE_REDISTRIBUTE, per-VRF BGP_GLOBALS).
+#   vrf42 (name matches vrf<N>, no rd) -> the table_id-only branch:
+#     VRF["Vrf42"] = {vrf_table_id: 42}, no EVPN/VXLAN.
+#
+# The VXLAN tunnel source IP is the device router-id (primary_ip4), so the
+# device needs a Loopback0 with an address. Reuses the site / location /
+# rack / tenant / roles / tags from the earlier overlay files.
+
+- vrf:
+    name: VrfStorage
+    rd: 2001
+    tenant: Testbed
+
+- vrf:
+    name: vrf42
+    tenant: Testbed
+
+- device:
+    name: e2e-evpn
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-7726-32x-e2e
+    device_role: leaf
+    face: front
+    position: 4
+    tags:
+      - managed-by-metalbox
+      - managed-by-osism
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS7726-32X
+        version: 4.5.0
+
+- device_interface:
+    device: e2e-evpn
+    name: Loopback0
+    type: virtual
+    enabled: true
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.16.40/32
+    assigned_object:
+      name: Loopback0
+      device: e2e-evpn
+
+- ip_address:
+    tenant: Testbed
+    address: "fda6:f659:8c2b::192:168:16:40/128"
+    assigned_object:
+      name: Loopback0
+      device: e2e-evpn
+
+# VRF-with-VNI on one data port drives the EVPN/VXLAN tables; the
+# table_id-only VRF on another exercises the non-EVPN VRF branch.
+- device_interface:
+    device: e2e-evpn
+    name: Ethernet0
+    vrf: VrfStorage
+
+- device_interface:
+    device: e2e-evpn
+    name: Ethernet4
+    vrf: vrf42
+
+- device:
+    name: e2e-evpn
+    primary_ip4: 192.168.16.40/32
+    primary_ip6: "fda6:f659:8c2b::192:168:16:40/128"
