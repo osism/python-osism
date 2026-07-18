@@ -7,7 +7,12 @@ import os
 import re
 from loguru import logger
 
-from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS, PORT_CONFIG_PATH
+from .constants import (
+    BREAKOUT_MODE_BY_SPEED,
+    HIGH_SPEED_PORTS,
+    PORT_CONFIG_PATH,
+    PORT_TYPE_TO_SPEED_MAP,
+)
 from .cache import get_cached_device_interfaces
 
 # Global cache for port configurations to avoid repeated file reads
@@ -750,17 +755,10 @@ def detect_breakout_ports(device):
                                 )
 
                                 # Calculate breakout mode
-                                if interface_speed == 10000 and num_subports == 4:
-                                    brkout_mode = "4x10G"
-                                elif interface_speed == 25000 and num_subports == 4:
-                                    brkout_mode = "4x25G"
-                                elif interface_speed == 50000 and num_subports == 4:
-                                    brkout_mode = "4x50G"
-                                elif interface_speed == 100000 and num_subports == 4:
-                                    brkout_mode = "4x100G"
-                                elif interface_speed == 200000 and num_subports == 4:
-                                    brkout_mode = "4x200G"
-                                else:
+                                brkout_mode = BREAKOUT_MODE_BY_SPEED.get(
+                                    interface_speed
+                                )
+                                if num_subports != 4 or not brkout_mode:
                                     logger.debug(
                                         f"Unsupported breakout configuration: {num_subports} ports at {interface_speed} Mbps"
                                     )
@@ -917,14 +915,13 @@ def detect_breakout_ports(device):
                 if len(sonic_breakout_group) == 4:
                     master_port = f"Ethernet{base_port}"
 
-                    # Determine breakout mode based on speed
+                    # Determine breakout mode based on speed; the membership
+                    # filter above (<= 50G) limits this path to 4x10G, 4x25G
+                    # and 4x50G
                     interface_speed = get_interface_speed(sonic_breakout_group[0][1])
 
-                    if interface_speed == 25000:
-                        brkout_mode = "4x25G"
-                    elif interface_speed == 50000:
-                        brkout_mode = "4x50G"
-                    else:
+                    brkout_mode = BREAKOUT_MODE_BY_SPEED.get(interface_speed)
+                    if not brkout_mode:
                         continue  # Skip unsupported speeds
 
                     # Calculate physical port number (Ethernet0-3 -> port 1/1, Ethernet4-7 -> port 1/2, etc.)

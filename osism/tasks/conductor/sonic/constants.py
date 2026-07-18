@@ -73,6 +73,19 @@ PORT_TYPE_TO_SPEED_MAP = {
 # High speed ports that use 4x multiplier (lanes)
 HIGH_SPEED_PORTS = {100000, 200000, 400000, 800000}  # 100G, 200G, 400G, 800G in Mbps
 
+# Supported four-subport breakout modes keyed by subport speed in Mbps
+# (get_interface_speed normalizes explicit NetBox kbps speeds to Mbps).
+# The SONiC EthernetX detection path filters breakout groups to <= 50G,
+# so the 100G and 200G entries only match the NetBox EthX/Y/Z path;
+# SONiC-format 4x100G is handled by the dedicated 400G branch.
+BREAKOUT_MODE_BY_SPEED = {
+    10000: "4x10G",
+    25000: "4x25G",
+    50000: "4x50G",
+    100000: "4x100G",
+    200000: "4x200G",
+}
+
 # Path to SONiC port configuration files
 PORT_CONFIG_PATH = "/etc/sonic/port_config"
 

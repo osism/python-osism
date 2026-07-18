@@ -464,6 +464,9 @@ def test_detect_breakout_ports_sonic_400g_4_lane_master_falls_through(
 @pytest.mark.parametrize(
     "speed, expected_mode",
     [
+        # Explicit speeds are kbps as NetBox stores them; detection
+        # normalizes them to Mbps before the breakout mode lookup.
+        (10_000_000, "4x10G"),
         (25_000_000, "4x25G"),
         (50_000_000, "4x50G"),
     ],
