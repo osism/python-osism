@@ -5,7 +5,7 @@ name = "pypi"
 
 [packages]
 ClusterShell = "==1.10"
-GitPython = "==3.1.51"
+GitPython = "==3.1.52"
 Jinja2 = "==3.1.6"
 PyMySQL = "==1.2.0"
 PyYAML = "==6.0.3"
