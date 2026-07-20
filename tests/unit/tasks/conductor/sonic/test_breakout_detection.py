@@ -526,6 +526,34 @@ def test_detect_breakout_ports_sonic_standard_only_three_interfaces(
     }
 
 
+def test_detect_breakout_ports_sonic_standard_native_ports_not_breakout(
+    patch_breakout_helpers,
+):
+    # Four consecutive single-lane 25G ports that are each their own
+    # port_config entry are NATIVE ports, not a breakout cage, and must not be
+    # misdetected as a 4x25G breakout. A real breakout is a single multi-lane
+    # master with the intermediate lanes absent (they materialize only when the
+    # cage is broken out). This guards native low-speed switches such as
+    # DellEMC-S5212f / AS7326-56X (25G) and AS5835-54T (10G).
+    device = _make_sonic_device()
+    interfaces = [_make_iface(f"Ethernet{n}", speed=25_000_000) for n in range(4)]
+    port_config = {
+        f"Ethernet{n}": {
+            "lanes": str(29 + n),  # one lane each -> native ports
+            "alias": f"twentyfiveGigE1/{n + 1}",
+            "index": str(n + 1),
+            "speed": "25000",
+        }
+        for n in range(4)
+    }
+    patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
+
+    assert detect_breakout_ports(device) == {
+        "breakout_cfgs": {},
+        "breakout_ports": {},
+    }
+
+
 def test_detect_breakout_ports_sonic_standard_speed_resolved_from_port_type(
     patch_breakout_helpers,
 ):

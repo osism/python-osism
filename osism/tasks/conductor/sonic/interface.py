@@ -915,6 +915,33 @@ def detect_breakout_ports(device):
                 if len(sonic_breakout_group) == 4:
                     master_port = f"Ethernet{base_port}"
 
+                    # Topology gate: only treat consecutive EthernetN ports as a
+                    # breakout when the port_config confirms a single multi-lane
+                    # master whose intermediate lanes are absent — they only
+                    # materialize when the cage is broken out. Four separate
+                    # single-lane entries are native ports, not a breakout cage.
+                    # This prevents native low-speed switches (e.g. AS5835-54T
+                    # 10G, DellEMC-S5212f / AS7326-56X 25G) from being
+                    # misdetected as a 4xNG breakout. Unlike EthX/Y/Z, the bare
+                    # EthernetN name carries no explicit breakout signal, so the
+                    # port_config topology is the only local evidence available.
+                    master_cfg = port_config.get(master_port)
+                    if not master_cfg or "," not in master_cfg.get("lanes", ""):
+                        logger.debug(
+                            f"Skipping SONiC breakout for {master_port}: master "
+                            f"is not a multi-lane port in port_config (native port)"
+                        )
+                        continue
+                    if any(
+                        f"Ethernet{base_port + offset}" in port_config
+                        for offset in (1, 2, 3)
+                    ):
+                        logger.debug(
+                            f"Skipping SONiC breakout for {master_port}: "
+                            f"intermediate ports present in port_config (native ports)"
+                        )
+                        continue
+
                     # Determine breakout mode based on speed; the membership
                     # filter above (<= 50G) limits this path to 4x10G, 4x25G
                     # and 4x50G
