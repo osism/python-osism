@@ -4,7 +4,7 @@ GitPython==3.1.52
 Jinja2==3.1.6
 PyMySQL==1.2.0
 PyYAML==6.0.3
-ara==1.7.5
+ara==1.8.0
 celery[redis]==5.6.3
 cliff==4.15.0
 deepdiff==9.1.0
