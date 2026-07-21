@@ -5,12 +5,308 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.20260319.0] - 2026-03-19
+## [v0.20260721.0] - 2026-07-21
 
 ### Added
-- Log file command for realtime log tailing from nodes via SSH, with clush support for inventory groups and path traversal prevention (osism/python-osism#2148)
+- Add `osism openstack` passthrough command that forwards subcommands to the OpenStack CLI, with python-openstackclient declared as a runtime dependency and unit tests covering the command (osism/python-osism#2392)
+- Add Celery/Redis integration test suite (task round-trip, worker visibility, Redis streams, distributed locking) and a Zuul job to run it in CI (osism/python-osism#2369)
+- Add integration tests for inventory facts API endpoints (osism/python-osism#2411)
+- Add UUID column to `osism baremetal list` output so nodes can be cross-referenced with Ironic logs (osism/python-osism#2415)
+- Add `osism reset facts` command to clear the cached Ansible facts cache, with `--limit` scoping to specific hosts/groups and validation rejecting an empty limit (osism/python-osism#2389)
+- Add unit tests for the osism console-script entry point (osism/python-osism#2382)
+- Add unit tests for the conductor Redfish module (osism/python-osism#2341)
+- Restrict SONiC SNMP and gNMI access to the OOB network via per-device control-plane ACLs (osism/python-osism#2338)
+- Add unit tests for conductor ironic sync orchestrators (osism/python-osism#2367)
+- Add unit tests for ironic.py pure helpers covering hostname/AS derivation, metalbox IP lookups, template rendering, and node attribute preparation (osism/python-osism#2342)
+- Add integration tests for the OpenStack events WebSocket endpoint and a pytest-timeout test dependency (osism/python-osism#2412)
+- Add unit tests for osism.utils.ssh known_hosts maintenance helpers (osism/python-osism#2350)
+- Add unit tests for RedisSemaphore, create_redlock, create_netbox_semaphore and task-lock helpers in osism/utils (osism/python-osism#2349)
+- Add unit tests for the Celery task helpers in osism/tasks/__init__.py (osism/python-osism#2434)
+- Add unit tests for the ansible, ceph, kolla, kubernetes and reconciler task wrappers (osism/python-osism#2438)
+- Create per-device SONiC ZTP firmware symlink derived from `sonic_parameters.version`, reconciled on every sync and removed when the version is cleared (osism/python-osism#2427)
+- Octavia amphora image import now falls back to aria2 + glance-direct when the web-download stalls, with a single web-download attempt and a longer task timeout to accommodate the fallback (osism/python-osism#2462)
+- Add unit tests for OpenStack task helpers, baremetal/NetBox getters and manager tasks (osism/python-osism#2459)
+- Add unit tests for API helper functions and Pydantic models in osism/api.py (osism/python-osism#2463)
+- Add unit tests for task lifecycle CLI commands (osism/python-osism#2464)
+
+### Changed
+- Derive Celery broker and result backend URLs from Redis settings, with `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND` environment variable overrides, and fix `task_track_started` being a truthy tuple instead of a boolean (osism/python-osism#2369)
+- Restrict SONiC control-plane SSH access to the device's OOB management subnet via a generated CTRLPLANE ACL, closing a gap where front-panel interfaces could reach TCP/22 (osism/python-osism#2337)
+
+### Fixed
+- Exclude localhost from Ansible facts freshness check to prevent permanent stale warnings (osism/python-osism#2409)
+- Fix project-board automation for fork pull requests (osism/python-osism#2416)
+- Pin CycloneDX SBOM spec version to 1.6 for DependencyTrack compatibility (osism/python-osism#2417)
+- Make `RedisSemaphore.acquire` atomic to close a race that let more clients than `maxsize` hold the semaphore under concurrent load (osism/python-osism#2419)
+- Report SSH known_hosts cleanup as failed when ssh-keygen exits with a non-zero status (osism/python-osism#2350)
+- Acquire the lock in run_command when locking is enabled, matching run_ansible_in_environment (osism/python-osism#2434)
+- Detect the ProxySQL-sharded MariaDB superuser at connect time so `status` and `loadbalancer` commands authenticate correctly on ProxySQL clusters (osism/python-osism#2439)
+- Drain reconciler subprocess stdout to prevent a deadlock when `/run.sh` output exceeds the pipe buffer (osism/python-osism#2440)
+- Fix `redfish list` connecting with empty credentials due to an unpacked tuple in conductor Redfish credential/address lookup (osism/python-osism#2430)
+- Use auth-priv for SONiC SNMP group access to match the auth-priv user accounts (osism/python-osism#2445)
+- NetBox set_maintenance, set_provision_state and set_power_state tasks now return False when a device update fails instead of always reporting success (osism/python-osism#2458)
+- Query IP addresses via the NetBox ipam.ip_addresses endpoint instead of the non-existent dcim.addresses (osism/python-osism#2458)
+- Match the NetBox 'primary' filter keyword as a whole instead of as a substring, so filters like a site named 'primary-region' no longer select the primary instance (osism/python-osism#2458)
+- Default `manage images --cloud` to the `admin` profile shipped by cfg-cookiecutter's clouds.yml so a bare `osism manage images` no longer fails with a missing-cloud error (osism/python-osism#2472)
+- Skip RabbitMQ hosts that fail address resolution instead of discarding addresses already collected for other hosts (osism/python-osism#2352)
+- Abort OpenStack manager commands (image manager, project manager) when cloud environment setup fails instead of running without credentials, and fix a crash when `--images` is passed without a value (osism/python-osism#2459)
+- Mask secrets nested in lists in API inventory output (osism/python-osism#2463)
+- Reject unknown service types in osism service instead of exiting silently (osism/python-osism#2464)
+- Reject unknown worker types in osism worker instead of producing malformed commands (osism/python-osism#2464)
+- Forward option-like arguments correctly in osism configuration sync (osism/python-osism#2464)
+- Pass the log format string to handle_task in osism configuration sync (osism/python-osism#2464)
+- Unpack the task id in osism task revoke (osism/python-osism#2464)
+- Check the task lock before starting the deprecated reconciler runner (osism/python-osism#2464)
+- Normalize NetBox interface speeds to Mbps at collection time and in SONiC breakout detection, fixing invalid port configurations for interfaces with explicitly set speeds (osism/python-osism#2479)
+- Fix SONiC breakout detection dropping 4x10G breakouts on EthernetX-named interfaces by unifying the speed-to-mode mapping used by both NetBox and SONiC detection paths (osism/python-osism#2488)
+- Prevent native low-speed switch ports from being misdetected as SONiC EthernetN breakouts by gating detection on port topology (osism/python-osism#2497)
+
+### Removed
+- Drop next-generation mariadb, rabbitmq, and loadbalancer roles ("-ng" variants) in favor of the regular role names (osism/python-osism#2446)
 
 ### Dependencies
+- @eslint/eslintrc 3.3.5 → 3.3.6 (osism/python-osism#2461)
+- @tanstack/react-query 5.101.0 → 5.101.2 (osism/python-osism#2414, osism/python-osism#2425)
+- @types/node 24.13.2 → 24.13.3 (osism/python-osism#2453)
+- ansible-core 2.19.3 → 2.19.11 (osism/python-osism#2476)
+- ansible.posix 2.2.0 → 2.2.2 (osism/python-osism#2432, osism/python-osism#2471)
+- ansible.utils 6.0.2 → 6.0.3 (osism/python-osism#2390)
+- autoprefixer 10.5.0 → 10.5.4 (osism/python-osism#2418, osism/python-osism#2484, osism/python-osism#2490)
+- axios 1.18.0 → 1.18.1 (osism/python-osism#2413)
+- boto3 1.43.29 → 1.43.50 (osism/python-osism#2384, osism/python-osism#2393, osism/python-osism#2421, osism/python-osism#2436, osism/python-osism#2454, osism/python-osism#2492)
+- cliff 4.14.0 → 4.15.0 (osism/python-osism#2457)
+- clustershell 1.9.3 → 1.10.1 (osism/python-osism#2442, osism/python-osism#2493)
+- deepdiff 8.6.2 → 9.1.0 (osism/python-osism#2322)
+- docker 7.1.0 → 7.2.0 (osism/python-osism#2451)
+- eslint 10.5.0 → 10.7.0 (osism/python-osism#2423, osism/python-osism#2465)
+- eslint-config-next 16.2.9 → 16.2.10 (osism/python-osism#2431)
+- fastapi 0.137.0 → 0.139.2 (osism/python-osism#2385, osism/python-osism#2394, osism/python-osism#2422, osism/python-osism#2437, osism/python-osism#2494)
+- ghcr.io/astral-sh/uv 0.11.21 → 0.11.26 (osism/python-osism#2399, osism/python-osism#2441)
+- gitpython 3.1.50 → 3.1.52 (osism/python-osism#2469, osism/python-osism#2489)
+- hiredis 3.3.1 → 3.4.0 (osism/python-osism#2351)
+- huey 2.6.0 → 3.2.1 (osism/python-osism#2323, osism/python-osism#2435, osism/python-osism#2452)
+- jc 1.25.6 → 1.25.7 (osism/python-osism#2397)
+- keystoneauth1 5.14.0 → 5.15.0 (osism/python-osism#2443)
+- kubernetes 33.1.0 → 36.0.3 (osism/python-osism#2324, osism/python-osism#2477)
+- lucide-react 0.577.0 → 1.25.0 (osism/python-osism#2159, osism/python-osism#2495)
+- next 16.2.9 → 16.2.10 (osism/python-osism#2431)
+- openstack-flavor-manager 0.20260227.0 → 0.20260614.0 (osism/python-osism#2379)
+- openstack-image-manager 0.20260227.0 → 0.20260714.0 (osism/python-osism#2424, osism/python-osism#2466)
+- openstacksdk 4.10.0 → 4.17.0 (osism/python-osism#2292)
+- paramiko 4.0.0 → 5.0.0 (osism/python-osism#2410)
+- postcss 8.5.15 → 8.5.19 (osism/python-osism#2426, osism/python-osism#2468, osism/python-osism#2470, osism/python-osism#2474)
+- pynetbox 7.7.0 → 7.8.0 (osism/python-osism#2398)
+- pytest 9.1.0 → 9.1.1 (osism/python-osism#2408)
+- pytest-cov 6.3.0 → 7.1.0 (osism/python-osism#2386)
+- python 3.13 → 3.14 (osism/python-osism#1917)
+- python-openstackclient 9.0.0 → 10.2.1 (osism/python-osism#2395)
+- redfish 3.3.5 → 3.3.6 (osism/python-osism#2496)
+- setuptools 82.0.1 → 83.0.0 (osism/python-osism#2467)
+- sqlmodel 0.0.38 → 0.0.39 (osism/python-osism#2420)
+- sushy 5.11.0 → 5.11.1 (osism/python-osism#2433)
+- tailwindcss 4.3.1 → 4.3.3 (osism/python-osism#2429, osism/python-osism#2491)
+- typescript 5.9.3 → 6.0.3 (osism/python-osism#2162)
+- uvicorn 0.49.0 → 0.51.0 (osism/python-osism#2444, osism/python-osism#2447, osism/python-osism#2448, osism/python-osism#2449)
+- websockets 16.0 → 16.1.1 (osism/python-osism#2456, osism/python-osism#2498)
+
+## [v0.20260615.0] - 2026-06-15
+
+### Changed
+- Enforce per-key merge ownership for co-owned SONiC ACL_TABLE/ACL_RULE config tables so control-plane helpers (SSH, SNMP, gNMI) can no longer clobber each other's entries (osism/python-osism#2370)
+- Document the two SONiC config ownership regimes: table-level ownership for config_db.json and partitioned key ownership for the NetBox device local context data (osism/python-osism#2371)
+
+### Dependencies
+- boto3 1.43.28 → 1.43.29 (osism/python-osism#2372)
+- tailwindcss 4.3.0 → 4.3.1 (osism/python-osism#2373)
+- axios 1.17.0 → 1.18.0 (osism/python-osism#2374)
+- fastapi 0.136.3 → 0.137.0 (osism/python-osism#2375)
+- netbox-manager 0.20260322.0 → 0.20260614.0 (osism/python-osism#2376)
+- uvicorn 0.48.0 → 0.49.0 (osism/python-osism#2377)
+- eslint 10.4.1 → 10.5.0 (osism/python-osism#2378)
+- pytest 9.0.3 → 9.1.0 (osism/python-osism#2380)
+- tanstack-query 5.100.14 → 5.101.0 (osism/python-osism#2381)
+
+## [v0.20260612.0] - 2026-06-12
+
+### Added
+- Add unit tests for osism/utils connection initialization helpers (osism/python-osism#2247)
+- Enforce cross-table leafref references in SONiC ConfigDB validator (osism/python-osism#2257)
+- Automatically add opened issues and pull requests to project board (osism/python-osism#2262)
+- Add erase_devices_metadata step to baremetal deploy (osism/python-osism#2263)
+- Add `--refresh-host-key` option to SONiC SSH commands to refresh known_hosts entries after switch redeployment (osism/python-osism#2266)
+- Add unit tests for task output streaming, task revocation, and ansible vault/facts helpers (osism/python-osism#2298)
+- Add unit tests for conductor SONiC BGP, VLAN, Loopback, and VRF config generator helpers (osism/python-osism#2223)
+- Add support for BGP IPv6 neighbors on VLAN interfaces, with dual-stack peer detection and address-family gating (osism/python-osism#2328)
+- Add unit tests for the SONiC exporter and sync orchestrator modules (osism/python-osism#2333)
+- Add SONiC port_config file for DellEMC-S5212f-P-25G and a supported vendor list (osism/python-osism#2325)
+
+### Changed
+- Replace sonic-yang-mgmt/libyang-based SONiC config validation with generated Pydantic schemas, dropping the --yang-dir flag and SONIC_YANG_MODELS_DIR setting (osism/python-osism#2253)
+- Add docker_insecure_registries for metalbox to baremetal deploy playbook (osism/python-osism#2265)
+- Pin pipenv in CI via the ensure-pipenv role and regenerate Pipfile.lock (osism/python-osism#2251)
+- Vault view command now shows plain content with a warning for non-encrypted files and propagates the ansible-vault exit code (osism/python-osism#2275)
+- Enforce SONiC config table ownership statically so an unclassified table can no longer bypass the ownership model (osism/python-osism#2339)
+
+### Fixed
+- Prevent SONiC config generation from raising a `KeyError` on devices with connected ports, Loopback0 routes, or VRFs with VNI when `/etc/sonic/config_db.json` is missing or sparse (osism/python-osism#2237)
+- Preserve pre-existing `STATIC_ROUTE` entries when writing the out-of-band management default route during SONiC config generation (osism/python-osism#2237)
+- Decouple `FACTS_MAX_AGE` default from `GATHER_FACTS_SCHEDULE` so disabling the periodic gather schedule no longer marks all facts as stale (osism/python-osism#2250)
+- Fix updating target_raid_config during ironic sync (osism/python-osism#2263)
+- Avoid shell=True in vault view and decrypt subprocess calls to prevent shell injection via crafted file paths (osism/python-osism#2280)
+- Propagate ansible-vault exit code from the vault decrypt command (osism/python-osism#2280)
+- Handle missing path argument in vault view and decrypt commands instead of raising a TypeError (osism/python-osism#2280)
+- Fix kbps to Mbps speed conversion and add 4x10G breakout mode handling for missing SONiC breakout ports (osism/python-osism#2246)
+- Retry SSH connection setup with a configurable retry count to fix intermittent "Permission denied (publickey)" errors on cold connection setup (osism/python-osism#2282)
+- Fix cloudpod flavors hw_rng:allowed property to use uppercase True as required by the SCS flavor standard test (osism/python-osism#2300)
+- Fix task output timeout casting from environment variable, a Redis connection leak on timeout, and rc=0 being dropped when finishing task output (osism/python-osism#2298)
+- Enforce config_db.json table ownership in the SONiC config generator so stale entries removed from NetBox no longer survive config regeneration (osism/python-osism#2297)
+- Guard SONiC BGP configuration against empty interface IP mappings to prevent errors when checking connected interfaces (osism/python-osism#2223)
+- Return non-zero exit code from `osism get hostvars`/`osism get hosts` when the inventory query fails (osism/python-osism#2313)
+- CLI commands now return a non-zero exit code on failed resource lookups, precondition and operational failures, invalid arguments, task-wait timeouts, inventory query failures, and unconfirmed destructive `--all` operations across the reconciler, validate, netbox, report and wait commands, instead of silently reporting success (osism/python-osism#2331)
+- Fix SONiC config sync silently deleting sibling NetBox local context keys (e.g. frr_parameters, netplan_parameters) by owning and diffing only the sonic_config key (osism/python-osism#2333)
+- Create SONiC config journal entry only after a successful device save (osism/python-osism#2333)
+- Write SONiC config exports atomically to avoid truncating the previous export on a failed write (osism/python-osism#2333)
+- Reconcile the SONiC hostname symlink independently of config changes and guard against hostname equal to serial number (osism/python-osism#2333)
+- Always clean up caches and finish task output in SONiC sync, even on early returns or per-device failures (osism/python-osism#2333)
+- Raise on SONiC persistence failures instead of reporting no change (osism/python-osism#2333)
+
+### Removed
+- Remove unused NetBox-crawl NTP server lookup from SONiC config generation (osism/python-osism#2237)
+- Drop unused sonic-yang-mgmt dependency (osism/python-osism#2327)
+
+### Dependencies
+- ansible-runner 2.4.2 → 2.4.3 (osism/python-osism#2143)
+- ansible.posix 2.1.0 → 2.2.0 (osism/python-osism#2286)
+- autoprefixer 10.4.27 → 10.5.0 (osism/python-osism#2249)
+- axios 1.13.6 → 1.17.0 (osism/python-osism#2256, osism/python-osism#2348)
+- boto3 1.43.1 → 1.43.28 (osism/python-osism#2245, osism/python-osism#2264, osism/python-osism#2278, osism/python-osism#2294, osism/python-osism#2301, osism/python-osism#2304, osism/python-osism#2310, osism/python-osism#2334)
+- cliff 4.13.3 → 4.14.0 (osism/python-osism#2287)
+- community.docker 5.0.6 → 5.2.1 (osism/python-osism#2259, osism/python-osism#2305)
+- date-fns 4.1.0 → 4.4.0 (osism/python-osism#2288, osism/python-osism#2307)
+- eslint 10.1.0 → 10.4.1 (osism/python-osism#2274, osism/python-osism#2311)
+- eslint-config-next 16.2.4 → 16.2.7 (osism/python-osism#2271, osism/python-osism#2316)
+- fastapi 0.136.1 → 0.136.3 (osism/python-osism#2303)
+- ghcr.io/astral-sh/uv 0.10.8 → 0.11.21 (osism/python-osism#2085, osism/python-osism#2270, osism/python-osism#2273, osism/python-osism#2306, osism/python-osism#2315, osism/python-osism#2346)
+- gitpython 3.1.47 → 3.1.50 (osism/python-osism#2242, osism/python-osism#2269)
+- keystoneauth1 5.13.1 → 5.14.0 (osism/python-osism#2289)
+- netbox.netbox 3.22.0 → 3.23.0 (osism/python-osism#2291)
+- next 16.2.4 → 16.2.9 (osism/python-osism#2271, osism/python-osism#2316, osism/python-osism#2347)
+- postcss 8.5.13 → 8.5.15 (osism/python-osism#2255, osism/python-osism#2285)
+- pymysql 1.1.3 → 1.2.0 (osism/python-osism#2295)
+- pynetbox 7.6.1 → 7.7.0 (osism/python-osism#2296)
+- pytest-cov 6.0.0 → 6.3.0 (osism/python-osism#2299)
+- pytest-mock 3.14.0 → 3.15.1 (osism/python-osism#2308)
+- react 19.2.4 → 19.2.7 (osism/python-osism#2248, osism/python-osism#2272, osism/python-osism#2317)
+- react-dom 19.2.4 → 19.2.7 (osism/python-osism#2248, osism/python-osism#2272, osism/python-osism#2317)
+- sushy 5.10.0 → 5.11.0 (osism/python-osism#2309)
+- tabulate 0.9.0 → 0.10.0 (osism/python-osism#2318)
+- tailwind-merge 3.5.0 → 3.6.0 (osism/python-osism#2319)
+- tailwindcss 4.2.4 → 4.3.0 (osism/python-osism#2321)
+- uvicorn 0.42.0 → 0.48.0 (osism/python-osism#2320)
+- @tanstack/react-query 5.100.6 → 5.100.14 (osism/python-osism#2244, osism/python-osism#2284, osism/python-osism#2302)
+- @types/node 24.12.2 → 24.13.2 (osism/python-osism#2268, osism/python-osism#2276, osism/python-osism#2336, osism/python-osism#2344)
+- @types/react 19.2.14 → 19.2.17 (osism/python-osism#2293, osism/python-osism#2335)
+
+## [v0.20260502.0] - 2026-05-02
+
+### Added
+- Add unit tests for SONiC interface cache locking, connection recovery, alias-based port extraction, and the openstack-core dependency chain (osism/python-osism#2239)
+
+### Changed
+- Remove unreachable dead code in SONiC device grouping and port-channel detection (osism/python-osism#2239)
+
+### Fixed
+- Retry image marker and checksum fetches in `osism manage image` commands to avoid failures from transient S3 error responses (osism/python-osism#2216)
+- Fix `KeyError` in `deep_compare` when a nested key is missing from the current-state config (osism/python-osism#2239)
+- Recover per-interface instead of aborting the whole device when SONiC connected-interface detection fails on one interface (osism/python-osism#2239)
+- Fix SONiC port number extraction for `Eth(PortN)`-style interface aliases (osism/python-osism#2239)
+
+### Dependencies
+- @tanstack/react-query 5.100.1 → 5.100.6 (osism/python-osism#2235)
+- boto3 1.42.95 → 1.43.1 (osism/python-osism#2236)
+- postcss 8.5.8 → 8.5.13 (osism/python-osism#2186)
+- pymysql 1.1.2 → 1.1.3 (osism/python-osism#2243)
+
+## [v0.20260429.0] - 2026-04-29
+
+### Added
+- Allow 10G breakouts in SONiC port configuration (osism/python-osism#2174)
+- Add SNMP secret handling from custom_fields to properly decode vault-encrypted values (osism/python-osism#2168)
+- Add safeguard to check Ansible facts freshness before running apply (osism/python-osism#2165)
+- Add SW-RAID support for baremetal node deployment and cleaning (osism/python-osism#2183)
+- Introduce pytest-based unit test foundation with Zuul CI integration (osism/python-osism#2193)
+- Add unit tests for osism/utils/inventory (osism/python-osism#2200)
+- Add unit tests for osism/data/enums (osism/python-osism#2201)
+- Add unit tests for osism/data/playbooks (osism/python-osism#2207)
+- Add unit tests for osism/settings covering environment variable and secret handling (osism/python-osism#2208)
+- Add unit tests for the SONiC conductor bgp and constants modules (osism/python-osism#2209)
+- Add unit tests for conductor utils, SONiC interface cache, and SONiC device helpers (osism/python-osism#2210, osism/python-osism#2212, osism/python-osism#2214)
+- Add unit tests for the SONiC connections module covering device/interface traversal helpers and VIP address cache handling (osism/python-osism#2215)
+- Add `sonic validate` command for YANG-based config_db.json validation against bundled SONiC YANG models (osism/python-osism#2191)
+- Add unit tests for conductor config and netbox helper functions (osism/python-osism#2218)
+- Add unit tests for conductor SONiC interface conversion helpers (osism/python-osism#2233)
+- Add unit tests for SONiC breakout port and port channel detection logic (osism/python-osism#2234)
+
+### Changed
+- Reformat code to comply with black 26.3.1 style (osism/python-osism#2181)
+- Log the HTTP status code when fetching the Octavia image checksum URL (osism/python-osism#2213)
+
+### Fixed
+- Avoid eager vault lookup for YAML secrets by only decrypting files that are actually vault-encrypted (osism/python-osism#2172)
+- Fix sonic list JSON serialization error and restore device name filtering (osism/python-osism#2185)
+- Fix `NETBOX_FILTER_CONDUCTOR_IRONIC` and `NETBOX_FILTER_CONDUCTOR_SONIC` defaults to use `status` instead of `state` (osism/python-osism#2240)
+
+### Dependencies
+- celery 5.6.2 → 5.6.3 (osism/python-osism#2167)
+- @types/node 24.12.0 → 24.12.2 (osism/python-osism#2176)
+- ansible.utils 6.0.1 → 6.0.2 (osism/python-osism#2177)
+- boto3 1.42.78 → 1.42.89 (osism/python-osism#2178)
+- cliff 4.13.2 → 4.13.3 (osism/python-osism#2179)
+- boto3 1.42.89 → 1.42.95 (osism/python-osism#2182)
+- fastapi 0.135.2 → 0.136.1 (osism/python-osism#2180)
+- gitpython 3.1.46 → 3.1.47 (osism/python-osism#2184)
+- sqlmodel 0.0.37 → 0.0.38 (osism/python-osism#2187)
+- @tanstack/react-query 5.95.0 → 5.100.1 (osism/python-osism#2160)
+- cmd2 3.5.0 → 3.5.1 (osism/python-osism#2211)
+- cryptography 46.0.7 → 47.0.0 (osism/python-osism#2211)
+- packaging 26.1 → 26.2 (osism/python-osism#2211)
+- tzdata 2026.1 → 2026.2 (osism/python-osism#2211)
+- tabulate 0.10.0 → 0.9.0 (osism/python-osism#2191)
+- next 16.2.1 → 16.2.4 (osism/python-osism#2190)
+- tailwindcss 4.2.2 → 4.2.4 (osism/python-osism#2189)
+
+## [v0.20260414.0] - 2026-04-14
+
+### Added
+- Add baremetal node adoption during ironic sync, with automatic adoption for nodes marked active in NetBox (osism/python-osism#2166)
+- Allow burn-in of active baremetal nodes via service steps, guarded by a confirmation flag (osism/python-osism#2163)
+
+### Dependencies
+- eslint 10.0.3 → 10.1.0 (osism/python-osism#2156)
+- tailwindcss 4.2.1 → 4.2.2 (osism/python-osism#2155)
+- @tanstack/react-query 5.91.0 → 5.95.0 (osism/python-osism#2154, osism/python-osism#2158)
+- next 16.1.6 → 16.2.1 (osism/python-osism#2146)
+- @eslint/eslintrc 3.3.4 → 3.3.5 (osism/python-osism#2084)
+- netbox-manager 0.20260310.0 → 0.20260322.0 (osism/python-osism#2157)
+- fastapi 0.135.1 → 0.135.2 (osism/python-osism#2161)
+- boto3 1.42.63 → 1.42.78 (osism/python-osism#2102)
+- ara 1.7.3 → 1.7.5 (osism/python-osism#1892)
+
+## [v0.20260320.0] - 2026-03-20
+
+### Added
+- Static default route in management VRF and syslog server configuration for SONiC device configs (osism/python-osism#2010)
+- Log file command for realtime log tailing from nodes via SSH, with clush support for inventory groups and path traversal prevention (osism/python-osism#2148)
+
+### Changed
+- SONiC SNMP configuration now generates SNMP_SERVER-based config per device instead of static SNMP_COMMUNITY defaults (osism/python-osism#2010)
+- Backfill changelog entries for v0.20260314.0 through v0.20260319.0 (osism/python-osism#2153)
+
+### Fixed
+- SONiC config database VERSION key renamed to VERSIONS to match device schema (osism/python-osism#2010)
+
+### Dependencies
+- deepdiff 8.6.1 → 8.6.2 (osism/python-osism#2152)
 - netbox-manager 0.20260211.0 → 0.20260310.0 (osism/python-osism#2103)
 - @tanstack/react-query 5.90.21 → 5.91.0 (osism/python-osism#2151)
 
