@@ -8,13 +8,19 @@ the module is private (``_``-prefixed) so pytest does not collect it.
 
 from types import SimpleNamespace
 
+_DEFAULT = object()
 
-def _make_sonic_device(device_id=1, name="sw1", hwsku="TEST-HWSKU"):
+
+def _make_sonic_device(
+    device_id=1, name="sw1", hwsku="TEST-HWSKU", custom_fields=_DEFAULT
+):
     """Build a NetBox device stub carrying ``custom_fields.sonic_parameters.hwsku``."""
+    if custom_fields is _DEFAULT:
+        custom_fields = {"sonic_parameters": {"hwsku": hwsku}}
     return SimpleNamespace(
         id=device_id,
         name=name,
-        custom_fields={"sonic_parameters": {"hwsku": hwsku}},
+        custom_fields=custom_fields,
     )
 
 

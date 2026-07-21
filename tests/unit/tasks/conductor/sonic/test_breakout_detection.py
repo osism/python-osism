@@ -14,7 +14,13 @@ from types import SimpleNamespace
 import pytest
 
 from osism.tasks.conductor.sonic import interface as interface_module
-from osism.tasks.conductor.sonic.interface import detect_breakout_ports
+from osism.tasks.conductor.sonic.interface import (
+    detect_breakout_ports,
+    _emit_breakout,
+    _parse_lanes,
+    _parse_breakout_mode,
+    get_declared_breakout_modes,
+)
 
 from ._detection_helpers import _make_iface, _make_sonic_device
 
@@ -568,3 +574,360 @@ def test_detect_breakout_ports_sonic_standard_speed_resolved_from_port_type(
     result = detect_breakout_ports(device)
 
     assert result["breakout_cfgs"]["Ethernet0"]["brkout_mode"] == "4x25G"
+
+
+# ---------------------------------------------------------------------------
+# _parse_lanes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "s,out",
+    [
+        ("1,2,3,4", ["1", "2", "3", "4"]),
+        (
+            "73,74,75,76,77,78,79,80",
+            ["73", "74", "75", "76", "77", "78", "79", "80"],
+        ),
+        ("1-4", ["1", "2", "3", "4"]),
+        ("29", ["29"]),
+        ("", []),
+        ("  ", []),
+        ("a,b", []),
+        ("4-1", []),
+        ("1-", []),
+        ("x-3", []),
+        (None, []),
+        (29, []),
+        (["1", "2"], []),
+    ],
+)
+def test_parse_lanes(s, out):
+    assert _parse_lanes(s) == out
+
+
+# ---------------------------------------------------------------------------
+# _parse_breakout_mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "m,out",
+    [
+        ("4x10G", (4, 10000)),
+        ("2x50G", (2, 50000)),
+        ("8x50G", (8, 50000)),
+        ("4x100G", (4, 100000)),
+        ("2x200G", (2, 200000)),
+        ("1x400G", None),
+        ("0x10G", None),
+        ("4x0G", None),
+        ("4x10g", None),
+        (" 4x10G ", (4, 10000)),
+        ("bogus", None),
+        ("4x", None),
+        ("x10G", None),
+        ("", None),
+        (None, None),
+        (10, None),
+        ({}, None),
+    ],
+)
+def test_parse_breakout_mode(m, out):
+    assert _parse_breakout_mode(m) == out
+
+
+# ---------------------------------------------------------------------------
+# get_declared_breakout_modes
+# ---------------------------------------------------------------------------
+
+
+def test_declared_modes_map():
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {
+                "hwsku": "x",
+                "breakout": {"Ethernet0": "4x10G", "Eth1/9": "2x50G"},
+            }
+        }
+    )
+    assert get_declared_breakout_modes(d) == {"Ethernet0": "4x10G", "Eth1/9": "2x50G"}
+
+
+@pytest.mark.parametrize(
+    "cf",
+    [
+        {"sonic_parameters": {"hwsku": "x"}},
+        {"sonic_parameters": {"breakout": None}},
+        {"sonic_parameters": {"breakout": "Ethernet0: 4x10G"}},
+        {"sonic_parameters": {"breakout": []}},
+        {"sonic_parameters": None},
+        {},
+        None,
+    ],
+)
+def test_declared_modes_malformed_or_absent(cf):
+    assert get_declared_breakout_modes(_make_sonic_device(custom_fields=cf)) == {}
+
+
+# ---------------------------------------------------------------------------
+# detect_breakout_ports — declared-mode pass (Task 5)
+# ---------------------------------------------------------------------------
+
+
+_GATE_PC = {
+    "Ethernet0": {
+        "lanes": "1,2,3,4",
+        "alias": "Eth1/1",
+        "index": "1",
+        "speed": "25000",
+    }
+}  # Eth1/1/2/3 absent -> gate accepts
+
+
+def test_declared_4x10g(patch_breakout_helpers):
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {"hwsku": "x", "breakout": {"Ethernet0": "4x10G"}}
+        }
+    )
+    patch_breakout_helpers(
+        interfaces=[], port_config=_port_config_for_port(lanes="1,2,3,4")
+    )
+    r = detect_breakout_ports(d)
+    assert r["breakout_cfgs"]["Ethernet0"]["brkout_mode"] == "4x10G"
+    assert {k: v["lanes"] for k, v in r["breakout_ports"].items()} == {
+        "Ethernet0": "1",
+        "Ethernet1": "2",
+        "Ethernet2": "3",
+        "Ethernet3": "4",
+    }
+    assert all(v["declared"] for v in r["breakout_ports"].values())
+
+
+def test_declared_2x50g(patch_breakout_helpers):
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {"hwsku": "x", "breakout": {"Ethernet0": "2x50G"}}
+        }
+    )
+    patch_breakout_helpers(
+        interfaces=[], port_config=_port_config_for_port(lanes="1,2,3,4")
+    )
+    assert {
+        k: v["lanes"] for k, v in detect_breakout_ports(d)["breakout_ports"].items()
+    } == {"Ethernet0": "1,2", "Ethernet2": "3,4"}
+
+
+def test_declared_8x50g(patch_breakout_helpers):
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {"hwsku": "x", "breakout": {"Ethernet0": "8x50G"}}
+        }
+    )
+    patch_breakout_helpers(
+        interfaces=[], port_config=_port_config_for_port(lanes="1,2,3,4,5,6,7,8")
+    )
+    r = detect_breakout_ports(d)
+    assert set(r["breakout_ports"]) == {f"Ethernet{n}" for n in range(8)}
+    assert r["breakout_ports"]["Ethernet0"]["lanes"] == "1"
+
+
+def test_declared_4x100g_8lane(patch_breakout_helpers):
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {"hwsku": "x", "breakout": {"Ethernet0": "4x100G"}}
+        }
+    )
+    patch_breakout_helpers(
+        interfaces=[], port_config=_port_config_for_port(lanes="1,2,3,4,5,6,7,8")
+    )
+    assert {
+        k: v["lanes"] for k, v in detect_breakout_ports(d)["breakout_ports"].items()
+    } == {
+        "Ethernet0": "1,2",
+        "Ethernet2": "3,4",
+        "Ethernet4": "5,6",
+        "Ethernet6": "7,8",
+    }
+
+
+def test_declared_key_eth1(patch_breakout_helpers):
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {
+                "hwsku": "x",
+                "breakout": {"Eth1/1": "4x10G"},
+            }
+        }
+    )
+    patch_breakout_helpers(
+        interfaces=[],
+        port_config=_port_config_for_port(lanes="1,2,3,4", alias="Eth1/1"),
+    )
+    assert (
+        detect_breakout_ports(d)["breakout_cfgs"]["Ethernet0"]["brkout_mode"] == "4x10G"
+    )
+
+
+def test_declared_mixed_layout_port_index(patch_breakout_helpers):
+    pc = {
+        **{
+            f"Ethernet{n}": {
+                "lanes": str(29 + n),
+                "alias": f"Eth{n + 1}(Port{n + 1})",
+                "index": str(n + 1),
+                "speed": "25000",
+            }
+            for n in range(12)
+        },
+        "Ethernet12": {
+            "lanes": "41,42,43,44",
+            "alias": "Eth13(Port13)",
+            "index": "13",
+            "speed": "100000",
+        },
+    }
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {
+                "hwsku": "x",
+                "breakout": {"Ethernet12": "4x25G"},
+            }
+        }
+    )
+    patch_breakout_helpers(interfaces=[], port_config=pc)
+    assert detect_breakout_ports(d)["breakout_cfgs"]["Ethernet12"]["port"] == "1/13"
+
+
+def test_inference_control(patch_breakout_helpers):
+    ifaces = [_make_iface(f"Ethernet{n}", speed=25_000_000) for n in range(4)]
+    patch_breakout_helpers(interfaces=ifaces, port_config=_GATE_PC)
+    assert (
+        detect_breakout_ports(_make_sonic_device())["breakout_cfgs"]["Ethernet0"][
+            "brkout_mode"
+        ]
+        == "4x25G"
+    )
+
+
+def test_invalid_mode_suppresses_inference(patch_breakout_helpers):
+    ifaces = [_make_iface(f"Ethernet{n}", speed=25_000_000) for n in range(4)]
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {
+                "hwsku": "x",
+                "breakout": {"Ethernet0": "3x25G"},
+            }
+        }
+    )  # 4 % 3 != 0
+    patch_breakout_helpers(interfaces=ifaces, port_config=_GATE_PC)
+    assert detect_breakout_ports(d) == {"breakout_cfgs": {}, "breakout_ports": {}}
+
+
+def test_collision_fail_closed(patch_breakout_helpers):
+    ifaces = [_make_iface(f"Ethernet{n}", speed=25_000_000) for n in range(4)]
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {
+                "hwsku": "x",
+                "breakout": {"Ethernet0": "4x25G", "Eth1/1": "4x25G"},
+            }
+        }
+    )
+    patch_breakout_helpers(interfaces=ifaces, port_config=_GATE_PC)
+    assert detect_breakout_ports(d) == {"breakout_cfgs": {}, "breakout_ports": {}}
+
+
+def test_unresolvable_and_malformed(patch_breakout_helpers):
+    for bmap in (
+        {"Ethernetfoo": "4x10G"},
+        {"Eth1/1/1": "4x10G"},
+        {"Eth2/1": "4x10G"},
+        {"Ethernet99": "4x10G"},
+        {123: "4x10G"},
+    ):
+        d = _make_sonic_device(
+            custom_fields={"sonic_parameters": {"hwsku": "x", "breakout": bmap}}
+        )
+        patch_breakout_helpers(
+            interfaces=[], port_config=_port_config_for_port(lanes="1,2,3,4")
+        )
+        assert detect_breakout_ports(d) == {
+            "breakout_cfgs": {},
+            "breakout_ports": {},
+        }
+
+
+def test_declared_single_lane_master_no_emit_and_suppressed(patch_breakout_helpers):
+    """A declared 4x25G on a single-lane master fails L%count validation
+    (L=1). No breakout is emitted, and the master is suppressed so the
+    NetBox-format inference that would otherwise fire (Eth1/49/1..4 at 25G)
+    also emits nothing."""
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {"hwsku": "x", "breakout": {"Ethernet0": "4x25G"}}
+        }
+    )
+    interfaces = _netbox_breakout_interfaces(speed=25_000_000)
+    port_config = _port_config_for_port(lanes="29", speed="25000")
+    patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
+    assert detect_breakout_ports(d) == {"breakout_cfgs": {}, "breakout_ports": {}}
+
+
+def test_multiple_unresolvable_keys_logged_per_key(patch_breakout_helpers, loguru_logs):
+    """Two unresolvable keys both normalize to master=None and land in the
+    same bucket. That is not a collision: each key should get its own
+    "could not be resolved" message, not a misleading "collision for None"."""
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {
+                "hwsku": "x",
+                "breakout": {"Ethernetfoo": "4x10G", "Eth2/1": "4x10G"},
+            }
+        }
+    )
+    patch_breakout_helpers(
+        interfaces=[], port_config=_port_config_for_port(lanes="1,2,3,4")
+    )
+    assert detect_breakout_ports(d) == {"breakout_cfgs": {}, "breakout_ports": {}}
+
+    messages = [r["message"] for r in loguru_logs]
+    assert not any("collision for None" in m for m in messages)
+    for key in ("Ethernetfoo", "Eth2/1"):
+        assert any("could not be resolved" in m and key in m for m in messages), key
+
+
+def test_declared_malformed_master_lanes_no_emit(patch_breakout_helpers):
+    """Malformed lanes on the declared master parse to [] (L==0): no emit,
+    master suppressed (the NetBox-format inference is silenced too)."""
+    d = _make_sonic_device(
+        custom_fields={
+            "sonic_parameters": {"hwsku": "x", "breakout": {"Ethernet0": "4x25G"}}
+        }
+    )
+    interfaces = _netbox_breakout_interfaces(speed=25_000_000)
+    port_config = _port_config_for_port(lanes="a,b", speed="25000")
+    patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
+    assert detect_breakout_ports(d) == {"breakout_cfgs": {}, "breakout_ports": {}}
+
+
+def test_emit_breakout_missing_index_leaves_no_partial_state():
+    """A master lacking ``index`` must fail before any children are staged,
+    so no orphan breakout_ports entries survive the error."""
+    port_config = {"Ethernet0": {"lanes": "1,2,3,4"}}  # no "index"
+    breakout_cfgs: dict = {}
+    breakout_ports: dict = {}
+    suppressed: set = set()
+    with pytest.raises(KeyError):
+        _emit_breakout(
+            "Ethernet0",
+            2,
+            50000,
+            port_config,
+            breakout_cfgs,
+            breakout_ports,
+            suppressed,
+        )
+    assert breakout_ports == {}
+    assert breakout_cfgs == {}

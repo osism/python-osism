@@ -19,6 +19,51 @@ from .cache import get_cached_device_interfaces
 _port_config_cache: dict[str, dict[str, dict[str, str]]] = {}
 
 
+def get_declared_breakout_modes(device):
+    cf = getattr(device, "custom_fields", None)
+    if not isinstance(cf, dict):
+        return {}
+    sp = cf.get("sonic_parameters")
+    if not isinstance(sp, dict):
+        return {}
+    bk = sp.get("breakout")
+    return bk if isinstance(bk, dict) else {}
+
+
+_MODE_RE = re.compile(r"(\d+)x(\d+)G")
+
+
+def _parse_breakout_mode(mode):
+    if not isinstance(mode, str):
+        return None
+    m = _MODE_RE.fullmatch(mode.strip())
+    if not m:
+        return None
+    count, g = int(m.group(1)), int(m.group(2))
+    if count < 2 or g <= 0:
+        return None
+    return count, g * 1000
+
+
+def _parse_lanes(lanes):
+    if not isinstance(lanes, str):
+        return []
+    s = lanes.strip()
+    if not s:
+        return []
+    try:
+        if "," in s:
+            parts = [p.strip() for p in s.split(",")]
+            return parts if all(p.isdigit() for p in parts) else []
+        if "-" in s:
+            a, b = s.split("-", 1)
+            a, b = int(a), int(b)
+            return [str(n) for n in range(a, b + 1)] if a <= b else []
+        return [s] if s.isdigit() else []
+    except (ValueError, TypeError):
+        return []
+
+
 def get_speed_from_port_type(port_type):
     """Get speed from port type when speed is not provided.
 
@@ -641,6 +686,38 @@ def get_connected_interfaces(device, portchannel_info=None):
     return _get_connected_interfaces(device, portchannel_info)
 
 
+def _emit_breakout(
+    master,
+    count,
+    speed_mbps,
+    port_config,
+    breakout_cfgs,
+    breakout_ports,
+    suppressed_masters,
+):
+    lanes = _parse_lanes(port_config[master]["lanes"])
+    lpc = len(lanes) // count
+    base = int(master[len("Ethernet") :])
+    # Read the master index and build its breakout_cfgs entry before staging
+    # any children, so a missing "index" fails cleanly without leaving orphan
+    # breakout_ports entries behind.
+    master_cfg = {
+        "breakout_owner": "MANUAL",
+        "brkout_mode": f"{count}x{speed_mbps // 1000}G",
+        "port": f"1/{port_config[master]['index']}",
+    }
+    for i in range(count):
+        child = f"Ethernet{base + i * lpc}"
+        breakout_ports[child] = {
+            "master": master,
+            "declared": True,
+            "lanes": ",".join(lanes[i * lpc : (i + 1) * lpc]),
+            "speed": speed_mbps,
+        }
+    breakout_cfgs[master] = master_cfg
+    suppressed_masters.add(master)
+
+
 def detect_breakout_ports(device):
     """Detect breakout ports from NetBox device interfaces using the centralized breakout logic.
 
@@ -688,6 +765,81 @@ def detect_breakout_ports(device):
         except Exception as e:
             logger.warning(f"Could not load port config for {device_hwsku}: {e}")
             return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
+
+        suppressed_masters: set = set()
+
+        # Declared-mode pass: honor explicit breakout map before inference
+        modes = get_declared_breakout_modes(device)
+        master_to_keys: dict = {}
+        for key, mode in modes.items():
+            try:
+                if not isinstance(key, str):
+                    master = None
+                elif re.fullmatch(r"Ethernet\d+", key):
+                    master = key
+                elif re.fullmatch(r"Eth1/\d+", key):
+                    resolved = _map_interface_name_to_sonic(
+                        key, interface_names, port_config, device_hwsku
+                    )
+                    master = (
+                        resolved if re.fullmatch(r"Ethernet\d+", resolved) else None
+                    )
+                else:
+                    master = None
+                master_to_keys.setdefault(master, []).append((key, mode))
+            except Exception as e:
+                logger.error(f"Error normalizing declared breakout key {key!r}: {e}")
+
+        for master, key_mode_list in master_to_keys.items():
+            try:
+                if master is None:
+                    # Multiple keys can normalize to None simply because none of
+                    # them resolves to a known port; that is not a collision.
+                    for key, _mode in key_mode_list:
+                        logger.error(
+                            f"Declared breakout key {key!r} could not be "
+                            f"resolved to a known port"
+                        )
+                    continue
+                if len(key_mode_list) >= 2:
+                    suppressed_masters.add(master)
+                    logger.error(
+                        f"Declared breakout collision for {master}: "
+                        f"keys {[k for k, _ in key_mode_list]}"
+                    )
+                    continue
+                key, mode = key_mode_list[0]
+                if master is None or master not in port_config:
+                    logger.error(
+                        f"Declared breakout key {key!r} could not be resolved to a known port"
+                    )
+                    continue
+                suppressed_masters.add(master)
+                parsed = _parse_breakout_mode(mode)
+                if parsed is None:
+                    logger.error(
+                        f"Declared breakout mode {mode!r} for {master} is invalid"
+                    )
+                    continue
+                count, speed_mbps = parsed
+                L = len(_parse_lanes(port_config[master]["lanes"]))
+                if L == 0 or L % count != 0:
+                    logger.error(
+                        f"Declared breakout {mode!r} for {master}: "
+                        f"{L} lanes not divisible by {count}"
+                    )
+                    continue
+                _emit_breakout(
+                    master,
+                    count,
+                    speed_mbps,
+                    port_config,
+                    breakout_cfgs,
+                    breakout_ports,
+                    suppressed_masters,
+                )
+            except Exception as e:
+                logger.error(f"Error processing declared breakout for {master!r}: {e}")
 
         # Process interfaces that match breakout patterns
         processed_groups = set()
@@ -762,6 +914,9 @@ def detect_breakout_ports(device):
                                     logger.debug(
                                         f"Unsupported breakout configuration: {num_subports} ports at {interface_speed} Mbps"
                                     )
+                                    continue
+
+                                if master_port in suppressed_masters:
                                     continue
 
                                 # Calculate physical port number (1/1 -> port 1, 1/2 -> port 2, etc.)
@@ -854,6 +1009,10 @@ def detect_breakout_ports(device):
                                 if len(sonic_400g_breakout_group) == 4:
                                     processed_groups.add(group_key_400g)
                                     master_port = f"Ethernet{base_port_400g}"
+
+                                    if master_port in suppressed_masters:
+                                        continue
+
                                     brkout_mode = "4x100G"
 
                                     # Calculate physical port number for 400G ports
@@ -950,6 +1109,9 @@ def detect_breakout_ports(device):
                     brkout_mode = BREAKOUT_MODE_BY_SPEED.get(interface_speed)
                     if not brkout_mode:
                         continue  # Skip unsupported speeds
+
+                    if master_port in suppressed_masters:
+                        continue
 
                     # Calculate physical port number (Ethernet0-3 -> port 1/1, Ethernet4-7 -> port 1/2, etc.)
                     physical_port_index = (base_port // 4) + 1
