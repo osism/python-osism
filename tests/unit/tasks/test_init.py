@@ -363,6 +363,28 @@ def test_run_ansible_list_arguments_joined(runner_mocks):
     assert command.endswith("-e a=b -l all")
 
 
+def test_run_ansible_list_multitoken_element_word_split_not_quoted(runner_mocks):
+    # REGRESSION GUARD -- do NOT "fix" the list join in
+    # run_ansible_in_environment by shlex.quote()-ing each element. Callers
+    # deliberately pack several shell words into ONE list element and rely on
+    # the unquoted " ".join(arguments) plus the /bin/sh -c in Popen(shell=True)
+    # to word-split them into separate argv, e.g.:
+    #   commands/set.py, commands/noset.py:  ["-e status=True", f"-l {host}"]
+    #   commands/validate.py:                "-e kolla_action=config_validate"
+    #   commands/apply.py:                   [f"-e kolla_action={action}"] + args
+    # The run-<environment>.sh scripts forward args via "$@" (no re-split), so
+    # that outer-shell split is load-bearing. A per-element shlex.quote() would
+    # glue "-e status=True" into a single token and break -e/-l parsing. To make
+    # a value with shell metacharacters safe (e.g. a regex "(A|B)" in
+    # tempest_include_regex), split each element on whitespace FIRST and quote
+    # the resulting tokens, or normalize the callers to emit already-split
+    # tokens -- never a bare per-element quote.
+    run_ansible(arguments=["-e status=True", "-l host"])
+    command = runner_mocks.popen.call_args.args[0]
+    assert command.endswith("-e status=True -l host")
+    assert "'-e status=True'" not in command
+
+
 def test_run_ansible_string_arguments_passed_through(runner_mocks):
     run_ansible(arguments="-e a=b")
     command = runner_mocks.popen.call_args.args[0]
