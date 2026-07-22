@@ -253,18 +253,27 @@ class EventBridge:
         try:
             import asyncio
 
-            # Create new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            # Process the event
-            loop.run_until_complete(
-                self._websocket_manager.broadcast_event_from_notification(
-                    event_data["event_type"], event_data["payload"]
-                )
+            coro = self._websocket_manager.broadcast_event_from_notification(
+                event_data["event_type"], event_data["payload"]
             )
 
-            loop.close()
+            loop = getattr(self._websocket_manager, "loop", None)
+            if loop is not None and loop.is_running():
+                # The broadcaster awaits the manager's asyncio.Queue on this
+                # loop; waking its waiters from a worker thread is not
+                # thread-safe, so the coroutine must run on that loop
+                future = asyncio.run_coroutine_threadsafe(coro, loop)
+                future.result(timeout=10)
+            else:
+                # No broadcaster loop yet (no client has connected), so the
+                # queue has no waiters and a private loop is safe
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(coro)
+                finally:
+                    loop.close()
+
             logger.debug(f"Processed event via bridge: {event_data['event_type']}")
 
         except Exception as e:

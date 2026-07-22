@@ -89,6 +89,9 @@ class WebSocketManager:
         self.event_queue: asyncio.Queue = asyncio.Queue()
         # Background task for event broadcasting
         self._broadcaster_task: Optional[asyncio.Task] = None
+        # Loop the broadcaster runs on; the event bridge marshals
+        # broadcasts from its worker threads onto this loop
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
         # Lock for thread-safe operations
         self._lock = asyncio.Lock()
 
@@ -101,6 +104,7 @@ class WebSocketManager:
 
         # Start broadcaster if this is the first connection
         if not self._broadcaster_task or self._broadcaster_task.done():
+            self.loop = asyncio.get_running_loop()
             self._broadcaster_task = asyncio.create_task(self._broadcast_events())
 
     async def disconnect(self, websocket: WebSocket) -> None:
