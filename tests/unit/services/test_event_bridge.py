@@ -329,44 +329,72 @@ class TestRedisSubscriberLoop:
         subscriber.get_message.side_effect = get_message
         bridge._redis_subscriber_loop()
         assert subscriber.subscribe.call_count == 2
-        assert subscriber.close.call_count == 2
+        # The subscriber stays open across the resubscribe and is only
+        # closed once when the loop exits.
+        assert subscriber.close.call_count == 1
         assert "Error getting Redis message: lost" in caplog.text
 
     @pytest.mark.timeout(10)
     def test_subscribe_error_waits_and_reinitializes_redis(
         self, bridge, mocker, caplog
     ):
+        """A failed subscriber is closed before ``_init_redis`` replaces it,
+        and the retry subscribes on the newly created instance."""
         caplog.set_level(logging.INFO, logger="osism.event_bridge")
-        subscriber = MagicMock()
-        subscriber.subscribe.side_effect = ConnectionError("down")
-        bridge._redis_subscriber = subscriber
-        init_redis = mocker.patch.object(bridge, "_init_redis")
+        failed = MagicMock()
+        failed.subscribe.side_effect = ConnectionError("down")
+        bridge._redis_subscriber = failed
+        fresh = MagicMock()
 
-        def wait(timeout=None):
+        def get_message(timeout=None):
             bridge._shutdown_event.set()
-            return True
+            return None
 
+        fresh.get_message.side_effect = get_message
+
+        def install_fresh_subscriber():
+            bridge._redis_subscriber = fresh
+
+        init_redis = mocker.patch.object(
+            bridge, "_init_redis", side_effect=install_fresh_subscriber
+        )
         wait_mock = mocker.patch.object(
-            bridge._shutdown_event, "wait", side_effect=wait
+            bridge._shutdown_event, "wait", return_value=False
         )
         bridge._redis_subscriber_loop()
         wait_mock.assert_called_once_with(5)
         init_redis.assert_called_once_with()
+        failed.subscribe.assert_called_once_with("osism:events")
+        failed.close.assert_called_once_with()
+        fresh.subscribe.assert_called_once_with("osism:events")
+        fresh.close.assert_called_once_with()
         assert "Redis subscriber error (attempt 1/5)" in caplog.text
         assert "Retrying Redis subscription in 5 seconds" in caplog.text
 
     @pytest.mark.timeout(10)
     def test_gives_up_after_max_retries(self, bridge, mocker, caplog):
+        """Every attempt subscribes on a distinct freshly created subscriber
+        and closes it after its failure."""
         caplog.set_level(logging.ERROR, logger="osism.event_bridge")
-        subscriber = MagicMock()
-        subscriber.subscribe.side_effect = ConnectionError("down")
-        bridge._redis_subscriber = subscriber
-        init_redis = mocker.patch.object(bridge, "_init_redis")
+        subscribers = [MagicMock() for _ in range(5)]
+        for subscriber in subscribers:
+            subscriber.subscribe.side_effect = ConnectionError("down")
+        replacements = iter(subscribers[1:])
+
+        def install_fresh_subscriber():
+            bridge._redis_subscriber = next(replacements)
+
+        bridge._redis_subscriber = subscribers[0]
+        init_redis = mocker.patch.object(
+            bridge, "_init_redis", side_effect=install_fresh_subscriber
+        )
         wait_mock = mocker.patch.object(
             bridge._shutdown_event, "wait", return_value=False
         )
         bridge._redis_subscriber_loop()
-        assert subscriber.subscribe.call_count == 5
+        for subscriber in subscribers:
+            subscriber.subscribe.assert_called_once_with("osism:events")
+            subscriber.close.assert_called_once_with()
         # No back-off after the fifth and final failure.
         assert wait_mock.call_count == 4
         assert init_redis.call_count == 4
