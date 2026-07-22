@@ -211,7 +211,9 @@ class EventBridge:
 
                     except Exception as get_msg_error:
                         logger.error(f"Error getting Redis message: {get_msg_error}")
-                        break  # Break inner loop to trigger reconnect
+                        # Route through the bounded back-off path below so
+                        # the subscriber is recreated before resubscribing
+                        raise
 
             except Exception as e:
                 retry_count += 1
