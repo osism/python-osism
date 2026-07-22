@@ -151,6 +151,15 @@ class EventBridge:
         self._processor_thread.start()
         logger.info("Started event bridge processor thread")
 
+    def _close_subscriber(self):
+        """Close the current Redis subscriber and drop the reference."""
+        if self._redis_subscriber:
+            try:
+                self._redis_subscriber.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
+            self._redis_subscriber = None
+
     def _redis_subscriber_loop(self):
         """Redis subscriber loop for receiving events from other containers with auto-reconnect."""
         retry_count = 0
@@ -210,6 +219,10 @@ class EventBridge:
                     f"Redis subscriber error (attempt {retry_count}/{max_retries}): {e}"
                 )
 
+                # Close the failed subscriber before _init_redis() replaces it,
+                # so it does not leak and cannot be closed in its stead later
+                self._close_subscriber()
+
                 if retry_count < max_retries:
                     logger.info(
                         f"Retrying Redis subscription in {retry_delay} seconds..."
@@ -222,12 +235,7 @@ class EventBridge:
                     except Exception as init_error:
                         logger.error(f"Failed to reinitialize Redis: {init_error}")
 
-            finally:
-                if self._redis_subscriber:
-                    try:
-                        self._redis_subscriber.close()
-                    except Exception:
-                        pass  # Ignore errors during cleanup
+        self._close_subscriber()
 
         if retry_count >= max_retries:
             logger.error("Max Redis reconnection attempts reached, giving up")
