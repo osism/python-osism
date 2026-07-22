@@ -11,5 +11,17 @@
       "/requirements.openstack-image-manager.txt/",
       "/requirements.txt/"
     ]
-  }
+  },
+  "packageRules": [
+    {
+      "description": "openstacksdk is compat-coupled to the galaxy-pinned openstack.cloud ansible collection (osism/release base.yml). Collection 2.5.0 breaks on sdk >=4.11 ('module openstack has no attribute version'), failing every openstack.cloud module in the manager container. Cap the sdk (both requirements.txt and Pipfile); raise this only together with an openstack.cloud bump in osism/release.",
+      "matchPackageNames": ["openstacksdk"],
+      "allowedVersions": "<4.11"
+    },
+    {
+      "description": "python-openstackclient >=10 requires openstacksdk >=4.16, which conflicts with the openstacksdk cap above. Keep it on 9.x until the sdk cap is lifted.",
+      "matchPackageNames": ["python-openstackclient"],
+      "allowedVersions": "<10"
+    }
+  ]
 }
