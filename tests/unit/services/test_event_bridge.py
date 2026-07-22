@@ -22,6 +22,7 @@ The module logs via the stdlib ``logging`` module (``osism.event_bridge``),
 so the plain ``caplog`` fixture is used for log assertions.
 """
 
+import asyncio
 import json
 import logging
 import queue
@@ -30,6 +31,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from osism.services.event_bridge import EventBridge
+from osism.services.websocket_manager import WebSocketManager
 
 
 @pytest.fixture
@@ -439,6 +441,8 @@ class TestProcessSingleEvent:
     def test_broadcasts_event_via_manager(self, bridge):
         manager = MagicMock()
         manager.broadcast_event_from_notification = AsyncMock()
+        # No broadcaster loop: the coroutine is driven on a private loop
+        manager.loop = None
         bridge._websocket_manager = manager
         bridge._process_single_event({"event_type": "a.b", "payload": {"x": 1}})
         manager.broadcast_event_from_notification.assert_awaited_once_with(
@@ -451,9 +455,41 @@ class TestProcessSingleEvent:
         manager.broadcast_event_from_notification = AsyncMock(
             side_effect=ValueError("boom")
         )
+        manager.loop = None
         bridge._websocket_manager = manager
         bridge._process_single_event({"event_type": "a.b", "payload": {}})
         assert "Error processing event via bridge: boom" in caplog.text
+
+    @pytest.mark.asyncio
+    @pytest.mark.timeout(10)
+    async def test_worker_thread_event_reaches_broadcaster_loop(self, bridge):
+        """End-to-end: an event handed to ``_process_single_event`` in a
+        worker thread is marshalled onto the loop the broadcaster of a real
+        ``WebSocketManager`` runs on and delivered to a connected client."""
+        manager = WebSocketManager()
+        websocket = MagicMock()
+        websocket.accept = AsyncMock()
+        delivered = asyncio.Event()
+        websocket.send_text = AsyncMock(side_effect=lambda message: delivered.set())
+        await manager.connect(websocket)
+        assert manager.loop is asyncio.get_running_loop()
+        bridge._websocket_manager = manager
+        try:
+            await asyncio.to_thread(
+                bridge._process_single_event,
+                {"event_type": "baremetal.node.power_set", "payload": {"x": 1}},
+            )
+            await asyncio.wait_for(delivered.wait(), timeout=5.0)
+        finally:
+            manager._broadcaster_task.cancel()
+            try:
+                await manager._broadcaster_task
+            except asyncio.CancelledError:
+                pass
+        message = json.loads(websocket.send_text.await_args.args[0])
+        assert message["event_type"] == "baremetal.node.power_set"
+        assert message["data"]["x"] == 1
+        assert message["data"]["service_type"] == "baremetal"
 
 
 class TestProcessEvents:
