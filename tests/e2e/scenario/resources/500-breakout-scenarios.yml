@@ -1,0 +1,112 @@
+---
+# Scenario overlay for the SONiC E2E golden test.
+#
+# The bundled netbox-manager example models no breakout ports and sets no
+# explicit interface speeds, so the breakout code paths and the kbps->Mbps
+# speed handling are never exercised by it. These devices add that
+# coverage. They reuse the site / location / tenant / roles / tags / custom
+# fields created by the base example run, and live in their own rack so
+# they never collide with base devices.
+#
+# Both devices use the edgecore-9726-32d-e2e device type (hwsku
+# Accton-AS9726-32D) and break Eth1/1 into a 4x100G group. They differ
+# only in how the sub-port speed reaches NetBox:
+#
+#   e2e-breakout-derived   speed derived from the interface type
+#                          (100gbase-x-qsfp28 -> 100000 Mbps); no explicit
+#                          speed. This is how real deployments model
+#                          breakouts.
+#   e2e-breakout-explicit  the same sub-ports with an explicit NetBox speed
+#                          set in kbps (100000000), the other unit the
+#                          collection step must normalise.
+#
+# Both must yield sub-port speed 100000 in the generated config.
+
+- vars:
+    site: Discworld
+    location: Ankh-Morpork
+    tenant: Testbed
+
+- rack:
+    name: E2E
+    tenant: "{{ tenant }}"
+    site: "{{ site }}"
+    location: "{{ location }}"
+    u_height: 47
+
+- vlan:
+    name: E2E Data
+    tenant: "{{ tenant }}"
+    vid: 200
+    site: "{{ site }}"
+    vlan_role: OOB
+
+# --- Derived-speed breakout (the real-deployment shape) --------------------
+
+- device:
+    name: e2e-breakout-derived
+    tenant: "{{ tenant }}"
+    site: "{{ site }}"
+    location: "{{ location }}"
+    rack: E2E
+    device_type: edgecore-9726-32d-e2e
+    device_role: leaf
+    face: front
+    position: 1
+    tags:
+      - managed-by-metalbox
+      - managed-by-osism
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS9726-32D
+        version: 4.5.0
+
+# Tagged VLAN on the plain (non-breakout) port, exercising the VLAN and
+# tagged-VLAN-to-port paths the base example leaves uncovered.
+- device_interface:
+    device: e2e-breakout-derived
+    name: Eth1/5
+    mode: tagged
+    tagged_vlans:
+      - name: E2E Data
+        site: "{{ site }}"
+
+# --- Explicit-speed breakout (the other speed unit) -----------------------
+
+- device:
+    name: e2e-breakout-explicit
+    tenant: "{{ tenant }}"
+    site: "{{ site }}"
+    location: "{{ location }}"
+    rack: E2E
+    device_type: edgecore-9726-32d-e2e
+    device_role: leaf
+    face: front
+    position: 2
+    tags:
+      - managed-by-metalbox
+      - managed-by-osism
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS9726-32D
+        version: 4.5.0
+
+- device_interface:
+    device: e2e-breakout-explicit
+    name: Eth1/1/1
+    speed: 100000000
+
+- device_interface:
+    device: e2e-breakout-explicit
+    name: Eth1/1/2
+    speed: 100000000
+
+- device_interface:
+    device: e2e-breakout-explicit
+    name: Eth1/1/3
+    speed: 100000000
+
+- device_interface:
+    device: e2e-breakout-explicit
+    name: Eth1/1/4
+    speed: 100000000

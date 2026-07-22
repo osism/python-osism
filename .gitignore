@@ -1,4 +1,5 @@
 *.egg-info
+.venv-sonic-e2e/
 *.pyc
 *.swp
 __pycache__

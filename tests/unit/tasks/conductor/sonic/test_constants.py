@@ -1,7 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import importlib
+
 import pytest
 
+from osism import settings as settings_module
+from osism.tasks.conductor.sonic import constants as constants_module
 from osism.tasks.conductor.sonic.constants import (
     BGP_AF_L2VPN_EVPN_TAG,
     DEFAULT_LOCAL_AS_PREFIX,
@@ -151,3 +155,19 @@ def test_supported_hwskus_entry_invariants(hwsku):
     assert "-" in hwsku
     vendor = hwsku.split("-")[0]
     assert vendor in SUPPORTED_VENDORS
+
+
+# ---------------------------------------------------------------------------
+# PORT_CONFIG_PATH settings wiring
+# ---------------------------------------------------------------------------
+
+
+def test_port_config_path_follows_settings():
+    original = settings_module.SONIC_PORT_CONFIG_PATH
+    try:
+        settings_module.SONIC_PORT_CONFIG_PATH = "/custom/port_config"
+        reloaded = importlib.reload(constants_module)
+        assert reloaded.PORT_CONFIG_PATH == "/custom/port_config"
+    finally:
+        settings_module.SONIC_PORT_CONFIG_PATH = original
+        importlib.reload(constants_module)

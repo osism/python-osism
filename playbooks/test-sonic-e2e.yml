@@ -1,0 +1,35 @@
+---
+- name: Run the SONiC config-generation E2E golden test
+  hosts: all
+
+  vars:
+    python_venv_dir: /tmp/venv
+
+  tasks:
+    - name: Install dependencies
+      ansible.builtin.shell:
+        executable: /bin/bash
+        chdir: "{{ zuul.project.src_dir }}"
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          {{ python_venv_dir }}/bin/pipenv install --dev --deploy
+          {{ python_venv_dir }}/bin/pipenv run pip install .
+
+    - name: Run the E2E golden test
+      ansible.builtin.shell:
+        executable: /bin/bash
+        chdir: "{{ zuul.project.src_dir }}"
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          # run.sh invokes bare `pipenv`; the netbox-manager checkout comes
+          # from Zuul's required-projects, so a Depends-On change to it is
+          # tested against the changed code and seed data.
+          export PATH="{{ python_venv_dir }}/bin:${PATH}"
+          export NETBOX_MANAGER_DIR="{{ ansible_user_dir }}/{{ zuul.projects['github.com/osism/netbox-manager'].src_dir }}"
+          tests/e2e/run.sh

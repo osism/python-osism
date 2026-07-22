@@ -2,6 +2,8 @@
 
 """Constants and mappings for SONiC configuration."""
 
+from osism import settings
+
 # Tag to add AF L2VPN EVPN to BGP neighbor
 BGP_AF_L2VPN_EVPN_TAG = "bgp-af-l2vpn-evpn"
 
@@ -87,7 +89,7 @@ BREAKOUT_MODE_BY_SPEED = {
 }
 
 # Path to SONiC port configuration files
-PORT_CONFIG_PATH = "/etc/sonic/port_config"
+PORT_CONFIG_PATH = settings.SONIC_PORT_CONFIG_PATH
 
 # List of supported vendors
 SUPPORTED_VENDORS = [
