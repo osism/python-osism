@@ -84,7 +84,7 @@ class TestVrfConfigurationOwnership:
             "interface_vrf_mapping": {},
         }
 
-        _add_vrf_configuration(config, vrf_info, {})
+        _add_vrf_configuration(config, vrf_info, {}, {})
 
         # Entry must exactly match the deepcopy of BGP_GLOBALS["default"].
         # custom_timer must be absent — it is not derived from NetBox or policy.
@@ -114,7 +114,7 @@ class TestVrfConfigurationOwnership:
             "interface_vrf_mapping": {},
         }
 
-        _add_vrf_configuration(config, vrf_info, {})
+        _add_vrf_configuration(config, vrf_info, {}, {})
 
         assert config["VLAN"][vlan_name] == {
             "admin_status": "up",
@@ -138,7 +138,7 @@ class TestVrfConfigurationOwnership:
             "interface_vrf_mapping": {},
         }
 
-        _add_vrf_configuration(config, vrf_info, {})
+        _add_vrf_configuration(config, vrf_info, {}, {})
 
         assert config["ROUTE_REDISTRIBUTE"][key] == {}
 
@@ -151,7 +151,7 @@ class TestVrfConfigurationOwnership:
             "interface_vrf_mapping": {},
         }
 
-        _add_vrf_configuration(config, vrf_info, {})
+        _add_vrf_configuration(config, vrf_info, {}, {})
 
         assert config["MGMT_INTERFACE"] == {
             "eth0|10.0.0.1/24": {"gwaddr": "10.0.0.254"}
