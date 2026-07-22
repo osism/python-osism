@@ -14,9 +14,9 @@ a real Redis connection at import time.
 The thread targets ``_redis_subscriber_loop`` and ``_process_events`` are
 called synchronously; termination is driven through ``_shutdown_event`` from
 ``get_message`` / ``get`` side effects, so no real threads or sleeps are
-involved. Note that a failing ``get_message`` only breaks the inner loop and
-triggers a resubscribe; the retry counter and ``_shutdown_event.wait``
-back-off only engage when ``subscribe()`` itself raises.
+involved. Failures of ``subscribe()`` and ``get_message()`` both run through
+the same bounded back-off path: the failed subscriber is closed, the retry
+waits, and ``_init_redis()`` provides a fresh subscriber.
 
 The module logs via the stdlib ``logging`` module (``osism.event_bridge``),
 so the plain ``caplog`` fixture is used for log assertions.
@@ -313,26 +313,41 @@ class TestRedisSubscriberLoop:
         assert "Error processing Redis event: boom" in caplog.text
 
     @pytest.mark.timeout(10)
-    def test_get_message_error_triggers_resubscribe(self, bridge, caplog):
+    def test_get_message_error_reconnects_with_backoff(self, bridge, mocker, caplog):
+        """A failing ``get_message`` runs through the same bounded back-off
+        as a failing ``subscribe``: the failed subscriber is closed, the
+        retry waits, and the resubscribe happens on the newly created
+        instance."""
         caplog.set_level(logging.ERROR, logger="osism.event_bridge")
-        subscriber = MagicMock()
-        bridge._redis_subscriber = subscriber
-        calls = {"count": 0}
+        failed = MagicMock()
+        failed.get_message.side_effect = ConnectionError("lost")
+        bridge._redis_subscriber = failed
+        fresh = MagicMock()
 
         def get_message(timeout=None):
-            calls["count"] += 1
-            if calls["count"] == 1:
-                raise ConnectionError("lost")
             bridge._shutdown_event.set()
             return None
 
-        subscriber.get_message.side_effect = get_message
+        fresh.get_message.side_effect = get_message
+
+        def install_fresh_subscriber():
+            bridge._redis_subscriber = fresh
+
+        init_redis = mocker.patch.object(
+            bridge, "_init_redis", side_effect=install_fresh_subscriber
+        )
+        wait_mock = mocker.patch.object(
+            bridge._shutdown_event, "wait", return_value=False
+        )
         bridge._redis_subscriber_loop()
-        assert subscriber.subscribe.call_count == 2
-        # The subscriber stays open across the resubscribe and is only
-        # closed once when the loop exits.
-        assert subscriber.close.call_count == 1
+        failed.subscribe.assert_called_once_with("osism:events")
+        failed.close.assert_called_once_with()
+        fresh.subscribe.assert_called_once_with("osism:events")
+        fresh.close.assert_called_once_with()
+        wait_mock.assert_called_once_with(5)
+        init_redis.assert_called_once_with()
         assert "Error getting Redis message: lost" in caplog.text
+        assert "Redis subscriber error (attempt 1/5): lost" in caplog.text
 
     @pytest.mark.timeout(10)
     def test_subscribe_error_waits_and_reinitializes_redis(
