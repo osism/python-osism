@@ -1092,11 +1092,12 @@ async def search_inventory(
             hosts_to_search = all_hosts
 
         results: List[SearchResultEntry] = []
-        hosts_searched = len(hosts_to_search)
+        hosts_searched = 0
 
         for host in hosts_to_search:
             if len(results) >= limit:
                 break
+            hosts_searched += 1
 
             # Search hostvars
             if source in (None, "hostvars"):

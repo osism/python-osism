@@ -1162,6 +1162,7 @@ def test_search_limit_stops_early(client, mocker):
     body = response.json()
     assert body["count"] == 2
     assert len(body["results"]) == 2
+    assert body["hosts_searched"] == 1  # node-2 is skipped once the limit is hit
     assert body["query"]["limit"] == 2
     assert run.call_count == 2  # node-2 is never queried once the limit is hit
 
