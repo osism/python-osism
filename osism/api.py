@@ -13,6 +13,7 @@ from uuid import UUID
 from fastapi import (
     FastAPI,
     Header,
+    Query,
     Request,
     Response,
     HTTPException,
@@ -1019,7 +1020,7 @@ async def search_inventory(
     name_pattern: str,
     host_pattern: Optional[str] = None,
     source: Optional[str] = None,
-    limit: int = 100,
+    limit: int = Query(default=100, gt=0),
 ) -> SearchResponse:
     """Search for variables or facts across hosts using regex patterns.
 

@@ -1167,6 +1167,12 @@ def test_search_limit_stops_early(client, mocker):
     assert run.call_count == 2  # node-2 is never queried once the limit is hit
 
 
+@pytest.mark.parametrize("limit", [0, -1], ids=["zero", "negative"])
+def test_search_rejects_non_positive_limit(client, limit):
+    response = search(client, name_pattern="ansible", limit=limit)
+    assert response.status_code == 422
+
+
 @pytest.mark.parametrize(
     "failure",
     [subprocess.TimeoutExpired(cmd="ansible-inventory", timeout=10), "{not json"],
