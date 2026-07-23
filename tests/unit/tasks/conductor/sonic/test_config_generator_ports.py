@@ -25,6 +25,7 @@ from osism.tasks.conductor.sonic.config_generator import (
     _has_transfer_role_ipv4,
     _is_untagged_vlan_member,
 )
+from osism.tasks.conductor.sonic.constants import DEFAULT_EVPN_SYSTEM_MAC
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -1285,7 +1286,9 @@ class TestAddPortchannelConfiguration:
             "member_mapping": {},
         }
 
-        _add_portchannel_configuration(config, portchannel_info)
+        _add_portchannel_configuration(
+            config, portchannel_info, DEFAULT_EVPN_SYSTEM_MAC
+        )
 
         assert config["PORTCHANNEL"]["PortChannel1"] == {
             "admin_status": "up",
@@ -1315,7 +1318,9 @@ class TestAddPortchannelConfiguration:
             },
         }
 
-        _add_portchannel_configuration(config, portchannel_info)
+        _add_portchannel_configuration(
+            config, portchannel_info, DEFAULT_EVPN_SYSTEM_MAC
+        )
 
         assert config["PORTCHANNEL"]["PortChannel1"] == {
             "admin_status": "up",
@@ -1332,7 +1337,7 @@ class TestAddPortchannelConfiguration:
 
     def test_empty_portchannels_no_op(self, config):
         _add_portchannel_configuration(
-            config, {"portchannels": {}, "member_mapping": {}}
+            config, {"portchannels": {}, "member_mapping": {}}, DEFAULT_EVPN_SYSTEM_MAC
         )
 
         assert config["PORTCHANNEL"] == {}

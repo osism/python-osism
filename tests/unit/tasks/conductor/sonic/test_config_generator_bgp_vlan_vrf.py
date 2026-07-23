@@ -898,7 +898,7 @@ class TestAddVrfConfiguration:
             "vrfs": {"vrfStorage": {"vni": 2001}},
             "interface_vrf_mapping": {},
         }
-        _add_vrf_configuration(vrf_config, vrf_info, {})
+        _add_vrf_configuration(vrf_config, vrf_info, {}, {})
         assert vrf_config["VRF"]["vrfStorage"] == {
             "fallback": "false",
             "vni": "2001",
@@ -926,6 +926,7 @@ class TestAddVrfConfiguration:
             vrf_config,
             {"vrfs": {"vrfStorage": {"vni": 2001}}, "interface_vrf_mapping": {}},
             {},
+            {},
         )
         assert "vrfStorage|connected|bgp|ipv4" in vrf_config["ROUTE_REDISTRIBUTE"]
 
@@ -934,6 +935,7 @@ class TestAddVrfConfiguration:
             vrf_config,
             {"vrfs": {"Vrf42": {"table_id": 42}}, "interface_vrf_mapping": {}},
             {},
+            {},
         )
         assert vrf_config["VRF"]["Vrf42"] == {"vrf_table_id": 42}
 
@@ -941,6 +943,7 @@ class TestAddVrfConfiguration:
         _add_vrf_configuration(
             vrf_config,
             {"vrfs": {"Vrf42": {}}, "interface_vrf_mapping": {}},
+            {},
             {},
         )
         assert vrf_config["VRF"]["Vrf42"] == {}
@@ -953,6 +956,7 @@ class TestAddVrfConfiguration:
         _add_vrf_configuration(
             vrf_config,
             {"vrfs": {"Vrf42": {}}, "interface_vrf_mapping": {}},
+            {},
             {},
         )
         assert vrf_config["BGP_GLOBALS"]["Vrf42"] == {
@@ -968,7 +972,7 @@ class TestAddVrfConfiguration:
             "vrfs": {"vrfA": {"vni": 1001}, "vrfB": {"vni": 1002}},
             "interface_vrf_mapping": {},
         }
-        _add_vrf_configuration(vrf_config, vrf_info, {})
+        _add_vrf_configuration(vrf_config, vrf_info, {}, {})
         vtep = config_generator.VXLAN_VTEP_NAME
         assert vrf_config["VXLAN_TUNNEL"][vtep]["src_ip"] == "10.0.0.1"
         assert vrf_config["VXLAN_EVPN_NVO"]["nvo1"] == {"source_vtep": vtep}
@@ -978,6 +982,7 @@ class TestAddVrfConfiguration:
         _add_vrf_configuration(
             vrf_config,
             {"vrfs": {"Vrf42": {"table_id": 42}}, "interface_vrf_mapping": {}},
+            {},
             {},
         )
         assert vrf_config["VXLAN_TUNNEL"] == {}
@@ -989,6 +994,7 @@ class TestAddVrfConfiguration:
         _add_vrf_configuration(
             vrf_config,
             {"vrfs": {}, "interface_vrf_mapping": {"Ethernet0": "Vrf42"}},
+            {},
             {},
         )
         assert vrf_config["INTERFACE"]["Ethernet0"]["vrf_name"] == "Vrf42"
@@ -1002,6 +1008,7 @@ class TestAddVrfConfiguration:
                 "interface_vrf_mapping": {"PortChannel1": "Vrf42"},
             },
             {},
+            {},
         )
         assert (
             vrf_config["PORTCHANNEL_INTERFACE"]["PortChannel1"]["vrf_name"] == "Vrf42"
@@ -1011,6 +1018,7 @@ class TestAddVrfConfiguration:
         _add_vrf_configuration(
             vrf_config,
             {"vrfs": {}, "interface_vrf_mapping": {"Ethernet9": "Vrf42"}},
+            {},
             {},
         )
         assert "Ethernet9" not in vrf_config["INTERFACE"]
