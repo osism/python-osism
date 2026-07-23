@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260723.0] - 2026-07-23
+
+### Added
+- Add regression test guarding run_ansible argument word-splitting to prevent breaking multi-token CLI arguments (osism/python-osism#2499)
+- Add unit test coverage for the RabbitMQ 3-to-4 migration command (osism/python-osism#2481)
+- Improve test coverage for octavia, amphora, loadbalancer, compute, and volume commands (osism/python-osism#2481)
+- Extend unit tests for status and report commands (osism/python-osism#2481)
+- Add manage command wiring tests and extend vault command tests (osism/python-osism#2481)
+- Add unit tests for workflow commands (apply, check, compose, sync, get, log, console, validate, wait) (osism/python-osism#2480)
+- Add unit tests for the RabbitMQ notification listener covering event handling, exchange discovery and OSISM API delivery retries (osism/python-osism#2473)
+- Add unit test coverage for the WebSocket manager and event bridge services (osism/python-osism#2460)
+- Add unit tests for OSISM API HTTP and WebSocket endpoints (osism/python-osism#2485)
+- Add unit tests for the netbox and sonic command modules (osism/python-osism#2487)
+
+### Fixed
+- Close the failed Redis subscriber before reconnecting instead of leaking it and closing the freshly created replacement in its place (osism/python-osism#2460)
+- Route Redis subscriber get_message failures through the same bounded retry back-off as subscribe failures instead of busy-looping on a closed subscriber (osism/python-osism#2460)
+- Marshal bridged events onto the broadcaster's event loop so they are delivered reliably instead of running on an unsynchronized private event loop (osism/python-osism#2460)
+- Baremetal commands now return a non-zero exit code when node operations such as validation, deployment, config drive creation, provisioning, burn-in, cleaning, maintenance, power state changes or deletion fail (osism/python-osism#2486)
+- Redfish list command now reports "No valid columns specified" for JSON output when the column selection matches no known columns, matching the table output behavior (osism/python-osism#2486)
+- Return 500 instead of 404 for unparsable inventory in hostvars endpoints (osism/python-osism#2485)
+- Count only actually searched hosts in inventory search response (osism/python-osism#2485)
+- Reject non-positive limit values in inventory search endpoint (osism/python-osism#2485)
+- Classify SSL errors before connection errors in NetBox sync and instance checks (osism/python-osism#2487)
+- Return failure when SONiC configuration reload fails (osism/python-osism#2487)
+
+### Dependencies
+- ara 1.7.5 → 1.8.0 (osism/python-osism#2475)
+- postcss 8.5.19 → 8.5.20 (osism/python-osism#2502)
+- openstack-flavor-manager 0.20260614.0 → 0.20260722.0 (osism/python-osism#2503)
+- openstack-image-manager 0.20260714.0 → 0.20260722.0 (osism/python-osism#2504)
+- next 16.2.10 → 16.2.11 (osism/python-osism#2505)
+- actions/setup-python v6 → v7 (osism/python-osism#2506)
+
 ## [v0.20260721.0] - 2026-07-21
 
 ### Added
