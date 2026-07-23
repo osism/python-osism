@@ -652,26 +652,20 @@ class Reload(SonicCommandBase):
                     return 1
 
                 # Reload configuration
-                reload_successful = self._reload_configuration(ssh)
-
-                # Save configuration only if reload was successful
-                if reload_successful:
-                    if not self._save_configuration(ssh):
-                        return 1
-                else:
+                if not self._reload_configuration(ssh):
                     logger.warning("Skipping config save due to reload failure")
+                    return 1
+
+                # Save configuration
+                if not self._save_configuration(ssh):
+                    return 1
 
                 # Cleanup
                 self._cleanup_temp_file(ssh, switch_config_file)
 
                 logger.info("SONiC configuration reload completed successfully")
                 logger.info(f"- Config context saved locally to: {config_context_file}")
-                if reload_successful:
-                    logger.info("- Configuration loaded, reloaded, and saved on switch")
-                else:
-                    logger.info(
-                        "- Configuration loaded on switch (save skipped due to reload failure)"
-                    )
+                logger.info("- Configuration loaded, reloaded, and saved on switch")
                 logger.info(f"- Backup created on switch: {backup_filename}")
 
                 return 0
