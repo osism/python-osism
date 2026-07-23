@@ -198,10 +198,10 @@ class Sync(Command):
                 or "unauthorized" in error_msg.lower()
             ):
                 return "Error: Auth failed"
-            elif "connection" in error_msg.lower() or "refused" in error_msg.lower():
-                return "Error: Connection refused"
             elif "ssl" in error_msg.lower() or "certificate" in error_msg.lower():
                 return "Error: SSL error"
+            elif "connection" in error_msg.lower() or "refused" in error_msg.lower():
+                return "Error: Connection refused"
             else:
                 # Truncate long error messages
                 short_msg = error_msg[:50] if len(error_msg) > 50 else error_msg
@@ -268,10 +268,10 @@ class Sync(Command):
                 or "unauthorized" in error_msg.lower()
             ):
                 return "Error: Auth failed"
-            elif "connection" in error_msg.lower() or "refused" in error_msg.lower():
-                return "Error: Connection refused"
             elif "ssl" in error_msg.lower() or "certificate" in error_msg.lower():
                 return "Error: SSL error"
+            elif "connection" in error_msg.lower() or "refused" in error_msg.lower():
+                return "Error: Connection refused"
             else:
                 # Truncate long error messages
                 short_msg = error_msg[:50] if len(error_msg) > 50 else error_msg
