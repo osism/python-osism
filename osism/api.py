@@ -826,7 +826,7 @@ async def get_host_hostvars(host: str) -> HostvarsResponse:
         )
 
         if result.returncode != 0:
-            if "Unable to parse" in result.stderr or "Could not match" in result.stderr:
+            if "Could not match" in result.stderr:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Host '{host}' not found in inventory",
@@ -889,7 +889,7 @@ async def get_host_hostvar(host: str, variable: str) -> HostvarSingleResponse:
         )
 
         if result.returncode != 0:
-            if "Unable to parse" in result.stderr or "Could not match" in result.stderr:
+            if "Could not match" in result.stderr:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Host '{host}' not found in inventory",

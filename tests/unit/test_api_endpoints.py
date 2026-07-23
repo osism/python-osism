@@ -758,7 +758,7 @@ def test_get_host_hostvars_masks_secrets(client, mocker):
     "stderr,expected_status",
     [
         ("Could not match supplied host pattern: node-1", 404),
-        ("Unable to parse /inventory/hosts.yml", 404),
+        ("Unable to parse /inventory/hosts.yml", 500),
         ("some other error", 500),
     ],
     ids=["no-match", "unparsable", "other"],
