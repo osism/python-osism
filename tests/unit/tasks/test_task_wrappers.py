@@ -361,7 +361,7 @@ def test_worker_run_aborts_when_task_lock_active(mocker, module, worker):
 
 
 def test_reconciler_run_aborts_when_task_lock_active(mocker):
-    """A locked task exits before creating a Redlock or spawning ``/run.sh``."""
+    """A locked task fails fast before creating a Redlock or spawning ``/run.sh``."""
     mocker.patch(
         "osism.tasks.reconciler.utils.check_task_lock_and_exit",
         side_effect=SystemExit(1),
@@ -369,15 +369,15 @@ def test_reconciler_run_aborts_when_task_lock_active(mocker):
     create = mocker.patch("osism.tasks.reconciler.utils.create_redlock")
     popen = mocker.patch("osism.tasks.reconciler.subprocess.Popen")
 
-    with pytest.raises(SystemExit):
-        reconciler.run.__wrapped__()
+    result = reconciler.run.__wrapped__(publish=False)
 
+    assert result == reconciler.LOCK_TIMEOUT_RC
     create.assert_not_called()
     popen.assert_not_called()
 
 
-def test_reconciler_run_returns_none_when_lock_not_acquired(mocker):
-    """Without the lock, ``/run.sh`` is never spawned and the task returns ``None``."""
+def test_reconciler_run_fails_fast_when_lock_not_acquired(mocker):
+    """Without the lock, ``/run.sh`` is never spawned and the task reports failure."""
     mocker.patch("osism.tasks.reconciler.utils.check_task_lock_and_exit")
     lock = mocker.MagicMock()
     lock.acquire.return_value = False
@@ -386,14 +386,14 @@ def test_reconciler_run_returns_none_when_lock_not_acquired(mocker):
     )
     popen = mocker.patch("osism.tasks.reconciler.subprocess.Popen")
 
-    result = reconciler.run.__wrapped__()
+    result = reconciler.run.__wrapped__(publish=False)
 
     create.assert_called_once_with(
         key="lock_osism_tasks_reconciler_run", auto_release_time=60
     )
-    lock.acquire.assert_called_once_with(timeout=20)
+    lock.acquire.assert_called_once_with(timeout=reconciler.LOCK_ACQUIRE_TIMEOUT)
     popen.assert_not_called()
-    assert result is None
+    assert result == reconciler.LOCK_TIMEOUT_RC
 
 
 def test_reconciler_run_publishes_output(mocker):
