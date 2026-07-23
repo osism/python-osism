@@ -169,9 +169,12 @@ class List(Command):
                     # Get column mappings for the resource type
                     column_mappings = self._get_column_mappings(resourcetype)
                     if column_mappings:
-                        _, data_keys = self._get_filtered_columns(
+                        headers, data_keys = self._get_filtered_columns(
                             column_mappings, columns
                         )
+                        if not headers:
+                            print("No valid columns specified")
+                            return
                         filtered_result = self._filter_json_data(result, data_keys)
                         print(json.dumps(filtered_result, indent=2))
                     else:
