@@ -197,6 +197,7 @@ class BaremetalDeploy(Command):
                     return 1
                 deploy_nodes = [node]
 
+            failed = False
             for node in deploy_nodes:
                 if not node:
                     continue
@@ -238,6 +239,7 @@ class BaremetalDeploy(Command):
                     logger.warning(
                         f"Node {node.name} ({node.id}) could not be validated"
                     )
+                    failed = True
                     continue
                 # NOTE: Prepare osism config drive
                 try:
@@ -352,6 +354,7 @@ class BaremetalDeploy(Command):
                     logger.warning(
                         f"Failed to build config drive for {node.name} ({node.id}): {exc}"
                     )
+                    failed = True
                     continue
                 node_vendor = node.properties.get("vendor", "").strip().lower()
                 if node_vendor == "supermicro":
@@ -399,7 +402,11 @@ class BaremetalDeploy(Command):
                     logger.warning(
                         f"Node {node.name} ({node.id}) could not be moved to active state: {exc}"
                     )
+                    failed = True
                     continue
+
+            if failed:
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -563,6 +570,7 @@ class BaremetalDump(Command):
                 )
             except Exception as exc:
                 logger.error(f"Failed to generate playbook for {name}: {exc}")
+                return 1
             finally:
                 cleanup_cloud_environment(temp_files, original_cwd)
         else:
@@ -676,6 +684,7 @@ class BaremetalDump(Command):
                 )
             except Exception as exc:
                 logger.error(f"Failed to generate playbook for {name}: {exc}")
+                return 1
 
 
 class BaremetalUndeploy(Command):
@@ -748,6 +757,7 @@ class BaremetalUndeploy(Command):
                     return 1
                 deploy_nodes = [node]
 
+            failed = False
             for node in deploy_nodes:
                 if not node:
                     continue
@@ -784,11 +794,15 @@ class BaremetalUndeploy(Command):
                         logger.warning(
                             f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
                         )
+                        failed = True
                         continue
                 else:
                     logger.warning(
                         f"Node {node.name} ({node.id}) not in supported provision state"
                     )
+
+            if failed:
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -1059,6 +1073,7 @@ class BaremetalBurnIn(Command):
                     return 1
                 burn_in_nodes = [node]
 
+            failed = False
             for node in burn_in_nodes:
                 if not node:
                     continue
@@ -1076,6 +1091,7 @@ class BaremetalBurnIn(Command):
                         logger.warning(
                             f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
                         )
+                        failed = True
                         continue
 
                 if node.provision_state in ["manageable"]:
@@ -1110,6 +1126,7 @@ class BaremetalBurnIn(Command):
                         logger.warning(
                             f"Burn-In of node {node.name} ({node.id}) failed: {exc}"
                         )
+                        failed = True
                         continue
                 elif node.provision_state in ["active"]:
                     # NOTE: Use service step to run burn-in
@@ -1135,6 +1152,7 @@ class BaremetalBurnIn(Command):
                         logger.warning(
                             f"Burn-In of node {node.name} ({node.id}) failed: {exc}"
                         )
+                        failed = True
                         continue
 
                 else:
@@ -1142,6 +1160,9 @@ class BaremetalBurnIn(Command):
                         f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
                     )
                     continue
+
+            if failed:
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -1216,6 +1237,7 @@ class BaremetalClean(Command):
                     return 1
                 clean_nodes = [node]
 
+            failed = False
             for node in clean_nodes:
                 if not node:
                     continue
@@ -1239,6 +1261,7 @@ class BaremetalClean(Command):
                         logger.warning(
                             f"Node {node.name} ({node.id}) could not be moved to manageable state: {exc}"
                         )
+                        failed = True
                         continue
 
                 if node.provision_state in ["manageable"]:
@@ -1276,11 +1299,15 @@ class BaremetalClean(Command):
                         logger.warning(
                             f"Clean of node {node.name} ({node.id}) failed: {exc}"
                         )
+                        failed = True
                         continue
                 else:
                     logger.warning(
                         f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
                     )
+
+            if failed:
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -1340,6 +1367,7 @@ class BaremetalProvide(Command):
                     return 1
                 provide_nodes = [node]
 
+            failed = False
             for node in provide_nodes:
                 if not node:
                     continue
@@ -1354,11 +1382,15 @@ class BaremetalProvide(Command):
                         logger.warning(
                             f"Node {node.name} ({node.id}) could not be moved to available state: {exc}"
                         )
+                        failed = True
                         continue
                 else:
                     logger.warning(
                         f"Node {node.name} ({node.id}) not in supported state! Provision state: {node.provision_state}, maintenance mode: {node['maintenance']}"
                     )
+
+            if failed:
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -1414,6 +1446,7 @@ class BaremetalMaintenanceSet(Command):
                 logger.error(
                     f"Setting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
                 )
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -1462,6 +1495,7 @@ class BaremetalMaintenanceUnset(Command):
                 logger.error(
                     f"Unsetting maintenance mode on node {node.name} ({node.id}) failed: {exc}"
                 )
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -1514,6 +1548,7 @@ class BaremetalPowerOn(Command):
                 logger.info(f"Successfully powered on node {node.name} ({node.id})")
             except Exception as exc:
                 logger.error(f"Failed to power on node {node.name} ({node.id}): {exc}")
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -1576,6 +1611,7 @@ class BaremetalPowerOff(Command):
                 logger.info(f"Successfully {action} node {node.name} ({node.id})")
             except Exception as exc:
                 logger.error(f"Failed to power off node {node.name} ({node.id}): {exc}")
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
 
@@ -1650,6 +1686,7 @@ class BaremetalDelete(Command):
                     return 1
                 delete_nodes = [node]
 
+            failed = False
             for node in delete_nodes:
                 if not node:
                     continue
@@ -1726,6 +1763,10 @@ class BaremetalDelete(Command):
                     logger.error(
                         f"Failed to delete node {node.name} ({node.id}): {exc}"
                     )
+                    failed = True
                     continue
+
+            if failed:
+                return 1
         finally:
             cleanup_cloud_environment(temp_files, original_cwd)
