@@ -11,7 +11,7 @@ from types import MappingProxyType
 from typing import Optional
 from loguru import logger
 
-from osism import utils
+from osism import settings, utils
 from osism.tasks.conductor.netbox import (
     get_device_interface_ips,
     get_device_loopbacks,
@@ -323,7 +323,7 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         The base config ships *only* in the container image — files/ is not
         Python package data — so a generator running outside that image (pip
         install, test harness) finds nothing and falls back to the hardcoded
-        defaults.
+        defaults. Point SONIC_BASE_CONFIG_PATH at the in-repo copy there.
 
         A static guard test (see test_config_generator_ownership.py) parses
         this module and fails the build if it references a table that is not
@@ -410,9 +410,9 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     hostname = get_device_hostname(device)
     mac_address = get_device_mac_address(device)
 
-    # Try to load base configuration from /etc/sonic/config_db.json
+    # Try to load the base configuration (see the ownership model above)
     # Always start with a fresh, empty configuration for each device
-    base_config_path = "/etc/sonic/config_db.json"
+    base_config_path = settings.SONIC_BASE_CONFIG_PATH
     config = {}
 
     try:
@@ -425,7 +425,19 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
                     f"Loaded fresh base configuration from {base_config_path} for device {device.name}"
                 )
         else:
-            logger.debug(
+            # Warn rather than debug: the base config supplies content nothing
+            # else does, so the result is incomplete in ways that are easy to
+            # miss. Absent are the DEVICE_METADATA localhost fields the
+            # generator does not itself write (type, default_config_profile,
+            # frr_mgmt_framework_config, intf_naming_mode) and every
+            # pass-through table (FEATURE, CLASSIFIER_TABLE, the POLICY_* set,
+            # ...); the read-only TELEMETRY gNMI port falls back to
+            # DEFAULT_GNMI_PORT. What the generator writes itself is unaffected
+            # -- the localhost attributes it owns (hostname, hwsku, platform,
+            # mac) and the DATABASE VERSION default -- which is precisely why
+            # the gap is easy to overlook downstream. Set
+            # SONIC_BASE_CONFIG_PATH when running outside the conductor image.
+            logger.warning(
                 f"Base config file {base_config_path} not found, starting with empty config for device {device.name}"
             )
     except Exception as e:

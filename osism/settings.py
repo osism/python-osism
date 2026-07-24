@@ -72,6 +72,16 @@ NETBOX_FILTER_CONDUCTOR_SONIC = os.getenv(
     DEFAULT_NETBOX_FILTER_CONDUCTOR_SONIC,
 )
 
+# Base config_db.json the SONiC config generator builds every device config on.
+# Shipped in this repo as files/sonic/config_db.json and installed at this path
+# by the Containerfile, so the default is correct inside the conductor image.
+# Overridable so a generator running outside that image -- a test harness, a
+# pip install -- can point at the in-repo copy instead of silently generating
+# without a base config (see the ownership model on generate_sonic_config).
+SONIC_BASE_CONFIG_PATH = os.getenv(
+    "SONIC_BASE_CONFIG_PATH", "/etc/sonic/config_db.json"
+)
+
 # SONiC export configuration
 SONIC_EXPORT_DIR = os.getenv("SONIC_EXPORT_DIR", "/etc/sonic/export")
 SONIC_EXPORT_PREFIX = os.getenv("SONIC_EXPORT_PREFIX", "osism_")

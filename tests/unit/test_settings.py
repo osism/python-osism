@@ -669,3 +669,17 @@ def test_netbox_max_connections_override(reload_settings, monkeypatch):
     reload_settings()
 
     assert settings_module.NETBOX_MAX_CONNECTIONS == 25
+
+
+def test_sonic_base_config_path_default(reload_settings, monkeypatch):
+    monkeypatch.delenv("SONIC_BASE_CONFIG_PATH", raising=False)
+    reload_settings()
+
+    assert settings_module.SONIC_BASE_CONFIG_PATH == "/etc/sonic/config_db.json"
+
+
+def test_sonic_base_config_path_override(reload_settings, monkeypatch):
+    monkeypatch.setenv("SONIC_BASE_CONFIG_PATH", "/repo/files/sonic/config_db.json")
+    reload_settings()
+
+    assert settings_module.SONIC_BASE_CONFIG_PATH == "/repo/files/sonic/config_db.json"

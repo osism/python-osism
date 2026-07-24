@@ -223,6 +223,54 @@ def test_generate_sonic_config_preserves_existing_localhost_keys(
 # ---------------------------------------------------------------------------
 
 
+def test_generate_sonic_config_loads_base_from_configured_path(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """The base config is read from settings.SONIC_BASE_CONFIG_PATH.
+
+    The path is overridable so a generator running outside the conductor image
+    (test harness, pip install) can point at the in-repo copy instead of
+    silently generating without a base config.
+    """
+    mocker.patch.object(
+        config_generator.settings,
+        "SONIC_BASE_CONFIG_PATH",
+        "/custom/base/config_db.json",
+    )
+    opener = patch_base_config(
+        mocker, base_config=make_base_config(version="version_4_2_0")
+    )
+    device = make_orchestrator_device()
+
+    config = generate_sonic_config(device, "Test-HWSKU", config_version=None)
+
+    assert config["VERSIONS"]["DATABASE"]["VERSION"] == "version_4_2_0"
+    assert opener.call_args_list[0].args[0] == "/custom/base/config_db.json"
+
+
+def test_generate_sonic_config_warns_when_base_absent(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """A missing base config is a warning, not a debug line.
+
+    Without it the config is missing the DEVICE_METADATA localhost fields the
+    generator does not write itself (type, default_config_profile, …) and every
+    pass-through table, while TELEMETRY falls back to DEFAULT_GNMI_PORT. What
+    the generator writes itself still lands, so the gap is easy to miss
+    downstream — the E2E harness generated against no base config for months.
+    """
+    patch_base_config(mocker, exists=False)
+    warning = mocker.patch.object(config_generator.logger, "warning")
+    device = make_orchestrator_device()
+
+    generate_sonic_config(device, "Test-HWSKU")
+
+    assert any(
+        "not found, starting with empty config" in str(call)
+        for call in warning.call_args_list
+    )
+
+
 def test_generate_sonic_config_starts_from_scaffold_when_base_absent(
     mocker, patch_orchestrator_helpers, make_orchestrator_device
 ):
