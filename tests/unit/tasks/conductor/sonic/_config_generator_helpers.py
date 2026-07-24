@@ -37,16 +37,18 @@ def patch_base_config(mocker, *, exists=True, base_config=None, raise_on_open=No
     - ``exists=False`` → ``open`` is not patched (the orchestrator never
       reaches the ``with open`` path).
     - ``raise_on_open`` → ``open`` raises this exception (e.g. ``OSError``).
+
+    Returns the patched ``open`` mock so a caller can assert on the path it was
+    called with, or ``None`` when ``exists=False`` and ``open`` is left alone.
     """
 
     mocker.patch.object(config_generator.os.path, "exists", return_value=exists)
     if not exists:
-        return
+        return None
     if raise_on_open is not None:
-        mocker.patch("builtins.open", side_effect=raise_on_open)
-        return
+        return mocker.patch("builtins.open", side_effect=raise_on_open)
     cfg = base_config if base_config is not None else make_base_config()
-    mocker.patch("builtins.open", mock_open(read_data=json.dumps(cfg)))
+    return mocker.patch("builtins.open", mock_open(read_data=json.dumps(cfg)))
 
 
 def make_iface(name, *, mgmt_only=False, type_value=None, iface_id=None):
