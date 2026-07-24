@@ -9,12 +9,18 @@ leaves their helpers patched so the orchestrator's own glue is exercised in
 isolation.
 """
 
+import json
 from types import SimpleNamespace
 
 import pytest
 
 from osism.tasks.conductor.sonic import config_generator
 from osism.tasks.conductor.sonic.config_generator import (
+    DEFAULT_VRF_BGP_GLOBALS,
+    DEFAULT_VRF_BGP_GLOBALS_AF,
+    DEFAULT_VRF_BGP_GLOBALS_ROUTE_ADVERTISE,
+    DEFAULT_VRF_ROUTE_REDISTRIBUTE,
+    DEFAULT_VRF_VRF,
     OWNED_TABLE_KEYS,
     TOP_LEVEL_SCAFFOLD_KEYS,
     _add_ctrlplane_acls,
@@ -301,17 +307,20 @@ def test_generate_sonic_config_router_id_falls_back_to_primary_ip6(
     assert "local_asn" not in config["BGP_GLOBALS"].get("default", {})
 
 
-def test_generate_sonic_config_no_primary_ip_skips_bgp_globals_default(
+def test_generate_sonic_config_no_primary_ip_omits_router_id_and_local_asn(
     mocker, patch_orchestrator_helpers, make_orchestrator_device
 ):
     """Edge case: a device without any primary IP (rare in production but
-    worth pinning) must not produce a partial ``BGP_GLOBALS["default"]``."""
+    worth pinning) still gets the default-VRF BGP policy, just without the
+    NetBox-derived ``router_id``/``local_asn``."""
     patch_base_config(mocker)
     device = make_orchestrator_device(primary_ip4=None, primary_ip6=None)
 
     config = generate_sonic_config(device, "HWSKU")
 
-    assert "default" not in config["BGP_GLOBALS"]
+    assert config["BGP_GLOBALS"]["default"] == DEFAULT_VRF_BGP_GLOBALS
+    assert "router_id" not in config["BGP_GLOBALS"]["default"]
+    assert "local_asn" not in config["BGP_GLOBALS"]["default"]
     patch_orchestrator_helpers.calculate_local_asn_from_ipv4.assert_not_called()
 
 
@@ -536,6 +545,152 @@ def test_generate_sonic_config_version_existing_in_base_preserved(
 
 
 # ---------------------------------------------------------------------------
+# generate_sonic_config — default-VRF entries
+# ---------------------------------------------------------------------------
+
+
+def test_generate_sonic_config_emits_default_vrf_entries_without_vni_vrfs(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """A device without VNI VRFs still gets the full default-VRF config.
+
+    VRF, the BGP_GLOBALS* tables and ROUTE_REDISTRIBUTE are owned, so whatever
+    the image base config_db.json carries for the default VRF is dropped on
+    regen, and ``_add_vrf_configuration`` only writes entries for the VRFs
+    NetBox carries. ``_add_default_vrf_configuration`` therefore emits the
+    default-VRF entries — without them the default VRF stops advertising its
+    IPv4/IPv6 unicast routes into EVPN, silently blackholing traffic between
+    subnets on different leaves, and stops redistributing its connected routes
+    into BGP.
+
+    The values are asserted literally rather than against the policy constants,
+    so a change to the constants shows up here as a behavior change.
+    """
+    patch_base_config(mocker)
+    device = make_orchestrator_device(primary_ip4=_ip("10.0.0.1/32"))
+
+    config = generate_sonic_config(device, "HWSKU")
+
+    assert config["VRF"] == {"default": {"enabled": "true"}}
+    assert config["ROUTE_REDISTRIBUTE"] == {
+        "default|connected|bgp|ipv4": {},
+        "default|connected|bgp|ipv6": {},
+    }
+    assert config["BGP_GLOBALS"]["default"] == {
+        "always_compare_med": "true",
+        "ebgp_requires_policy": "false",
+        "external_compare_router_id": "false",
+        "fast_external_failover": "true",
+        "holdtime": "180",
+        "ignore_as_path_length": "false",
+        "keepalive": "60",
+        "load_balance_mp_relax": "false",
+        "log_nbr_state_changes": "true",
+        "network_import_check": "true",
+        "router_id": "10.0.0.1",
+        "local_asn": "4200000001",
+    }
+    assert config["BGP_GLOBALS_AF"] == {
+        "default|ipv4_unicast": {
+            "ibgp_equal_cluster_length": "false",
+            "max_ebgp_paths": "2",
+            "max_ibgp_paths": "2",
+            "route_flap_dampen": "false",
+        },
+        "default|ipv6_unicast": {
+            "ibgp_equal_cluster_length": "false",
+            "max_ebgp_paths": "2",
+            "max_ibgp_paths": "2",
+        },
+        "default|l2vpn_evpn": {
+            "advertise-all-vni": "true",
+            "advertise-svi-ip": "true",
+            "dad-enabled": "true",
+        },
+    }
+    assert config["BGP_GLOBALS_ROUTE_ADVERTISE"] == {
+        "default|L2VPN_EVPN|IPV4_UNICAST": {},
+        "default|L2VPN_EVPN|IPV6_UNICAST": {},
+    }
+
+
+def test_generate_sonic_config_default_vrf_policy_not_shared_across_devices(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """The policy constants must be copied into each device's config.
+
+    They are module-level state shared by every device, so emitting them by
+    reference would let one device's config (or a caller mutating the returned
+    dict) rewrite the policy for every device generated afterwards. The
+    constants are read-only views, so the copies must also be plain, mutable
+    dicts — the mutations below would raise on a leaked mappingproxy.
+    """
+    patch_base_config(mocker)
+    first = generate_sonic_config(
+        make_orchestrator_device(primary_ip4=_ip("10.0.0.1/32")), "HWSKU"
+    )
+    first["VRF"]["default"]["enabled"] = "false"
+    first["BGP_GLOBALS"]["default"]["holdtime"] = "9"
+    first["BGP_GLOBALS_AF"]["default|l2vpn_evpn"]["advertise-all-vni"] = "false"
+
+    patch_base_config(mocker)
+    second = generate_sonic_config(
+        make_orchestrator_device(device_id=2, primary_ip4=_ip("10.0.0.2/32")), "HWSKU"
+    )
+
+    assert second["VRF"]["default"]["enabled"] == "true"
+    assert second["BGP_GLOBALS"]["default"]["holdtime"] == "180"
+    assert second["BGP_GLOBALS_AF"]["default|l2vpn_evpn"]["advertise-all-vni"] == "true"
+    assert DEFAULT_VRF_VRF["enabled"] == "true"
+    assert DEFAULT_VRF_BGP_GLOBALS["holdtime"] == "180"
+    assert DEFAULT_VRF_BGP_GLOBALS_AF["l2vpn_evpn"]["advertise-all-vni"] == "true"
+
+
+def test_generate_sonic_config_default_vrf_entries_match_policy_constants(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """Every policy entry reaches the config under the expected key.
+
+    Complements the literal-value test above: that one pins the values, this
+    one pins that no entry is dropped when the constants grow. The generated
+    config must also stay JSON-serializable — the policy constants are
+    ``MappingProxyType`` views, which ``json.dumps`` rejects, so a copy that
+    only detached the outer mapping would surface here.
+    """
+    patch_base_config(mocker)
+    device = make_orchestrator_device(primary_ip4=_ip("10.0.0.1/32"))
+
+    config = generate_sonic_config(device, "HWSKU")
+
+    assert config["VRF"]["default"] == DEFAULT_VRF_VRF
+    for af_name, af_attributes in DEFAULT_VRF_BGP_GLOBALS_AF.items():
+        assert config["BGP_GLOBALS_AF"][f"default|{af_name}"] == af_attributes
+    for advertise_key in DEFAULT_VRF_BGP_GLOBALS_ROUTE_ADVERTISE:
+        assert config["BGP_GLOBALS_ROUTE_ADVERTISE"][f"default|{advertise_key}"] == {}
+    for redistribute_key in DEFAULT_VRF_ROUTE_REDISTRIBUTE:
+        assert config["ROUTE_REDISTRIBUTE"][f"default|{redistribute_key}"] == {}
+    assert DEFAULT_VRF_BGP_GLOBALS.items() <= config["BGP_GLOBALS"]["default"].items()
+    json.dumps(config)
+
+
+def test_default_vrf_policy_constants_are_read_only():
+    """The policy constants must reject in-place edits.
+
+    They are shared by every device generated in the process, so an accidental
+    write anywhere in the codebase would silently change the policy for all of
+    them instead of failing at the offending line.
+    """
+    with pytest.raises(TypeError):
+        DEFAULT_VRF_VRF["enabled"] = "false"
+    with pytest.raises(TypeError):
+        DEFAULT_VRF_BGP_GLOBALS["holdtime"] = "9"
+    with pytest.raises(TypeError):
+        DEFAULT_VRF_BGP_GLOBALS_AF["l2vpn_evpn"] = {}
+    with pytest.raises(TypeError):
+        DEFAULT_VRF_BGP_GLOBALS_AF["l2vpn_evpn"]["advertise-all-vni"] = "false"
+
+
+# ---------------------------------------------------------------------------
 # generate_sonic_config — ownership model: BGP_GLOBALS["default"]
 # ---------------------------------------------------------------------------
 
@@ -559,12 +714,16 @@ def test_generate_sonic_config_bgp_globals_default_extra_fields_dropped_on_regen
         "local_asn": "4200000001",
         "custom_timer": "operator-value",  # not produced by the generator
     }
+    base["BGP_GLOBALS_AF"]["default|ipv4_unicast"] = {"max_ebgp_paths": "64"}
     patch_base_config(mocker, base_config=base)
     device = make_orchestrator_device(primary_ip4=_ip("10.0.0.1/32"))
 
     config = generate_sonic_config(device, "HWSKU")
 
     assert "custom_timer" not in config["BGP_GLOBALS"]["default"]
+    # The same holds for the address families: the generated policy wins over
+    # whatever the base config carried for the default VRF.
+    assert config["BGP_GLOBALS_AF"]["default|ipv4_unicast"]["max_ebgp_paths"] == "2"
 
 
 def test_generate_sonic_config_stale_owned_entries_dropped_on_regen(
@@ -595,7 +754,11 @@ def test_generate_sonic_config_stale_owned_entries_dropped_on_regen(
     # Scaffolded owned tables are emptied; the orchestrator rewrites only the
     # default VRF in BGP_GLOBALS.
     assert config["BGP_GLOBALS"] == {
-        "default": {"router_id": "10.0.0.1", "local_asn": "4200000001"}
+        "default": {
+            **DEFAULT_VRF_BGP_GLOBALS,
+            "router_id": "10.0.0.1",
+            "local_asn": "4200000001",
+        }
     }
     assert config["VLAN_MEMBER"] == {}
     assert config["VXLAN_TUNNEL_MAP"] == {}

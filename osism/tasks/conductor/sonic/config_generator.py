@@ -7,6 +7,7 @@ import ipaddress
 import json
 import os
 import re
+from types import MappingProxyType
 from typing import Optional
 from loguru import logger
 
@@ -156,9 +157,99 @@ OWNED_TABLE_KEYS = SCAFFOLDED_OWNED_TABLE_KEYS + ON_DEMAND_OWNED_TABLE_KEYS
 # helpers (SSH, SNMP, gNMI). They are listed here ahead of those helpers so the
 # per-key pattern is enforced from the first one that lands; they join
 # ON_DEMAND_OWNED_TABLE_KEYS in the same change (so the central drop clears them
-# before any helper merges). The per-key rule is enforced by
+# before any helper merges). The VRF, BGP_GLOBALS* and ROUTE_REDISTRIBUTE
+# tables are co-owned by _add_default_vrf_configuration (default-VRF entries,
+# see DEFAULT_VRF_* below) and _add_vrf_configuration (per-VRF entries). The
+# per-key rule is enforced by
 # test_config_generator_ownership.py::TestMultiOwnerTableGuard.
-MULTI_OWNER_OWNED_TABLE_KEYS = ("ACL_TABLE", "ACL_RULE")
+MULTI_OWNER_OWNED_TABLE_KEYS = (
+    "ACL_TABLE",
+    "ACL_RULE",
+    "VRF",
+    "BGP_GLOBALS",
+    "BGP_GLOBALS_AF",
+    "BGP_GLOBALS_ROUTE_ADVERTISE",
+    "ROUTE_REDISTRIBUTE",
+)
+
+# Configuration of the default VRF, emitted by _add_default_vrf_configuration
+# on every regen.
+#
+# These entries used to ship in the image-provided base config_db.json, with
+# the generator adding only the VRF-specific ones. The tables holding them are
+# owned, so their base content is dropped up front -- which silently removed
+# the default-VRF entries on every regen and, with them, the default VRF's
+# EVPN route advertisement. The generator therefore owns these entries too;
+# the values are the ones the base config used to carry.
+#
+# The mappings are read-only views: they are module-level state shared by every
+# device, so an in-place edit would rewrite the policy for the whole process.
+# Callers copy them into the config with dict(), which both detaches the entry
+# and unwraps the proxy -- a mappingproxy in the config would not survive JSON
+# serialization. A shallow copy suffices because the values are strings.
+DEFAULT_VRF_VRF = MappingProxyType({"enabled": "true"})
+
+DEFAULT_VRF_BGP_GLOBALS = MappingProxyType(
+    {
+        "always_compare_med": "true",
+        "ebgp_requires_policy": "false",
+        "external_compare_router_id": "false",
+        "fast_external_failover": "true",
+        "holdtime": "180",
+        "ignore_as_path_length": "false",
+        "keepalive": "60",
+        "load_balance_mp_relax": "false",
+        "log_nbr_state_changes": "true",
+        "network_import_check": "true",
+    }
+)
+
+# Address families of the default VRF, keyed by the afi-safi part of the
+# BGP_GLOBALS_AF key ("default|<afi-safi>").
+DEFAULT_VRF_BGP_GLOBALS_AF = MappingProxyType(
+    {
+        "ipv4_unicast": MappingProxyType(
+            {
+                "ibgp_equal_cluster_length": "false",
+                "max_ebgp_paths": "2",
+                "max_ibgp_paths": "2",
+                "route_flap_dampen": "false",
+            }
+        ),
+        "ipv6_unicast": MappingProxyType(
+            {
+                "ibgp_equal_cluster_length": "false",
+                "max_ebgp_paths": "2",
+                "max_ibgp_paths": "2",
+            }
+        ),
+        "l2vpn_evpn": MappingProxyType(
+            {
+                "advertise-all-vni": "true",
+                "advertise-svi-ip": "true",
+                "dad-enabled": "true",
+            }
+        ),
+    }
+)
+
+# Route advertisements of the default VRF, keyed by the part of the
+# BGP_GLOBALS_ROUTE_ADVERTISE key that follows "default|". Advertising the
+# IPv4/IPv6 unicast routes of the default VRF into L2VPN EVPN is what makes
+# subnets attached to one leaf reachable from another.
+DEFAULT_VRF_BGP_GLOBALS_ROUTE_ADVERTISE = (
+    "L2VPN_EVPN|IPV4_UNICAST",
+    "L2VPN_EVPN|IPV6_UNICAST",
+)
+
+# Route redistribution of the default VRF, keyed by the part of the
+# ROUTE_REDISTRIBUTE key that follows "default|". Without these, the routes of
+# the networks directly attached to the switch are no longer redistributed into
+# BGP for the default VRF.
+DEFAULT_VRF_ROUTE_REDISTRIBUTE = (
+    "connected|bgp|ipv4",
+    "connected|bgp|ipv6",
+)
 
 
 def natural_sort_key(port_name):
@@ -342,38 +433,8 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         }
     )
 
-    # Add BGP_GLOBALS configuration with router_id set to primary IP address
-    primary_ip = None
-    if device.primary_ip4:
-        primary_ip = str(device.primary_ip4.address).split("/")[0]
-    elif device.primary_ip6:
-        primary_ip = str(device.primary_ip6.address).split("/")[0]
-
-    if primary_ip:
-        # BGP_GLOBALS is a generated section fully owned by this generator, so
-        # replace the default VRF entry wholesale rather than merging into a
-        # pre-existing one — pre-existing fields from config_db.json must not
-        # survive regen (see the ownership model in the docstring).
-        config["BGP_GLOBALS"]["default"] = {"router_id": primary_ip}
-
-        # Calculate and add local_asn from router_id (only for IPv4)
-        if device.primary_ip4:
-            try:
-                # Check if device is in a spine/superspine group with pre-calculated AS
-                if device_as_mapping and device.id in device_as_mapping:
-                    local_asn = device_as_mapping[device.id]
-                    logger.debug(
-                        f"Using group-calculated AS {local_asn} for spine/superspine device {device.name}"
-                    )
-                else:
-                    # Use normal AS calculation for leaf switches and non-grouped devices
-                    local_asn = calculate_local_asn_from_ipv4(primary_ip)
-
-                config["BGP_GLOBALS"]["default"]["local_asn"] = str(local_asn)
-            except ValueError as e:
-                logger.warning(
-                    f"Could not calculate local ASN for device {device.name}: {e}"
-                )
+    # Add the configuration of the default VRF
+    _add_default_vrf_configuration(config, device, device_as_mapping)
 
     # Add port configurations
     _add_port_configurations(
@@ -2070,6 +2131,70 @@ def _get_vrf_info(device):
     return vrf_info
 
 
+def _add_default_vrf_configuration(config, device, device_as_mapping=None):
+    """Add the configuration of the default VRF to config.
+
+    The tables written here are owned, so their base content is dropped before
+    this runs and the default VRF has to be regenerated from policy —
+    _add_vrf_configuration only writes entries for the VRFs NetBox carries, so
+    without this the default VRF loses its BGP attributes, stops advertising
+    its routes into EVPN and stops redistributing the routes of its directly
+    attached networks into BGP.
+
+    Each entry is assigned wholesale, so pre-existing fields from
+    config_db.json do not survive regen (see the ownership model on
+    generate_sonic_config); the tables themselves are merged per key, as
+    _add_vrf_configuration adds its per-VRF entries to them afterwards.
+
+    Args:
+        config: Configuration dictionary to update
+        device: NetBox device object
+        device_as_mapping: Dict mapping device IDs to pre-calculated AS numbers
+            for spine/superspine groups
+    """
+    config["VRF"]["default"] = dict(DEFAULT_VRF_VRF)
+    config["BGP_GLOBALS"]["default"] = dict(DEFAULT_VRF_BGP_GLOBALS)
+    for af_name, af_attributes in DEFAULT_VRF_BGP_GLOBALS_AF.items():
+        config["BGP_GLOBALS_AF"][f"default|{af_name}"] = dict(af_attributes)
+    for advertise_key in DEFAULT_VRF_BGP_GLOBALS_ROUTE_ADVERTISE:
+        config["BGP_GLOBALS_ROUTE_ADVERTISE"][f"default|{advertise_key}"] = {}
+    # ROUTE_REDISTRIBUTE is not part of the scaffold, so it may be missing here.
+    config.setdefault("ROUTE_REDISTRIBUTE", {})
+    for redistribute_key in DEFAULT_VRF_ROUTE_REDISTRIBUTE:
+        config["ROUTE_REDISTRIBUTE"][f"default|{redistribute_key}"] = {}
+
+    # Set router_id of the default VRF to the primary IP address
+    primary_ip = None
+    if device.primary_ip4:
+        primary_ip = str(device.primary_ip4.address).split("/")[0]
+    elif device.primary_ip6:
+        primary_ip = str(device.primary_ip6.address).split("/")[0]
+
+    if not primary_ip:
+        return
+
+    config["BGP_GLOBALS"]["default"]["router_id"] = primary_ip
+
+    # Calculate and add local_asn from router_id (only for IPv4)
+    if device.primary_ip4:
+        try:
+            # Check if device is in a spine/superspine group with pre-calculated AS
+            if device_as_mapping and device.id in device_as_mapping:
+                local_asn = device_as_mapping[device.id]
+                logger.debug(
+                    f"Using group-calculated AS {local_asn} for spine/superspine device {device.name}"
+                )
+            else:
+                # Use normal AS calculation for leaf switches and non-grouped devices
+                local_asn = calculate_local_asn_from_ipv4(primary_ip)
+
+            config["BGP_GLOBALS"]["default"]["local_asn"] = str(local_asn)
+        except ValueError as e:
+            logger.warning(
+                f"Could not calculate local ASN for device {device.name}: {e}"
+            )
+
+
 def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
     """Add VRF configuration to config.
 
@@ -2140,9 +2265,9 @@ def _add_vrf_configuration(config, vrf_info, netbox_interfaces):
             config["BGP_GLOBALS_ROUTE_ADVERTISE"][ipv6_adv_key] = {}
             logger.info(f"Added BGP_GLOBALS_ROUTE_ADVERTISE for VRF {vrf_name}")
 
-            # Add ROUTE_REDISTRIBUTE for VRF
-            if "ROUTE_REDISTRIBUTE" not in config:
-                config["ROUTE_REDISTRIBUTE"] = {}
+            # Add ROUTE_REDISTRIBUTE for VRF. The table is co-owned with the
+            # orchestrator (default VRF), so create it without rebinding it.
+            config.setdefault("ROUTE_REDISTRIBUTE", {})
             route_redistribute_key = f"{vrf_name}|connected|bgp|ipv4"
             config["ROUTE_REDISTRIBUTE"][route_redistribute_key] = {}
             logger.info(f"Added ROUTE_REDISTRIBUTE {route_redistribute_key}")
