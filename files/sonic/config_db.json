@@ -1,41 +1,8 @@
 {
-    "BGP_GLOBALS": {
-        "default": {
-            "always_compare_med": "true",
-            "ebgp_requires_policy": "false",
-            "external_compare_router_id": "false",
-            "fast_external_failover": "true",
-            "holdtime": "180",
-            "ignore_as_path_length": "false",
-            "keepalive": "60",
-            "load_balance_mp_relax": "false",
-            "log_nbr_state_changes": "true",
-            "network_import_check": "true"
-        }
-    },
-    "BGP_GLOBALS_AF": {
-        "default|ipv4_unicast": {
-            "ibgp_equal_cluster_length": "false",
-            "max_ebgp_paths": "2",
-            "max_ibgp_paths": "2",
-            "route_flap_dampen": "false"
-        },
-        "default|ipv6_unicast": {
-            "ibgp_equal_cluster_length": "false",
-            "max_ebgp_paths": "2",
-            "max_ibgp_paths": "2"
-        },
-        "default|l2vpn_evpn": {
-            "advertise-all-vni": "true",
-            "advertise-svi-ip": "true",
-            "dad-enabled": "true"
-        }
-    },
+    "BGP_GLOBALS": {},
+    "BGP_GLOBALS_AF": {},
     "BGP_GLOBALS_AF_NETWORK": {},
-    "BGP_GLOBALS_ROUTE_ADVERTISE": {
-        "default|L2VPN_EVPN|IPV4_UNICAST": {},
-        "default|L2VPN_EVPN|IPV6_UNICAST": {}
-    },
+    "BGP_GLOBALS_ROUTE_ADVERTISE": {},
     "BGP_NEIGHBOR": {},
     "BGP_NEIGHBOR_AF": {},
     "BREAKOUT_CFG": {},
@@ -409,10 +376,7 @@
     "PORTCHANNEL": {},
     "PORTCHANNEL_INTERFACE": {},
     "PORTCHANNEL_MEMBER": {},
-    "ROUTE_REDISTRIBUTE": {
-        "default|connected|bgp|ipv4": {},
-        "default|connected|bgp|ipv6": {}
-    },
+    "ROUTE_REDISTRIBUTE": {},
     "SNMP_SERVER": {
         "SYSTEM": {}
     },
@@ -466,11 +430,7 @@
     "VLAN": {},
     "VLAN_INTERFACE": {},
     "VLAN_MEMBER": {},
-    "VRF": {
-        "default": {
-            "enabled": "true"
-        }
-    },
+    "VRF": {},
     "VXLAN_EVPN_NVO": {},
     "VXLAN_TUNNEL": {},
     "VXLAN_TUNNEL_MAP": {},
