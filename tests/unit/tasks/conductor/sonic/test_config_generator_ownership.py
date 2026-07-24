@@ -16,6 +16,7 @@ test_config_generator_orchestrator.py for BGP_GLOBALS['default'].
 """
 
 import ast
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -701,3 +702,70 @@ class TestMultiOwnerTableGuard:
         multi_owner = set(MULTI_OWNER_OWNED_TABLE_KEYS)
         assert multi_owner.isdisjoint(INHERITED_TABLE_KEYS)
         assert multi_owner.isdisjoint(READ_ONLY_TABLE_KEYS)
+
+
+# ---------------------------------------------------------------------------
+# Static guard: the shipped base config carries no owned-table content
+# ---------------------------------------------------------------------------
+
+# The base config_db.json shipped in this repo. The Containerfile installs it
+# into the conductor image at /etc/sonic/config_db.json, where
+# generate_sonic_config loads it as the starting point for every device.
+# Resolved from this test file so the path holds in any checkout.
+SHIPPED_BASE_CONFIG_PATH = (
+    Path(__file__).parents[5] / "files" / "sonic" / "config_db.json"
+)
+
+# Owned tables the shipped base config may populate. Adding a table here is
+# almost always the wrong fix -- see the guard's failure message below.
+#
+# SNMP_SERVER: _add_snmp_configuration emits SNMP_SERVER["SYSTEM"] on every run
+# with hardcoded defaults, whether or not NetBox carries SNMP data, so the
+# shipped entry is always regenerated. It is redundant rather than
+# load-bearing, and could be dropped from the base config entirely.
+BASE_CONFIG_OWNED_TABLE_ALLOWLIST = frozenset({"SNMP_SERVER"})
+
+
+class TestShippedBaseConfigCarriesNoOwnedContent:
+    """The shipped base config must not populate generator-owned tables.
+
+    Owned tables are dropped before any helper runs, so whatever the base
+    config puts in one is discarded on every regen: it reads as configuration
+    but never reaches a switch. That is not hypothetical, it is #2515 -- the
+    default-VRF BGP entries shipped in files/sonic/config_db.json, the
+    owned-table drop removed them, nothing regenerated them, and the default
+    VRF stopped advertising its routes into EVPN.
+
+    No existing test could catch that. Every base-config fixture is built from
+    TOP_LEVEL_SCAFFOLD_KEYS with all tables empty (see make_base_config), so
+    dropping populated content is indistinguishable from dropping nothing, and
+    the exhaustive stale-entry sweep asserts that a seeded entry *is* dropped
+    -- it verifies the drop works, which is the mechanism at fault, so it
+    cannot detect over-deletion. This guard reads the real shipped file
+    instead, and needs no fixture.
+    """
+
+    def test_no_owned_table_is_populated_in_shipped_base_config(self):
+        base_config = json.loads(SHIPPED_BASE_CONFIG_PATH.read_text())
+        populated_owned = {
+            table
+            for table, content in base_config.items()
+            if content
+            and table in OWNED_TABLE_KEYS
+            and table not in BASE_CONFIG_OWNED_TABLE_ALLOWLIST
+        }
+
+        assert not populated_owned, (
+            "files/sonic/config_db.json populates these generator-owned "
+            "tables, so their content is dropped on every regen and never "
+            "reaches a switch: " + ", ".join(sorted(populated_owned)) + ".\n\n"
+            "Move the values into config_generator.py as policy constants and "
+            "emit them from a helper (see the DEFAULT_VRF_* mappings and "
+            "_add_default_vrf_configuration), then remove them from the base "
+            "config -- that is what 'Where defaults belong' in the "
+            "generate_sonic_config ownership model requires.\n\n"
+            "Do not add the table to BASE_CONFIG_OWNED_TABLE_ALLOWLIST unless "
+            "the generator already regenerates it unconditionally: the "
+            "allowlist is for entries that are redundant, not for entries "
+            "that are needed."
+        )
