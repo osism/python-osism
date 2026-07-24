@@ -21,7 +21,7 @@ from types import SimpleNamespace
 
 from osism.tasks.conductor.sonic import config_generator
 from osism.tasks.conductor.sonic.config_generator import (
-    IMAGE_CONSUMED_TABLE_KEYS,
+    READ_ONLY_TABLE_KEYS,
     INHERITED_TABLE_KEYS,
     MULTI_OWNER_OWNED_TABLE_KEYS,
     ON_DEMAND_OWNED_TABLE_KEYS,
@@ -256,28 +256,28 @@ class TestOwnershipTaxonomyInvariants:
         """
         assert set(SCAFFOLDED_OWNED_TABLE_KEYS).isdisjoint(ON_DEMAND_OWNED_TABLE_KEYS)
 
-    def test_image_consumed_and_owned_are_disjoint(self):
-        """No table is both image-consumed and owned.
+    def test_read_only_and_owned_are_disjoint(self):
+        """No table is both read-only and owned.
 
-        Image-consumed tables are read defensively from the image base config
-        (via config.get) and never dropped. Owned tables are dropped up front
-        and rebuilt. A table in both would be dropped before it is read, so the
+        Read-only tables are read defensively from the base config (via
+        config.get) and never dropped. Owned tables are dropped up front and
+        rebuilt. A table in both would be dropped before it is read, so the
         consuming helper would always see an empty table -- the dependency the
-        image-consumed category exists to document would silently break.
+        read-only category exists to document would silently break.
         """
-        assert set(IMAGE_CONSUMED_TABLE_KEYS).isdisjoint(OWNED_TABLE_KEYS)
+        assert set(READ_ONLY_TABLE_KEYS).isdisjoint(OWNED_TABLE_KEYS)
 
-    def test_image_consumed_and_inherited_are_disjoint(self):
-        """No table is both image-consumed and inherited.
+    def test_read_only_and_inherited_are_disjoint(self):
+        """No table is both read-only and inherited.
 
-        Image-consumed tables are read but never modified; inherited tables
+        Read-only tables are read but never modified; inherited tables
         are read and have selected fields updated in place. The two are
         mutually exclusive by definition (modified vs. not), so a table in
         both is a contradictory classification. With the owned/inherited and
-        owned/image-consumed invariants above, this completes pairwise
+        owned/read-only invariants above, this completes pairwise
         disjointness across all three classified categories.
         """
-        assert set(IMAGE_CONSUMED_TABLE_KEYS).isdisjoint(INHERITED_TABLE_KEYS)
+        assert set(READ_ONLY_TABLE_KEYS).isdisjoint(INHERITED_TABLE_KEYS)
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +321,7 @@ def _config_table_keys_referenced_in_source():
       - subscripts (``config["X"]``),
       - the defensive accessors (``config.get/setdefault/pop("X", ...)``) -- a
         read is a real dependency on a table, so reads are collected the same
-        as writes; that is how an image-consumed table such as TELEMETRY is
+        as writes; that is how a read-only table such as TELEMETRY is
         caught,
       - update() in every literal form: ``config.update({"X": ...})``,
         ``config.update(X=...)`` (keyword), ``config.update(**{"X": ...})``,
@@ -443,7 +443,7 @@ class TestStaticTableReferenceGuard:
     The taxonomy constants above are a hand-maintained allowlist; nothing
     forces a newly handled table into one of them. This guard parses the
     generator source and fails when it references a table that is neither
-    owned, inherited, nor image-consumed -- the omission that lets a new table
+    owned, inherited, nor read-only -- the omission that lets a new table
     fall into the unpoliced pass-through tier and accumulate stale config. It
     is static rather than runtime so it catches tables that emit only when
     NetBox carries their data (a generate-and-inspect test would miss them
@@ -454,7 +454,7 @@ class TestStaticTableReferenceGuard:
         classified = (
             set(OWNED_TABLE_KEYS)
             | set(INHERITED_TABLE_KEYS)
-            | set(IMAGE_CONSUMED_TABLE_KEYS)
+            | set(READ_ONLY_TABLE_KEYS)
         )
         referenced = _config_table_keys_referenced_in_source()
         unclassified = referenced - classified
@@ -469,11 +469,11 @@ class TestStaticTableReferenceGuard:
             "  - owned, rebuilt from NetBox/policy every regen -> add to "
             "ON_DEMAND_OWNED_TABLE_KEYS (or TOP_LEVEL_SCAFFOLD_KEYS if it is "
             "created up front by the orchestrator)\n"
-            "  - image base content preserved, with selected fields updated "
+            "  - base content preserved, with selected fields updated "
             "in place -> add to INHERITED_TABLE_KEYS\n"
-            "  - read from the image but never modified -> add to "
-            "IMAGE_CONSUMED_TABLE_KEYS\n"
-            "Leaving a table unclassified lets pre-existing operator or image "
+            "  - read from the base config but never modified -> add to "
+            "READ_ONLY_TABLE_KEYS\n"
+            "Leaving a table unclassified lets pre-existing base-config "
             "content survive a regen, the stale-config bug the ownership model "
             "exists to prevent."
         )
@@ -693,11 +693,11 @@ class TestMultiOwnerTableGuard:
     def test_multi_owner_tables_are_not_inherited_or_consumed(self):
         """Multi-owner tables belong to the owned/dropped regime only.
 
-        Inherited and image-consumed tables are preserved, not dropped; a
+        Inherited and read-only tables are preserved, not dropped; a
         multi-owner table in either category would be merged into without the
         up-front clear the per-key pattern relies on. Holds before and after the
         ACL helpers land.
         """
         multi_owner = set(MULTI_OWNER_OWNED_TABLE_KEYS)
         assert multi_owner.isdisjoint(INHERITED_TABLE_KEYS)
-        assert multi_owner.isdisjoint(IMAGE_CONSUMED_TABLE_KEYS)
+        assert multi_owner.isdisjoint(READ_ONLY_TABLE_KEYS)

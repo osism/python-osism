@@ -428,7 +428,7 @@ def test_generate_sonic_config_gnmi_port_survives_owned_table_drop_end_to_end(
 ):
     """End-to-end with the real ACL helper: a TELEMETRY|gnmi|port from the
     base config must reach the generated GNMI_ONLY rule. TELEMETRY is
-    image-consumed while ACL_TABLE/ACL_RULE are owned and dropped up front,
+    read-only while ACL_TABLE/ACL_RULE are owned and dropped up front,
     so this pins the whole flow -- the port is read after the drop and
     emitted into the final output -- which the wiring tests above (helper
     mocked) and the helper unit tests (no orchestrator) only cover
@@ -555,7 +555,7 @@ def test_generate_sonic_config_emits_default_vrf_entries_without_vni_vrfs(
     """A device without VNI VRFs still gets the full default-VRF config.
 
     VRF, the BGP_GLOBALS* tables and ROUTE_REDISTRIBUTE are owned, so whatever
-    the image base config_db.json carries for the default VRF is dropped on
+    the base config_db.json carries for the default VRF is dropped on
     regen, and ``_add_vrf_configuration`` only writes entries for the VRFs
     NetBox carries. ``_add_default_vrf_configuration`` therefore emits the
     default-VRF entries — without them the default VRF stops advertising its

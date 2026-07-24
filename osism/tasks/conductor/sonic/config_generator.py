@@ -95,26 +95,24 @@ TOP_LEVEL_SCAFFOLD_KEYS = (
     "VERSIONS",
 )
 
-# Tables inherited from the device's image-provided base config_db.json: not
-# dropped on regen, so their base content is preserved, while the generator
-# updates only selected fields in place (DEVICE_METADATA localhost attributes,
-# VERSIONS.DATABASE.VERSION) rather than rebuilding them wholesale (see the
-# ownership model on generate_sonic_config).
+# Tables inherited from the base config_db.json: not dropped on regen, so their
+# base content is preserved, while the generator updates only selected fields in
+# place (DEVICE_METADATA localhost attributes, VERSIONS.DATABASE.VERSION) rather
+# than rebuilding them wholesale (see the ownership model on
+# generate_sonic_config).
 INHERITED_TABLE_KEYS = ("DEVICE_METADATA", "VERSIONS")
 
-# Tables read from the device's image-provided base config_db.json but never
-# modified by the generator: their values are consumed (via a defensive
-# config.get(...), so a missing table is tolerated). They are neither dropped
-# nor written, so an image-provided table passes through to the output
-# unchanged -- the same output behaviour as a pass-through table, the
-# difference being only that the generator depends on this one as an input.
-# Distinct from inherited tables, which the generator also writes selected
+# Tables read from the base config_db.json but never modified by the generator:
+# their values are consumed (via a defensive config.get(...), so a missing table
+# is tolerated). They are neither dropped nor written, so such a table passes
+# through to the output unchanged -- the same output behaviour as a pass-through
+# table, the difference being only that the generator depends on this one as an
+# input. Distinct from inherited tables, which the generator also writes selected
 # fields into; the distinction is read-only vs. read-and-update, not the access
-# syntax (inherited tables are read via config.get() too). For example, the
-# gNMI listen port is read from TELEMETRY. Must stay disjoint from
-# OWNED_TABLE_KEYS -- an image-consumed table dropped up front would always
-# read back empty.
-IMAGE_CONSUMED_TABLE_KEYS = ("TELEMETRY",)
+# syntax (inherited tables are read via config.get() too). For example, the gNMI
+# listen port is read from TELEMETRY. Must stay disjoint from OWNED_TABLE_KEYS --
+# a read-only table dropped up front would always read back empty.
+READ_ONLY_TABLE_KEYS = ("TELEMETRY",)
 
 # Owned tables that are also scaffolded: every scaffold key except the
 # inherited ones. The orchestrator setdefault-creates these up front, so
@@ -175,12 +173,15 @@ MULTI_OWNER_OWNED_TABLE_KEYS = (
 # Configuration of the default VRF, emitted by _add_default_vrf_configuration
 # on every regen.
 #
-# These entries used to ship in the image-provided base config_db.json, with
-# the generator adding only the VRF-specific ones. The tables holding them are
-# owned, so their base content is dropped up front -- which silently removed
-# the default-VRF entries on every regen and, with them, the default VRF's
-# EVPN route advertisement. The generator therefore owns these entries too;
-# the values are the ones the base config used to carry.
+# These entries used to ship in the base config_db.json (files/sonic/config_db.json,
+# installed into the conductor image at /etc/sonic/config_db.json), with the
+# generator adding only the VRF-specific ones. The tables holding them are owned,
+# so their base content is dropped up front -- which silently removed the
+# default-VRF entries on every regen and, with them, the default VRF's EVPN route
+# advertisement (#2515). The generator therefore owns these entries too; the
+# values are the ones the base config used to carry. Policy constants are where
+# such defaults belong -- see "Where defaults belong" in the ownership model on
+# generate_sonic_config.
 #
 # The mappings are read-only views: they are module-level state shared by every
 # device, so an in-place edit would rewrite the policy for the whole process.
@@ -271,35 +272,62 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
         dict: Minimal SONiC configuration dictionary
 
     Config ownership model:
-        The generator builds on the device's image-provided base
-        config_db.json and classifies every table it touches into one of four
-        categories. Operator hand-edits to config_db.json are unsupported in
-        all of them: customizations must be modeled in NetBox or expressed as
-        generator policy, never applied directly to the file.
+        The generator builds on a base config_db.json and classifies every
+        table it touches into one of four categories.
+
+        What the base config is: this repo's files/sonic/config_db.json, which
+        the Containerfile installs into the conductor image at
+        /etc/sonic/config_db.json. The generator reads that path from its own
+        container filesystem. It is *not* the switch's SONiC image config and
+        not a per-device file — nothing from a device's own config_db.json ever
+        reaches the generator. Everything device-specific comes from NetBox and
+        the policy in this module; the base config supplies the shared content
+        of the inherited, read-only and pass-through tables below, which
+        nothing else provides. Because the base config is baked into a
+        container image, it is not an operator-editable surface either:
+        customizations must be modeled in NetBox or expressed as generator
+        policy, never applied directly to the file.
 
         - Owned (OWNED_TABLE_KEYS): fully owned by the generator and rebuilt
           from scratch every regen from NetBox data and hardcoded SONiC
           policy. Their base content is dropped up front, so neither
           pre-existing values nor entries removed from NetBox survive.
-        - Inherited (INHERITED_TABLE_KEYS): not dropped on regen, so the
-          image base content is preserved, while the generator updates
-          selected fields in place — currently DEVICE_METADATA localhost
-          attributes (hostname, hwsku, platform, mac) and the
-          VERSIONS.DATABASE.VERSION. Scaffold-created when absent, so they
-          always exist at access time even on a fresh base config.
-        - Image-consumed (IMAGE_CONSUMED_TABLE_KEYS): read from the image
-          base config but never modified by the generator. The defining
-          property is behavioural (read-only), not the access syntax:
-          inherited tables are also read via config.get(), so .get() alone
-          does not distinguish the two. IMAGE_CONSUMED_TABLE_KEYS lists the
-          current members.
+        - Inherited (INHERITED_TABLE_KEYS): not dropped on regen, so the base
+          content is preserved, while the generator updates selected fields in
+          place — currently DEVICE_METADATA localhost attributes (hostname,
+          hwsku, platform, mac) and the VERSIONS.DATABASE.VERSION.
+          Scaffold-created when absent, so they always exist at access time
+          even on a fresh base config.
+        - Read-only (READ_ONLY_TABLE_KEYS): read from the base config but
+          never modified by the generator. The defining property is
+          behavioural, not the access syntax: inherited tables are also read
+          via config.get(), so .get() alone does not distinguish the two.
+          READ_ONLY_TABLE_KEYS lists the current members.
         - Pass-through: every table the generator never references. Left
           untouched and unmanaged; not a supported place for operator
           customizations either.
 
+        Where defaults belong: owned tables are dropped before any helper
+        runs, so a populated *owned* table in files/sonic/config_db.json is
+        dead content — silently discarded on every regen. Defaults the
+        generator needs must live in this module as policy constants (see the
+        DEFAULT_VRF_* mappings), never in the base config. #2515 was exactly
+        this mistake: the default-VRF BGP entries shipped in the base config,
+        the ownership drop removed them, and nothing regenerated them, so the
+        default VRF stopped advertising its routes into EVPN. Only inherited,
+        read-only and pass-through tables carry meaningful base content.
+        The rule is about owned tables specifically: a read-only table such
+        as TELEMETRY is a dependency that legitimately lives only in the base
+        config, because the generator reads it rather than emitting it.
+
+        The base config ships *only* in the container image — files/ is not
+        Python package data — so a generator running outside that image (pip
+        install, test harness) finds nothing and falls back to the hardcoded
+        defaults.
+
         A static guard test (see test_config_generator_ownership.py) parses
         this module and fails the build if it references a table that is not
-        owned, inherited, or image-consumed — so a newly handled table cannot
+        owned, inherited, or read-only — so a newly handled table cannot
         silently fall into the unpoliced pass-through tier and reintroduce
         stale config.
 
@@ -2467,7 +2495,7 @@ def _get_gnmi_port(config):
 
     The telemetry/gNMI container reads its listen port from
     TELEMETRY|gnmi|port and falls back to 8080 when unset, so the ACL rule
-    follows the same lookup against the (image-consumed) TELEMETRY table,
+    follows the same lookup against the (read-only) TELEMETRY table,
     treating a present-but-empty value (null, "") as unset like the
     container does. A malformed value (non-numeric or outside 1-65535)
     also falls back to the default, with a warning, rather than
