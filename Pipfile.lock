@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8f29e7dc2f4217ed24717d4613ee4ea70c85e22a802add4f43f782ac95aeda09"
+            "sha256": "80bea88c556c95b419ce5b0f060300a890e24f41c992bedca6093f1bbbf1ad0f"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -2434,11 +2434,11 @@
         },
         "redfish": {
             "hashes": [
-                "sha256:0bdd4d16c49eb2b97c5a288f0f41c3b1222a2546a7fef8543c3feef91e24d355",
-                "sha256:4880b82047debf8e634ab0022b9e97360e74842073ea6b1716b9b705dbe66ed8"
+                "sha256:13de852857e17c59aa5bdfe629ca6e8f05ccd6b854d55560cca37814749c32a5",
+                "sha256:64eb404a418baf9b9f9ce1d26cdcc9ea2094ebd39085a1edd135f073619179f6"
             ],
             "index": "pypi",
-            "version": "==3.3.6"
+            "version": "==3.3.7"
         },
         "redis": {
             "hashes": [
