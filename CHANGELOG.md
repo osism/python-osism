@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260729.0] - 2026-07-29
+
+### Fixed
+- Fix SONiC config generator to regenerate default VRF entries (VRF, BGP_GLOBALS, BGP_GLOBALS_AF, BGP_GLOBALS_ROUTE_ADVERTISE, ROUTE_REDISTRIBUTE), restoring EVPN route advertisement for the default VRF (osism/python-osism#2516)
+
+### Dependencies
+- @tanstack/react-query 5.101.2 → 5.101.4 (osism/python-osism#2508, osism/python-osism#2514)
+- boto3 1.43.50 → 1.43.55 (osism/python-osism#2523)
+- eslint 10.7.0 → 10.8.0 (osism/python-osism#2526)
+- eslint-config-next 16.2.10 → 16.2.11 (osism/python-osism#2512)
+- fakeredis 2.36.2 → 2.37.0 (osism/python-osism#2520)
+- gitpython 3.1.52 → 3.1.57 (osism/python-osism#2510, osism/python-osism#2517, osism/python-osism#2521, osism/python-osism#2529)
+- huey 3.2.1 → 3.3.0 (osism/python-osism#2519)
+- lucide-react 1.25.0 → 1.27.0 (osism/python-osism#2522, osism/python-osism#2528)
+- nextjs monorepo 16.2.11 → 16.2.12 (osism/python-osism#2527)
+- postcss 8.5.20 → 8.5.23 (osism/python-osism#2511, osism/python-osism#2518, osism/python-osism#2524)
+- react 19.2.7 → 19.2.8 (osism/python-osism#2513)
+- react-dom 19.2.7 → 19.2.8 (osism/python-osism#2513)
+- redfish 3.3.6 → 3.3.7 (osism/python-osism#2525)
+
 ## [v0.20260723.0] - 2026-07-23
 
 ### Added
