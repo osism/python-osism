@@ -1,0 +1,93 @@
+---
+# NetBox fixture for the SONiC config-generation E2E golden test.
+#
+# Three services, no Kubernetes: the test only needs a NetBox REST API,
+# its PostgreSQL and its Valkey. See
+# docs/superpowers/specs/2026-07-29-sonic-e2e-compose-design.md.
+#
+# NetBox is configured through the environment variables its own baked
+# /etc/netbox/config/configuration.py reads, so no configuration file is
+# mounted. API_TOKEN_PEPPERS is deliberately NOT set: the image's
+# super_user.py only creates a token when a pepper is configured, and then
+# only a v2 one, which pynetbox / netbox.netbox cannot use. deploy_netbox.sh
+# mints a v1 token instead. ("No API token will be created" in the netbox
+# log is therefore expected, not an error.)
+#
+# The secret key and superuser password are fixed literals, not
+# interpolated variables. This stack is ephemeral, published on loopback
+# only, and thrown away after each run, so they are not credentials. Keeping
+# them out of ${...} matters because docker compose interpolates the whole
+# file on *every* subcommand -- a `${VAR:?}` here would make plain
+# `docker compose down` fail whenever the caller's shell lacked the value.
+#
+# The NetBox version is pinned because the golden files were generated
+# against it -- changing it can change generated configs. postgres and
+# valkey are pinned to a patch level; they are tags, not digests, so this
+# bounds rather than freezes them.
+
+name: sonic-e2e
+
+services:
+  postgres:
+    image: postgres:17.10-alpine
+    environment:
+      # Must match netbox's DB_NAME / DB_USER / DB_PASSWORD below. The
+      # official image mandates POSTGRES_PASSWORD and would otherwise
+      # default the database and role to "postgres".
+      POSTGRES_DB: netbox
+      POSTGRES_USER: netbox
+      POSTGRES_PASSWORD: netbox
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netbox -d netbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    # No authentication: valkey is reachable only on the compose-private
+    # network and publishes no port, so netbox needs no REDIS_PASSWORD.
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  netbox:
+    image: ghcr.io/netbox-community/netbox:v4.5.10
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_NAME: netbox
+      DB_USER: netbox
+      DB_PASSWORD: netbox
+      # NetBox needs two logical Redis databases; one valkey serves both.
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      REDIS_DATABASE: "0"
+      REDIS_CACHE_HOST: valkey
+      REDIS_CACHE_PORT: "6379"
+      REDIS_CACHE_DATABASE: "1"
+      # Django wants >= 50 characters. Not a credential -- see the header.
+      SECRET_KEY: "insecure-sonic-e2e-secret-key-not-used-outside-tests"
+      SUPERUSER_NAME: admin
+      SUPERUSER_EMAIL: admin@example.com
+      SUPERUSER_PASSWORD: "insecure-sonic-e2e-admin-password"
+      ALLOWED_HOSTS: "*"
+    ports:
+      # Published on loopback only; the seeding and generation phases talk
+      # to http://127.0.0.1:${NETBOX_PORT}. No port-forward involved.
+      - "127.0.0.1:${NETBOX_PORT:-8080}:8080"
+    healthcheck:
+      # First boot runs the full migration set, which takes minutes; the
+      # start_period covers that without the container being marked
+      # unhealthy. Subsequent boots skip migrations and come up in ~1 min.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/login/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
