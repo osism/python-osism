@@ -2,25 +2,22 @@
 #
 # SONiC config-generation E2E golden test:
 #
-#   1. provision NetBox on a local kind cluster (reuses netbox-manager's
-#      tests/e2e/deploy_netbox.sh; an existing cluster of the same name
-#      is reused and left in place)
+#   1. start NetBox with docker compose (tests/e2e/deploy_netbox.sh; an
+#      existing stack is reused and left in place)
 #   2. seed it with netbox-manager and the bundled example/ data
 #   3. run sync_sonic() via tests/e2e/generate.py
 #   4. compare the exported config_db files against tests/e2e/golden/
 #      (or rewrite the goldens with --regenerate)
 #
-# Requirements: docker, kind, kubectl, helm, openssl, a netbox-manager
-# checkout (sibling directory or NETBOX_MANAGER_DIR), and this repo's
-# pipenv environment (pipenv install --dev).
+# Requirements: docker (with the compose plugin), openssl, a netbox-manager
+# checkout (sibling directory or NETBOX_MANAGER_DIR) for the seeding CLI and
+# its example data, and this repo's pipenv environment (pipenv install --dev).
 #
 # Environment overrides:
 #   NETBOX_MANAGER_DIR  netbox-manager checkout (default: ../netbox-manager)
-#   CLUSTER_NAME        kind cluster name (default: sonic-e2e)
-#   NAMESPACE           NetBox namespace (default: netbox)
 #   NETBOX_TOKEN        API token (default: random; also minted in NetBox)
-#   NETBOX_PORT         local port-forward port (default: 8080)
-#   KEEP_CLUSTER=1      leave a cluster created by this run in place
+#   NETBOX_PORT         host port for the NetBox API (default: 8080)
+#   KEEP_STACK=1        leave a stack created by this run running
 
 set -euo pipefail
 
@@ -44,73 +41,54 @@ NETBOX_MANAGER_DIR="$(cd "${NETBOX_MANAGER_DIR}" 2>/dev/null && pwd)" || {
   exit 2
 }
 
-CLUSTER_NAME="${CLUSTER_NAME:-sonic-e2e}"
-NAMESPACE="${NAMESPACE:-netbox}"
 NETBOX_TOKEN="${NETBOX_TOKEN:-$(openssl rand -hex 20)}"
 NETBOX_PORT="${NETBOX_PORT:-8080}"
 GOLDEN_DIR="${REPO_ROOT}/tests/e2e/golden"
-export CLUSTER_NAME NAMESPACE NETBOX_TOKEN
+COMPOSE_FILE="${REPO_ROOT}/tests/e2e/compose.yaml"
+export NETBOX_TOKEN NETBOX_PORT
 
-# Only tear down a cluster this run actually created -- never a reused
-# debug cluster (make sonic-e2e-up) that happens to share the name.
-CREATED_CLUSTER=0
-if ! kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
-  CREATED_CLUSTER=1
+compose() { docker compose -f "${COMPOSE_FILE}" "$@"; }
+
+# Only tear down a stack this run actually created -- never a reused debug
+# stack (make sonic-e2e-up). --all so a stopped stack still counts as
+# pre-existing.
+CREATED_STACK=0
+if [[ -z "$(compose ps --all --quiet 2>/dev/null)" ]]; then
+  CREATED_STACK=1
 fi
 
-PF_PID=""
 EXPORT_DIR=""
 dump_diagnostics() {
-  echo "==================== kind / NetBox diagnostics ===================="
-  kubectl get nodes -o wide 2>&1 || true
-  kubectl get pods -A -o wide 2>&1 || true
-  kubectl -n "${NAMESPACE}" get events --sort-by=.lastTimestamp 2>&1 | tail -n 40 || true
-  echo "=================================================================="
+  echo "==================== NetBox stack diagnostics ===================="
+  compose ps --all 2>&1 || true
+  # The application log is what actually explains a failed start; the stack
+  # is torn down below, taking it with it, so snapshot it first.
+  compose logs --no-color --timestamps 2>&1 || true
+  echo "================================================================="
 }
 cleanup() {
   rc=$?
-  if [[ -n "${PF_PID}" ]]; then
-    kill "${PF_PID}" 2>/dev/null || true
-  fi
   if [[ "${rc}" -ne 0 ]]; then
-    echo ">>> E2E run failed (exit ${rc}); dumping cluster diagnostics"
+    echo ">>> E2E run failed (exit ${rc}); dumping stack diagnostics"
     dump_diagnostics || true
   fi
   if [[ -n "${EXPORT_DIR}" ]]; then
     rm -rf "${EXPORT_DIR}"
   fi
-  if [[ "${CREATED_CLUSTER}" == "1" && "${KEEP_CLUSTER:-0}" != "1" ]]; then
-    echo ">>> Deleting kind cluster '${CLUSTER_NAME}'"
-    kind delete cluster --name "${CLUSTER_NAME}" || true
+  if [[ "${CREATED_STACK}" == "1" && "${KEEP_STACK:-0}" != "1" ]]; then
+    echo ">>> Stopping the NetBox stack"
+    compose down --volumes --remove-orphans || true
   else
-    echo ">>> Leaving kind cluster '${CLUSTER_NAME}' in place"
+    echo ">>> Leaving the NetBox stack in place"
   fi
 }
 trap cleanup EXIT
 
-# --- Phase 1: provision NetBox on kind -------------------------------------
-PRINT_NETBOX_TOKEN=0 "${NETBOX_MANAGER_DIR}/tests/e2e/deploy_netbox.sh"
-
-echo ">>> Port-forwarding svc/netbox -> 127.0.0.1:${NETBOX_PORT}"
-kubectl -n "${NAMESPACE}" port-forward "svc/netbox" "${NETBOX_PORT}:80" &
-PF_PID=$!
-
-ready=0
-for _ in $(seq 1 30); do
-  if curl -fsS -o /dev/null "http://127.0.0.1:${NETBOX_PORT}/api/" 2>/dev/null; then
-    ready=1
-    break
-  fi
-  sleep 1
-done
-if [[ "${ready}" != "1" ]]; then
-  echo "error: NetBox API not reachable on 127.0.0.1:${NETBOX_PORT} after 30s" >&2
-  exit 1
-fi
-if ! kill -0 "${PF_PID}" 2>/dev/null; then
-  echo "error: port-forward exited early (is 127.0.0.1:${NETBOX_PORT} already in use?)" >&2
-  exit 1
-fi
+# --- Phase 1: provision NetBox with docker compose --------------------------
+# The stack publishes the API on 127.0.0.1:${NETBOX_PORT} directly, so there
+# is no port-forward to supervise, and `up --wait` has already established
+# readiness via the services' healthchecks. A port clash fails at `up`.
+PRINT_NETBOX_TOKEN=0 "${REPO_ROOT}/tests/e2e/deploy_netbox.sh"
 
 # --- Phase 2: seed with netbox-manager -------------------------------------
 # The CLI is installed from the checkout so a Zuul Depends-On on a
