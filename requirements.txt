@@ -22,7 +22,7 @@ nbcli==0.10.0.dev2
 openstacksdk==4.17.0
 paramiko==5.0.0
 pottery==3.0.1
-prompt-toolkit==3.0.52
+prompt-toolkit==3.0.53
 pynetbox==7.8.0
 pytest-testinfra==10.2.2
 python-dateutil==2.9.0.post0
