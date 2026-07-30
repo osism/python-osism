@@ -26,6 +26,15 @@ COMPOSE_FILE="${HERE}/compose.yaml"
 
 # Only generated when unset, so run.sh's value wins when it calls us.
 export NETBOX_TOKEN="${NETBOX_TOKEN:-$(openssl rand -hex 20)}"
+# Guard against two failure modes of a caller-supplied token: it is
+# interpolated into a Python string literal in the heredoc below, so a
+# quote or newline would break out of that literal; and a token that is
+# not 40 hex characters is otherwise accepted here but silently rejected
+# by NetBox much later, far from this, the actual cause.
+[[ "${NETBOX_TOKEN}" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "error: NETBOX_TOKEN must be 40 hex characters" >&2
+  exit 2
+}
 export NETBOX_PORT="${NETBOX_PORT:-8080}"
 
 compose() { docker compose -f "${COMPOSE_FILE}" "$@"; }

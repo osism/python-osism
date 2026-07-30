@@ -10,13 +10,17 @@
 
   pre_tasks:
     # This CI node is IPv6-only and learns its address and default route via
-    # SLAAC / Router Advertisements. Later, `kind create cluster` makes Docker
-    # create a dual-stack network, which sets net.ipv6.conf.all.forwarding=1;
-    # with the default accept_ra=1 the kernel then stops honouring RAs, so the
-    # SLAAC default route expires and the node drops off the network a few
-    # minutes into the run. accept_ra=2 keeps RAs honoured even while
-    # forwarding is on, preserving the default route. Set it here -- before
-    # Docker/kind enable forwarding -- so the route never lapses. See
+    # SLAAC / Router Advertisements. If Docker enables
+    # net.ipv6.conf.all.forwarding=1, the kernel stops honouring RAs at the
+    # default accept_ra=1, so the SLAAC default route expires and the node
+    # drops off the network a few minutes into the run. accept_ra=2 keeps RAs
+    # honoured even while forwarding is on, preserving the default route.
+    # Compose's default bridge network is IPv4-only, so Docker probably will
+    # not turn on IPv6 forwarding here -- but this guard is cheap insurance
+    # against a severe failure mode (an unreachable CI node) and is kept
+    # deliberately; removing it should be its own separate experiment, not a
+    # side effect of some other change. Set it here -- before Docker enables
+    # forwarding -- so the route never lapses. See
     # https://docs.docker.com/engine/daemon/ipv6/ and
     # https://forums.docker.com/t/docker-removes-host-ipv6-default-route/83238
     - name: Keep accepting IPv6 RAs after Docker enables forwarding (preserve default route)
@@ -52,8 +56,10 @@
         state: started
         enabled: true
 
-    # curl and openssl are used by tests/e2e/run.sh directly; python3-venv
-    # provides the venv module the script uses for the seeding venv.
+    # openssl is used by tests/e2e/run.sh directly; curl is used by the
+    # NetBox container's healthcheck (not by run.sh itself), and ensure-docker
+    # needs it too; python3-venv provides the venv module the script uses for
+    # the seeding venv.
     - name: Install required packages
       become: true
       ansible.builtin.apt:

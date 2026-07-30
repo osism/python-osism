@@ -62,8 +62,13 @@ dump_diagnostics() {
   echo "==================== NetBox stack diagnostics ===================="
   compose ps --all 2>&1 || true
   # The application log is what actually explains a failed start; the stack
-  # is torn down below, taking it with it, so snapshot it first.
-  compose logs --no-color --timestamps 2>&1 || true
+  # is torn down below, taking it with it, so snapshot it first. Capped to
+  # the last 200 lines: this fires on any non-zero exit, including the most
+  # common failure (a golden mismatch in phase 4, where compare.py has
+  # already printed the useful diff), and an uncapped dump buries that diff
+  # under megabytes of NetBox first-boot migration and postgres logs. 200
+  # lines still covers a genuine boot failure.
+  compose logs --no-color --timestamps --tail 200 2>&1 || true
   echo "================================================================="
 }
 cleanup() {
