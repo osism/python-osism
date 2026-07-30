@@ -140,6 +140,37 @@
     pre-run: playbooks/pre.yml
     run: playbooks/test-integration.yml
 
+# End-to-end golden test for the SONiC config generator: provisions NetBox
+# with a docker compose stack, seeds it from the in-repo fixtures under
+# tests/e2e/scenario/, runs sync_sonic() and compares the exported config_db
+# files against tests/e2e/golden/. In check the job only runs when files
+# that can change the generated output (or the harness itself) are touched;
+# periodic-daily runs it unconditionally. netbox-manager is still pulled at
+# tip-of-main via required-projects because it remains the seeding tool, so
+# a Depends-On is honored for its code -- but its example/ seed data is no
+# longer used, so this job no longer detects drift in that data.
+- job:
+    name: python-osism-sonic-e2e
+    nodeset: ubuntu-noble
+    pre-run: playbooks/pre-sonic-e2e.yml
+    run: playbooks/test-sonic-e2e.yml
+    required-projects:
+      - osism/netbox-manager
+    timeout: 2400
+    files:
+      - ^\.zuul\.yaml$
+      - ^Makefile$
+      - ^Pipfile\.lock$
+      - ^files/sonic/.*
+      - ^osism/settings\.py$
+      - ^osism/tasks/conductor/.*
+      - ^osism/utils/.*
+      - ^playbooks/(pre-|test-)sonic-e2e\.yml$
+      - ^requirements\.ansible\.txt$
+      - ^requirements\.txt$
+      - ^setup\.cfg$
+      - ^tests/e2e/.*
+
 - project:
     merge-mode: squash-merge
     default-branch: main
@@ -154,6 +185,7 @@
         - python-osism-test-setup
         - python-osism-unit-tests
         - python-osism-integration-tests
+        - python-osism-sonic-e2e
     periodic-daily:
       jobs:
         - flake8
@@ -163,6 +195,7 @@
         - python-osism-test-setup
         - python-osism-unit-tests
         - python-osism-integration-tests
+        - python-osism-sonic-e2e
     periodic-midnight:
       jobs:
         - container-image-python-osism-push
