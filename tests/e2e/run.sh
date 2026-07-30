@@ -18,8 +18,8 @@
 #   NETBOX_TOKEN        API token (default: random; also minted in NetBox)
 #   NETBOX_PORT         host port for the NetBox API (default: 8080)
 #   KEEP_STACK=1        leave a stack created by this run running
-#   SEED_PARALLEL       files seeded concurrently per group (default: 4;
-#                       set to 1 to serialise -- see Phase 2)
+#   SEED_PARALLEL       files seeded concurrently per group (default: 1;
+#                       >1 deadlocks intermittently -- see Phase 2)
 
 set -euo pipefail
 
@@ -125,18 +125,31 @@ export NETBOX_MANAGER_MODULETYPE_LIBRARY="${NETBOX_MANAGER_DIR}/example/modulety
 export NETBOX_MANAGER_RESOURCES="${NETBOX_MANAGER_DIR}/example/resources"
 export NETBOX_MANAGER_IGNORE_SSL_ERRORS=true
 
-# netbox-manager sorts resource files by their leading number, runs the groups
-# in order, and parallelises only WITHIN a group, so the 000 -> 100 -> 200 ->
-# 300 ordering still holds. The 300- group is 16 per-device files and dominates
-# the seeding time: measured in CI, --parallel 4 took it from 555s to 250s.
+# Seeding is serial by default because concurrent seeding DEADLOCKS.
 #
-# ESCAPE HATCH: set SEED_PARALLEL=1 to seed strictly serially. If a run ever
-# fails in a way that looks like a seeding race, re-run with SEED_PARALLEL=1
-# and compare -- that reproduces the original sequential behaviour exactly.
-# A race is far more likely to surface as a spurious failure than as a false
-# pass, because interleaving would change the generated configs and the golden
-# comparison would then catch it.
-SEED_PARALLEL="${SEED_PARALLEL:-4}"
+# netbox-manager sorts resource files by leading number, runs the groups in
+# order, and parallelises only within a group. The 300- group is 16 per-device
+# files and dominates the seeding time, so --parallel 4 looked attractive: it
+# measured 555s -> 250s (2.22x) in CI, and no two files write the same object
+# (251 distinct objects, zero overlap).
+#
+# That object-level analysis was not sufficient. The files share *foreign key
+# parents*: every node file creates cables terminating on the shared switches,
+# and inserting a row that references a device takes a KEY SHARE lock on that
+# device's row for the FK check. Two transactions acquiring those parent locks
+# in opposite orders deadlock:
+#
+#   deadlock detected ... while locking tuple (1,3) in relation "dcim_device"
+#   SELECT 1 FROM ONLY "dcim_device" x WHERE "id" = $1 FOR KEY SHARE OF x
+#
+# Observed intermittently: two CI runs passed, the third failed this way, so
+# roughly a one-in-three flake rate -- unusable as a default. It fails loudly
+# rather than corrupting anything: the goldens are never at risk, because a
+# deadlock aborts the run instead of silently reordering writes.
+#
+# Set SEED_PARALLEL=4 to opt back in -- worth revisiting only if netbox-manager
+# gains deadlock retry, since the underlying ~300s saving is real.
+SEED_PARALLEL="${SEED_PARALLEL:-1}"
 
 echo ">>> Seeding NetBox with the netbox-manager example data (parallel: ${SEED_PARALLEL})"
 "${SEED_VENV}/bin/netbox-manager" run --fail-fast --parallel "${SEED_PARALLEL}"
@@ -147,10 +160,10 @@ echo ">>> Seeding NetBox with the netbox-manager example data (parallel: ${SEED_
 echo ">>> Seeding NetBox with the E2E scenario overlay"
 export NETBOX_MANAGER_DEVICETYPE_LIBRARY="${REPO_ROOT}/tests/e2e/scenario/devicetypes"
 export NETBOX_MANAGER_RESOURCES="${REPO_ROOT}/tests/e2e/scenario/resources"
-# Passed for consistency, but expect no gain: the overlay's files sit in
-# distinct numeric groups (500-, 600-, 700-) and only files within one group
-# run concurrently, so they serialise regardless. Confirmed in CI -- this pass
-# measured 49.8s with --parallel 4 against 47.4s serial.
+# Passed for consistency. It would make no difference anyway: the overlay's
+# files sit in distinct numeric groups (500-, 600-, 700-) and only files within
+# one group run concurrently, so they serialise regardless. Confirmed in CI --
+# 49.8s with --parallel 4 against 47.4s serial.
 "${SEED_VENV}/bin/netbox-manager" run --fail-fast --skipmtl --parallel "${SEED_PARALLEL}"
 
 # --- Phase 3: generate SONiC configurations ---------------------------------

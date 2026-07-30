@@ -33,8 +33,8 @@
           export PATH="{{ python_venv_dir }}/bin:${PATH}"
           export NETBOX_MANAGER_DIR="{{ ansible_user_dir }}/{{ zuul.projects['github.com/osism/netbox-manager'].src_dir }}"
 
-          # Escape hatch: set `sonic_e2e_seed_parallel: 1` in the job vars to
-          # seed serially, reproducing the pre-parallel behaviour, if a failure
-          # is ever suspected of being a seeding race.
-          export SEED_PARALLEL="{{ sonic_e2e_seed_parallel | default(4) }}"
+          # Serial by default: concurrent seeding deadlocks on dcim_device FK
+          # row locks (see tests/e2e/run.sh, Phase 2). Set
+          # `sonic_e2e_seed_parallel: 4` in the job vars to opt back in.
+          export SEED_PARALLEL="{{ sonic_e2e_seed_parallel | default(1) }}"
           tests/e2e/run.sh
