@@ -18,6 +18,8 @@
 #   NETBOX_TOKEN        API token (default: random; also minted in NetBox)
 #   NETBOX_PORT         host port for the NetBox API (default: 8080)
 #   KEEP_STACK=1        leave a stack created by this run running
+#   SEED_PARALLEL       files seeded concurrently per group (default: 4;
+#                       set to 1 to serialise -- see Phase 2)
 
 set -euo pipefail
 
@@ -123,8 +125,21 @@ export NETBOX_MANAGER_MODULETYPE_LIBRARY="${NETBOX_MANAGER_DIR}/example/modulety
 export NETBOX_MANAGER_RESOURCES="${NETBOX_MANAGER_DIR}/example/resources"
 export NETBOX_MANAGER_IGNORE_SSL_ERRORS=true
 
-echo ">>> Seeding NetBox with the netbox-manager example data"
-"${SEED_VENV}/bin/netbox-manager" run --fail-fast
+# netbox-manager sorts resource files by their leading number, runs the groups
+# in order, and parallelises only WITHIN a group, so the 000 -> 100 -> 200 ->
+# 300 ordering still holds. The 300- group is 16 per-device files and dominates
+# the seeding time: measured in CI, --parallel 4 took it from 555s to 250s.
+#
+# ESCAPE HATCH: set SEED_PARALLEL=1 to seed strictly serially. If a run ever
+# fails in a way that looks like a seeding race, re-run with SEED_PARALLEL=1
+# and compare -- that reproduces the original sequential behaviour exactly.
+# A race is far more likely to surface as a spurious failure than as a false
+# pass, because interleaving would change the generated configs and the golden
+# comparison would then catch it.
+SEED_PARALLEL="${SEED_PARALLEL:-4}"
+
+echo ">>> Seeding NetBox with the netbox-manager example data (parallel: ${SEED_PARALLEL})"
+"${SEED_VENV}/bin/netbox-manager" run --fail-fast --parallel "${SEED_PARALLEL}"
 
 # Scenario overlay: a second seeding pass adds the breakout / speed-unit
 # regression devices that the base example does not cover. It reuses the
@@ -132,7 +147,11 @@ echo ">>> Seeding NetBox with the netbox-manager example data"
 echo ">>> Seeding NetBox with the E2E scenario overlay"
 export NETBOX_MANAGER_DEVICETYPE_LIBRARY="${REPO_ROOT}/tests/e2e/scenario/devicetypes"
 export NETBOX_MANAGER_RESOURCES="${REPO_ROOT}/tests/e2e/scenario/resources"
-"${SEED_VENV}/bin/netbox-manager" run --fail-fast --skipmtl
+# Passed for consistency, but expect no gain: the overlay's files sit in
+# distinct numeric groups (500-, 600-, 700-) and only files within one group
+# run concurrently, so they serialise regardless. Confirmed in CI -- this pass
+# measured 49.8s with --parallel 4 against 47.4s serial.
+"${SEED_VENV}/bin/netbox-manager" run --fail-fast --skipmtl --parallel "${SEED_PARALLEL}"
 
 # --- Phase 3: generate SONiC configurations ---------------------------------
 # The conductor import chain needs ansible-core, which lives in the
