@@ -123,8 +123,12 @@ export NETBOX_MANAGER_MODULETYPE_LIBRARY="${NETBOX_MANAGER_DIR}/example/modulety
 export NETBOX_MANAGER_RESOURCES="${NETBOX_MANAGER_DIR}/example/resources"
 export NETBOX_MANAGER_IGNORE_SSL_ERRORS=true
 
+# MEASUREMENT ONLY -- not for merge. netbox-manager groups resource files by
+# their leading number, runs the groups in order, and parallelises only WITHIN
+# a group, so ordering (000 -> 100 -> 200 -> 300) is preserved. The 300- group
+# is 16 per-device files and is the bulk of the seeding time.
 echo ">>> Seeding NetBox with the netbox-manager example data"
-"${SEED_VENV}/bin/netbox-manager" run --fail-fast
+"${SEED_VENV}/bin/netbox-manager" run --fail-fast --parallel 4
 
 # Scenario overlay: a second seeding pass adds the breakout / speed-unit
 # regression devices that the base example does not cover. It reuses the
@@ -132,7 +136,10 @@ echo ">>> Seeding NetBox with the netbox-manager example data"
 echo ">>> Seeding NetBox with the E2E scenario overlay"
 export NETBOX_MANAGER_DEVICETYPE_LIBRARY="${REPO_ROOT}/tests/e2e/scenario/devicetypes"
 export NETBOX_MANAGER_RESOURCES="${REPO_ROOT}/tests/e2e/scenario/resources"
-"${SEED_VENV}/bin/netbox-manager" run --fail-fast --skipmtl
+# Set for consistency, but expect no gain here: the three overlay files sit in
+# distinct numeric groups (500-, 600-, 700-), and only files within one group
+# run concurrently, so they serialise regardless.
+"${SEED_VENV}/bin/netbox-manager" run --fail-fast --skipmtl --parallel 4
 
 # --- Phase 3: generate SONiC configurations ---------------------------------
 # The conductor import chain needs ansible-core, which lives in the
