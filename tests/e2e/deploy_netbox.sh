@@ -4,7 +4,7 @@
 # compose. See docs/superpowers/specs/2026-07-29-sonic-e2e-compose-design.md.
 #
 # This script starts the stack and mints the API token. It deliberately
-# installs NO teardown trap: run.sh owns the lifecycle, and a trap here
+# installs NO teardown trap: sonic_golden_test.sh owns the lifecycle, and a trap here
 # would fire when this script exits -- before seeding and generation.
 #
 # Safe to run standalone for debugging (`make sonic-e2e-up`), which leaves
@@ -17,14 +17,14 @@
 # Environment overrides:
 #   NETBOX_TOKEN            v1 API token to mint (default: random)
 #   NETBOX_PORT             host port for the NetBox API (default: 8080)
-#   PRINT_NETBOX_TOKEN=0    suppress echoing the token (set by run.sh)
+#   PRINT_NETBOX_TOKEN=0    suppress echoing the token (set by sonic_golden_test.sh)
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="${HERE}/compose.yaml"
 
-# Only generated when unset, so run.sh's value wins when it calls us.
+# Only generated when unset, so sonic_golden_test.sh's value wins when it calls us.
 export NETBOX_TOKEN="${NETBOX_TOKEN:-$(openssl rand -hex 20)}"
 # Guard against two failure modes of a caller-supplied token: it is
 # interpolated into a Python string literal in the heredoc below, so a
@@ -71,7 +71,7 @@ echo
 echo "NetBox is deployed."
 echo
 echo "  API       : http://127.0.0.1:${NETBOX_PORT}"
-# Echo the token only for the standalone debug workflow; run.sh sets
+# Echo the token only for the standalone debug workflow; sonic_golden_test.sh sets
 # PRINT_NETBOX_TOKEN=0 to keep it out of CI logs that may be retained.
 if [[ "${PRINT_NETBOX_TOKEN:-1}" != "0" ]]; then
   echo "  API token : ${NETBOX_TOKEN}"

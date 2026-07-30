@@ -56,10 +56,10 @@
         state: started
         enabled: true
 
-    # openssl is used by tests/e2e/run.sh directly; curl is used by the
-    # NetBox container's healthcheck (not by run.sh itself), and ensure-docker
-    # needs it too; python3-venv provides the venv module the script uses for
-    # the seeding venv.
+    # openssl is used by tests/e2e/sonic_golden_test.sh directly. curl is used
+    # by the NetBox container's healthcheck rather than by the script itself,
+    # but ensure-docker needs it anyway. python3-venv provides the venv module
+    # the script uses for the seeding venv.
     - name: Install required packages
       become: true
       ansible.builtin.apt:

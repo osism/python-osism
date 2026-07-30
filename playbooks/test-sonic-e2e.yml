@@ -27,14 +27,14 @@
           set -o pipefail
           set -x
 
-          # run.sh invokes bare `pipenv`; the netbox-manager checkout comes
+          # The script invokes bare `pipenv`; the netbox-manager checkout comes
           # from Zuul's required-projects, so a Depends-On change to it is
           # tested against the changed code and seed data.
           export PATH="{{ python_venv_dir }}/bin:${PATH}"
           export NETBOX_MANAGER_DIR="{{ ansible_user_dir }}/{{ zuul.projects['github.com/osism/netbox-manager'].src_dir }}"
 
           # Serial by default: concurrent seeding deadlocks on dcim_device FK
-          # row locks (see tests/e2e/run.sh, Phase 2). Set
+          # row locks (see tests/e2e/sonic_golden_test.sh, Phase 2). Set
           # `sonic_e2e_seed_parallel: 4` in the job vars to opt back in.
           export SEED_PARALLEL="{{ sonic_e2e_seed_parallel | default(1) }}"
-          tests/e2e/run.sh
+          tests/e2e/sonic_golden_test.sh

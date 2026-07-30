@@ -1,16 +1,16 @@
 NETBOX_MANAGER_DIR ?= $(abspath ../netbox-manager)
 
-# SONiC config-generation E2E golden test (see tests/e2e/run.sh).
+# SONiC config-generation E2E golden test (see tests/e2e/sonic_golden_test.sh).
 
 # Full cycle: start the NetBox compose stack (an existing stack is reused
 # and left in place), seed, generate, compare against tests/e2e/golden/.
 sonic-e2e:
-	NETBOX_MANAGER_DIR=$(NETBOX_MANAGER_DIR) tests/e2e/run.sh
+	NETBOX_MANAGER_DIR=$(NETBOX_MANAGER_DIR) tests/e2e/sonic_golden_test.sh
 
 # Regenerate the golden files after an intentional generator change,
 # then review and commit the diff.
 sonic-e2e-regen:
-	NETBOX_MANAGER_DIR=$(NETBOX_MANAGER_DIR) tests/e2e/run.sh --regenerate
+	NETBOX_MANAGER_DIR=$(NETBOX_MANAGER_DIR) tests/e2e/sonic_golden_test.sh --regenerate
 
 # Start the NetBox stack and leave it running for debugging. Export a
 # NETBOX_TOKEN beforehand to get a known API token minted.
