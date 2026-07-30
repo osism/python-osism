@@ -141,9 +141,9 @@
     run: playbooks/test-integration.yml
 
 # End-to-end golden test for the SONiC config generator: provisions
-# NetBox on kind, seeds it with the netbox-manager example data, runs
-# sync_sonic() and compares the exported config_db files against
-# tests/e2e/golden/. In check the job only runs when files that can
+# NetBox with a docker compose stack, seeds it with the netbox-manager
+# example data, runs sync_sonic() and compares the exported config_db files
+# against tests/e2e/golden/. In check the job only runs when files that can
 # change the generated output (or the harness itself) are touched;
 # periodic-daily runs it unconditionally and catches drift of the
 # netbox-manager seed data, which is consumed at tip-of-main via
