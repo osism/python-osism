@@ -150,7 +150,7 @@
 # required-projects (honoring Depends-On).
 - job:
     name: python-osism-sonic-e2e
-    nodeset: ubuntu-noble-large
+    nodeset: ubuntu-noble
     pre-run: playbooks/pre-sonic-e2e.yml
     run: playbooks/test-sonic-e2e.yml
     required-projects:
