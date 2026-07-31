@@ -1,0 +1,98 @@
+---
+# Scenario overlay for the SONiC E2E golden test.
+#
+# The bundled netbox-manager example models no breakout ports and sets no
+# explicit interface speeds, so the breakout code paths and the kbps->Mbps
+# speed handling are never exercised by it. These devices add that
+# coverage. They reuse the site / location / tenant / roles / tags / custom
+# fields created by 100-base.yml, and take the next free positions in the
+# shared E2E rack so they never collide with the base devices.
+#
+# Both devices use the edgecore-9726-32d-e2e device type (hwsku
+# Accton-AS9726-32D) and break Eth1/1 into a 4x100G group. They differ
+# only in how the sub-port speed reaches NetBox:
+#
+#   e2e-breakout-derived   speed derived from the interface type
+#                          (100gbase-x-qsfp28 -> 100000 Mbps); no explicit
+#                          speed. This is how real deployments model
+#                          breakouts.
+#   e2e-breakout-explicit  the same sub-ports with an explicit NetBox speed
+#                          set in kbps (100000000), the other unit the
+#                          collection step must normalise.
+#
+# Both must yield sub-port speed 100000 in the generated config.
+
+# --- Derived-speed breakout (the real-deployment shape) --------------------
+
+- device:
+    name: e2e-breakout-derived
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-9726-32d-e2e
+    device_role: leaf
+    face: front
+    position: 6
+    status: active
+    tags:
+      - managed-by-metalbox
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS9726-32D
+        version: 4.5.0
+
+# Tagged VLAN on the plain (non-breakout) port, exercising the VLAN and
+# tagged-VLAN-to-port paths.
+- device_interface:
+    device: e2e-breakout-derived
+    name: Eth1/5
+    type: 100gbase-x-qsfp28
+    mode: tagged
+    tagged_vlans:
+      - name: data
+        site: Discworld
+
+# --- Explicit-speed breakout (the other speed unit) -----------------------
+
+- device:
+    name: e2e-breakout-explicit
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-9726-32d-e2e
+    device_role: leaf
+    face: front
+    position: 7
+    status: active
+    tags:
+      - managed-by-metalbox
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS9726-32D
+        version: 4.5.0
+
+- device_interface:
+    device: e2e-breakout-explicit
+    name: Eth1/1/1
+    type: 100gbase-x-qsfp28
+    speed: 100000000
+
+- device_interface:
+    device: e2e-breakout-explicit
+    name: Eth1/1/2
+    type: 100gbase-x-qsfp28
+    speed: 100000000
+
+- device_interface:
+    device: e2e-breakout-explicit
+    name: Eth1/1/3
+    type: 100gbase-x-qsfp28
+    speed: 100000000
+
+- device_interface:
+    device: e2e-breakout-explicit
+    name: Eth1/1/4
+    type: 100gbase-x-qsfp28
+    speed: 100000000
