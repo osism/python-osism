@@ -1,11 +1,13 @@
 ---
-# Minimal device type for the SONiC E2E breakout regression scenarios.
+# Minimal device type for the SONiC E2E breakout scenarios: the two
+# inference scenarios (e2e-breakout-derived, e2e-breakout-explicit) and,
+# from the declared-breakout-mode work, e2e-breakout-declared.
 #
 # This is not a faithful model of the real 9726-32D; it defines only the
-# interfaces the scenarios need. Config generation is driven by the hwsku
-# custom field (Accton-AS9726-32D on the scenario devices), not by this
-# device type -- the device type only controls which NetBox interfaces
-# exist.
+# interfaces the inference scenarios need. Config generation is driven by
+# the hwsku custom field (Accton-AS9726-32D on the scenario devices), not
+# by this device type -- the device type only controls which NetBox
+# interfaces exist.
 #
 # The interface layout mirrors how real deployments model breakouts (the
 # NetBox EthX/Y/Z sub-port notation, speed derived from the interface
@@ -16,6 +18,11 @@
 # where the sub-port speed is read back from the collected NetBox data.
 #
 # Eth1/5 is a plain (non-breakout) 100G port used for VLAN coverage.
+#
+# e2e-breakout-declared instead exercises the declared sonic_parameters.
+# breakout code path: it carries no sub-ports of its own in NetBox (the
+# splits are declared entirely via the device-level custom field), so it
+# needs nothing beyond the master ports already provided here.
 manufacturer: Edgecore
 model: 9726-32D-E2E
 slug: edgecore-9726-32d-e2e
