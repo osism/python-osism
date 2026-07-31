@@ -548,7 +548,11 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None, config_version=
     if breakout_info["breakout_cfgs"]:
         config["BREAKOUT_CFG"].update(breakout_info["breakout_cfgs"])
     if breakout_info["breakout_ports"]:
-        config["BREAKOUT_PORTS"].update(breakout_info["breakout_ports"])
+        # Project each entry to the SONiC schema ({port: {"master": <port>}});
+        # the full stash (declared/lanes/speed) stays in breakout_info for the
+        # PORT-building helpers and must not leak into the owned table.
+        for child, entry in breakout_info["breakout_ports"].items():
+            config["BREAKOUT_PORTS"][child] = {"master": entry["master"]}
 
     # Add port channel configuration
     _add_portchannel_configuration(config, portchannel_info)
@@ -649,33 +653,45 @@ def _add_port_configurations(
                     port_speed = sonic_speed
 
         if port_name in breakout_info["breakout_ports"]:
+            bp = breakout_info["breakout_ports"][port_name]
             # Get the master port to determine original speed and lanes
-            master_port = breakout_info["breakout_ports"][port_name]["master"]
+            master_port = bp["master"]
 
-            # Override with individual breakout port speed from NetBox if available
-            if port_name in netbox_interfaces and netbox_interfaces[port_name]["speed"]:
-                port_speed = str(int(netbox_interfaces[port_name]["speed"]))
-                logger.debug(
-                    f"Using NetBox speed {port_speed} Mbps for breakout port {port_name}"
+            if bp.get("declared"):
+                # Declared-mode stash is authoritative: it takes precedence over
+                # the NetBox-speed override and the inferred lane calculation.
+                port_speed = str(bp["speed"])
+                port_lanes = bp["lanes"]
+            else:
+                # Override with individual breakout port speed from NetBox if available
+                if (
+                    port_name in netbox_interfaces
+                    and netbox_interfaces[port_name]["speed"]
+                ):
+                    port_speed = str(int(netbox_interfaces[port_name]["speed"]))
+                    logger.debug(
+                        f"Using NetBox speed {port_speed} Mbps for breakout port {port_name}"
+                    )
+                elif master_port in breakout_info["breakout_cfgs"]:
+                    # Fallback to extracting speed from breakout mode
+                    brkout_mode = breakout_info["breakout_cfgs"][master_port][
+                        "brkout_mode"
+                    ]
+                    if "10G" in brkout_mode:
+                        port_speed = "10000"
+                    elif "25G" in brkout_mode:
+                        port_speed = "25000"
+                    elif "50G" in brkout_mode:
+                        port_speed = "50000"
+                    elif "100G" in brkout_mode:
+                        port_speed = "100000"
+                    elif "200G" in brkout_mode:
+                        port_speed = "200000"
+
+                # Calculate individual lane for this breakout port
+                port_lanes = _calculate_breakout_port_lane(
+                    port_name, master_port, port_config
                 )
-            elif master_port in breakout_info["breakout_cfgs"]:
-                # Fallback to extracting speed from breakout mode
-                brkout_mode = breakout_info["breakout_cfgs"][master_port]["brkout_mode"]
-                if "10G" in brkout_mode:
-                    port_speed = "10000"
-                elif "25G" in brkout_mode:
-                    port_speed = "25000"
-                elif "50G" in brkout_mode:
-                    port_speed = "50000"
-                elif "100G" in brkout_mode:
-                    port_speed = "100000"
-                elif "200G" in brkout_mode:
-                    port_speed = "200000"
-
-            # Calculate individual lane for this breakout port
-            port_lanes = _calculate_breakout_port_lane(
-                port_name, master_port, port_config
-            )
 
         # Generate correct alias based on port name and speed
         interface_speed = int(port_speed) if port_speed else None
@@ -857,32 +873,47 @@ def _add_missing_breakout_ports(
     for port_name in breakout_info["breakout_ports"]:
         if port_name not in config["PORT"]:
             # Get the master port to determine configuration
-            master_port = breakout_info["breakout_ports"][port_name]["master"]
+            bp = breakout_info["breakout_ports"][port_name]
+            master_port = bp["master"]
 
-            # Override with individual breakout port speed from NetBox if available
-            # Note: netbox_interfaces speeds are already normalized to Mbps
-            if port_name in netbox_interfaces and netbox_interfaces[port_name]["speed"]:
-                port_speed = str(int(netbox_interfaces[port_name]["speed"]))
-                logger.debug(
-                    f"Using NetBox speed {port_speed} Mbps for missing breakout port {port_name}"
-                )
-            elif master_port in breakout_info["breakout_cfgs"]:
-                # Fallback to extracting speed from breakout mode
-                brkout_mode = breakout_info["breakout_cfgs"][master_port]["brkout_mode"]
-                if "10G" in brkout_mode:
-                    port_speed = "10000"
-                elif "25G" in brkout_mode:
-                    port_speed = "25000"
-                elif "50G" in brkout_mode:
-                    port_speed = "50000"
-                elif "100G" in brkout_mode:
-                    port_speed = "100000"
-                elif "200G" in brkout_mode:
-                    port_speed = "200000"
+            if bp.get("declared"):
+                port_speed = str(bp["speed"])
+                port_lanes = bp["lanes"]
+            else:
+                # Override with individual breakout port speed from NetBox if available
+                # Note: netbox_interfaces speeds are already normalized to Mbps
+                if (
+                    port_name in netbox_interfaces
+                    and netbox_interfaces[port_name]["speed"]
+                ):
+                    port_speed = str(int(netbox_interfaces[port_name]["speed"]))
+                    logger.debug(
+                        f"Using NetBox speed {port_speed} Mbps for missing breakout port {port_name}"
+                    )
+                elif master_port in breakout_info["breakout_cfgs"]:
+                    # Fallback to extracting speed from breakout mode
+                    brkout_mode = breakout_info["breakout_cfgs"][master_port][
+                        "brkout_mode"
+                    ]
+                    if "10G" in brkout_mode:
+                        port_speed = "10000"
+                    elif "25G" in brkout_mode:
+                        port_speed = "25000"
+                    elif "50G" in brkout_mode:
+                        port_speed = "50000"
+                    elif "100G" in brkout_mode:
+                        port_speed = "100000"
+                    elif "200G" in brkout_mode:
+                        port_speed = "200000"
+                    else:
+                        port_speed = "25000"  # Default fallback
                 else:
                     port_speed = "25000"  # Default fallback
-            else:
-                port_speed = "25000"  # Default fallback
+
+                # Calculate individual lane for this breakout port
+                port_lanes = _calculate_breakout_port_lane(
+                    port_name, master_port, port_config
+                )
 
             # Set admin_status based on connection or port channel membership
             admin_status = (
@@ -904,11 +935,6 @@ def _add_missing_breakout_ports(
             port_index = "1"  # Default fallback
             if master_port in port_config:
                 port_index = port_config[master_port]["index"]
-
-            # Calculate individual lane for this breakout port
-            port_lanes = _calculate_breakout_port_lane(
-                port_name, master_port, port_config
-            )
 
             port_data = {
                 "admin_status": admin_status,
