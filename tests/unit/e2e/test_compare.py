@@ -9,6 +9,7 @@ suite.
 
 import json
 
+from tests.e2e import compare
 from tests.e2e.compare import compare_dirs, diff_paths, main, regenerate
 
 
@@ -249,3 +250,113 @@ class TestMain:
         assert rc == 0
         name = "osism_sw1_config_db.json"
         assert json.loads((golden / name).read_text()) == {"B": {}}
+
+    def test_regenerate_coverage_loss_exits_nonzero_without_flag(
+        self, tmp_path, capsys
+    ):
+        """Without --allow-coverage-loss, main() reports the loss and fails."""
+        golden, export = self._dirs(tmp_path, {"VLAN": {"Vlan100": {}}}, {"VLAN": {}})
+
+        rc = main(["--golden", str(golden), "--export", str(export), "--regenerate"])
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "COVERAGE LOSS" in out
+        assert "osism_sw1_config_db.json: VLAN" in out
+        # Goldens are still written even though the run is reported failed.
+        name = "osism_sw1_config_db.json"
+        assert json.loads((golden / name).read_text()) == {"VLAN": {}}
+
+    def test_regenerate_coverage_loss_exits_zero_with_flag(self, tmp_path, capsys):
+        """--allow-coverage-loss makes the same loss a successful regen."""
+        golden, export = self._dirs(tmp_path, {"VLAN": {"Vlan100": {}}}, {"VLAN": {}})
+
+        rc = main(
+            [
+                "--golden",
+                str(golden),
+                "--export",
+                str(export),
+                "--regenerate",
+                "--allow-coverage-loss",
+            ]
+        )
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "COVERAGE LOSS" not in out
+        name = "osism_sw1_config_db.json"
+        assert json.loads((golden / name).read_text()) == {"VLAN": {}}
+
+
+def test_regenerate_reports_emptied_table(tmp_path):
+    """A table that was populated and becomes empty is reported."""
+    golden = tmp_path / "golden"
+    export = tmp_path / "export"
+    golden.mkdir()
+    export.mkdir()
+    (golden / "osism_sw_config_db.json").write_text(
+        json.dumps({"PORT": {"Ethernet0": {}}, "VLAN": {"Vlan100": {}}})
+    )
+    (export / "osism_sw_config_db.json").write_text(
+        json.dumps({"PORT": {"Ethernet0": {}}, "VLAN": {}})
+    )
+
+    lost = compare.regenerate(golden, export)
+
+    assert lost == ["osism_sw_config_db.json: VLAN"]
+
+
+def test_regenerate_ignores_tables_empty_in_both(tmp_path):
+    """A table empty before and after is not a loss."""
+    golden = tmp_path / "golden"
+    export = tmp_path / "export"
+    golden.mkdir()
+    export.mkdir()
+    (golden / "osism_sw_config_db.json").write_text(json.dumps({"NTP_SERVER": {}}))
+    (export / "osism_sw_config_db.json").write_text(json.dumps({"NTP_SERVER": {}}))
+
+    assert compare.regenerate(golden, export) == []
+
+
+def test_regenerate_still_writes_when_coverage_lost(tmp_path):
+    """The guard reports; it does not refuse to write."""
+    golden = tmp_path / "golden"
+    export = tmp_path / "export"
+    golden.mkdir()
+    export.mkdir()
+    (golden / "osism_sw_config_db.json").write_text(
+        json.dumps({"VLAN": {"Vlan100": {}}})
+    )
+    (export / "osism_sw_config_db.json").write_text(json.dumps({"VLAN": {}}))
+
+    compare.regenerate(golden, export)
+
+    assert json.loads((golden / "osism_sw_config_db.json").read_text()) == {"VLAN": {}}
+
+
+def test_regenerate_ignores_new_file(tmp_path):
+    """A device with no previous golden cannot lose coverage."""
+    golden = tmp_path / "golden"
+    export = tmp_path / "export"
+    golden.mkdir()
+    export.mkdir()
+    (export / "osism_new_config_db.json").write_text(json.dumps({"VLAN": {}}))
+
+    assert compare.regenerate(golden, export) == []
+
+
+def test_regenerate_reports_removed_file_with_populated_tables(tmp_path):
+    """A device that stops being exported at all is the largest coverage loss."""
+    golden = tmp_path / "golden"
+    export = tmp_path / "export"
+    golden.mkdir()
+    export.mkdir()
+    (golden / "osism_gone_config_db.json").write_text(
+        json.dumps({"PORT": {"Ethernet0": {}}, "VLAN": {"Vlan100": {}}})
+    )
+
+    lost = compare.regenerate(golden, export)
+
+    assert lost == ["osism_gone_config_db.json: file removed, had 2 populated tables"]
+    assert not (golden / "osism_gone_config_db.json").exists()
