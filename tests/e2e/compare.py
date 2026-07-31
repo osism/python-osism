@@ -146,18 +146,42 @@ def regenerate(golden_dir, export_dir):
     stale golden files without a matching export are removed. Never run in
     CI - regeneration is a deliberate local step after an intentional
     generator change.
+
+    Returns a list of entries describing coverage that was lost: either a
+    table that was populated in the previous golden and would become empty,
+    or a whole golden file that had no matching export at all and is being
+    removed. Regeneration is the only path by which coverage can silently
+    drop -- in the normal path a table going empty (or a whole device
+    disappearing) changes the golden and fails the comparison -- and either
+    is invisible inside a several-hundred-line JSON diff. The files are
+    still written (or removed); reporting is the caller's decision to act
+    on.
     """
     golden_dir = Path(golden_dir)
     export_dir = Path(export_dir)
     golden_dir.mkdir(parents=True, exist_ok=True)
 
+    def _populated(config):
+        return {t for t, v in config.items() if v}
+
+    lost = []
     export_names = {p.name for p in export_dir.glob("*.json")}
     for stale in golden_dir.glob("*.json"):
         if stale.name not in export_names:
+            n = len(_populated(json.loads(stale.read_text())))
+            if n:
+                lost.append(f"{stale.name}: file removed, had {n} populated tables")
             stale.unlink()
+
     for name in sorted(export_names):
         config = json.loads((export_dir / name).read_text())
-        (golden_dir / name).write_text(_canonical(config))
+        previous = golden_dir / name
+        if previous.exists():
+            before = _populated(json.loads(previous.read_text()))
+            for table in sorted(before - _populated(config)):
+                lost.append(f"{name}: {table}")
+        previous.write_text(_canonical(config))
+    return lost
 
 
 def main(argv=None):
@@ -169,10 +193,24 @@ def main(argv=None):
         action="store_true",
         help="rewrite the golden files from the export directory",
     )
+    parser.add_argument(
+        "--allow-coverage-loss",
+        action="store_true",
+        help="regenerate even when a previously populated table becomes empty",
+    )
     args = parser.parse_args(argv)
 
     if args.regenerate:
-        regenerate(args.golden, args.export)
+        lost = regenerate(args.golden, args.export)
+        if lost and not args.allow_coverage_loss:
+            print("COVERAGE LOSS -- coverage was lost:")
+            for entry in lost:
+                print(f"  {entry}")
+            print(
+                "Goldens were written. Review the diff, then either fix the "
+                "fixtures or re-run with --allow-coverage-loss to accept it."
+            )
+            return 1
         return 0
 
     result = compare_dirs(args.golden, args.export)
