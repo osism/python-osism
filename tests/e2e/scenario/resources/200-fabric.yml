@@ -1,0 +1,258 @@
+---
+# Spine/leaf fabric for the SONiC E2E base scenario: one spine and two
+# leaves, cabled spine<->leaf, one leaf carrying an access and a trunk
+# port, and one VRF assigned to a data port.
+#
+# oob_ip / Loopback0 values are fixed by the fixture value contract in the
+# plan (docs/superpowers/plans/2026-07-30-sonic-e2e-synthetic-fixtures.md):
+# the ASN is derived from Loopback0 (4200 + zero-padded 3rd/4th octet), so
+# these addresses are not free choices.
+#
+# Interface names come from the Accton-AS7726-32X hwsku's port_config
+# (files/sonic/port_config/Accton-AS7726-32X.ini), not from the minimal
+# edgecore-7726-32x-e2e device type -- that device type only defines eth0,
+# Ethernet0 and Ethernet4, so every other interface used here is created
+# explicitly via device_interface stanzas.
+
+# ---------------------------------------------------------------- spine --
+- device:
+    name: e2e-spine-1
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-7726-32x-e2e
+    device_role: spine
+    status: active
+    face: front
+    position: 1
+    tags:
+      - managed-by-metalbox
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS7726-32X
+        version: 4.5.0
+
+- device_interface:
+    device: e2e-spine-1
+    name: Loopback0
+    type: virtual
+    enabled: true
+
+- ip_address:
+    tenant: Testbed
+    address: 172.16.10.1/20
+    assigned_object:
+      name: eth0
+      device: e2e-spine-1
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.20.1/32
+    assigned_object:
+      name: Loopback0
+      device: e2e-spine-1
+
+- device:
+    name: e2e-spine-1
+    oob_ip: 172.16.10.1/20
+    primary_ip4: 192.168.20.1/32
+
+# --------------------------------------------------------------- leaf-1 --
+- device:
+    name: e2e-leaf-1
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-7726-32x-e2e
+    device_role: leaf
+    status: active
+    face: front
+    position: 2
+    tags:
+      - managed-by-metalbox
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS7726-32X
+        version: 4.5.0
+
+- device_interface:
+    device: e2e-leaf-1
+    name: Loopback0
+    type: virtual
+    enabled: true
+
+- ip_address:
+    tenant: Testbed
+    address: 172.16.10.11/20
+    assigned_object:
+      name: eth0
+      device: e2e-leaf-1
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.20.11/32
+    assigned_object:
+      name: Loopback0
+      device: e2e-leaf-1
+
+- device:
+    name: e2e-leaf-1
+    oob_ip: 172.16.10.11/20
+    primary_ip4: 192.168.20.11/32
+
+# --------------------------------------------------------------- leaf-2 --
+- device:
+    name: e2e-leaf-2
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-7726-32x-e2e
+    device_role: leaf
+    status: active
+    face: front
+    position: 3
+    tags:
+      - managed-by-metalbox
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS7726-32X
+        version: 4.5.0
+
+- device_interface:
+    device: e2e-leaf-2
+    name: Loopback0
+    type: virtual
+    enabled: true
+
+- ip_address:
+    tenant: Testbed
+    address: 172.16.10.12/20
+    assigned_object:
+      name: eth0
+      device: e2e-leaf-2
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.20.12/32
+    assigned_object:
+      name: Loopback0
+      device: e2e-leaf-2
+
+- device:
+    name: e2e-leaf-2
+    oob_ip: 172.16.10.12/20
+    primary_ip4: 192.168.20.12/32
+
+# ---------------------------------------------------------- fabric links --
+# Point-to-point link addresses must fall inside a prefix with the
+# Transfer role, or _get_transfer_role_ipv4_addresses() treats the link as
+# IP-unnumbered and BGP_NEIGHBOR/BGP_NEIGHBOR_AF stay empty even though the
+# link is cabled and addressed.
+- prefix:
+    family: 4
+    prefix: 192.168.30.0/24
+    prefix_role: Transfer
+    tenant: Testbed
+
+# e2e-spine-1 Ethernet0 <-> e2e-leaf-1 Ethernet0, on a /31.
+- cable:
+    termination_a_type: dcim.interface
+    termination_a:
+      device: e2e-spine-1
+      name: Ethernet0
+    termination_b_type: dcim.interface
+    termination_b:
+      device: e2e-leaf-1
+      name: Ethernet0
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.30.0/31
+    assigned_object:
+      name: Ethernet0
+      device: e2e-spine-1
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.30.1/31
+    assigned_object:
+      name: Ethernet0
+      device: e2e-leaf-1
+
+# e2e-spine-1 Ethernet4 <-> e2e-leaf-2 Ethernet0, on a /31.
+- cable:
+    termination_a_type: dcim.interface
+    termination_a:
+      device: e2e-spine-1
+      name: Ethernet4
+    termination_b_type: dcim.interface
+    termination_b:
+      device: e2e-leaf-2
+      name: Ethernet0
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.30.2/31
+    assigned_object:
+      name: Ethernet4
+      device: e2e-spine-1
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.30.3/31
+    assigned_object:
+      name: Ethernet0
+      device: e2e-leaf-2
+
+# ------------------------------------------------------ leaf-1 VLAN ports --
+# Access port with untagged VLAN 100 (oob) and a trunk port with tagged
+# VLAN 200 (data), so VLAN, VLAN_INTERFACE and VLAN_MEMBER populate.
+- device_interface:
+    device: e2e-leaf-1
+    name: Ethernet8
+    type: 100gbase-x-qsfp28
+    mode: access
+    untagged_vlan:
+      name: oob
+      site: Discworld
+
+- device_interface:
+    device: e2e-leaf-1
+    name: Ethernet12
+    type: 100gbase-x-qsfp28
+    mode: tagged
+    tagged_vlans:
+      - name: data
+        site: Discworld
+
+# VLAN_INTERFACE (SVI) needs an actual NetBox virtual interface named
+# Vlan<vid> carrying an IP address -- VLAN_MEMBER from the ports above
+# does not by itself create one.
+- device_interface:
+    device: e2e-leaf-1
+    name: Vlan200
+    type: virtual
+    enabled: true
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.40.1/24
+    assigned_object:
+      name: Vlan200
+      device: e2e-leaf-1
+
+# ------------------------------------------------------------------ VRF --
+# vrf99 has no RD, so it takes the table_id-only branch (VRF["Vrf99"] =
+# {vrf_table_id: 99}), which is enough to populate VRF, the BGP_GLOBALS*
+# family and ROUTE_REDISTRIBUTE without pulling in EVPN/VXLAN.
+- vrf:
+    name: vrf99
+    tenant: Testbed
+
+- device_interface:
+    device: e2e-leaf-2
+    name: Ethernet4
+    vrf: vrf99

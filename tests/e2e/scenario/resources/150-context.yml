@@ -1,0 +1,28 @@
+---
+# Config context supplying the segment-level log-server and SNMP settings
+# every fixture device inherits through the Testbed tenant (every device in
+# this scenario belongs to it).
+#
+# _segment_log_server_hosts unlocks SYSLOG_SERVER. _segment_snmp_server_username
+# unlocks SNMP_SERVER_USER and SNMP_SERVER_GROUP_MEMBER;
+# _segment_snmp_server_hosts additionally unlocks SNMP_SERVER_PARAMS and
+# SNMP_SERVER_TARGET. No `secrets` custom field is set anywhere in this
+# scenario, so get_vault() is never called and the SNMP auth/priv passwords
+# fall back to the literals OBFUSCATEDAUTHSECRET / OBFUSCATEDPRIVSECRET --
+# that is the evidence the no-vault path was exercised.
+
+- config_context:
+    name: e2e-segment
+    tenants:
+      - Testbed
+    data:
+      _segment_log_server_hosts:
+        - 172.16.10.254
+      _segment_log_server_proto: udp
+      _segment_log_server_severity: info
+      _segment_log_server_vrf: mgmt
+      _segment_snmp_server_username: e2e-monitor
+      _segment_snmp_server_hosts:
+        - 172.16.10.254
+      _segment_snmp_server_location: E2E Lab
+      _segment_snmp_server_contact: e2e@example.com
