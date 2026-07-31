@@ -1,0 +1,118 @@
+---
+# Base objects for the SONiC E2E synthetic fixtures.
+#
+# Everything here is referenced (by name/slug) from the later numbered
+# files in this directory, so it must be seeded first. `site`/`location`/
+# `tenant` are kept from testbed's own conventions (Discworld /
+# Ankh-Morpork / Testbed) purely so the fixtures stay recognisable to
+# anyone used to the retired testbed-derived seed data -- there is no
+# functional dependency on osism/testbed itself.
+
+- vars:
+    site: Discworld
+    location: Ankh-Morpork
+    tenant: Testbed
+
+- tenant:
+    name: "{{ tenant }}"
+    slug: testbed
+
+- site:
+    name: "{{ site }}"
+    slug: discworld
+
+- location:
+    name: "{{ location }}"
+    slug: ankh-morpork
+    site: "{{ site }}"
+
+# Device roles. spine/leaf/switch are in DEFAULT_SONIC_ROLES, so a device
+# tagged managed-by-metalbox with one of these roles gets a golden; metalbox
+# is deliberately excluded from DEFAULT_SONIC_ROLES since the metalbox is
+# not a SONiC device and must never be generated.
+- device_role:
+    name: Spine
+    slug: spine
+
+- device_role:
+    name: Leaf
+    slug: leaf
+
+- device_role:
+    name: Switch
+    slug: switch
+
+- device_role:
+    name: Metalbox
+    slug: metalbox
+
+# Required by the device filter (status=active + this tag + role in
+# DEFAULT_SONIC_ROLES). A device missing this tag is skipped silently, with
+# no golden and no error.
+- tag:
+    name: Managed by Metalbox
+    slug: managed-by-metalbox
+
+# The generator reads sonic_parameters.hwsku (and .version) from this field
+# to decide whether -- and how -- to generate a device's SONiC config; PR 3
+# also stores its breakout_mode declaration under the same field.
+- custom_field:
+    name: sonic_parameters
+    type: json
+    label: sonic parameters
+    description: SONiC parameters
+    required: false
+    object_types:
+      - dcim.device
+
+- ipam_role:
+    name: OOB
+
+# Referenced by the fabric's point-to-point link prefix in 200-fabric.yml.
+# _get_transfer_role_ipv4_addresses() only treats a link as numbered
+# (rather than IP-unnumbered) when its address falls inside a prefix with
+# this role -- without it, BGP_NEIGHBOR/BGP_NEIGHBOR_AF stay empty even
+# though the link is cabled and addressed.
+- ipam_role:
+    name: Transfer
+    slug: transfer
+
+# VLAN 100 carries vlan_role: OOB because it is the fixture's real-world
+# out-of-band management VLAN (matching how these are modelled in NetBox in
+# practice); the generator does not currently read vlan_role itself. VLAN
+# 200 below is deliberately role-less: it exists only to exercise the plain
+# tagged-VLAN path (untagged/tagged port coverage in 200-fabric.yml) and has
+# no OOB-like real-world counterpart, so giving it a role would be
+# unmotivated decoration. This is intentional, not an oversight -- don't
+# "fix" the asymmetry by adding one, since regenerating after that edit
+# would move goldens for no functional reason.
+- vlan:
+    name: oob
+    vid: 100
+    site: "{{ site }}"
+    tenant: "{{ tenant }}"
+    vlan_role: OOB
+
+- vlan:
+    name: data
+    vid: 200
+    site: "{{ site }}"
+    tenant: "{{ tenant }}"
+
+- prefix:
+    family: 4
+    prefix: 172.16.0.0/20
+    prefix_role: OOB
+    tenant: "{{ tenant }}"
+
+- prefix:
+    family: 4
+    prefix: 192.168.20.0/24
+    tenant: "{{ tenant }}"
+
+- rack:
+    name: E2E
+    site: "{{ site }}"
+    location: "{{ location }}"
+    tenant: "{{ tenant }}"
+    u_height: 47
