@@ -11,7 +11,7 @@ import queue
 import logging
 import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 try:
     import redis
@@ -22,18 +22,23 @@ except ImportError:
 
 logger = logging.getLogger("osism.event_bridge")
 
+# Default pub/sub channel carrying events between containers.
+EVENTS_CHANNEL = "osism:events"
+
 
 class EventBridge:
     """Redis-based bridge for forwarding events between RabbitMQ listener and WebSocket manager across containers."""
 
-    def __init__(self):
-        self._event_queue = queue.Queue()
-        self._websocket_manager = None
-        self._processor_thread = None
-        self._subscriber_thread = None
+    def __init__(self, channel: str = EVENTS_CHANNEL):
+        """Publish to and subscribe on ``channel``; both ends must agree on it."""
+        self._channel = channel
+        self._event_queue: queue.Queue[Dict[str, Any]] = queue.Queue()
+        self._websocket_manager: Optional[Any] = None
+        self._processor_thread: Optional[threading.Thread] = None
+        self._subscriber_thread: Optional[threading.Thread] = None
         self._shutdown_event = threading.Event()
-        self._redis_client = None
-        self._redis_subscriber = None
+        self._redis_client: Optional["redis.Redis"] = None
+        self._redis_subscriber: Optional[Any] = None
 
         # Initialize Redis connection
         self._init_redis()
@@ -95,7 +100,7 @@ class EventBridge:
                 # Publish to Redis for cross-container communication
                 try:
                     message = json.dumps(event_data)
-                    subscribers = self._redis_client.publish("osism:events", message)
+                    subscribers = self._redis_client.publish(self._channel, message)
                     logger.info(
                         f"Published event to Redis: {event_type} (subscribers: {subscribers})"
                     )
@@ -111,7 +116,7 @@ class EventBridge:
                         if self._redis_client:
                             message = json.dumps(event_data)
                             subscribers = self._redis_client.publish(
-                                "osism:events", message
+                                self._channel, message
                             )
                             logger.info(
                                 f"Published event to Redis after reconnect: {event_type} (subscribers: {subscribers})"
@@ -175,7 +180,7 @@ class EventBridge:
                 logger.info(
                     f"Starting Redis subscriber (attempt {retry_count + 1}/{max_retries})"
                 )
-                self._redis_subscriber.subscribe("osism:events")
+                self._redis_subscriber.subscribe(self._channel)
                 logger.info("Subscribed to Redis events channel")
                 retry_count = 0  # Reset retry count on successful connection
 
