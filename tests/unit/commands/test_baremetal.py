@@ -1323,6 +1323,7 @@ def test_burnin_unsupported_state_warns(loguru_logs):
 # --- BaremetalClean ---
 
 ERASE_DEVICES_STEP = {"interface": "deploy", "step": "erase_devices"}
+ERASE_METADATA_STEP = {"interface": "deploy", "step": "erase_devices_metadata"}
 RAID_DELETE_STEP = {"interface": "raid", "step": "delete_configuration"}
 
 
@@ -1355,6 +1356,30 @@ def test_clean_raid_interface_prepends_delete_configuration():
 
     conn.baremetal.set_node_provision_state.assert_called_once_with(
         node.id, "clean", clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP]
+    )
+
+
+def test_clean_metadata_only_uses_erase_devices_metadata():
+    node = FakeNode(provision_state="manageable")
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    _run_baremetal_clean(["node1", "--metadata-only"], conn)
+
+    conn.baremetal.set_node_provision_state.assert_called_once_with(
+        node.id, "clean", clean_steps=[ERASE_METADATA_STEP]
+    )
+
+
+def test_clean_metadata_only_skips_delete_configuration_on_raid_node():
+    node = FakeNode(provision_state="manageable", raid_interface="agent")
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    _run_baremetal_clean(["node1", "--metadata-only"], conn)
+
+    conn.baremetal.set_node_provision_state.assert_called_once_with(
+        node.id, "clean", clean_steps=[ERASE_METADATA_STEP]
     )
 
 

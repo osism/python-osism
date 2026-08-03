@@ -1184,6 +1184,12 @@ class BaremetalClean(Command):
             help="Clean given baremetal node when in provision state available",
         )
         parser.add_argument(
+            "--metadata-only",
+            default=False,
+            help="Only erase metadata on disks",
+            action="store_true",
+        )
+        parser.add_argument(
             "--all",
             default=False,
             help="Clean all baremetal nodes in provision state available",
@@ -1201,6 +1207,7 @@ class BaremetalClean(Command):
         cloud = parsed_args.cloud
         all_nodes = parsed_args.all
         name = parsed_args.name
+        metadata_only = parsed_args.metadata_only
         yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
 
         if not all_nodes and not name:
@@ -1213,7 +1220,10 @@ class BaremetalClean(Command):
             )
             return 1
 
-        clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
+        if metadata_only:
+            clean_steps = [{"interface": "deploy", "step": "erase_devices_metadata"}]
+        else:
+            clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
 
         from osism.tasks.openstack import get_cloud_helpers
 
@@ -1243,7 +1253,10 @@ class BaremetalClean(Command):
                     continue
 
                 # NOTE: If the node has an agent raid interface, include step to delete the raid configuration
-                if node.get("raid_interface", "no-raid") != "no-raid":
+                if (
+                    not metadata_only
+                    and node.get("raid_interface", "no-raid") != "no-raid"
+                ):
                     clean_steps = [
                         {"interface": "raid", "step": "delete_configuration"}
                     ] + clean_steps
