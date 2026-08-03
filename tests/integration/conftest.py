@@ -12,6 +12,7 @@ green outside the dedicated CI job.
 import os
 import subprocess
 import time
+from pathlib import Path
 
 import pytest
 
@@ -29,6 +30,24 @@ WORKER_NAME = "ci-worker@%h"
 # to gate readiness on *this* worker rather than any worker on the broker.
 WORKER_NODE_PREFIX = WORKER_NAME.split("@", 1)[0] + "@"
 WORKER_BOOT_TIMEOUT = 60
+# Test-only tasks (see that module's docstring for why they exist). The worker
+# imports it relative to its cwd, which is pinned to the repository root below.
+WORKER_INCLUDE = "tests.integration.worker_tasks"
+
+
+def _find_repo_root():
+    """Return the repository root, found by its ``setup.cfg`` marker.
+
+    Walking up from this file instead of hard-coding ``parents[2]`` fails
+    loudly here rather than as an opaque import error at worker boot.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "setup.cfg").exists():
+            return parent
+    raise RuntimeError("no repository root with setup.cfg above conftest.py")
+
+
+REPO_ROOT = _find_repo_root()
 
 
 # Database a deployment uses by default (``osism/settings.py``). The
@@ -150,7 +169,10 @@ def celery_worker(celery_app):
     The worker runs from the same virtualenv as the tests.
     ``GATHER_FACTS_SCHEDULE=0`` prevents registration of the periodic
     ``gather_facts`` task, which would try to run ``/run.sh`` in containers that
-    do not exist in CI.
+    do not exist in CI. ``--include`` registers the test-only lifecycle tasks
+    from ``tests/integration/worker_tasks.py``; ``cwd`` is pinned to the
+    repository root so that import resolves regardless of where pytest was
+    launched. A broken include surfaces as an early worker exit below.
     """
     proc = subprocess.Popen(
         [
@@ -164,8 +186,11 @@ def celery_worker(celery_app):
             WORKER_QUEUE,
             "-c",
             "1",
+            "--include",
+            WORKER_INCLUDE,
         ],
         env={**os.environ, "GATHER_FACTS_SCHEDULE": "0"},
+        cwd=REPO_ROOT,
     )
 
     try:
