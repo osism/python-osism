@@ -171,17 +171,15 @@ class RedisSemaphore:
 
         while time.time() < end_time:
             now = time.time()
-            # Atomic cleanup + capacity check + reservation (see _ACQUIRE_LUA).
-            acquired = self.redis.eval(
-                self._ACQUIRE_LUA,
-                1,
-                self.key,
-                now,
-                self.maxsize,
-                identifier,
-                self.HOLDER_EXPIRY,
-            )
-            if acquired:
+            # Deliberately non-atomic, for measurement only: cleanup, capacity
+            # check and reservation as three separate round trips, so another
+            # client can interleave between the check and the reservation. The
+            # reclaim boundary still advances per iteration, so this isolates
+            # the time-of-check-to-time-of-use race from the stale-boundary
+            # defect the unit suite already pins.
+            self.redis.zremrangebyscore(self.key, 0, now - self.HOLDER_EXPIRY)
+            if self.redis.zcard(self.key) < self.maxsize:
+                self.redis.zadd(self.key, {identifier: now})
                 self.identifier = identifier
                 return True
 
