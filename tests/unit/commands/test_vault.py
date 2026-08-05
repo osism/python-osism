@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 from cryptography.fernet import Fernet
 
+from osism import settings
 from osism.commands import vault
 
 
@@ -196,7 +197,7 @@ def _make_set_password(monkeypatch, tmp_path):
     not created, tests write it themselves when a pre-existing key is needed.
     """
     keyfile = tmp_path / "ansible_vault_password.key"
-    monkeypatch.setattr(vault.SetPassword, "keyfile", str(keyfile))
+    monkeypatch.setattr(settings, "ANSIBLE_VAULT_KEYFILE", str(keyfile))
     cmd = vault.SetPassword(MagicMock(), MagicMock())
     parsed_args = cmd.get_parser("test").parse_args([])
     return cmd, parsed_args, keyfile
@@ -336,11 +337,11 @@ def test_find_secrets_file_returns_none_when_nothing_found():
 
 
 def _make_check_keyfile(monkeypatch, tmp_path, content=None):
-    """Point ``Check.keyfile`` at a tmp_path file, optionally writing content."""
+    """Point the keyfile setting at a tmp_path file, optionally writing content."""
     keyfile = tmp_path / "ansible_vault_password.key"
     if content is not None:
         keyfile.write_text(content)
-    monkeypatch.setattr(vault.Check, "keyfile", str(keyfile))
+    monkeypatch.setattr(settings, "ANSIBLE_VAULT_KEYFILE", str(keyfile))
     return keyfile
 
 
