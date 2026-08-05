@@ -661,11 +661,12 @@ def check_ansible_facts(max_age=None):
             truncated_value = data
             if isinstance(truncated_value, (bytes, str)):
                 truncated_value = truncated_value[:200]
-            logger.debug(
-                "Skipping malformed ansible_facts entry for key %r: %r",
-                key,
-                truncated_value,
-                exc_info=True,
+            # loguru formats with str.format and knows no exc_info kwarg, so
+            # printf-style placeholders would be logged verbatim and the
+            # traceback dropped.
+            logger.opt(exception=True).debug(
+                f"Skipping malformed ansible_facts entry for key {key!r}: "
+                f"{truncated_value!r}"
             )
             continue
 
