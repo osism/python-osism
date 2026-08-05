@@ -6,7 +6,21 @@ Used by ``test_breakout_detection`` and ``test_port_channel_detection``;
 the module is private (``_``-prefixed) so pytest does not collect it.
 """
 
+from pathlib import Path
 from types import SimpleNamespace
+
+
+def repo_root():
+    """Return the repository root, found by its ``setup.cfg`` marker.
+
+    Walking up beats hard-coding a parent depth, which silently breaks when a
+    test module moves. ``tests/integration/conftest.py`` locates the root the
+    same way, for the same reason.
+    """
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "setup.cfg").exists():
+            return parent
+    raise RuntimeError("no repository root with setup.cfg above this file")
 
 
 def _make_sonic_device(device_id=1, name="sw1", hwsku="TEST-HWSKU"):
