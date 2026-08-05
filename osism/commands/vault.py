@@ -11,12 +11,10 @@ import sys
 from cliff.command import Command
 from loguru import logger
 
-from osism import utils
+from osism import settings, utils
 
 
 class SetPassword(Command):
-    keyfile = "/share/ansible_vault_password.key"
-
     def get_parser(self, prog_name):
         parser = super(SetPassword, self).get_parser(prog_name)
         return parser
@@ -25,12 +23,14 @@ class SetPassword(Command):
         from cryptography.fernet import Fernet
         from prompt_toolkit import prompt
 
-        if os.path.isfile(self.keyfile):
-            with open(self.keyfile, "r") as fp:
+        keyfile = settings.ANSIBLE_VAULT_KEYFILE
+
+        if os.path.isfile(keyfile):
+            with open(keyfile, "r") as fp:
                 key = fp.read()
         else:
             key = Fernet.generate_key()
-            with open(self.keyfile, "w+") as fp:
+            with open(keyfile, "w+") as fp:
                 fp.write(key.decode("utf-8"))
 
         f = Fernet(key)
@@ -131,8 +131,6 @@ class Check(Command):
     and optionally tests decryption against a secrets.yml file.
     """
 
-    keyfile = "/share/ansible_vault_password.key"
-
     def get_parser(self, prog_name):
         parser = super(Check, self).get_parser(prog_name)
         parser.add_argument(
@@ -174,15 +172,16 @@ class Check(Command):
         format = parsed_args.format
         passed = 0
         failed = 0
+        keyfile = settings.ANSIBLE_VAULT_KEYFILE
 
         # Step 1: Check keyfile exists
-        if os.path.isfile(self.keyfile):
+        if os.path.isfile(keyfile):
             if format == "log":
-                logger.info(f"Keyfile exists: {self.keyfile}")
+                logger.info(f"Keyfile exists: {keyfile}")
             passed += 1
         else:
             if format == "log":
-                logger.error(f"Keyfile not found: {self.keyfile}")
+                logger.error(f"Keyfile not found: {keyfile}")
             elif format == "script":
                 print("FAILED: keyfile_missing")
             failed += 1
@@ -191,7 +190,7 @@ class Check(Command):
 
         # Step 2: Check keyfile contains a valid Fernet key
         try:
-            with open(self.keyfile, "r") as fp:
+            with open(keyfile, "r") as fp:
                 key = fp.read()
             f = Fernet(key)
             if format == "log":

@@ -22,6 +22,14 @@ REDIS_HOST: str = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
 
+# Keyfile holding the Fernet key that encrypts the Ansible Vault password in
+# Redis. Read through this module by every consumer -- 'osism set vault
+# password' creates the file when it is missing, so a reader disagreeing with
+# the writer about the path would silently fork the key material.
+ANSIBLE_VAULT_KEYFILE = os.getenv(
+    "ANSIBLE_VAULT_KEYFILE", "/share/ansible_vault_password.key"
+)
+
 
 NETBOX_URL = os.getenv("NETBOX_API", os.getenv("NETBOX_URL"))
 NETBOX_TOKEN = str(

@@ -351,10 +351,8 @@ def get_openstack_connection():
 def get_ansible_vault_password():
     from cryptography.fernet import Fernet
 
-    keyfile = "/share/ansible_vault_password.key"
-
     try:
-        with open(keyfile, "r") as fp:
+        with open(settings.ANSIBLE_VAULT_KEYFILE, "r") as fp:
             key = fp.read()
         f = Fernet(key)
 
