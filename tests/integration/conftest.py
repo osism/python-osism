@@ -31,6 +31,22 @@ WORKER_NODE_PREFIX = WORKER_NAME.split("@", 1)[0] + "@"
 WORKER_BOOT_TIMEOUT = 60
 
 
+# Database a deployment uses by default (``osism/settings.py``). The
+# integration tests delete keys under names a real deployment also uses, so
+# running them here would destroy production state -- see _reject_default_db.
+DEFAULT_REDIS_DB = 0
+
+
+def _default_db_allowed():
+    """Return ``True`` when running against Redis database 0 was opted into."""
+    return os.environ.get("OSISM_ALLOW_DEFAULT_REDIS_DB", "").lower() not in (
+        "",
+        "0",
+        "false",
+        "no",
+    )
+
+
 def _require_redis():
     """Return ``True`` when an unreachable Redis must fail the session.
 
@@ -73,16 +89,50 @@ def pytest_collection_modifyitems(config, items):
     With ``OSISM_REQUIRE_REDIS`` set, an unreachable Redis fails the session
     instead -- otherwise an all-skipped run exits 0 and a broken Redis would
     pass the CI gate green.
+
+    When Redis *is* reachable, the session is refused unless it points at a
+    disposable database: these tests write and delete keys under names a real
+    deployment also uses.
     """
-    if _redis_reachable():
+    if not _redis_reachable():
+        reason = (
+            f"Redis is not reachable on {settings.REDIS_HOST}:{settings.REDIS_PORT}"
+        )
+        if _require_redis():
+            pytest.exit(f"{reason} but OSISM_REQUIRE_REDIS is set", returncode=1)
+        skip = pytest.mark.skip(reason=reason)
+        for item in items:
+            if "integration" in item.keywords:
+                item.add_marker(skip)
         return
-    reason = f"Redis is not reachable on {settings.REDIS_HOST}:{settings.REDIS_PORT}"
-    if _require_redis():
-        pytest.exit(f"{reason} but OSISM_REQUIRE_REDIS is set", returncode=1)
-    skip = pytest.mark.skip(reason=reason)
-    for item in items:
-        if "integration" in item.keywords:
-            item.add_marker(skip)
+
+    if any("integration" in item.keywords for item in items):
+        _reject_default_db()
+
+
+def _reject_default_db():
+    """Exit the session when Redis database 0 is the target.
+
+    Some of these tests operate on fixed key names rather than a per-run
+    namespace -- ``ansible_vault_password`` is part of the contract under test
+    -- and delete them during setup and teardown. Pointed at a manager node,
+    that destroys the deployment's vault password with no copy left on the
+    system, so the run is refused rather than isolated per key. The CI job sets
+    ``REDIS_DB=15`` (``playbooks/test-integration.yml``).
+
+    The variable cannot be set from here: ``osism/settings.py`` reads it at
+    import and this module imports ``settings`` above.
+    """
+    if settings.REDIS_DB != DEFAULT_REDIS_DB or _default_db_allowed():
+        return
+    pytest.exit(
+        f"Refusing to run the integration tests against Redis database "
+        f"{DEFAULT_REDIS_DB} on {settings.REDIS_HOST}:{settings.REDIS_PORT}: they "
+        "delete keys a real deployment owns. Point REDIS_DB at a disposable "
+        "database (the CI job uses 15), or set OSISM_ALLOW_DEFAULT_REDIS_DB=1 "
+        "if this Redis is disposable.",
+        returncode=1,
+    )
 
 
 @pytest.fixture(scope="session")
