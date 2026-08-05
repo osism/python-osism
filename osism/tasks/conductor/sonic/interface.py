@@ -641,6 +641,20 @@ def get_connected_interfaces(device, portchannel_info=None):
     return _get_connected_interfaces(device, portchannel_info)
 
 
+def _breakout_child_collisions(children, master, port_config):
+    """Children that are separate ports of this HWSKU rather than free slots.
+
+    Breakout children are named after the master's lane offsets, which assumes
+    every slot below the next master is unused. That holds for every port of
+    every bundled HWSKU but one: on Accton-AS7726-32X the last 100G port
+    (Ethernet124, four lanes) is followed by Ethernet125 and Ethernet126, two
+    independent 10G SFP+ ports occupying two of its four child slots. Claiming
+    those as children rewrites their lanes, speed and alias, so a breakout that
+    would do it has to be refused.
+    """
+    return [c for c in children if c != master and c in port_config]
+
+
 def detect_breakout_ports(device):
     """Detect breakout ports from NetBox device interfaces using the centralized breakout logic.
 
@@ -767,14 +781,6 @@ def detect_breakout_ports(device):
                                 # Calculate physical port number (1/1 -> port 1, 1/2 -> port 2, etc.)
                                 physical_port_num = f"{module}/{port}"
 
-                                # Add breakout config for master port
-                                breakout_cfgs[master_port] = {
-                                    "breakout_owner": "MANUAL",
-                                    "brkout_mode": brkout_mode,
-                                    "port": physical_port_num,
-                                }
-
-                                # Add all subports to breakout_ports
                                 min_subport = breakout_group[0][0]
 
                                 # Determine the offset multiplier based on master port lane count
@@ -797,12 +803,31 @@ def detect_breakout_ports(device):
                                                 f"8 lanes, using offset multiplier {offset_multiplier}"
                                             )
 
-                                for subport, iface in breakout_group:
-                                    current_offset = (
-                                        subport - min_subport
-                                    ) * offset_multiplier
-                                    sonic_port_num = base_port_num + current_offset
-                                    port_name = f"Ethernet{sonic_port_num}"
+                                children = [
+                                    "Ethernet"
+                                    f"{base_port_num + (subport - min_subport) * offset_multiplier}"
+                                    for subport, _iface in breakout_group
+                                ]
+                                collisions = _breakout_child_collisions(
+                                    children, master_port, port_config
+                                )
+                                if collisions:
+                                    logger.error(
+                                        f"Breakout of {master_port} would claim "
+                                        f"{', '.join(collisions)}, which are separate "
+                                        f"ports on this HWSKU; skipping the group"
+                                    )
+                                    continue
+
+                                # Add breakout config for master port
+                                breakout_cfgs[master_port] = {
+                                    "breakout_owner": "MANUAL",
+                                    "brkout_mode": brkout_mode,
+                                    "port": physical_port_num,
+                                }
+
+                                # Add all subports to breakout_ports
+                                for port_name in children:
                                     breakout_ports[port_name] = {"master": master_port}
 
                                 logger.debug(
@@ -861,6 +886,24 @@ def detect_breakout_ports(device):
                                     physical_port_index = (base_port_400g // 8) + 1
                                     physical_port_num = f"1/{physical_port_index}"
 
+                                    children = [
+                                        f"Ethernet{port_num_400g}"
+                                        for port_num_400g, _iface in (
+                                            sonic_400g_breakout_group
+                                        )
+                                    ]
+                                    collisions = _breakout_child_collisions(
+                                        children, master_port, port_config
+                                    )
+                                    if collisions:
+                                        logger.error(
+                                            f"400G breakout of {master_port} would "
+                                            f"claim {', '.join(collisions)}, which are "
+                                            f"separate ports on this HWSKU; skipping "
+                                            f"the group"
+                                        )
+                                        continue
+
                                     # Add breakout config for master port
                                     breakout_cfgs[master_port] = {
                                         "breakout_owner": "MANUAL",
@@ -869,11 +912,7 @@ def detect_breakout_ports(device):
                                     }
 
                                     # Add all ports to breakout_ports
-                                    for (
-                                        port_num_400g,
-                                        iface,
-                                    ) in sonic_400g_breakout_group:
-                                        port_name = f"Ethernet{port_num_400g}"
+                                    for port_name in children:
                                         breakout_ports[port_name] = {
                                             "master": master_port
                                         }
@@ -955,6 +994,10 @@ def detect_breakout_ports(device):
                     physical_port_index = (base_port // 4) + 1
                     physical_port_num = f"1/{physical_port_index}"
 
+                    # NOTE: the topology gate above already refuses a group whose
+                    # intermediate slots are ports in port_config, which is the
+                    # same condition _breakout_child_collisions() tests. No
+                    # separate collision check is needed on this path.
                     # Add breakout config for master port
                     breakout_cfgs[master_port] = {
                         "breakout_owner": "MANUAL",
@@ -963,7 +1006,7 @@ def detect_breakout_ports(device):
                     }
 
                     # Add all ports to breakout_ports
-                    for port_num, iface in sonic_breakout_group:
+                    for port_num, _iface in sonic_breakout_group:
                         port_name = f"Ethernet{port_num}"
                         breakout_ports[port_name] = {"master": master_port}
 

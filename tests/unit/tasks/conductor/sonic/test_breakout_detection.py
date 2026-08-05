@@ -16,7 +16,7 @@ import pytest
 from osism.tasks.conductor.sonic import interface as interface_module
 from osism.tasks.conductor.sonic.interface import detect_breakout_ports
 
-from ._detection_helpers import _make_iface, _make_sonic_device
+from ._detection_helpers import _make_iface, _make_sonic_device, repo_root
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -568,3 +568,128 @@ def test_detect_breakout_ports_sonic_standard_speed_resolved_from_port_type(
     result = detect_breakout_ports(device)
 
     assert result["breakout_cfgs"]["Ethernet0"]["brkout_mode"] == "4x25G"
+
+
+# ---------------------------------------------------------------------------
+# Child slots occupied by another port
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def real_port_config(monkeypatch):
+    """Load a port_config from the .ini files actually shipped in this repo.
+
+    The helpers above build port_configs with one or two entries, which cannot
+    express a child slot already occupied by another port -- the one shape that
+    makes a breakout unsafe, and the reason this class of bug went unnoticed.
+    These tests need the real file.
+    """
+
+    def _load(hwsku):
+        monkeypatch.setattr(
+            interface_module,
+            "PORT_CONFIG_PATH",
+            str(repo_root() / "files" / "sonic" / "port_config"),
+        )
+        interface_module.clear_port_config_cache()
+        return interface_module.get_port_config(hwsku)
+
+    yield _load
+    interface_module.clear_port_config_cache()
+
+
+def test_netbox_format_breakout_refused_when_child_slot_is_another_port(
+    patch_breakout_helpers, real_port_config
+):
+    """Eth1/32 on Accton-AS7726-32X is Ethernet124, a four-lane 100G port whose
+    third and fourth child slots are Ethernet125 and Ethernet126 -- independent
+    10G SFP+ ports. Breaking it out would rewrite their lanes, speed and alias,
+    so the group is dropped whole, master BREAKOUT_CFG included.
+    """
+    port_config = real_port_config("Accton-AS7726-32X")
+    assert {"Ethernet125", "Ethernet126"} <= set(port_config)
+
+    device = _make_sonic_device()
+    interfaces = _netbox_breakout_interfaces(speed=25_000_000, port=32)
+    patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
+
+    result = detect_breakout_ports(device)
+
+    assert result["breakout_cfgs"] == {}
+    assert result["breakout_ports"] == {}
+
+
+def test_netbox_format_breakout_allowed_when_child_slots_are_free(
+    patch_breakout_helpers, real_port_config
+):
+    """The same HWSKU's first port must still break out: Ethernet0's children
+    are Ethernet1-3, none of which is a port in its own right.
+    """
+    port_config = real_port_config("Accton-AS7726-32X")
+
+    device = _make_sonic_device()
+    interfaces = _netbox_breakout_interfaces(speed=25_000_000, port=1)
+    patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
+
+    result = detect_breakout_ports(device)
+
+    assert result["breakout_cfgs"]["Ethernet0"]["brkout_mode"] == "4x25G"
+    assert sorted(result["breakout_ports"]) == [
+        "Ethernet0",
+        "Ethernet1",
+        "Ethernet2",
+        "Ethernet3",
+    ]
+
+
+def test_sonic_format_breakout_already_refused_by_the_topology_gate(
+    patch_breakout_helpers, real_port_config
+):
+    """The same collision reached through SONiC-format names rather than
+    Eth1/<port>/<subport>. This path needs no collision check: the topology gate
+    already skips a group whose intermediate slots are ports in port_config,
+    which is the same condition. Pinned here on the real port_config because
+    nothing else covered it, and because that gate is now load-bearing for
+    correctness rather than only for native-port misdetection.
+    """
+    port_config = real_port_config("Accton-AS7726-32X")
+
+    device = _make_sonic_device()
+    interfaces = [
+        _make_iface(f"Ethernet{n}", speed=25_000_000) for n in (124, 125, 126, 127)
+    ]
+    patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
+
+    result = detect_breakout_ports(device)
+
+    assert result["breakout_cfgs"] == {}
+    assert result["breakout_ports"] == {}
+
+
+def test_sonic_400g_breakout_refused_when_child_slot_is_another_port(
+    patch_breakout_helpers,
+):
+    """The 400G grouping path takes the same guard. No bundled HWSKU has an
+    8-lane master with an occupied child slot, so the port_config here is
+    built to that shape: an 8-lane master at Ethernet0 whose 4x100G children
+    would be Ethernet0/2/4/6, with Ethernet4 present as its own port.
+    """
+    port_config = {
+        **_port_config_for_port(lanes="1,2,3,4,5,6,7,8", speed="400000"),
+        **_port_config_for_port(
+            sonic_port="Ethernet4",
+            alias="hundredGigE99",
+            lanes="9",
+            index="99",
+            speed="10000",
+        ),
+    }
+
+    device = _make_sonic_device()
+    interfaces = [_make_iface(f"Ethernet{n}", speed=100_000_000) for n in (0, 2, 4, 6)]
+    patch_breakout_helpers(interfaces=interfaces, port_config=port_config)
+
+    result = detect_breakout_ports(device)
+
+    assert result["breakout_cfgs"] == {}
+    assert result["breakout_ports"] == {}
