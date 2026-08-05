@@ -21,4 +21,10 @@ sonic-e2e-up:
 sonic-e2e-down:
 	docker compose -f tests/e2e/compose.yaml down --volumes --remove-orphans
 
-.PHONY: sonic-e2e sonic-e2e-regen sonic-e2e-up sonic-e2e-down
+# Report config_db table coverage of the golden set (tests/e2e/coverage.py).
+# A reporting tool only -- not part of the gating check, which stays the
+# golden comparison run by sonic-e2e above.
+sonic-e2e-coverage:
+	pipenv run python -m tests.e2e.coverage
+
+.PHONY: sonic-e2e sonic-e2e-regen sonic-e2e-up sonic-e2e-down sonic-e2e-coverage
