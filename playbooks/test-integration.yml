@@ -59,6 +59,13 @@
           {{ python_venv_dir }}/bin/pipenv run pytest tests/integration
       environment:
         REDIS_HOST: localhost
+        # The tests write and delete keys under names a real deployment also
+        # uses (the vault password is stored under a fixed key), so they must
+        # never run against the database a manager node keeps its state in.
+        # REDIS_DB also feeds the Celery broker and result backend
+        # (osism/tasks/__init__.py), so this moves every client at once.
+        # tests/integration/conftest.py refuses to run against database 0.
+        REDIS_DB: "15"
         # Fail the session if Redis is unreachable instead of skipping every
         # test, so a Redis-startup failure turns the job red rather than green.
         OSISM_REQUIRE_REDIS: "1"
