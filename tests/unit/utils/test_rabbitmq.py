@@ -346,17 +346,18 @@ class TestGetRabbitmqNodeAddresses:
         _assert_error_logged(loguru_logs, "Could not resolve template")
 
     @pytest.mark.parametrize(
-        "interface,normalized_key",
-        [("eth0.100", "ansible_eth0_100"), ("eth-0", "ansible_eth_0")],
+        "interface,fact_key",
+        [("eth0.100", "ansible_eth0.100"), ("eth-0", "ansible_eth_0")],
     )
-    def test_interface_name_normalized_for_fact_lookup(
-        self, setup_addresses, loguru_logs, interface, normalized_key
+    def test_interface_name_mapped_to_fact_key(
+        self, setup_addresses, loguru_logs, interface, fact_key
     ):
-        # Facts are only stored under the normalized key, so a correct lookup
-        # is the only way the address can be found.
+        # Facts are only stored under the key Ansible actually uses, so a
+        # correct mapping is the only way the address can be found. Ansible
+        # replaces "-" with "_" and keeps dots.
         setup_addresses(
             hosts=["host1"],
-            redis_side_effect=[_facts(normalized_key, "10.0.0.7")],
+            redis_side_effect=[_facts(fact_key, "10.0.0.7")],
             check_output=[_GROUP_LISTING, _hostvars(interface)],
         )
 
