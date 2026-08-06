@@ -263,6 +263,16 @@ class TestGetRabbitmqNodeAddresses:
             )
         ]
 
+    def test_expression_falls_back_to_console_interface(self):
+        # osism/defaults resolves this address as
+        # internal_interface|default(console_interface); an operator may set
+        # console_interface explicitly and leave internal_interface unset, which
+        # works in the deployment and must therefore work here too.
+        assert (
+            "internal_interface | default(console_interface)"
+            in rabbitmq.INTERNAL_ADDRESS_EXPRESSION
+        )
+
     def test_expression_normalizes_dashes_but_not_dots(self):
         # Ansible names interface facts with "-" replaced by "_" and leaves
         # dots alone (PrefixFactNamespace._underscore), so the expression must
