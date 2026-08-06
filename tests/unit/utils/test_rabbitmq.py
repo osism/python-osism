@@ -18,6 +18,7 @@ on the package namespace with ``mocker.patch.dict`` so the lazy ``__getattr__``
 """
 
 import json
+import os
 import subprocess
 from types import SimpleNamespace
 from unittest.mock import call
@@ -91,12 +92,29 @@ def setup_addresses(mocker):
     return _setup
 
 
+# The path ``load_rabbitmq_password()`` checks, named so the fixture below can
+# answer for it alone rather than for every ``os.path.exists`` caller.
+SECRETS_PATH = "/opt/configuration/environments/kolla/secrets.yml"
+
+
 @pytest.fixture
 def setup_password(mocker):
     """Factory patching the secrets-file existence check and the YAML loader."""
 
     def _setup(*, exists=True, load_yaml=None, load_raises=None):
-        mocker.patch("osism.utils.rabbitmq.os.path.exists", return_value=exists)
+        # Answer only for the path under test. Patching os.path.exists with a
+        # flat return_value answers for every caller, and the loader imported
+        # below pulls in ansible, whose config manager reads
+        # ansible/config/base.yml through the same function -- so a False here
+        # surfaced as "Missing base YAML definition file (bad install?)"
+        # instead of as the case being tested.
+        real_exists = os.path.exists
+        mocker.patch(
+            "osism.utils.rabbitmq.os.path.exists",
+            side_effect=lambda path, *args, **kwargs: (
+                exists if path == SECRETS_PATH else real_exists(path, *args, **kwargs)
+            ),
+        )
         if load_raises is not None:
             mocker.patch(
                 "osism.tasks.conductor.utils.load_yaml_file", side_effect=load_raises
