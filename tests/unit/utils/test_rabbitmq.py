@@ -283,43 +283,6 @@ class TestGetRabbitmqNodeAddresses:
         assert rabbitmq.get_rabbitmq_node_addresses() == [("10.0.0.5", "host1")]
         _assert_error_logged(loguru_logs, "Failed to resolve address for host2")
 
-    def test_no_internal_interface_skips_host(self, setup_addresses, loguru_logs):
-        setup_addresses(
-            hosts=["host1"],
-            redis_side_effect=[_facts("ansible_eth0", "10.0.0.5")],
-            check_output=[_GROUP_LISTING, _encode({})],
-        )
-
-        assert rabbitmq.get_rabbitmq_node_addresses() is None
-        _assert_error_logged(loguru_logs, "internal_interface not found in hostvars")
-
-    def test_literal_interface_used_directly(self, setup_addresses, loguru_logs):
-        setup_addresses(
-            hosts=["host1"],
-            redis_side_effect=[_facts("ansible_eth0", "10.0.0.5")],
-            check_output=[_GROUP_LISTING, _hostvars("eth0")],
-        )
-
-        assert rabbitmq.get_rabbitmq_node_addresses() == [("10.0.0.5", "host1")]
-        assert _error_messages(loguru_logs) == []
-
-    def test_jinja_template_resolved_from_facts(self, setup_addresses, loguru_logs):
-        facts = {
-            "ansible_local": {"testbed_network_devices": {"management": "eth1"}},
-            "ansible_eth1": {"ipv4": {"address": "10.0.0.8"}},
-        }
-        setup_addresses(
-            hosts=["host1"],
-            redis_side_effect=[_encode(facts)],
-            check_output=[
-                _GROUP_LISTING,
-                _hostvars("{{ ansible_local.testbed_network_devices.management }}"),
-            ],
-        )
-
-        assert rabbitmq.get_rabbitmq_node_addresses() == [("10.0.0.8", "host1")]
-        assert _error_messages(loguru_logs) == []
-
     @pytest.mark.parametrize(
         "management_value",
         [None, {"nested": "x"}, 42],
@@ -362,64 +325,6 @@ class TestGetRabbitmqNodeAddresses:
 
         assert rabbitmq.get_rabbitmq_node_addresses() is None
         _assert_error_logged(loguru_logs, "Could not resolve template")
-
-    @pytest.mark.parametrize(
-        "interface,fact_key",
-        [("eth0.100", "ansible_eth0.100"), ("eth-0", "ansible_eth_0")],
-    )
-    def test_interface_name_mapped_to_fact_key(
-        self, setup_addresses, loguru_logs, interface, fact_key
-    ):
-        # Facts are only stored under the key Ansible actually uses, so a
-        # correct mapping is the only way the address can be found. Ansible
-        # replaces "-" with "_" and keeps dots.
-        setup_addresses(
-            hosts=["host1"],
-            redis_side_effect=[_facts(fact_key, "10.0.0.7")],
-            check_output=[_GROUP_LISTING, _hostvars(interface)],
-        )
-
-        assert rabbitmq.get_rabbitmq_node_addresses() == [("10.0.0.7", "host1")]
-        assert _error_messages(loguru_logs) == []
-
-    def test_normalized_interface_key_missing_skips_host(
-        self, setup_addresses, loguru_logs
-    ):
-        setup_addresses(
-            hosts=["host1"],
-            redis_side_effect=[_facts("ansible_eth1", "10.0.0.5")],
-            check_output=[_GROUP_LISTING, _hostvars("eth0")],
-        )
-
-        assert rabbitmq.get_rabbitmq_node_addresses() is None
-        _assert_error_logged(loguru_logs, "not found in ansible facts")
-
-    def test_interface_without_ipv4_skips_host(self, setup_addresses, loguru_logs):
-        setup_addresses(
-            hosts=["host1"],
-            redis_side_effect=[_encode({"ansible_eth0": {"mtu": 1500}})],
-            check_output=[_GROUP_LISTING, _hostvars("eth0")],
-        )
-
-        assert rabbitmq.get_rabbitmq_node_addresses() is None
-        _assert_error_logged(loguru_logs, "No IPv4 address found")
-
-    @pytest.mark.parametrize(
-        "ipv4_info",
-        [{"address": ""}, {"netmask": "255.255.255.0"}],
-        ids=["empty_address", "missing_address"],
-    )
-    def test_ipv4_without_address_skips_host(
-        self, setup_addresses, loguru_logs, ipv4_info
-    ):
-        setup_addresses(
-            hosts=["host1"],
-            redis_side_effect=[_encode({"ansible_eth0": {"ipv4": ipv4_info}})],
-            check_output=[_GROUP_LISTING, _hostvars("eth0")],
-        )
-
-        assert rabbitmq.get_rabbitmq_node_addresses() is None
-        _assert_error_logged(loguru_logs, "No IPv4 address found")
 
     # -- aggregate results ----------------------------------------------------
 

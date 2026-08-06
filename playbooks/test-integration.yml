@@ -47,6 +47,12 @@
           {{ python_venv_dir }}/bin/pipenv install --dev --deploy
           {{ python_venv_dir }}/bin/pipenv run pip install .
 
+          # Some integration tests resolve inventory variables the way the
+          # deployment does, by running ansible. Install it from the same
+          # requirements file the container image uses, so the version under
+          # test is the version that ships and no second pin is introduced.
+          {{ python_venv_dir }}/bin/pipenv run pip install -r requirements.ansible.txt
+
     - name: Run pytest
       ansible.builtin.shell:
         executable: /bin/bash
@@ -69,3 +75,6 @@
         # Fail the session if Redis is unreachable instead of skipping every
         # test, so a Redis-startup failure turns the job red rather than green.
         OSISM_REQUIRE_REDIS: "1"
+        # Likewise for ansible: the tests that need it skip when it is absent,
+        # which would let a broken install pass the job green.
+        OSISM_REQUIRE_ANSIBLE: "1"
