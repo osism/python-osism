@@ -1,13 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import ipaddress
 import json
 import os
-import re
 import subprocess
 
 from loguru import logger
 
-from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
+from osism.utils.inventory import (
+    HostContextResolutionError,
+    get_hosts_from_inventory,
+    get_inventory_path,
+    resolve_in_host_context,
+)
+
+# The node's internal address. Ansible names interface facts with "-" replaced
+# by "_" and dots left alone (PrefixFactNamespace._underscore), so "br-ex" is
+# ansible_br_ex while "bond0.100" is ansible_bond0.100.
+INTERNAL_ADDRESS_EXPRESSION = (
+    "hostvars[inventory_hostname]"
+    "['ansible_' + (internal_interface | replace('-', '_'))]"
+    "['ipv4']['address']"
+)
 
 
 def get_rabbitmq_node_addresses():
@@ -51,73 +65,31 @@ def get_rabbitmq_node_addresses():
 
                 facts = json.loads(facts_data)
 
-                # Get hostvars for this host to find internal_interface
+                # Resolve internal_interface and the address it carries in one
+                # templated lookup, so that any Jinja2 shape works -- not just
+                # the ones a hand-written resolver anticipated.
                 hostvar_inventory_path = get_inventory_path(
                     "/ansible/inventory/hosts.yml", prefer_minified=False
                 )
-                result = subprocess.check_output(
-                    f"ansible-inventory -i {hostvar_inventory_path} --host {host}",
-                    shell=True,
-                    stderr=subprocess.DEVNULL,
-                )
-                hostvars = json.loads(result)
-
-                internal_interface_raw = hostvars.get("internal_interface")
-                if not internal_interface_raw:
-                    logger.error(f"internal_interface not found in hostvars for {host}")
-                    continue
-
-                # Resolve Jinja2 template if present (e.g., "{{ ansible_local.testbed_network_devices.management }}")
-                internal_interface = internal_interface_raw
-                template_match = re.match(
-                    r"\{\{\s*(.+?)\s*\}\}", internal_interface_raw
-                )
-                if template_match:
-                    path = template_match.group(1).strip()
-                    parts = path.split(".")
-                    value = facts
-                    for part in parts:
-                        if isinstance(value, dict):
-                            value = value.get(part)
-                        else:
-                            value = None
-                            break
-                    if value and isinstance(value, str):
-                        internal_interface = value
-                    else:
-                        logger.error(
-                            f"Could not resolve template '{internal_interface_raw}' from facts for {host}"
-                        )
-                        continue
-
-                logger.debug(f"Internal interface for {host}: {internal_interface}")
-
-                # Look for the interface in ansible facts. Ansible replaces "-"
-                # with "_" in fact names and leaves dots alone
-                # (PrefixFactNamespace._underscore), so "br-ex" is
-                # ansible_br_ex while "bond0.100" is ansible_bond0.100.
-                normalized_interface = internal_interface.replace("-", "_")
-                interface_key = f"ansible_{normalized_interface}"
-
-                interface_facts = facts.get(interface_key)
-                if not interface_facts:
-                    logger.error(
-                        f"Interface {internal_interface} ({interface_key}) not found in ansible facts for {host}"
+                try:
+                    ipv4_address = resolve_in_host_context(
+                        host,
+                        INTERNAL_ADDRESS_EXPRESSION,
+                        hostvar_inventory_path,
+                        facts=facts,
                     )
+                except HostContextResolutionError as exc:
+                    logger.error(f"Could not resolve address for {host}: {exc}")
                     continue
 
-                # Get IPv4 address
-                ipv4_info = interface_facts.get("ipv4")
-                if not ipv4_info:
+                # A templating failure is reported by the return code, but a
+                # module that returns a non-address string must not be trusted
+                # either -- validate rather than pass it on as an address.
+                try:
+                    ipaddress.IPv4Address(ipv4_address)
+                except ValueError:
                     logger.error(
-                        f"No IPv4 address found for interface {internal_interface} on {host}"
-                    )
-                    continue
-
-                ipv4_address = ipv4_info.get("address")
-                if not ipv4_address:
-                    logger.error(
-                        f"No IPv4 address found for interface {internal_interface} on {host}"
+                        f"Resolved address for {host} is not an IPv4 address: {ipv4_address!r}"
                     )
                     continue
 
