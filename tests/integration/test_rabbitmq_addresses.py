@@ -151,6 +151,18 @@ def test_interface_from_inventory_variable(scenario):
     assert rabbitmq.get_rabbitmq_node_addresses() == [("10.74.34.11", host)]
 
 
+def test_console_interface_fallback(scenario):
+    # osism/defaults resolves this address as
+    # internal_interface|default(console_interface), so a host that sets only
+    # console_interface resolves in the deployment and has to resolve here.
+    host = scenario(
+        "ctl9",
+        {"console_interface": "eth7"},
+        {"ansible_eth7": {"ipv4": {"address": "10.9.9.9"}}},
+    )
+    assert rabbitmq.get_rabbitmq_node_addresses() == [("10.9.9.9", host)]
+
+
 def test_missing_internal_interface_yields_no_addresses(scenario):
     scenario("ctl6", {}, {"ansible_eth0": {"ipv4": {"address": "10.0.0.9"}}})
     assert rabbitmq.get_rabbitmq_node_addresses() is None

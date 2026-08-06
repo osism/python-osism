@@ -14,12 +14,21 @@ from osism.utils.inventory import (
     resolve_in_host_context,
 )
 
-# The node's internal address. Ansible names interface facts with "-" replaced
-# by "_" and dots left alone (PrefixFactNamespace._underscore), so "br-ex" is
-# ansible_br_ex while "bond0.100" is ansible_bond0.100.
+# The node's internal address, resolved the way osism/defaults resolves it
+# (defaults/manager/000-defaults.yml), including the console_interface
+# fallback: an operator may set console_interface explicitly and leave
+# internal_interface unset, which works in the deployment and must work here.
+# With neither set, defaults/all/099-interfaces.yml resolves console_interface
+# to the undefined "loopback0", so this fails loudly rather than inventing an
+# address.
+#
+# Ansible names interface facts with "-" replaced by "_" and dots left alone
+# (PrefixFactNamespace._underscore), so "br-ex" is ansible_br_ex while
+# "bond0.100" is ansible_bond0.100.
 INTERNAL_ADDRESS_EXPRESSION = (
     "hostvars[inventory_hostname]"
-    "['ansible_' + (internal_interface | replace('-', '_'))]"
+    "['ansible_' + ((internal_interface | default(console_interface))"
+    " | replace('-', '_'))]"
     "['ipv4']['address']"
 )
 
