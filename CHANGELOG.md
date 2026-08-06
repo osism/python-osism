@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260806.0] - 2026-08-06
+
+### Added
+- Add integration tests for the Ansible Vault password round trip (osism/python-osism#2547)
+- Add integration tests for the Redis semaphore (osism/python-osism#2548)
+- Add integration tests for Celery error, state and revoke paths (osism/python-osism#2550)
+- Add integration tests for the Ansible facts freshness check (osism/python-osism#2549)
+- Add integration tests for the EventBridge pub/sub round trip (osism/python-osism#2551)
+- Add `--metadata-only` parameter to `baremetal clean` to erase only disk metadata without deleting the RAID configuration, as a workaround for hardware where secure erase fails (osism/python-osism#2552)
+- Add a SONiC config-generation E2E golden-test harness with coverage-loss guarding on golden regeneration (osism/python-osism@f3c6e59, osism/python-osism#2564)
+
+### Changed
+- Read the Ansible Vault keyfile path from the settings module, configurable via the ANSIBLE_VAULT_KEYFILE environment variable (osism/python-osism#2547)
+- Guard the integration test suite against running against the default Redis database (osism/python-osism#2547)
+- Allow EventBridge to publish and subscribe on a configurable channel instead of a hardcoded one (osism/python-osism#2551)
+- Make the SONiC port_config path configurable via SONIC_PORT_CONFIG_PATH (osism/python-osism#2563)
+- Make the SONiC config generator's base config path configurable via `SONIC_BASE_CONFIG_PATH`, warn instead of silently continuing when it is missing, guard against owned-table content in the shipped base config, and clarify the base config ownership documentation (osism/python-osism#2561)
+
+### Fixed
+- Avoid building the SNMP vault client for devices without encrypted secrets, preventing spurious error logs (osism/python-osism#2557)
+- Fix malformed ansible_facts log entries to include the key, value and traceback (osism/python-osism#2549)
+- Refuse SONiC breakouts that would claim ports already used by other interfaces (osism/python-osism#2560)
+
+### Dependencies
+- prompt-toolkit 3.0.52 → 3.0.53 (osism/python-osism#2531)
+- postcss 8.5.23 → 8.5.25 (osism/python-osism#2537, osism/python-osism#2539)
+- uvicorn 0.51.0 → 0.52.1 (osism/python-osism#2538, osism/python-osism#2558)
+- axios 1.18.1 → 1.19.0 (osism/python-osism#2540)
+- websockets 16.1.1 → 17.0.1 (osism/python-osism#2541, osism/python-osism#2554)
+- lucide-react 1.27.0 → 1.28.0 (osism/python-osism#2542)
+- @types/react 19.2.17 → 19.2.18 (osism/python-osism#2544)
+- @types/react-dom 19.2.3 → 19.2.4 (osism/python-osism#2544)
+- boto3 1.43.55 → 1.43.61 (osism/python-osism#2543, osism/python-osism#2546)
+- fastapi 0.139.2 → 0.141.1 (osism/python-osism#2545)
+- huey 3.3.0 → 3.3.2 (osism/python-osism#2553, osism/python-osism#2555)
+
 ## [v0.20260729.0] - 2026-07-29
 
 ### Fixed
