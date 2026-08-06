@@ -3,8 +3,8 @@
 """Unit tests for ``osism.utils.rabbitmq``.
 
 Tests are grouped into one class per function: ``TestGetRabbitmqNodeAddresses``
-(inventory + host discovery, per-host interface resolution including Jinja2
-template traversal, and result aggregation) and ``TestLoadRabbitmqPassword``
+(inventory + host discovery, per-host address resolution, and result
+aggregation) and ``TestLoadRabbitmqPassword``
 (secrets-file loading and normalization), plus the ``RABBITMQ_USER`` module
 constant. The collaborators of each function are wired up by the
 ``setup_addresses`` / ``setup_password`` factory fixtures.
@@ -26,7 +26,7 @@ from unittest.mock import call
 import pytest
 
 import osism.utils as utils_pkg
-from osism.utils import rabbitmq
+from osism.utils import inventory, rabbitmq
 
 # A valid group-listing payload for the first ``ansible-inventory`` call. The
 # content is irrelevant because ``get_hosts_from_inventory`` is mocked; only the
@@ -37,11 +37,6 @@ _GROUP_LISTING = json.dumps({"rabbitmq": {"hosts": ["host1"]}}).encode()
 def _encode(payload):
     """Encode a payload the way ``ansible-inventory`` / Redis return it."""
     return json.dumps(payload).encode()
-
-
-def _hostvars(interface):
-    """Build a ``--host`` hostvars payload carrying ``internal_interface``."""
-    return _encode({"internal_interface": interface})
 
 
 def _facts(interface_key, address):
@@ -68,7 +63,7 @@ def setup_addresses(mocker):
     keys and command lines they were invoked with.
     """
 
-    def _setup(*, hosts, redis_side_effect, check_output):
+    def _setup(*, hosts, redis_side_effect, check_output, resolve=None):
         fake_redis = mocker.MagicMock()
         fake_redis.get.side_effect = redis_side_effect
         # Seed the lazy attribute on the package so ``utils.redis`` resolves to
@@ -83,10 +78,17 @@ def setup_addresses(mocker):
         check_output_mock = mocker.patch(
             "osism.utils.rabbitmq.subprocess.check_output", side_effect=check_output
         )
+        # Templating is Ansible's job; the unit under test only has to hand it
+        # the right expression and facts and validate what comes back.
+        resolve_mock = mocker.patch(
+            "osism.utils.rabbitmq.resolve_in_host_context",
+            side_effect=list(resolve) if resolve is not None else [],
+        )
         return SimpleNamespace(
             redis=fake_redis,
             get_inventory_path=get_inventory_path,
             check_output=check_output_mock,
+            resolve=resolve_mock,
         )
 
     return _setup
@@ -139,7 +141,8 @@ class TestGetRabbitmqNodeAddresses:
                 _facts("ansible_eth0", "10.0.0.5"),
                 _facts("ansible_eth0", "10.0.0.6"),
             ],
-            check_output=[_GROUP_LISTING, _hostvars("eth0"), _hostvars("eth0")],
+            check_output=[_GROUP_LISTING],
+            resolve=["10.0.0.5", "10.0.0.6"],
         )
 
         result = rabbitmq.get_rabbitmq_node_addresses()
@@ -159,7 +162,8 @@ class TestGetRabbitmqNodeAddresses:
         mocks = setup_addresses(
             hosts=["host1"],
             redis_side_effect=[_facts("ansible_eth0", "10.0.0.5")],
-            check_output=[_GROUP_LISTING, _hostvars("eth0")],
+            check_output=[_GROUP_LISTING],
+            resolve=["10.0.0.5"],
         )
 
         rabbitmq.get_rabbitmq_node_addresses()
@@ -167,7 +171,6 @@ class TestGetRabbitmqNodeAddresses:
         # ``--limit rabbitmq`` is the only thing scoping the listing to the
         # rabbitmq group; ``get_hosts_from_inventory`` does no group filtering.
         assert "--limit rabbitmq" in mocks.check_output.call_args_list[0].args[0]
-        assert "--host host1" in mocks.check_output.call_args_list[1].args[0]
         # The hostvars lookup must not use the minified inventory, which omits
         # hostvars such as ``internal_interface``.
         assert mocks.get_inventory_path.call_args_list == [
@@ -220,24 +223,74 @@ class TestGetRabbitmqNodeAddresses:
 
     # -- per-host resolution -------------------------------------------------
 
+    def test_resolver_called_with_expression_inventory_and_facts(
+        self, setup_addresses, loguru_logs
+    ):
+        facts = {"ansible_eth0": {"ipv4": {"address": "10.0.0.5"}}}
+        setup_addresses(
+            hosts=["host1"],
+            redis_side_effect=[_encode(facts)],
+            check_output=[_GROUP_LISTING],
+            resolve=["10.0.0.5"],
+        )
+
+        mocks = rabbitmq.get_rabbitmq_node_addresses()
+
+        assert mocks == [("10.0.0.5", "host1")]
+
+    def test_resolver_receives_cached_facts_verbatim(
+        self, setup_addresses, loguru_logs
+    ):
+        # The facts read from the cache must reach Ansible unchanged: they are
+        # what makes fact-derived values such as
+        # ``{{ ansible_local.testbed_network_devices.management }}`` resolvable.
+        facts = {"ansible_local": {"testbed_network_devices": {"management": "eth3"}}}
+        mocks = setup_addresses(
+            hosts=["host1"],
+            redis_side_effect=[_encode(facts)],
+            check_output=[_GROUP_LISTING],
+            resolve=["10.0.0.5"],
+        )
+
+        rabbitmq.get_rabbitmq_node_addresses()
+
+        assert mocks.resolve.call_args_list == [
+            call(
+                "host1",
+                rabbitmq.INTERNAL_ADDRESS_EXPRESSION,
+                "/inv",
+                facts=facts,
+            )
+        ]
+
+    def test_expression_normalizes_dashes_but_not_dots(self):
+        # Ansible names interface facts with "-" replaced by "_" and leaves
+        # dots alone (PrefixFactNamespace._underscore), so the expression must
+        # do exactly that -- an earlier implementation also replaced dots and
+        # therefore never found ``ansible_bond0.100``.
+        assert "replace('-', '_')" in rabbitmq.INTERNAL_ADDRESS_EXPRESSION
+        assert "'.'" not in rabbitmq.INTERNAL_ADDRESS_EXPRESSION
+
     def test_missing_facts_in_cache_skips_host_and_continues(
         self, setup_addresses, loguru_logs
     ):
         setup_addresses(
             hosts=["host1", "host2"],
             redis_side_effect=[None, _facts("ansible_eth0", "10.0.0.6")],
-            check_output=[_GROUP_LISTING, _hostvars("eth0")],
+            check_output=[_GROUP_LISTING],
+            resolve=["10.0.0.6"],
         )
 
         assert rabbitmq.get_rabbitmq_node_addresses() == [("10.0.0.6", "host2")]
         _assert_error_logged(loguru_logs, "No ansible facts found in cache for host1")
 
     @pytest.mark.parametrize(
-        "redis_side_effect,check_output",
+        "redis_side_effect,resolve,expected_error",
         [
             pytest.param(
                 [_facts("ansible_eth0", "10.0.0.5"), b"{corrupt facts"],
-                [_GROUP_LISTING, _hostvars("eth0")],
+                ["10.0.0.5"],
+                "Failed to resolve address for host2",
                 id="corrupt_cached_facts",
             ),
             pytest.param(
@@ -246,85 +299,62 @@ class TestGetRabbitmqNodeAddresses:
                     _facts("ansible_eth0", "10.0.0.6"),
                 ],
                 [
-                    _GROUP_LISTING,
-                    _hostvars("eth0"),
-                    subprocess.CalledProcessError(1, "ansible-inventory"),
+                    "10.0.0.5",
+                    inventory.HostContextResolutionError("'foo' is undefined"),
                 ],
-                id="hostvars_query_fails",
+                "Could not resolve address for host2",
+                id="templating_failed",
             ),
             pytest.param(
                 [
                     _facts("ansible_eth0", "10.0.0.5"),
                     _facts("ansible_eth0", "10.0.0.6"),
                 ],
-                [_GROUP_LISTING, _hostvars("eth0"), b"{not valid json"],
-                id="corrupt_hostvars_json",
+                ["10.0.0.5", "VARIABLE IS NOT DEFINED!"],
+                "is not an IPv4 address",
+                id="non_address_value",
             ),
             pytest.param(
                 [
                     _facts("ansible_eth0", "10.0.0.5"),
                     _facts("ansible_eth0", "10.0.0.6"),
                 ],
-                [_GROUP_LISTING, _hostvars("eth0"), _hostvars(["eth0"])],
-                id="non_string_internal_interface",
+                ["10.0.0.5", "fe80::1"],
+                "is not an IPv4 address",
+                id="ipv6_value",
             ),
         ],
     )
     def test_per_host_failure_keeps_addresses_of_other_hosts(
-        self, setup_addresses, loguru_logs, redis_side_effect, check_output
+        self, setup_addresses, loguru_logs, redis_side_effect, resolve, expected_error
     ):
         # host1 resolves before host2 fails; the failure must only drop host2.
         setup_addresses(
             hosts=["host1", "host2"],
             redis_side_effect=redis_side_effect,
-            check_output=check_output,
+            check_output=[_GROUP_LISTING],
+            resolve=resolve,
         )
 
         assert rabbitmq.get_rabbitmq_node_addresses() == [("10.0.0.5", "host1")]
-        _assert_error_logged(loguru_logs, "Failed to resolve address for host2")
+        _assert_error_logged(loguru_logs, expected_error)
 
-    @pytest.mark.parametrize(
-        "management_value",
-        [None, {"nested": "x"}, 42],
-        ids=["none", "dict", "int"],
-    )
-    def test_template_resolving_to_non_string_skips_host(
-        self, setup_addresses, loguru_logs, management_value
-    ):
-        facts = {
-            "ansible_local": {
-                "testbed_network_devices": {"management": management_value}
-            }
-        }
+    def test_resolution_error_message_is_surfaced(self, setup_addresses, loguru_logs):
+        # Ansible's own wording names the undefined variable, which is the most
+        # useful thing an operator can be told; it must not be swallowed.
         setup_addresses(
             hosts=["host1"],
-            redis_side_effect=[_encode(facts)],
-            check_output=[
-                _GROUP_LISTING,
-                _hostvars("{{ ansible_local.testbed_network_devices.management }}"),
+            redis_side_effect=[_facts("ansible_eth0", "10.0.0.5")],
+            check_output=[_GROUP_LISTING],
+            resolve=[
+                inventory.HostContextResolutionError(
+                    "has no attribute 'ansible_vlan999'"
+                )
             ],
         )
 
         assert rabbitmq.get_rabbitmq_node_addresses() is None
-        _assert_error_logged(loguru_logs, "Could not resolve template")
-
-    def test_template_traversal_hits_non_dict_skips_host(
-        self, setup_addresses, loguru_logs
-    ):
-        # ``ansible_local`` is a string, so walking ``.testbed_network_devices``
-        # leaves the dict path and the template resolves to None.
-        facts = {"ansible_local": "not-a-dict"}
-        setup_addresses(
-            hosts=["host1"],
-            redis_side_effect=[_encode(facts)],
-            check_output=[
-                _GROUP_LISTING,
-                _hostvars("{{ ansible_local.testbed_network_devices.management }}"),
-            ],
-        )
-
-        assert rabbitmq.get_rabbitmq_node_addresses() is None
-        _assert_error_logged(loguru_logs, "Could not resolve template")
+        _assert_error_logged(loguru_logs, "has no attribute 'ansible_vlan999'")
 
     # -- aggregate results ----------------------------------------------------
 
@@ -336,9 +366,7 @@ class TestGetRabbitmqNodeAddresses:
         )
 
         assert rabbitmq.get_rabbitmq_node_addresses() is None
-        _assert_error_logged(
-            loguru_logs, "Could not retrieve address for any RabbitMQ node"
-        )
+        _assert_error_logged(loguru_logs, "Could not retrieve address for any RabbitMQ")
 
 
 class TestLoadRabbitmqPassword:

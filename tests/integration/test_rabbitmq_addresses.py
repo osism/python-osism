@@ -134,15 +134,11 @@ def test_dashed_interface_name(scenario):
     assert rabbitmq.get_rabbitmq_node_addresses() == [("10.74.34.13", host)]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="internal_interface pointing at an inventory variable is not resolved; "
-    "the resolver only walks dotted paths through the facts (osism/issues#1425)",
-)
 def test_interface_from_inventory_variable(scenario):
-    # The shape reported by a client: internal_interface refers to an inventory
-    # variable, which is itself a literal plus a template. Nothing here is a
-    # fact, so a facts-only walk cannot resolve it.
+    # The shape reported in osism/issues#1425: internal_interface refers to an
+    # inventory variable, which is itself a literal plus a template. Nothing
+    # here is a fact, which is why resolving it needs Ansible's templating
+    # rather than a walk through the facts. Marked xfail until that landed.
     host = scenario(
         "ctl5",
         {
