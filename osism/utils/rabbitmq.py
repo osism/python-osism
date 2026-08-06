@@ -92,11 +92,11 @@ def get_rabbitmq_node_addresses():
 
                 logger.debug(f"Internal interface for {host}: {internal_interface}")
 
-                # Look for the interface in ansible facts
-                # Interface names with special chars are normalized (e.g., eth0.100 -> ansible_eth0_100)
-                normalized_interface = internal_interface.replace(".", "_").replace(
-                    "-", "_"
-                )
+                # Look for the interface in ansible facts. Ansible replaces "-"
+                # with "_" in fact names and leaves dots alone
+                # (PrefixFactNamespace._underscore), so "br-ex" is
+                # ansible_br_ex while "bond0.100" is ansible_bond0.100.
+                normalized_interface = internal_interface.replace("-", "_")
                 interface_key = f"ansible_{normalized_interface}"
 
                 interface_facts = facts.get(interface_key)
