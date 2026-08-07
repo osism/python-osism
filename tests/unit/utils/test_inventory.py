@@ -173,8 +173,11 @@ class TestResolveInHostContext:
                 # The temp dir is gone by the time the test inspects anything,
                 # so read the extra-vars file here.
                 extra_vars = None
-                if "-e" in command:
-                    with open(command[command.index("-e") + 1][1:]) as fp:
+                facts_args = [
+                    a for a in command if isinstance(a, str) and a.startswith("@")
+                ]
+                if facts_args:
+                    with open(facts_args[0][1:]) as fp:
                         extra_vars = json.load(fp)
                 capture.append((command, kwargs, args, extra_vars))
             if value is not None:
@@ -207,12 +210,14 @@ class TestResolveInHostContext:
         command, kwargs, args, _ = calls[0]
         assert command[:2] == ["ansible", "host1"]
         assert command[command.index("-i") + 1] == "/inv/hosts.yml"
-        assert command[command.index("-m") + 1] == "copy"
-        # -c local keeps the module on the controller, so a host that is down
-        # still resolves and no SSH is attempted.
+        assert command[command.index("-m") + 1] == "osism_resolve"
+        # The action plugin runs entirely on the controller, so a host that is
+        # down still resolves and no SSH is attempted.
         assert command[command.index("-c") + 1] == "local"
         assert args["content"] == "{{ internal_interface }}"
         assert kwargs["env"]["ANSIBLE_GATHERING"] == "explicit"
+        action_plugins = kwargs["env"]["ANSIBLE_ACTION_PLUGINS"].split(os.pathsep)
+        assert os.path.dirname(args["dest"]) in action_plugins
 
     def test_module_args_are_json_not_key_value(self, mocker):
         # key=value args would split a value containing spaces.
@@ -235,13 +240,28 @@ class TestResolveInHostContext:
         assert command[command.index("-e") + 1].startswith("@")
         assert extra_vars == facts
 
-    def test_no_extra_vars_argument_without_facts(self, mocker):
+    def test_no_facts_file_without_facts(self, mocker):
         calls = []
         self._run(mocker, value="10.0.0.5", capture=calls)
 
         resolve_in_host_context("host1", "expr", "/inv")
 
-        assert "-e" not in calls[0][0]
+        # No @-prefixed extra-vars file.
+        assert not [a for a in calls[0][0] if a.startswith("@")]
+
+    def test_target_interpreter_is_not_overridden(self, mocker):
+        # The action plugin does not launch a target module, so the target's
+        # interpreter remains available to the expression as an ordinary host
+        # variable.
+        calls = []
+        self._run(mocker, value="10.0.0.5", capture=calls)
+
+        resolve_in_host_context("host1", "ansible_python_interpreter", "/inv")
+
+        command = calls[0][0]
+        assert "ansible_python_interpreter" not in command
+        args = json.loads(command[command.index("-a") + 1])
+        assert args["content"] == "{{ ansible_python_interpreter }}"
 
     def test_nonzero_exit_raises_with_ansible_message(self, mocker):
         # Ansible names the undefined attribute; that is what the operator needs.
