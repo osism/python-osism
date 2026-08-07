@@ -7,6 +7,25 @@ import tempfile
 
 from loguru import logger
 
+_RESOLVE_ACTION_PLUGIN = """\
+from ansible.plugins.action import ActionBase
+
+
+class ActionModule(ActionBase):
+    TRANSFERS_FILES = False
+
+    def run(self, tmp=None, task_vars=None):
+        result = super().run(tmp, task_vars)
+        with open(self._task.args["dest"], "w") as fp:
+            # Ansible types the templated result, so a numeric expression
+            # arrives as an int, which write() rejects. Convert it, so any
+            # expression resolves and not just the ones that happen to yield
+            # a string.
+            fp.write(str(self._task.args["content"]))
+        result["changed"] = False
+        return result
+"""
+
 
 class HostContextResolutionError(Exception):
     """Raised when an expression cannot be templated in a host's context."""
@@ -82,14 +101,14 @@ def resolve_in_host_context(
     code". Re-implementing the templating in the consumer is not an option: it
     only ever covers the shapes that were thought of.
 
-    The value is produced by having Ansible ``copy`` the templated expression
-    into a file, run with ``-c local`` so the module executes on the controller.
-    No connection is made to the host, so this works for hosts that are down or
-    unreachable, and the value is read back byte-exact instead of being parsed
-    out of human-readable output. That matters because the callback formats
-    differ between the ansible-core versions this package runs under, and
-    because ``--tree``, the other way to get structured output, is deprecated
-    for removal in ansible-core 2.23.
+    The value is produced by a controller-side Ansible action plugin. Ansible
+    templates the plugin arguments in the target host's variable context, but
+    the plugin writes the result locally without making a connection or
+    launching a module with the target's Python interpreter. This works for
+    hosts that are down or unreachable and preserves the value byte-exact
+    instead of parsing it out of human-readable output. That matters because
+    callback formats differ between the ansible-core versions this package
+    runs under.
 
     Facts are passed as extra vars rather than through a fact-cache plugin.
     That keeps the call independent of which cache plugin is configured (the
@@ -122,6 +141,14 @@ def resolve_in_host_context(
     env["ANSIBLE_NOCOLOR"] = "1"
 
     with tempfile.TemporaryDirectory(prefix="osism-resolve-") as workdir:
+        action_path = os.path.join(workdir, "osism_resolve.py")
+        with open(action_path, "w") as fp:
+            fp.write(_RESOLVE_ACTION_PLUGIN)
+        configured_action_plugins = env.get("ANSIBLE_ACTION_PLUGINS")
+        env["ANSIBLE_ACTION_PLUGINS"] = os.pathsep.join(
+            part for part in (workdir, configured_action_plugins) if part
+        )
+
         value_path = os.path.join(workdir, "value")
         # JSON module args rather than key=value, so a value containing spaces
         # survives.
@@ -136,7 +163,7 @@ def resolve_in_host_context(
             "-c",
             "local",
             "-m",
-            "copy",
+            "osism_resolve",
             "-a",
             module_args,
         ]
