@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260808.0] - 2026-08-08
+
+### Added
+- SONiC config-generation E2E golden test with a NetBox docker compose fixture (osism/python-osism#2565)
+
+### Changed
+- Add integration tests validating RabbitMQ node interface resolution against real Ansible, wired into CI (osism/python-osism#2577)
+
+### Fixed
+- Rabbitmq node address lookup now keeps dots in interface fact keys instead of mangling them, fixing lookups for VLAN interfaces such as bond0.100 (osism/python-osism#2575)
+- Narrowed the secrets-file existence mock in rabbitmq tests so it no longer interferes with ansible's own file checks (osism/python-osism#2576)
+- Resolve RabbitMQ node internal_interface through Ansible host-context templating instead of a hand-written resolver, correctly handling all Jinja2 expression shapes (osism/python-osism#2578, osism/python-osism@9f78dc2)
+- Honour the console_interface fallback when internal_interface is unset while resolving RabbitMQ node addresses (osism/python-osism#2579)
+- Resolve RabbitMQ node addresses via a controller-side Ansible action plugin, fixing failures when the target host's Python interpreter does not exist on the controller (osism/python-osism#2588)
+
+### Dependencies
+- sushy 5.11.1 → 5.12.0 (osism/python-osism#2582)
+- next 16.2.12 → 16.3.0 (osism/python-osism#2584)
+- eslint-config-next 16.2.12 → 16.3.0 (osism/python-osism#2584)
+- gitpython 3.1.57 → 3.1.58 (osism/python-osism#2587)
+- huey 3.3.2 → 3.3.4 (osism/python-osism#2586, osism/python-osism#2589)
+
 ## [v0.20260806.0] - 2026-08-06
 
 ### Added
