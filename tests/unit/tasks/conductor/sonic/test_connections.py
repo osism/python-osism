@@ -983,3 +983,104 @@ def test_get_connected_interface_ip_addresses_dual_stack_single_pass(
         device, "Ethernet0", nb
     ) == ("192.0.2.1", "2001:db8::1")
     nb.ipam.fhrp_group_assignments.filter.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# get_connected_interface_ip_addresses: LAG member fallback
+# ---------------------------------------------------------------------------
+
+
+def _lag_topology(mocker, patch_detect_port_channels, *, member_cabled=True):
+    """Model a leaf whose PortChannel1 bundles two cabled member ports.
+
+    A NetBox LAG carries no cable of its own, so ``PortChannel1`` has no
+    connected endpoint while its members do. The peer interface belongs to an
+    FHRP group holding a dual-stack VIP, which is how a firewall HA pair is
+    modelled.
+    """
+    lag = SimpleNamespace(
+        name="PortChannel1",
+        type=SimpleNamespace(value="lag"),
+        connected_endpoints=None,
+        connected_endpoints_reachable=False,
+    )
+    peer_iface = SimpleNamespace(id=2, name="x3")
+    member = SimpleNamespace(
+        name="Ethernet0",
+        type=SimpleNamespace(value="100gbase-x-qsfp28"),
+        connected_endpoints=[peer_iface] if member_cabled else None,
+        connected_endpoints_reachable=member_cabled,
+    )
+
+    patch_detect_port_channels({"PortChannel1": {"members": ["Ethernet0"]}})
+    mocker.patch(
+        "osism.tasks.conductor.sonic.connections.get_cached_device_interfaces",
+        return_value=[member],
+    )
+    mocker.patch(
+        "osism.tasks.conductor.sonic.connections.convert_netbox_interface_to_sonic",
+        side_effect=lambda iface, _device: iface.name,
+    )
+
+    nb = mocker.Mock()
+    nb.dcim.interfaces.get.return_value = lag
+    nb.ipam.ip_addresses.filter.return_value = []
+    group = SimpleNamespace(id=1001, name="firewall-ha")
+    nb.ipam.fhrp_group_assignments.filter.return_value = [SimpleNamespace(group=group)]
+    connections._vip_addresses_cache = [
+        SimpleNamespace(
+            address="192.0.2.1/29",
+            assigned_object_type="ipam.fhrpgroup",
+            assigned_object_id=1001,
+        ),
+        SimpleNamespace(
+            address="2001:db8::1/127",
+            assigned_object_type="ipam.fhrpgroup",
+            assigned_object_id=1001,
+        ),
+    ]
+    return nb
+
+
+def test_lag_resolves_peer_vip_through_member_port(
+    mocker, reset_vip_cache, patch_detect_port_channels
+):
+    # A port channel must resolve its peer through a cabled member port;
+    # otherwise the SVI it is switched into gets no BGP neighbor at all.
+    device = SimpleNamespace(id=1, name="leaf-1")
+    nb = _lag_topology(mocker, patch_detect_port_channels)
+    assert connections.get_connected_interface_ip_addresses(
+        device, "PortChannel1", nb
+    ) == ("192.0.2.1", "2001:db8::1")
+
+
+def test_lag_without_cabled_members_returns_no_peer(
+    mocker, reset_vip_cache, patch_detect_port_channels
+):
+    device = SimpleNamespace(id=1, name="leaf-1")
+    nb = _lag_topology(mocker, patch_detect_port_channels, member_cabled=False)
+    assert connections.get_connected_interface_ip_addresses(
+        device, "PortChannel1", nb
+    ) == (None, None)
+
+
+def test_uncabled_physical_interface_does_not_trigger_member_lookup(
+    mocker, reset_vip_cache
+):
+    # The fallback is limited to LAGs: a plain interface without a reachable
+    # endpoint must not reach into detect_port_channels.
+    device = SimpleNamespace(id=1, name="leaf-1")
+    detect = mocker.patch(
+        "osism.tasks.conductor.sonic.interface.detect_port_channels",
+    )
+    nb = mocker.Mock()
+    nb.dcim.interfaces.get.return_value = SimpleNamespace(
+        name="Ethernet0",
+        type=SimpleNamespace(value="100gbase-x-qsfp28"),
+        connected_endpoints=None,
+        connected_endpoints_reachable=False,
+    )
+    assert connections.get_connected_interface_ip_addresses(
+        device, "Ethernet0", nb
+    ) == (None, None)
+    detect.assert_not_called()
