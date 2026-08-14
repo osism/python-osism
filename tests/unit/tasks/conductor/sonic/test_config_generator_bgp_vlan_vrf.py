@@ -1017,3 +1017,61 @@ class TestAddVrfConfiguration:
         assert any(
             "has VRF assignment but is not in" in r["message"] for r in loguru_logs
         )
+
+
+# ---------------------------------------------------------------------------
+# _add_bgp_configurations: a port channel switched into an SVI
+# ---------------------------------------------------------------------------
+
+
+class TestBgpUntaggedPortChannel:
+    """A leaf whose firewall-facing LAG is the untagged member of an SVI.
+
+    The bundle is an L2 port, so it must not appear as a BGP neighbor in its
+    own right; the session belongs to the SVI and uses the peer's numbered
+    address (an FHRP VIP for a firewall HA pair).
+    """
+
+    def _vlan_info(self):
+        return {
+            "vlan_interfaces": {100: {"addresses": ["192.0.2.2/29", "2001:db8::/127"]}},
+            "vlan_members": {100: {"PortChannel1": "untagged"}},
+        }
+
+    def test_untagged_port_channel_excluded_from_neighbors(
+        self, bgp_config, patch_bgp, loguru_logs
+    ):
+        _call_bgp(
+            bgp_config,
+            connected_portchannels={"PortChannel1"},
+            netbox_interfaces={"PortChannel1": _nbif("PortChannel1")},
+            vlan_info=self._vlan_info(),
+        )
+        assert "default|PortChannel1" not in bgp_config["BGP_NEIGHBOR"]
+        assert "default|PortChannel1|ipv4_unicast" not in bgp_config["BGP_NEIGHBOR_AF"]
+        assert "default|PortChannel1|ipv6_unicast" not in bgp_config["BGP_NEIGHBOR_AF"]
+        assert any(
+            "Excluding port channel PortChannel1" in r["message"] for r in loguru_logs
+        )
+
+    def test_svi_peer_resolved_for_untagged_port_channel(self, bgp_config, patch_bgp):
+        patch_bgp.peer_ips.return_value = ("192.0.2.1", "2001:db8::1")
+        _call_bgp(
+            bgp_config,
+            netbox=object(),
+            connected_portchannels={"PortChannel1"},
+            netbox_interfaces={"PortChannel1": _nbif("PortChannel1")},
+            vlan_info=self._vlan_info(),
+        )
+        assert bgp_config["BGP_NEIGHBOR"]["default|192.0.2.1"] == {
+            "peer_type": "external",
+            "v6only": "false",
+        }
+        assert bgp_config["BGP_NEIGHBOR"]["default|2001:db8::1"] == {
+            "peer_type": "external",
+            "v6only": "false",
+        }
+        assert bgp_config["BGP_NEIGHBOR_AF"] == {
+            "default|192.0.2.1|ipv4_unicast": {"admin_status": "true"},
+            "default|2001:db8::1|ipv6_unicast": {"admin_status": "true"},
+        }
