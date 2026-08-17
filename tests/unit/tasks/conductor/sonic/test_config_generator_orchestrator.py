@@ -543,6 +543,30 @@ def test_generate_sonic_config_merges_breakout_cfgs_and_ports(
     assert config["BREAKOUT_PORTS"]["Ethernet0"] == {"master": "Ethernet0"}
 
 
+def test_generate_sonic_config_breakout_ports_projected_to_master_only(
+    mocker, patch_orchestrator_helpers, make_orchestrator_device
+):
+    """Declared-mode stash keys must not leak into the owned BREAKOUT_PORTS
+    table; only ``{"master": <port>}`` belongs in the device config."""
+    patch_base_config(mocker)
+    patch_orchestrator_helpers.detect_breakout_ports.return_value = {
+        "breakout_cfgs": {"Ethernet0": {"brkout_mode": "2x50G"}},
+        "breakout_ports": {
+            "Ethernet0": {
+                "master": "Ethernet0",
+                "declared": True,
+                "lanes": "1,2",
+                "speed": 50000,
+            }
+        },
+    }
+    device = make_orchestrator_device()
+
+    config = generate_sonic_config(device, "HWSKU")
+
+    assert config["BREAKOUT_PORTS"]["Ethernet0"] == {"master": "Ethernet0"}
+
+
 # ---------------------------------------------------------------------------
 # generate_sonic_config — config_version normalization
 # ---------------------------------------------------------------------------
