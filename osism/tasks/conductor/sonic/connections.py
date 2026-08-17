@@ -479,48 +479,49 @@ def _get_connected_endpoint_via_lag_members(
 
     All members of one bundle face the same remote device, so the first member
     that resolves is representative of the bundle.
+
+    Lookup failures are deliberately not caught here: the caller already wraps
+    this in a broad handler that logs a warning and yields ``(None, None)``, so
+    swallowing them locally would only downgrade a real error to a debug line.
     """
-    try:
-        # Import here to avoid circular imports
-        from .interface import detect_port_channels
+    # Import here to avoid circular imports
+    from .interface import detect_port_channels
 
-        portchannel_info = detect_port_channels(device)
-        portchannel = portchannel_info["portchannels"].get(portchannel_name)
-        if not portchannel:
-            return None
-
-        member_ports = portchannel.get("members") or []
-        if not member_ports:
-            return None
-
-        interfaces = get_cached_device_interfaces(device.id)
-        for member_port in member_ports:
-            for member_interface in interfaces:
-                if convert_netbox_interface_to_sonic(member_interface, device) != (
-                    member_port
-                ):
-                    continue
-                endpoint = _get_connected_endpoint(member_interface)
-                if endpoint:
-                    logger.debug(
-                        f"Resolved peer interface for LAG {portchannel_name} "
-                        f"via member port {member_port}"
-                    )
-                    return endpoint
-                break
-
-        logger.debug(
-            f"No cabled member port found for LAG {portchannel_name} "
-            f"on device {device.name}"
-        )
+    portchannel_info = detect_port_channels(device)
+    portchannel = portchannel_info["portchannels"].get(portchannel_name)
+    if not portchannel:
         return None
 
-    except Exception as e:
-        logger.debug(
-            f"Could not resolve peer interface via members of LAG "
-            f"{portchannel_name}: {e}"
-        )
+    member_ports = portchannel.get("members") or []
+    if not member_ports:
         return None
+
+    # Index once instead of rescanning every interface per member. setdefault
+    # keeps the first interface for a name, matching the previous scan order
+    # should two interfaces ever map to the same SONiC name.
+    interfaces_by_sonic_name: dict = {}
+    for interface in get_cached_device_interfaces(device.id):
+        interfaces_by_sonic_name.setdefault(
+            convert_netbox_interface_to_sonic(interface, device), interface
+        )
+
+    for member_port in member_ports:
+        member_interface = interfaces_by_sonic_name.get(member_port)
+        if member_interface is None:
+            continue
+        endpoint = _get_connected_endpoint(member_interface)
+        if endpoint:
+            logger.debug(
+                f"Resolved peer interface for LAG {portchannel_name} "
+                f"via member port {member_port}"
+            )
+            return endpoint
+
+    logger.debug(
+        f"No cabled member port found for LAG {portchannel_name} "
+        f"on device {device.name}"
+    )
+    return None
 
 
 def get_connected_interface_ip_addresses(device, sonic_port_name, netbox):
