@@ -113,6 +113,23 @@ def test_sync_task_timeout_default_from_env(monkeypatch):
     assert parsed_args.task_timeout == 600
 
 
+def test_task_timeout_help_describes_output_inactivity():
+    cmd = reconciler.Sync(MagicMock(), MagicMock())
+    parser = cmd.get_parser("test")
+    help_text = next(
+        action.help
+        for action in parser._actions
+        if "--task-timeout" in action.option_strings
+    )
+
+    # The value bounds how long the client waits for further task output. Time
+    # a task spends queued produces no output, so it counts against the
+    # timeout rather than being excluded from it.
+    assert "output" in help_text.lower()
+    assert "scheduled task that has not been executed" not in help_text.lower()
+    assert "queued" in help_text.lower()
+
+
 def test_sync_returns_nonzero_on_task_timeout():
     cmd, parsed_args = parse_args(reconciler.Sync, [])
 
