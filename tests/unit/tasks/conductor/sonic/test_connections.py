@@ -1084,3 +1084,30 @@ def test_uncabled_physical_interface_does_not_trigger_member_lookup(
         device, "Ethernet0", nb
     ) == (None, None)
     detect.assert_not_called()
+
+
+def test_lag_lookup_error_surfaces_as_warning(
+    mocker, reset_vip_cache, patch_detect_port_channels, loguru_logs
+):
+    # The LAG helper deliberately does not catch its own errors: an unexpected
+    # failure must reach the caller's handler and be logged at warning level,
+    # not disappear into a debug line.
+    device = SimpleNamespace(id=1, name="leaf-1")
+    mocker.patch(
+        "osism.tasks.conductor.sonic.interface.detect_port_channels",
+        side_effect=RuntimeError("NetBox payload changed shape"),
+    )
+    nb = mocker.Mock()
+    nb.dcim.interfaces.get.return_value = SimpleNamespace(
+        name="PortChannel1",
+        type=SimpleNamespace(value="lag"),
+        connected_endpoints=None,
+        connected_endpoints_reachable=False,
+    )
+    assert connections.get_connected_interface_ip_addresses(
+        device, "PortChannel1", nb
+    ) == (None, None)
+    assert any(
+        r["level"] == "WARNING" and "NetBox payload changed shape" in r["message"]
+        for r in loguru_logs
+    )
