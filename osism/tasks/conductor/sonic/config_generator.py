@@ -1312,6 +1312,15 @@ def _add_bgp_configurations(
 
     # Add BGP_NEIGHBOR_AF configuration for connected port channels
     for pc_name in connected_portchannels:
+        # Skip port channels that are untagged VLAN members - BGP peering
+        # happens over the VLAN interface, same as for physical interfaces
+        if _is_untagged_vlan_member(pc_name, vlan_info, netbox_interfaces):
+            logger.info(
+                f"Excluding port channel {pc_name} from BGP configuration "
+                f"(untagged VLAN member)"
+            )
+            continue
+
         # Try to get the IPv4 address of the connected endpoint interface for port channel
         connected_ipv4 = None
         if netbox:
@@ -1453,6 +1462,15 @@ def _add_bgp_configurations(
 
     # Add BGP_NEIGHBOR configuration for connected port channels
     for pc_name in connected_portchannels:
+        # Skip port channels that are untagged VLAN members - BGP peering
+        # happens over the VLAN interface, same as for physical interfaces
+        if _is_untagged_vlan_member(pc_name, vlan_info, netbox_interfaces):
+            logger.info(
+                f"Excluding port channel {pc_name} from BGP_NEIGHBOR "
+                f"configuration (untagged VLAN member)"
+            )
+            continue
+
         # Try to get the IPv4 address of the connected endpoint interface for port channel
         connected_ipv4 = None
         if netbox:

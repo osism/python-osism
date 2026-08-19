@@ -448,6 +448,82 @@ def is_numbered_neighbor_address(address, ip_version):
     return not (ip.is_link_local or ip.is_loopback or ip.is_multicast)
 
 
+def _is_lag_interface(interface) -> bool:
+    """Return True if ``interface`` is a NetBox LAG interface."""
+    interface_type = getattr(interface, "type", None)
+    return getattr(interface_type, "value", None) == "lag"
+
+
+def _get_connected_endpoint(interface) -> Optional[Any]:
+    """Return the first reachable connected endpoint of ``interface``, or None."""
+    if not (
+        hasattr(interface, "connected_endpoints") and interface.connected_endpoints
+    ):
+        return None
+
+    # Ensure connected_endpoints_reachable is True
+    if not getattr(interface, "connected_endpoints_reachable", False):
+        return None
+
+    for endpoint in interface.connected_endpoints:
+        if hasattr(endpoint, "id"):
+            return endpoint
+
+    return None
+
+
+def _get_connected_endpoint_via_lag_members(
+    device: Any, portchannel_name: str
+) -> Optional[Any]:
+    """Return the connected endpoint of the first cabled member of a LAG.
+
+    All members of one bundle face the same remote device, so the first member
+    that resolves is representative of the bundle.
+
+    Lookup failures are deliberately not caught here: the caller already wraps
+    this in a broad handler that logs a warning and yields ``(None, None)``, so
+    swallowing them locally would only downgrade a real error to a debug line.
+    """
+    # Import here to avoid circular imports
+    from .interface import detect_port_channels
+
+    portchannel_info = detect_port_channels(device)
+    portchannel = portchannel_info["portchannels"].get(portchannel_name)
+    if not portchannel:
+        return None
+
+    member_ports = portchannel.get("members") or []
+    if not member_ports:
+        return None
+
+    # Index once instead of rescanning every interface per member. setdefault
+    # keeps the first interface for a name, matching the previous scan order
+    # should two interfaces ever map to the same SONiC name.
+    interfaces_by_sonic_name: dict = {}
+    for interface in get_cached_device_interfaces(device.id):
+        interfaces_by_sonic_name.setdefault(
+            convert_netbox_interface_to_sonic(interface, device), interface
+        )
+
+    for member_port in member_ports:
+        member_interface = interfaces_by_sonic_name.get(member_port)
+        if member_interface is None:
+            continue
+        endpoint = _get_connected_endpoint(member_interface)
+        if endpoint:
+            logger.debug(
+                f"Resolved peer interface for LAG {portchannel_name} "
+                f"via member port {member_port}"
+            )
+            return endpoint
+
+    logger.debug(
+        f"No cabled member port found for LAG {portchannel_name} "
+        f"on device {device.name}"
+    )
+    return None
+
+
 def get_connected_interface_ip_addresses(device, sonic_port_name, netbox):
     """Return ``(ipv4, ipv6)`` peer addresses for the interface connected to
     ``sonic_port_name`` using a single NetBox round-trip.
@@ -460,6 +536,9 @@ def get_connected_interface_ip_addresses(device, sonic_port_name, netbox):
     helper and is deliberate (do not "fix" it toward VIP peering). Only
     addresses usable as numbered neighbors are returned (see
     :func:`is_numbered_neighbor_address`).
+
+    ``sonic_port_name`` may name a port channel. A NetBox LAG cannot carry a
+    cable, so its peer is resolved through the first cabled member port.
 
     Args:
         device: The SONiC device
@@ -477,22 +556,18 @@ def get_connected_interface_ip_addresses(device, sonic_port_name, netbox):
         if not interface:
             return None, None
 
-        # Check if interface has connected_endpoints using the modern API
-        if not (
-            hasattr(interface, "connected_endpoints") and interface.connected_endpoints
-        ):
-            return None, None
+        connected_interface = _get_connected_endpoint(interface)
 
-        # Ensure connected_endpoints_reachable is True
-        if not getattr(interface, "connected_endpoints_reachable", False):
-            return None, None
-
-        # Process each connected endpoint to find the first valid interface
-        connected_interface = None
-        for endpoint in interface.connected_endpoints:
-            if hasattr(endpoint, "id"):
-                connected_interface = endpoint
-                break
+        # A LAG carries no cable of its own in NetBox, so its peer addressing
+        # sits behind the member ports. Fall back to them, mirroring what
+        # get_connected_device_for_port_channel already does for the device
+        # lookup; without this a port channel never resolves a peer and its
+        # BGP session silently degrades to unnumbered (or vanishes, when the
+        # port channel is the untagged member of an SVI).
+        if not connected_interface and _is_lag_interface(interface):
+            connected_interface = _get_connected_endpoint_via_lag_members(
+                device, sonic_port_name
+            )
 
         if not connected_interface:
             return None, None
