@@ -16,6 +16,40 @@ from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
 
 
+def _build_clean_steps(node, metadata_only, raid=None):
+    """Build the clean step list for a single node.
+
+    ``metadata_only`` selects the erase step. RAID capable nodes additionally
+    get ``delete_configuration`` in front of it and, when the node carries a
+    ``target_raid_config``, ``create_configuration`` behind it. That is the
+    order the Ironic documentation prescribes for software RAID: the create step
+    does not remove existing disks and fails outright on a partitioned target,
+    so delete and erase have to run first.
+
+    ``raid`` overrides when the RAID steps are added. ``None`` keeps the
+    previous behaviour, RAID steps on a full clean and none on a metadata only
+    clean, which is what ``--raid`` and ``--no-raid`` make explicit.
+
+    The list is built per node on purpose. Building it once and prepending to it
+    inside the node loop accumulated one ``delete_configuration`` per RAID
+    capable node when ``--all`` was used.
+    """
+    if metadata_only:
+        steps = [{"interface": "deploy", "step": "erase_devices_metadata"}]
+    else:
+        steps = [{"interface": "deploy", "step": "erase_devices"}]
+
+    raid_wanted = (not metadata_only) if raid is None else raid
+    if not raid_wanted or node.get("raid_interface", "no-raid") == "no-raid":
+        return steps
+
+    steps = [{"interface": "raid", "step": "delete_configuration"}] + steps
+    if node.get("target_raid_config"):
+        steps = steps + [{"interface": "raid", "step": "create_configuration"}]
+
+    return steps
+
+
 def _apply_metalbox_vars(play_vars, device):
     metalbox_ip = _get_metalbox_primary_ip4(device)
     if metalbox_ip:
@@ -1190,6 +1224,16 @@ class BaremetalClean(Command):
             action="store_true",
         )
         parser.add_argument(
+            "--raid",
+            default=None,
+            help=(
+                "Include the raid clean steps, delete_configuration and, when the "
+                "node has a target_raid_config, create_configuration. Defaults to "
+                "on for a full clean and off for --metadata-only"
+            ),
+            action=BooleanOptionalAction,
+        )
+        parser.add_argument(
             "--all",
             default=False,
             help="Clean all baremetal nodes in provision state available",
@@ -1208,6 +1252,7 @@ class BaremetalClean(Command):
         all_nodes = parsed_args.all
         name = parsed_args.name
         metadata_only = parsed_args.metadata_only
+        raid = parsed_args.raid
         yes_i_really_really_mean_it = parsed_args.yes_i_really_really_mean_it
 
         if not all_nodes and not name:
@@ -1219,11 +1264,6 @@ class BaremetalClean(Command):
                 "Please confirm that you wish to clean all nodes by specifying '--yes-i-really-really-mean-it'"
             )
             return 1
-
-        if metadata_only:
-            clean_steps = [{"interface": "deploy", "step": "erase_devices_metadata"}]
-        else:
-            clean_steps = [{"interface": "deploy", "step": "erase_devices"}]
 
         from osism.tasks.openstack import get_cloud_helpers
 
@@ -1252,14 +1292,10 @@ class BaremetalClean(Command):
                 if not node:
                     continue
 
-                # NOTE: If the node has an agent raid interface, include step to delete the raid configuration
-                if (
-                    not metadata_only
-                    and node.get("raid_interface", "no-raid") != "no-raid"
-                ):
-                    clean_steps = [
-                        {"interface": "raid", "step": "delete_configuration"}
-                    ] + clean_steps
+                # NOTE: The step list is built per node: a raid capable node gets
+                #       delete_configuration in front of the erase step and, when it
+                #       carries a target_raid_config, create_configuration behind it.
+                clean_steps = _build_clean_steps(node, metadata_only, raid)
 
                 if node.provision_state in ["available"]:
                     # NOTE: Clean is available in the "manageable" provision state, so we move the node into this state
