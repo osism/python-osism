@@ -280,6 +280,83 @@ def _patch_cloud(setup, getconn, cleanup):
     )
 
 
+# --- _build_clean_steps ---
+
+
+def _steps(node, metadata_only=False, raid=None):
+    return [
+        (step["interface"], step["step"])
+        for step in baremetal._build_clean_steps(node, metadata_only, raid)
+    ]
+
+
+def test_clean_steps_without_raid_interface():
+    node = FakeNode(raid_interface="no-raid", target_raid_config={"logical_disks": []})
+    assert _steps(node) == [("deploy", "erase_devices")]
+
+
+def test_clean_steps_raid_capable_without_target_config():
+    """Unchanged behaviour: delete only, there is nothing to create."""
+    node = FakeNode(raid_interface="agent", target_raid_config=None)
+    assert _steps(node) == [
+        ("raid", "delete_configuration"),
+        ("deploy", "erase_devices"),
+    ]
+
+
+def test_clean_steps_creates_configuration_when_declared():
+    node = FakeNode(
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    assert _steps(node) == [
+        ("raid", "delete_configuration"),
+        ("deploy", "erase_devices"),
+        ("raid", "create_configuration"),
+    ]
+
+
+def test_clean_steps_metadata_only_keeps_raid_untouched_by_default():
+    node = FakeNode(
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    assert _steps(node, metadata_only=True) == [("deploy", "erase_devices_metadata")]
+
+
+def test_clean_steps_metadata_only_with_raid_requested():
+    """The combination a fleet needs whose disks cannot be erased in band."""
+    node = FakeNode(
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    assert _steps(node, metadata_only=True, raid=True) == [
+        ("raid", "delete_configuration"),
+        ("deploy", "erase_devices_metadata"),
+        ("raid", "create_configuration"),
+    ]
+
+
+def test_clean_steps_no_raid_requested_on_full_clean():
+    node = FakeNode(
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    assert _steps(node, raid=False) == [("deploy", "erase_devices")]
+
+
+def test_clean_steps_do_not_accumulate_across_nodes():
+    """Regression: the list used to be built once and prepended to per node."""
+    nodes = [
+        FakeNode(
+            name=f"node{index}", raid_interface="agent", target_raid_config={"x": 1}
+        )
+        for index in range(3)
+    ]
+    for node in nodes:
+        assert _steps(node).count(("raid", "delete_configuration")) == 1
+
+
 # --- _apply_metalbox_vars ---
 
 
