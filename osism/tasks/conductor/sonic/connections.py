@@ -524,7 +524,9 @@ def _get_connected_endpoint_via_lag_members(
     return None
 
 
-def get_connected_interface_ip_addresses(device, sonic_port_name, netbox):
+def get_connected_interface_ip_addresses(
+    device, sonic_port_name, netbox, resolve_lag_members=False
+):
     """Return ``(ipv4, ipv6)`` peer addresses for the interface connected to
     ``sonic_port_name`` using a single NetBox round-trip.
 
@@ -538,12 +540,21 @@ def get_connected_interface_ip_addresses(device, sonic_port_name, netbox):
     :func:`is_numbered_neighbor_address`).
 
     ``sonic_port_name`` may name a port channel. A NetBox LAG cannot carry a
-    cable, so its peer is resolved through the first cabled member port.
+    cable, so its peer can only be resolved through the first cabled member
+    port. That walk is opt-in via ``resolve_lag_members`` because it changes
+    what the port channel paths in ``_add_bgp_configurations`` see: a routed
+    port channel that suddenly resolves a numbered peer would key
+    ``BGP_NEIGHBOR`` by that address while ``BGP_NEIGHBOR_AF`` stays keyed by
+    the port channel name, and would keep the hardcoded ``v6only``. Only the
+    SVI lookup, where the port channel is a switched member and never a
+    neighbor in its own right, asks for the fallback today.
 
     Args:
         device: The SONiC device
         sonic_port_name: The SONiC port name
         netbox: The NetBox API client
+        resolve_lag_members: Resolve a LAG through its member ports when the
+            LAG itself has no reachable endpoint. Off by default.
 
     Returns:
         A ``(ipv4, ipv6)`` tuple of address strings; either element is
@@ -561,10 +572,13 @@ def get_connected_interface_ip_addresses(device, sonic_port_name, netbox):
         # A LAG carries no cable of its own in NetBox, so its peer addressing
         # sits behind the member ports. Fall back to them, mirroring what
         # get_connected_device_for_port_channel already does for the device
-        # lookup; without this a port channel never resolves a peer and its
-        # BGP session silently degrades to unnumbered (or vanishes, when the
-        # port channel is the untagged member of an SVI).
-        if not connected_interface and _is_lag_interface(interface):
+        # lookup; without this the SVI peering vanishes when the port channel
+        # is the untagged member of the VLAN.
+        if (
+            not connected_interface
+            and resolve_lag_members
+            and _is_lag_interface(interface)
+        ):
             connected_interface = _get_connected_endpoint_via_lag_members(
                 device, sonic_port_name
             )
@@ -663,7 +677,10 @@ def get_connected_interface_ipv4_address(device, sonic_port_name, netbox):
     """Get the IPv4 address of the connected endpoint interface for a SONiC port.
 
     Thin wrapper around :func:`get_connected_interface_ip_addresses`; see that
-    function for the lookup details (direct IP first, then FHRP VIP).
+    function for the lookup details (direct IP first, then FHRP VIP). The LAG
+    member fallback stays off here: a port channel resolving a numbered peer
+    would break the BGP_NEIGHBOR / BGP_NEIGHBOR_AF keying in
+    ``_add_bgp_configurations``.
     """
     return get_connected_interface_ip_addresses(device, sonic_port_name, netbox)[0]
 
@@ -672,6 +689,9 @@ def get_connected_interface_ipv6_address(device, sonic_port_name, netbox):
     """Get the IPv6 address of the connected endpoint interface for a SONiC port.
 
     Thin wrapper around :func:`get_connected_interface_ip_addresses`; see that
-    function for the lookup details (direct IP first, then FHRP VIP).
+    function for the lookup details (direct IP first, then FHRP VIP). The LAG
+    member fallback stays off here: a port channel resolving a numbered peer
+    would break the BGP_NEIGHBOR / BGP_NEIGHBOR_AF keying in
+    ``_add_bgp_configurations``.
     """
     return get_connected_interface_ip_addresses(device, sonic_port_name, netbox)[1]

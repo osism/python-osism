@@ -1598,7 +1598,7 @@ def _add_bgp_configurations(
                 peer_ip_afs = []
                 if netbox:
                     peer_ipv4, peer_ipv6 = get_connected_interface_ip_addresses(
-                        device, sonic_iface_name, netbox
+                        device, sonic_iface_name, netbox, resolve_lag_members=True
                     )
                     if peer_ipv4 and 4 in local_address_families:
                         peer_ip_afs.append((peer_ipv4, BGP_AF_IPV4_UNICAST))
