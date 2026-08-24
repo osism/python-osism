@@ -1075,3 +1075,7 @@ class TestBgpUntaggedPortChannel:
             "default|192.0.2.1|ipv4_unicast": {"admin_status": "true"},
             "default|2001:db8::1|ipv6_unicast": {"admin_status": "true"},
         }
+        # The SVI lookup is the one caller that opts into the LAG member walk;
+        # without the flag the resolver stops at the uncabled bundle and this
+        # peering disappears again.
+        assert patch_bgp.peer_ips.call_args.kwargs["resolve_lag_members"] is True

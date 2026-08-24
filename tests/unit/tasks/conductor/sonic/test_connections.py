@@ -1050,7 +1050,7 @@ def test_lag_resolves_peer_vip_through_member_port(
     device = SimpleNamespace(id=1, name="leaf-1")
     nb = _lag_topology(mocker, patch_detect_port_channels)
     assert connections.get_connected_interface_ip_addresses(
-        device, "PortChannel1", nb
+        device, "PortChannel1", nb, resolve_lag_members=True
     ) == ("192.0.2.1", "2001:db8::1")
 
 
@@ -1060,8 +1060,28 @@ def test_lag_without_cabled_members_returns_no_peer(
     device = SimpleNamespace(id=1, name="leaf-1")
     nb = _lag_topology(mocker, patch_detect_port_channels, member_cabled=False)
     assert connections.get_connected_interface_ip_addresses(
+        device, "PortChannel1", nb, resolve_lag_members=True
+    ) == (None, None)
+
+
+def test_lag_member_fallback_is_off_by_default(
+    mocker, reset_vip_cache, patch_detect_port_channels
+):
+    # The member walk is opt-in. The port channel loops in
+    # _add_bgp_configurations key BGP_NEIGHBOR_AF by port channel name and
+    # hardcode v6only, so a routed port channel that started resolving a
+    # numbered peer would emit a neighbor and address families naming
+    # different peers. Callers that do not pass the flag keep the old
+    # behaviour, and pay none of the lookups.
+    device = SimpleNamespace(id=1, name="leaf-1")
+    nb = _lag_topology(mocker, patch_detect_port_channels)
+    detect = mocker.patch(
+        "osism.tasks.conductor.sonic.interface.detect_port_channels",
+    )
+    assert connections.get_connected_interface_ip_addresses(
         device, "PortChannel1", nb
     ) == (None, None)
+    detect.assert_not_called()
 
 
 def test_uncabled_physical_interface_does_not_trigger_member_lookup(
@@ -1081,7 +1101,7 @@ def test_uncabled_physical_interface_does_not_trigger_member_lookup(
         connected_endpoints_reachable=False,
     )
     assert connections.get_connected_interface_ip_addresses(
-        device, "Ethernet0", nb
+        device, "Ethernet0", nb, resolve_lag_members=True
     ) == (None, None)
     detect.assert_not_called()
 
@@ -1105,7 +1125,7 @@ def test_lag_lookup_error_surfaces_as_warning(
         connected_endpoints_reachable=False,
     )
     assert connections.get_connected_interface_ip_addresses(
-        device, "PortChannel1", nb
+        device, "PortChannel1", nb, resolve_lag_members=True
     ) == (None, None)
     assert any(
         r["level"] == "WARNING" and "NetBox payload changed shape" in r["message"]
