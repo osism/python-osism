@@ -643,3 +643,89 @@ def test_multi_target_reference_is_judged_when_every_target_is_present():
     assert any(
         e.table == "VLAN_MEMBER" and "Ethernet999" in e.message for e in errors
     ), errors
+
+
+def _key_ref_errors(result):
+    return [e for e in result.errors if "which does not exist" in e.message]
+
+
+def test_af_key_resolves_when_neighbor_keyed_the_same_way():
+    config = {
+        "BGP_NEIGHBOR": {"default|192.0.2.1": {"peer_type": "external"}},
+        "BGP_NEIGHBOR_AF": {
+            "default|192.0.2.1|ipv4_unicast": {"admin_status": "up"},
+        },
+    }
+    assert _key_ref_errors(validate_config(config)) == []
+
+
+def test_af_key_flagged_when_neighbor_keyed_by_address_but_af_by_interface():
+    """The shape the generator emits on the physical and port-channel paths."""
+    config = {
+        "BGP_NEIGHBOR": {"default|192.0.2.1": {"peer_type": "external"}},
+        "BGP_NEIGHBOR_AF": {
+            "default|Ethernet0|ipv4_unicast": {"admin_status": "up"},
+        },
+    }
+    errors = _key_ref_errors(validate_config(config))
+    assert len(errors) == 1
+    assert "default|Ethernet0|ipv4_unicast" in errors[0].message
+    assert "default|Ethernet0" in errors[0].message
+    assert errors[0].table == "BGP_NEIGHBOR_AF"
+
+
+def test_af_key_resolves_for_an_unnumbered_pair():
+    config = {
+        "BGP_NEIGHBOR": {"default|PortChannel1": {"peer_type": "external"}},
+        "BGP_NEIGHBOR_AF": {
+            "default|PortChannel1|ipv4_unicast": {"admin_status": "up"},
+            "default|PortChannel1|l2vpn_evpn": {"admin_status": "up"},
+        },
+    }
+    assert _key_ref_errors(validate_config(config)) == []
+
+
+def test_af_key_is_scoped_to_its_vrf():
+    """A neighbor of the same name in another VRF must not satisfy the reference."""
+    config = {
+        "BGP_NEIGHBOR": {"default|192.0.2.1": {"peer_type": "external"}},
+        "BGP_NEIGHBOR_AF": {
+            "Vrf1|192.0.2.1|ipv4_unicast": {"admin_status": "up"},
+        },
+    }
+    errors = _key_ref_errors(validate_config(config))
+    assert len(errors) == 1
+    assert "Vrf1|192.0.2.1" in errors[0].message
+
+
+def test_af_key_flagged_when_neighbor_table_is_absent():
+    config = {
+        "BGP_NEIGHBOR_AF": {
+            "default|192.0.2.1|ipv4_unicast": {"admin_status": "up"},
+        },
+    }
+    assert len(_key_ref_errors(validate_config(config))) == 1
+
+
+def test_af_key_with_too_few_components_is_left_alone():
+    """Key arity is the row schema's business; this check must not double-report."""
+    config = {
+        "BGP_NEIGHBOR": {"default|192.0.2.1": {"peer_type": "external"}},
+        "BGP_NEIGHBOR_AF": {"default|192.0.2.1": {"admin_status": "up"}},
+    }
+    assert _key_ref_errors(validate_config(config)) == []
+
+
+def test_non_string_row_key_is_reported_not_raised():
+    """A validator must return a result for malformed input, never raise.
+
+    JSON keys are always strings, but ``validate_config`` is public and also
+    takes in-memory dicts, where a non-string key is reachable.
+    """
+    config = {
+        "BGP_NEIGHBOR": {"default|192.0.2.1": {"peer_type": "external"}},
+        "BGP_NEIGHBOR_AF": {7: {"admin_status": "up"}},
+    }
+    result = validate_config(config)
+    assert not result.valid
+    assert _key_ref_errors(result) == []
