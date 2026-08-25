@@ -518,7 +518,7 @@ def test_mount_uses_bind_mount_source_and_passes(capsys):
     assert result == 0
     assert "PASSED" in capsys.readouterr().out
     args = cmd._run_fresh_container.call_args[0]
-    assert args[1] == "registry.osism.cloud/dockerhub/alpine:latest"
+    assert args[1] == "registry.osism.tech/dockerhub/alpine:latest"
     assert args[2] == "/host/configuration"
     assert args[3] == "/opt/configuration"
 

@@ -151,8 +151,8 @@ class Mount(Command):
         )
         parser.add_argument(
             "--registry",
-            default="registry.osism.cloud/dockerhub",
-            help="Container registry to use (default: registry.osism.cloud/dockerhub)",
+            default="registry.osism.tech/dockerhub",
+            help="Container registry to use (default: registry.osism.tech/dockerhub)",
         )
         parser.add_argument(
             "--image",

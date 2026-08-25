@@ -225,7 +225,7 @@ def test_versions_release_derives_sbom_image_from_release_repository(tmp_path):
     # A trailing slash on the repository URL is stripped before the lookup.
     mock_release.assert_called_once_with("9.4.0", "https://example.com/release")
     mock_extract.assert_called_once_with(
-        "registry.osism.cloud/kolla/release/sbom:0.20250928.0"
+        "registry.osism.tech/kolla/release/sbom:0.20250928.0"
     )
     assert result == 0
 
@@ -251,7 +251,7 @@ def test_versions_date_tag_uses_release_sbom_image(tmp_path):
         tmp_path, ["--openstack-version", "0.20251128.0", "--dry-run"]
     )
     mock_extract.assert_called_once_with(
-        "registry.osism.cloud/kolla/release/sbom:0.20251128.0"
+        "registry.osism.tech/kolla/release/sbom:0.20251128.0"
     )
 
 
@@ -260,7 +260,7 @@ def test_versions_v_prefixed_date_tag_is_stripped(tmp_path):
         tmp_path, ["--openstack-version", "v0.20251128.0", "--dry-run"]
     )
     mock_extract.assert_called_once_with(
-        "registry.osism.cloud/kolla/release/sbom:0.20251128.0"
+        "registry.osism.tech/kolla/release/sbom:0.20251128.0"
     )
 
 
@@ -268,7 +268,7 @@ def test_versions_openstack_version_uses_plain_sbom_image(tmp_path):
     _, mock_extract, _ = _run_versions(
         tmp_path, ["--openstack-version", "2025.1", "--dry-run"]
     )
-    mock_extract.assert_called_once_with("registry.osism.cloud/kolla/sbom:2025.1")
+    mock_extract.assert_called_once_with("registry.osism.tech/kolla/sbom:2025.1")
 
 
 def test_versions_explicit_sbom_image_is_used_verbatim(tmp_path):

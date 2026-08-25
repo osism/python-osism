@@ -138,7 +138,7 @@ class Versions(Command):
             "--sbom-image",
             type=str,
             default=None,
-            help="SBOM container image (default: registry.osism.cloud/kolla/sbom:<version>)",
+            help="SBOM container image (default: registry.osism.tech/kolla/sbom:<version>)",
         )
         parser.add_argument(
             "--release",
@@ -155,8 +155,8 @@ class Versions(Command):
         parser.add_argument(
             "--sbom-image-base",
             type=str,
-            default="registry.osism.cloud/kolla/release/sbom",
-            help="Base path for the SBOM container image (default: registry.osism.cloud/kolla/release/sbom)",
+            default="registry.osism.tech/kolla/release/sbom",
+            help="Base path for the SBOM container image (default: registry.osism.tech/kolla/release/sbom)",
         )
         parser.add_argument(
             "--dry-run",
@@ -346,7 +346,7 @@ class Versions(Command):
                 if is_release_version:
                     sbom_image = f"{sbom_image_base}:{version_tag}"
                 else:
-                    sbom_image = f"registry.osism.cloud/kolla/sbom:{version_tag}"
+                    sbom_image = f"registry.osism.tech/kolla/sbom:{version_tag}"
 
         # Check configuration path exists
         if not dry_run and not config_path.exists():
