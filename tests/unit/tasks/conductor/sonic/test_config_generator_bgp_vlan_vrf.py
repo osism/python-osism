@@ -132,21 +132,21 @@ class TestBgpNeighborAfInterfaces:
     def test_no_direct_ipv4_adds_ipv4_and_ipv6(self, bgp_config, patch_bgp):
         self._base(bgp_config, interface_ips={}, transfer_ips={})
         af = bgp_config["BGP_NEIGHBOR_AF"]
-        assert af["default|Ethernet0|ipv4_unicast"] == {"admin_status": "true"}
-        assert af["default|Ethernet0|ipv6_unicast"] == {"admin_status": "true"}
+        assert af["default|Ethernet0|ipv4_unicast"] == {"admin_status": "up"}
+        assert af["default|Ethernet0|ipv6_unicast"] == {"admin_status": "up"}
         assert "default|Ethernet0|l2vpn_evpn" not in af
 
     def test_transfer_role_ipv4_adds_ipv4_only(self, bgp_config, patch_bgp):
         self._base(bgp_config, transfer_ips={"eth0": "10.0.0.1/31"})
         af = bgp_config["BGP_NEIGHBOR_AF"]
-        assert af["default|Ethernet0|ipv4_unicast"] == {"admin_status": "true"}
+        assert af["default|Ethernet0|ipv4_unicast"] == {"admin_status": "up"}
         assert "default|Ethernet0|ipv6_unicast" not in af
 
     def test_switch_to_switch_adds_l2vpn(self, bgp_config, patch_bgp):
         patch_bgp.connected_device.return_value = _switch_device()
         self._base(bgp_config)
         assert bgp_config["BGP_NEIGHBOR_AF"]["default|Ethernet0|l2vpn_evpn"] == {
-            "admin_status": "true"
+            "admin_status": "up"
         }
 
     def test_non_switch_with_l2vpn_tag_adds_l2vpn(self, bgp_config, patch_bgp):
@@ -198,8 +198,8 @@ class TestBgpNeighborAfPortChannels:
     def test_adds_ipv4_and_ipv6(self, bgp_config, patch_bgp):
         _call_bgp(bgp_config, connected_portchannels={"PortChannel1"})
         af = bgp_config["BGP_NEIGHBOR_AF"]
-        assert af["default|PortChannel1|ipv4_unicast"] == {"admin_status": "true"}
-        assert af["default|PortChannel1|ipv6_unicast"] == {"admin_status": "true"}
+        assert af["default|PortChannel1|ipv4_unicast"] == {"admin_status": "up"}
+        assert af["default|PortChannel1|ipv6_unicast"] == {"admin_status": "up"}
 
     def test_switch_connection_adds_l2vpn(self, bgp_config, patch_bgp):
         patch_bgp.connected_device.return_value = _switch_device()
@@ -365,7 +365,7 @@ class TestBgpVlanInterfaces:
             "v6only": "false",
         }
         assert bgp_config["BGP_NEIGHBOR_AF"]["default|192.0.2.20|ipv4_unicast"] == {
-            "admin_status": "true"
+            "admin_status": "up"
         }
 
     def test_untagged_member_with_peer_ipv6(self, bgp_config, patch_bgp):
@@ -384,7 +384,7 @@ class TestBgpVlanInterfaces:
             "v6only": "false",
         }
         assert bgp_config["BGP_NEIGHBOR_AF"]["default|2001:db8::20|ipv6_unicast"] == {
-            "admin_status": "true"
+            "admin_status": "up"
         }
         assert "default|2001:db8::20|ipv4_unicast" not in bgp_config["BGP_NEIGHBOR_AF"]
 
@@ -404,10 +404,10 @@ class TestBgpVlanInterfaces:
             "default|2001:db8::20",
         }
         assert bgp_config["BGP_NEIGHBOR_AF"]["default|192.0.2.20|ipv4_unicast"] == {
-            "admin_status": "true"
+            "admin_status": "up"
         }
         assert bgp_config["BGP_NEIGHBOR_AF"]["default|2001:db8::20|ipv6_unicast"] == {
-            "admin_status": "true"
+            "admin_status": "up"
         }
 
     def test_ipv4_only_svi_skips_ipv6_peer(self, bgp_config, patch_bgp):
@@ -1072,8 +1072,8 @@ class TestBgpUntaggedPortChannel:
             "v6only": "false",
         }
         assert bgp_config["BGP_NEIGHBOR_AF"] == {
-            "default|192.0.2.1|ipv4_unicast": {"admin_status": "true"},
-            "default|2001:db8::1|ipv6_unicast": {"admin_status": "true"},
+            "default|192.0.2.1|ipv4_unicast": {"admin_status": "up"},
+            "default|2001:db8::1|ipv6_unicast": {"admin_status": "up"},
         }
         # The SVI lookup is the one caller that opts into the LAG member walk;
         # without the flag the resolver stops at the uncabled bundle and this

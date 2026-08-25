@@ -1258,12 +1258,12 @@ def _add_bgp_configurations(
                 vrf_name = get_vrf_for_interface(port_name)
 
                 ipv4_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV4_UNICAST}"
-                config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
+                config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "up"}
 
                 # Only add ipv6_unicast if v6only would be true (no transfer role IPv4)
                 if not has_transfer_ipv4:
                     ipv6_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV6_UNICAST}"
-                    config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+                    config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "up"}
                     logger.debug(
                         f"Added BGP_NEIGHBOR_AF with ipv4_unicast and ipv6_unicast for interface {port_name} (no direct IPv4)"
                     )
@@ -1292,7 +1292,7 @@ def _add_bgp_configurations(
 
                     if is_switch_connection or has_l2vpn_tag:
                         l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
-                        config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
+                        config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "up"}
                         logger.debug(
                             f"Added BGP_NEIGHBOR_AF l2vpn_evpn for interface {port_name} "
                             f"(connected to {connected_device.name})"
@@ -1334,8 +1334,8 @@ def _add_bgp_configurations(
 
         ipv4_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV4_UNICAST}"
         ipv6_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV6_UNICAST}"
-        config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
-        config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+        config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "up"}
+        config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "up"}
 
         # Add l2vpn_evpn only for switch-to-switch connections (default VRF)
         if vrf_name == "default":
@@ -1348,7 +1348,7 @@ def _add_bgp_configurations(
             )
             if is_switch_connection:
                 l2vpn_key = f"{vrf_name}|{neighbor_id}|l2vpn_evpn"
-                config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "true"}
+                config["BGP_NEIGHBOR_AF"][l2vpn_key] = {"admin_status": "up"}
                 logger.debug(
                     f"Added BGP_NEIGHBOR_AF l2vpn_evpn for port channel {pc_name} "
                     f"(connected to switch {connected_device.name})"
@@ -1645,7 +1645,7 @@ def _add_bgp_configurations(
 
                     # Add BGP_NEIGHBOR_AF for the matching address family
                     af_key = f"{vrf_name}|{peer_ip}|{address_family}"
-                    config["BGP_NEIGHBOR_AF"][af_key] = {"admin_status": "true"}
+                    config["BGP_NEIGHBOR_AF"][af_key] = {"admin_status": "up"}
 
                     logger.info(
                         f"Added BGP neighbor configuration for VLAN {vid} using peer IP {peer_ip} "
