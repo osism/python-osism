@@ -1,0 +1,24 @@
+# OpenStack CLI plugins used by 'osism openstack'. python-openstackclient
+# itself is pinned in requirements.txt; this file only adds the per-service
+# plugins that provide the additional command groups (loadbalancer, dns,
+# baremetal, share, ...).
+gnocchiclient==7.2.0
+osc-placement==4.9.0
+python-barbicanclient==7.5.0
+python-cinderclient==9.9.0
+python-cloudkittyclient==6.1.0
+python-designateclient==7.0.0
+python-glanceclient==4.12.0
+python-heatclient==5.3.0
+python-ironicclient==6.2.0
+python-keystoneclient==5.8.0
+python-magnumclient==4.11.0
+python-manilaclient==6.2.0
+python-masakariclient==8.8.0
+python-mistralclient==6.2.0
+python-neutronclient==13.0.0
+python-novaclient==18.13.0
+python-octaviaclient==3.14.0
+python-swiftclient==4.10.0
+python-troveclient==8.10.0
+python-watcherclient==4.10.0

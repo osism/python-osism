@@ -53,6 +53,7 @@ apk add --no-cache \
 
 # install python packages
 uv pip install --no-cache --system -r /src/requirements.txt
+uv pip install --no-cache --system -r /src/requirements.openstackclient.txt
 uv pip install --no-cache --system -r /src/requirements.ansible.txt
 uv pip install --no-cache --system -r /src/requirements.openstack-image-manager.txt
 uv pip install --no-cache --system -r /src/requirements.openstack-flavor-manager.txt
