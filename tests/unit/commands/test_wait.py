@@ -19,9 +19,12 @@ via the Celery inspect API, the PENDING/STARTED re-queue behaviour, the
 ``--output`` and ``--refresh`` options, and the script output format.
 """
 
+import importlib
+import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from osism import utils as osism_utils
 from osism.commands import wait
 
 
@@ -235,3 +238,259 @@ def test_script_format_prints_unavailable_for_unknown_pending_task(capsys):
 
     assert mocks.rc == 0
     assert capsys.readouterr().out == "taskid1 = UNAVAILABLE\n"
+
+
+# --- non-destructive peek at a STARTED task's output stream -----------------
+
+
+def test_peek_reports_last_line_and_stall_without_consuming():
+    """A populated stream yields its line count, last line and stall age.
+
+    The peek must never consume: ``fetch_task_output`` is destructive
+    (``xdel`` per entry), and draining here would steal output from the
+    ``--live`` path and from the operator.
+    """
+    r = MagicMock()
+    r.xrevrange.return_value = [
+        (
+            b"1787674033907-0",
+            {b"type": b"stdout", b"content": b"TASK [k3s_download : Download]\n"},
+        )
+    ]
+    r.xlen.return_value = 142
+
+    peek = wait.peek_task_output(r, "taskid1", now=1787674100.0)
+
+    assert peek.lines == 142
+    assert peek.last_line == "TASK [k3s_download : Download]"
+    assert round(peek.stalled_for) == 66
+    r.xdel.assert_not_called()
+    # Pin the redis-py call contract: a MagicMock accepts any argument
+    # order, so without this the helper could be calling xrevrange wrongly
+    # and the test would still pass.
+    r.xrevrange.assert_called_once_with("taskid1", "+", "-", count=1)
+
+
+def _entry(ms_ago, content=b"TASK [k3s_download : Download]\n", seq=0):
+    """Build a stream entry whose ID is ``ms_ago`` milliseconds in the past.
+
+    Deriving the timestamp from the real clock keeps the tests off
+    ``time.time`` -- ``wait.time`` is the shared ``time`` module, so
+    patching it also patches Celery's internals (and made this suite take
+    40s).
+    """
+    # ``seq`` distinguishes entries produced inside the same millisecond,
+    # which is otherwise easy to do by accident and makes two "different"
+    # entries share an ID.
+    entry_id = f"{int(time.time() * 1000) - ms_ago}-{seq}".encode()
+    return (entry_id, {b"type": b"stdout", b"content": content})
+
+
+def _run_started_peek(
+    *,
+    entries=(),
+    entries_sequence=None,
+    xlen=0,
+    args=None,
+    redis_error=None,
+    states=("STARTED", "SUCCESS"),
+):
+    """Drive one STARTED -> SUCCESS cycle with a controlled output stream.
+
+    ``osism.utils.redis`` is a lazy ``__getattr__`` that caches the
+    connection into module globals, so it is patched directly rather than
+    via ``_init_redis``.
+    """
+    cmd = wait.Run(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(args or ["taskid1"])
+
+    conn = MagicMock()
+    if redis_error is not None:
+        conn.xrevrange.side_effect = redis_error
+    elif entries_sequence is not None:
+        conn.xrevrange.side_effect = [list(e) for e in entries_sequence]
+        conn.xlen.return_value = xlen
+    else:
+        conn.xrevrange.return_value = list(entries)
+        conn.xlen.return_value = xlen
+
+    # ``utils.redis`` caches the resolved connection into module globals;
+    # drop it so ``__getattr__`` re-runs and picks up the patched factory
+    # (letting mock resolve the real attribute opens a live connection).
+    osism_utils.__dict__.pop("redis", None)
+
+    with patch("celery.Celery"), patch(
+        "celery.result.AsyncResult",
+        side_effect=[_make_result(state) for state in states],
+    ), patch("osism.commands.wait.time.sleep"), patch(
+        "osism.utils._init_redis", return_value=conn
+    ):
+        rc = cmd.take_action(parsed_args)
+
+    osism_utils.__dict__.pop("redis", None)
+
+    return SimpleNamespace(rc=rc, conn=conn)
+
+
+def test_started_task_silent_past_threshold_reports_its_last_line(loguru_logs):
+    """The whole point: name what the stuck task was last doing."""
+    _run_started_peek(entries=[_entry(ms_ago=3_600_000)], xlen=142)
+
+    assert any(
+        "k3s_download" in record["message"] and "142" in record["message"]
+        for record in loguru_logs
+    )
+
+
+def test_peek_failure_never_breaks_wait_and_is_not_retried(loguru_logs):
+    """A broken or unreachable Redis must not take ``wait`` down with it.
+
+    The non-``--live`` path never touched Redis before, so the peek must
+    not turn it into a hard dependency. After one failure the peek is
+    disabled rather than retried on every poll cycle.
+    """
+    mocks = _run_started_peek(
+        redis_error=RuntimeError("redis down"),
+        states=("STARTED", "STARTED", "SUCCESS"),
+    )
+
+    assert mocks.rc == 0
+    assert mocks.conn.xrevrange.call_count == 1
+    assert any("STARTED" in record["message"] for record in loguru_logs)
+
+
+def _report_stall_directly(task_id, conn, first_seen=None):
+    """Call ``_report_stall`` in isolation with a controlled clock.
+
+    Task age cannot be driven through ``take_action`` without patching
+    ``time.time`` globally, which also patches Celery's internals.
+    """
+    cmd = wait.Run(MagicMock(), MagicMock())
+    cmd._reset_peek_state()
+    if first_seen is not None:
+        cmd._first_seen[task_id] = first_seen
+
+    osism_utils.__dict__.pop("redis", None)
+    with patch("osism.utils._init_redis", return_value=conn):
+        cmd._report_stall(task_id)
+    osism_utils.__dict__.pop("redis", None)
+
+
+def test_task_that_emitted_nothing_at_all_is_reported_as_such(loguru_logs):
+    """An empty stream is a diagnosis too.
+
+    It separates a task hung mid-play (partial output recoverable) from
+    one that hung before writing its first line.
+    """
+    conn = MagicMock()
+    conn.xrevrange.return_value = []
+
+    _report_stall_directly("taskid1", conn, first_seen=time.time() - 3600)
+
+    assert any("no output at all" in record["message"] for record in loguru_logs)
+
+
+def test_started_task_with_recent_output_stays_quiet(loguru_logs):
+    """Healthy runs must not get noisier.
+
+    A nutshell run polls thousands of times across ~22 concurrent tasks;
+    reporting on tasks that are making progress would swamp the job log.
+    """
+    _run_started_peek(entries=[_entry(ms_ago=5_000)], xlen=12)
+
+    assert not any("no output" in record["message"] for record in loguru_logs)
+
+
+def test_script_format_is_unchanged_and_does_not_peek(capsys):
+    """``--format script`` is machine-read; it must stay byte-identical."""
+    mocks = _run_started_peek(
+        entries=[_entry(ms_ago=3_600_000)],
+        xlen=142,
+        args=["taskid1", "--format", "script"],
+    )
+
+    assert mocks.conn.xrevrange.call_count == 0
+    assert "taskid1 = STARTED" in capsys.readouterr().out
+
+
+def test_stalled_task_is_not_reported_on_every_poll_cycle(loguru_logs):
+    """An unchanged stall is not news on every cycle.
+
+    The loop sleeps only once per pass over all tasks, so with the
+    default one-second delay a wedged task would otherwise emit one
+    warning per second for as long as it stays wedged.
+    """
+    _run_started_peek(
+        entries=[_entry(ms_ago=3_600_000)],
+        xlen=142,
+        states=("STARTED",) * 10 + ("SUCCESS",),
+    )
+
+    reports = [r for r in loguru_logs if "emitted no output" in r["message"]]
+    assert len(reports) == 1
+
+
+def test_stall_is_reported_again_once_output_has_advanced(loguru_logs):
+    """A new stall is news even inside the restate window.
+
+    Suppression is keyed on the last line, not on time alone, so a task
+    that emits something and then wedges again is reported immediately
+    rather than being swallowed by the previous report's window.
+    """
+    first = [_entry(ms_ago=3_600_000, content=b"TASK [one]\n", seq=0)]
+    second = [_entry(ms_ago=3_600_000, content=b"TASK [two]\n", seq=1)]
+
+    _run_started_peek(
+        entries_sequence=[first, first, second, second],
+        xlen=142,
+        states=("STARTED",) * 4 + ("SUCCESS",),
+    )
+
+    reports = [r for r in loguru_logs if "emitted no output" in r["message"]]
+    assert len(reports) == 2
+    assert "TASK [one]" in reports[0]["message"]
+    assert "TASK [two]" in reports[1]["message"]
+
+
+# --- configuration robustness ----------------------------------------------
+
+
+def test_valid_stall_threshold_is_used(monkeypatch):
+    monkeypatch.setenv("OSISM_WAIT_STALL_REPORT", "42")
+
+    assert wait.stall_report_seconds() == 42
+
+
+def test_unparseable_stall_threshold_falls_back_and_says_so(monkeypatch, loguru_logs):
+    """A typo in the variable must not brick ``osism wait``."""
+    monkeypatch.setenv("OSISM_WAIT_STALL_REPORT", "abc")
+
+    assert wait.stall_report_seconds() == wait.DEFAULT_STALL_REPORT_SECONDS
+    assert any("OSISM_WAIT_STALL_REPORT" in r["message"] for r in loguru_logs)
+
+
+def test_non_positive_stall_threshold_falls_back(monkeypatch):
+    """Zero would report every poll cycle -- the flood the throttle prevents."""
+    monkeypatch.setenv("OSISM_WAIT_STALL_REPORT", "0")
+
+    assert wait.stall_report_seconds() == wait.DEFAULT_STALL_REPORT_SECONDS
+
+
+def test_module_still_imports_with_an_invalid_threshold(monkeypatch):
+    """The value must not be parsed at import time."""
+    monkeypatch.setenv("OSISM_WAIT_STALL_REPORT", "not-a-number")
+
+    importlib.reload(wait)  # must not raise
+
+
+def test_peek_failure_is_reported_at_a_visible_level(loguru_logs):
+    """``osism`` pins loguru to INFO, so a debug line is never seen.
+
+    Silently dropping the diagnosis reproduces, in miniature, the problem
+    this feature exists to solve.
+    """
+    _run_started_peek(redis_error=RuntimeError("redis down"))
+
+    notices = [r for r in loguru_logs if "stall reporting" in r["message"].lower()]
+    assert len(notices) == 1
+    assert notices[0]["level"] in ("WARNING", "ERROR")
