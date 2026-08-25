@@ -729,3 +729,9 @@ def test_non_string_row_key_is_reported_not_raised():
     result = validate_config(config)
     assert not result.valid
     assert _key_ref_errors(result) == []
+
+
+def test_non_string_row_key_in_a_simple_key_table_is_reported_not_raised():
+    config = {"INTERFACE": {7: {}}, "PORT": {"Ethernet0": {"lanes": "0"}}}
+    result = validate_config(config)
+    assert not result.valid
