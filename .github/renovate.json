@@ -9,6 +9,7 @@
       "/requirements.netbox-manager.txt/",
       "/requirements.openstack-flavor-manager.txt/",
       "/requirements.openstack-image-manager.txt/",
+      "/requirements.openstackclient.txt/",
       "/requirements.txt/"
     ]
   }
