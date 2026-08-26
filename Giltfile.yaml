@@ -1,10 +1,36 @@
 ---
+# Vendoring for files/sonic/yang_models/, the SONiC YANG the ConfigDB validator
+# generates its Pydantic schemas from (tools/sonic_yang_to_pydantic.py).
+#
+# `version` is pinned rather than tracking `master`: these models decide what
+# the validator accepts, so an unpinned refresh could change validation
+# results with nothing to review. The pin is the upstream tip at the original
+# import (2025-11-09).
+#
+# Two caveats, both established by comparing blob hashes against upstream:
+#
+#   * This overlay does not reproduce the committed tree. At the pinned commit
+#     114 of the 135 vendored models are identical and 21 differ, so refreshing
+#     is a deliberate operation: re-run the overlay, regenerate the schemas, and
+#     re-measure the validator against the goldens before committing the result.
+#
+#   * Three vendored models — sonic-types.yang, sonic-extension.yang and
+#     sonic-policer.yang — are NOT produced by this overlay. Upstream keeps them
+#     as Jinja templates under src/sonic-yang-models/yang-templates/*.yang.j2 and
+#     renders them at build time. They were added by hand and must survive a
+#     refresh; sonic-types.yang in particular carries typedefs the other models
+#     depend on.
+#
+# Note also that the models are community SONiC while the supported HWSKUs run
+# Enterprise SONiC builds. Where the two disagree the table is opted out via
+# PLATFORM_DIVERGENT_TABLES in tools/sonic_yang_to_pydantic.py; re-check that
+# list when this pin moves.
 giltDir: ~/.gilt/clone
 debug: false
 parallel: true
 repositories:
   - git: https://github.com/sonic-net/sonic-buildimage
-    version: master
+    version: c12ed06001bc68d3c72872142487ca30c3cc6267
     sources:
       - src: src/sonic-yang-models/yang-models/*.yang
         dstDir: files/sonic/yang_models/
