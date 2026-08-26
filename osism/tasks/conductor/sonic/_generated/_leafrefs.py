@@ -788,12 +788,6 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_is_simple_key=True,
     ),
     LeafrefConstraint(
-        source_table="SYSLOG_SERVER",
-        source_field="vrf",
-        targets=(("VRF", "name"),),
-        plain_arms=(("\\A(?:default|mgmt)\\z",),),
-    ),
-    LeafrefConstraint(
         source_table="TACPLUS",
         source_field="src_intf",
         targets=(

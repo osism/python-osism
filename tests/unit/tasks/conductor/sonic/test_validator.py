@@ -407,3 +407,76 @@ def test_string_valued_leaf_list_still_flags_a_missing_element():
     errors = _leafref_errors(validate_config(config))
     assert any("gone" in e.message for e in errors), errors
     assert not any("p1,gone" in e.message for e in errors), errors
+
+
+def _warnings_for(result, table):
+    return [w for w in result.warnings if table in w]
+
+
+def test_platform_divergent_table_is_not_schema_validated():
+    """The vendored models are community SONiC; these devices run an
+    Enterprise build that models SYSLOG_SERVER with different field names and
+    an uppercase protocol enum. Validating one against the other only produces
+    false positives, so the table carries no schema."""
+    config = {
+        "SYSLOG_SERVER": {
+            "192.0.2.1": {
+                "message-type": "log",
+                "protocol": "UDP",
+                "remote-port": "514",
+                "severity": "info",
+                "vrf_name": "mgmt",
+            },
+        },
+    }
+    result = validate_config(config)
+    assert [e for e in result.errors if e.table == "SYSLOG_SERVER"] == [], result.errors
+
+
+def test_platform_divergent_table_says_why_it_was_skipped():
+    """The warning must not read like the plain 'no YANG schema' case: here a
+    model exists and is deliberately not trusted."""
+    result = validate_config({"SYSLOG_SERVER": {"10.0.0.1": {"protocol": "UDP"}}})
+    warnings = _warnings_for(result, "SYSLOG_SERVER")
+    assert warnings, result.warnings
+    assert any("platform" in w.lower() for w in warnings), warnings
+
+
+def test_platform_divergent_mgmt_port_accepts_the_device_value():
+    """MGMT_PORT.autoneg is a boolean on the target platform; the community
+    model constrains it to the pattern `on|off`."""
+    config = {"MGMT_PORT": {"eth0": {"autoneg": "true", "admin_status": "up"}}}
+    result = validate_config(config)
+    assert [e for e in result.errors if e.table == "MGMT_PORT"] == [], result.errors
+
+
+def test_platform_divergent_table_drops_its_own_leafrefs():
+    """SYSLOG_SERVER.vrf is a community-only field — the platform spells it
+    vrf_name — so the constraint sourced from it must go with the schema."""
+    from osism.tasks.conductor.sonic._generated import LEAFREFS
+
+    assert [c for c in LEAFREFS if c.source_table == "SYSLOG_SERVER"] == []
+
+
+def test_platform_divergent_table_still_usable_as_a_leafref_target():
+    """MGMT_PORT is the target of several leafrefs. Row keys carry the value in
+    either flavour, so those checks stay live."""
+    from osism.tasks.conductor.sonic._generated import LEAFREFS
+
+    assert [c for c in LEAFREFS if any(t[0] == "MGMT_PORT" for t in c.targets)]
+    config = {
+        "MGMT_PORT": {"eth0": {"admin_status": "up"}},
+        "MGMT_INTERFACE": {"eth99|10.0.0.1/24": {}, "eth0|10.0.0.2/24": {}},
+    }
+    result = validate_config(config)
+    assert isinstance(result.errors, list)
+
+
+def test_unmodelled_and_divergent_warnings_are_distinguishable():
+    result = validate_config(
+        {"NOT_A_REAL_TABLE": {"x": {}}, "SYSLOG_SERVER": {"10.0.0.1": {}}}
+    )
+    unmodelled = _warnings_for(result, "NOT_A_REAL_TABLE")
+    divergent = _warnings_for(result, "SYSLOG_SERVER")
+    assert unmodelled and divergent
+    assert unmodelled[0] != divergent[0]

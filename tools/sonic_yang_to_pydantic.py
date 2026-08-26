@@ -60,6 +60,28 @@ LEAF_LIST_STRING_DELIMITERS = {
     ("PORT", "adv_interface_types"): ",",
 }
 
+# Tables the vendored models describe differently from the platform OSISM
+# targets, and which are therefore left unvalidated rather than validated
+# against a model the devices do not implement.
+#
+# `files/sonic/yang_models/` is vendored from sonic-net/sonic-buildimage —
+# community SONiC — while the supported HWSKUs run Enterprise SONiC builds
+# (Broadcom lineage, via `frrcfgd` and a translib-derived schema). Most tables
+# agree between the two. These do not, and validating them only manufactures
+# errors about values the platform considers correct.
+#
+# Add a table here only with the divergence established against the platform,
+# not inferred from our own generated artifacts — the config generator's output
+# is not evidence about what the device expects.
+PLATFORM_DIVERGENT_TABLES = {
+    "SYSLOG_SERVER": (
+        "the platform models this table with different field names "
+        "(message-type, remote-port, vrf_name) and an uppercase "
+        "TCP/UDP/TLS protocol enum"
+    ),
+    "MGMT_PORT": ("the platform models autoneg as a boolean, not as `on`/`off`"),
+}
+
 YANG_INT_BOUNDS = {
     "int8": (-(2**7), 2**7 - 1),
     "int16": (-(2**15), 2**15 - 1),
@@ -756,6 +778,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     registry: List[Tuple[str, str]] = []
     leafrefs: List[LeafrefConstraint] = []
     skipped: List[Tuple[str, str]] = []
+    divergent: List[str] = []
     seen_tables: set = set()
 
     for path, module, container in find_table_containers(modules):
@@ -772,6 +795,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             continue
         seen_tables.add(table_name)
 
+        if table_name in PLATFORM_DIVERGENT_TABLES:
+            # No model and no constraints sourced here: both would describe a
+            # table the target platform implements differently. The table stays
+            # usable as a leafref *target*, since ConfigDB row keys carry the
+            # referenced value whichever flavour named the key leaf.
+            divergent.append(table_name)
+            continue
+
         code_blocks.append(f"\n# {path.name} :: {module.arg} :: {table_name}\n{code}")
         registry.append((table_name, table_class))
         leafrefs.extend(table_leafrefs)
@@ -780,6 +811,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     body += "\n\nTABLE_MODELS: Dict[str, type[BaseModel]] = {\n"
     for table_name, table_class in sorted(registry):
         body += f'    "{table_name}": {table_class},\n'
+    body += "}\n"
+
+    body += (
+        "\n# Tables deliberately left unvalidated: the vendored models describe\n"
+        "# them differently from the platform these configs run on.\n"
+        "PLATFORM_DIVERGENT_TABLES: Dict[str, str] = {\n"
+    )
+    for table_name in sorted(divergent):
+        body += f"    {table_name!r}: {PLATFORM_DIVERGENT_TABLES[table_name]!r},\n"
     body += "}\n"
 
     used_typing = [n for n in TYPING_NAMES if re.search(rf"\b{n}\b", body)]
@@ -806,11 +846,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         "# AUTO-GENERATED — DO NOT EDIT BY HAND.\n"
         '"""Generated SONiC ConfigDB schemas."""\n\n'
         "from ._leafrefs import LEAFREFS, LeafrefConstraint\n"
-        "from ._schemas import TABLE_MODELS\n\n"
-        '__all__ = ["LEAFREFS", "LeafrefConstraint", "TABLE_MODELS"]\n'
+        "from ._schemas import PLATFORM_DIVERGENT_TABLES, TABLE_MODELS\n\n"
+        "__all__ = [\n"
+        '    "LEAFREFS",\n'
+        '    "LeafrefConstraint",\n'
+        '    "PLATFORM_DIVERGENT_TABLES",\n'
+        '    "TABLE_MODELS",\n'
+        "]\n"
     )
 
     print(f"Wrote {len(registry)} table models -> {out_file}")
+    if divergent:
+        print(f"Left {len(divergent)} table(s) unvalidated (platform divergence):")
+        for name in sorted(divergent):
+            print(f"  - {name}: {PLATFORM_DIVERGENT_TABLES[name]}")
     print(f"Wrote {len(leafrefs)} leafref constraints -> {leafrefs_file}")
     if skipped:
         print(f"Skipped {len(skipped)} containers:")
