@@ -5,6 +5,12 @@
 [![PyPi license](https://badgen.net/pypi/license/osism/)](https://pypi.org/project/osism/)
 [![Documentation](https://img.shields.io/static/v1?label=&message=documentation&color=blue)](https://osism.tech/docs/references/cli)
 
+## Documentation
+
+- [SONiC ConfigDB validation](docs/sonic-config-validation.md) — how
+  `osism sonic validate` is built, what it does not check, and the caveat that
+  the vendored YANG models are a different SONiC flavour to the devices.
+
 ## Running unit tests
 
 Install development dependencies and run the full unit test suite:
