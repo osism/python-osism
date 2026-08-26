@@ -39,6 +39,27 @@ HEADER_PREFIX = '''\
 
 TYPING_NAMES = ("Annotated", "Any", "Dict", "List", "Literal", "Optional", "Union")
 
+# ConfigDB carries most YANG leaf-lists as a JSON array, but a handful as a
+# single delimited string. Upstream sonic-yang-mgmt keeps the exhaustive table
+# of those exceptions and splits on it before handing a config to libyang; this
+# mirrors it, so the generated schema accepts what ConfigDB actually holds.
+#
+# Kept verbatim from LEAF_LIST_WITH_STRING_VALUE_DICT in
+# src/sonic-yang-mgmt/sonic_yang_ext.py (sonic-net/sonic-buildimage), including
+# the one field that separates on ';' rather than ',': re-check it when the
+# vendored YANG models are refreshed. Pairs that are a plain `leaf` in the
+# vendored models rather than a `leaf-list` are simply never applied.
+LEAF_LIST_STRING_DELIMITERS = {
+    ("MIRROR_SESSION", "src_ip"): ",",
+    ("NTP", "src_intf"): ";",
+    ("BGP_ALLOWED_PREFIXES", "prefixes_v4"): ",",
+    ("BGP_ALLOWED_PREFIXES", "prefixes_v6"): ",",
+    ("BUFFER_PORT_EGRESS_PROFILE_LIST", "profile_list"): ",",
+    ("BUFFER_PORT_INGRESS_PROFILE_LIST", "profile_list"): ",",
+    ("PORT", "adv_speeds"): ",",
+    ("PORT", "adv_interface_types"): ",",
+}
+
 YANG_INT_BOUNDS = {
     "int8": (-(2**7), 2**7 - 1),
     "int16": (-(2**15), 2**15 - 1),
@@ -121,6 +142,10 @@ class LeafrefConstraint:
     true when the source leaf is the sole `key` of its YANG list, so the row
     key in ConfigDB JSON directly carries the value.
 
+    ``element_delimiter`` is set when ConfigDB carries this leaf-list as one
+    delimited string rather than a JSON array, so the references inside it can
+    be resolved separately instead of as one long value.
+
     ``plain_arms`` carries the non-leafref arms of a union — a union accepts a
     value if *any* arm does, so a value one of these admits is legal even
     though it resolves to no target. Each arm is the tuple of YANG patterns
@@ -135,6 +160,7 @@ class LeafrefConstraint:
     is_leaf_list: bool = False
     source_is_simple_key: bool = False
     plain_arms: Tuple[Tuple[str, ...], ...] = ()
+    element_delimiter: Optional[str] = None
 
     @property
     def is_vacuous(self) -> bool:
@@ -332,6 +358,11 @@ def collect_leafref_constraints(
         if not targets:
             continue
         is_simple_key = len(keys) == 1 and leaf.arg == keys[0]
+        delimiter = (
+            LEAF_LIST_STRING_DELIMITERS.get((table_name, leaf.arg))
+            if leaf.keyword == "leaf-list"
+            else None
+        )
         plain_arms = tuple(
             tuple(render_arm_pattern(p) for p in arm)
             for arm in extract_union_plain_arms(type_stmt)
@@ -344,6 +375,7 @@ def collect_leafref_constraints(
                 is_leaf_list=(leaf.keyword == "leaf-list"),
                 source_is_simple_key=is_simple_key,
                 plain_arms=plain_arms,
+                element_delimiter=delimiter,
             )
         )
     return constraints
@@ -527,19 +559,51 @@ def leaf_field_decl(leaf_stmt) -> str:
     return f"    {field_name}: {annotation} = {default_repr}"
 
 
-def leaf_list_field_decl(stmt) -> str:
+def leaf_list_field_decl(stmt, table_name: Optional[str] = None) -> str:
     py = (
         yang_type_to_py(stmt.search_one("type"))
         if stmt.search_one("type")
         else PyType("Any")
     )
     field_name, alias = safe_field_name(stmt.arg)
-    annotation = f"Optional[List[{py.annotation}]]"
+    inner = f"List[{py.annotation}]"
+    delimiter = (
+        LEAF_LIST_STRING_DELIMITERS.get((table_name, stmt.arg))
+        if table_name is not None
+        else None
+    )
+    if delimiter is not None:
+        # The elements are still validated; only the container shape is widened.
+        inner = f"Annotated[{inner}, BeforeValidator(_split_delimited({delimiter!r}))]"
+    annotation = f"Optional[{inner}]"
     if alias:
         return (
             f"    {field_name}: {annotation} = " f"Field(default=None, alias={alias!r})"
         )
     return f"    {field_name}: {annotation} = None"
+
+
+# Emitted into the generated schema module when any field needs it.
+SPLIT_HELPER = '''
+def _split_delimited(delimiter: str):
+    """Accept a ConfigDB leaf-list written as one delimited string.
+
+    A few leaf-lists reach ConfigDB as `"100000,50000"` rather than as a JSON
+    array; see LEAF_LIST_WITH_STRING_VALUE_DICT in upstream sonic-yang-mgmt.
+    Splitting mirrors what SONiC does before validating, down to stripping
+    each element, so an empty string yields one empty element and is rejected
+    here exactly as SONiC would reject it. Values already in array form are
+    passed through untouched.
+    """
+
+    def split(value):
+        if isinstance(value, str):
+            return [element.strip() for element in value.split(delimiter)]
+        return value
+
+    return split
+
+'''
 
 
 def iter_resolved_children(stmt):
@@ -565,13 +629,15 @@ def collect_leaves(stmt):
     return out
 
 
-def generate_row_class(class_name: str, leaves) -> str:
+def generate_row_class(
+    class_name: str, leaves, table_name: Optional[str] = None
+) -> str:
     rows = []
     for leaf in leaves:
         if leaf.keyword == "leaf":
             rows.append(leaf_field_decl(leaf))
         elif leaf.keyword == "leaf-list":
-            rows.append(leaf_list_field_decl(leaf))
+            rows.append(leaf_list_field_decl(leaf, table_name))
     if not rows:
         rows = ["    pass"]
     return (
@@ -606,14 +672,14 @@ def generate_table(
         for lst in lists:
             row_class = to_class_name(lst.arg) + "Row"
             leaves = collect_leaves(lst)
-            parts.append(generate_row_class(row_class, leaves))
+            parts.append(generate_row_class(row_class, leaves, table_name))
             row_classes.append(row_class)
             constraints.extend(collect_leafref_constraints(table_name, lst, leaves))
     elif sub_containers:
         for sc in sub_containers:
             row_class = base + to_class_name(sc.arg) + "Row"
             leaves = collect_leaves(sc)
-            parts.append(generate_row_class(row_class, leaves))
+            parts.append(generate_row_class(row_class, leaves, table_name))
             row_classes.append(row_class)
             constraints.extend(collect_leafref_constraints(table_name, sc, leaves))
     else:
@@ -720,8 +786,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     typing_import = (
         f"from typing import {', '.join(used_typing)}\n\n" if used_typing else ""
     )
-    pydantic_import = "from pydantic import BaseModel, ConfigDict, Field, RootModel, StringConstraints\n\n"
-    schema_code = HEADER_PREFIX + typing_import + pydantic_import + body
+    pydantic_names = ["BaseModel", "ConfigDict", "Field", "RootModel"]
+    if "BeforeValidator" in body:
+        pydantic_names.append("BeforeValidator")
+    pydantic_names.append("StringConstraints")
+    pydantic_import = f"from pydantic import {', '.join(sorted(pydantic_names))}\n\n"
+    helper = SPLIT_HELPER if "_split_delimited" in body else ""
+    schema_code = HEADER_PREFIX + typing_import + pydantic_import + helper + body
 
     out_file = output / "_schemas.py"
     out_file.write_text(schema_code)
@@ -792,6 +863,7 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
             source_is_simple_key=existing.source_is_simple_key
             or c.source_is_simple_key,
             plain_arms=tuple(new_arms),
+            element_delimiter=existing.element_delimiter or c.element_delimiter,
         )
 
     sorted_constraints = sorted(
@@ -806,7 +878,7 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
     lines.append('"""SONiC ConfigDB cross-table leafref constraints."""')
     lines.append("")
     lines.append("from dataclasses import dataclass")
-    lines.append("from typing import Tuple")
+    lines.append("from typing import Optional, Tuple")
     lines.append("")
     lines.append("")
     lines.append("@dataclass(frozen=True)")
@@ -833,6 +905,7 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
     lines.append("    is_leaf_list: bool = False")
     lines.append("    source_is_simple_key: bool = False")
     lines.append("    plain_arms: Tuple[Tuple[str, ...], ...] = ()")
+    lines.append("    element_delimiter: Optional[str] = None")
     lines.append("")
     lines.append("")
     lines.append("LEAFREFS: Tuple[LeafrefConstraint, ...] = (")
@@ -859,6 +932,8 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
             if len(c.plain_arms) == 1:
                 arms_repr += ","
             lines.append(f"        plain_arms=({arms_repr}),")
+        if c.element_delimiter is not None:
+            lines.append(f"        element_delimiter={c.element_delimiter!r},")
         lines.append("    ),")
     lines.append(")")
     lines.append("")

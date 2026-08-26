@@ -5,7 +5,7 @@
 """SONiC ConfigDB cross-table leafref constraints."""
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,7 @@ class LeafrefConstraint:
     is_leaf_list: bool = False
     source_is_simple_key: bool = False
     plain_arms: Tuple[Tuple[str, ...], ...] = ()
+    element_delimiter: Optional[str] = None
 
 
 LEAFREFS: Tuple[LeafrefConstraint, ...] = (
@@ -244,6 +245,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_field="profile_list",
         targets=(("BUFFER_PROFILE", "name"),),
         is_leaf_list=True,
+        element_delimiter=",",
     ),
     LeafrefConstraint(
         source_table="BUFFER_PORT_INGRESS_PROFILE_LIST",
@@ -256,6 +258,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_field="profile_list",
         targets=(("BUFFER_PROFILE", "name"),),
         is_leaf_list=True,
+        element_delimiter=",",
     ),
     LeafrefConstraint(
         source_table="BUFFER_PROFILE",
@@ -504,6 +507,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         ),
         is_leaf_list=True,
         plain_arms=(("\\A(?:eth0)\\z",),),
+        element_delimiter=";",
     ),
     LeafrefConstraint(
         source_table="NTP_SERVER",

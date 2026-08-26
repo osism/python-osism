@@ -190,7 +190,14 @@ def _iter_leafref_values(
                 if isinstance(item, str):
                     yield item
         elif isinstance(raw, str):
-            yield raw
+            # A few leaf-lists reach ConfigDB as one delimited string. The
+            # schema splits those; resolving the whole string as a single
+            # reference would report every multi-element value as dangling.
+            if constraint.element_delimiter:
+                for item in raw.split(constraint.element_delimiter):
+                    yield item.strip()
+            else:
+                yield raw
     else:
         if isinstance(raw, str):
             yield raw

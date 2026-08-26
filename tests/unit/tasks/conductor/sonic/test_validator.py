@@ -286,3 +286,124 @@ def test_uncompilable_arm_pattern_is_reported_not_silently_skipped(monkeypatch):
         assert not result.valid
     finally:
         v._pattern_adapter.cache_clear()
+
+
+def _port_errors(result, field):
+    """PORT errors about one field. A leaf-list element failure extends the
+    path with the element index and the union arm that rejected it, so match
+    the field as a path segment rather than as a suffix."""
+    return [
+        e
+        for e in result.errors
+        if e.table == "PORT" and field in (e.path or "").split(".")
+    ]
+
+
+def _rows_flagged(result, field):
+    return {(e.path or "").split(".")[0] for e in _port_errors(result, field)}
+
+
+def test_string_valued_leaf_list_accepts_the_configdb_form():
+    """ConfigDB carries a handful of YANG leaf-lists as a delimited string
+    rather than a JSON array; upstream sonic-yang-mgmt keeps the table of them
+    in LEAF_LIST_WITH_STRING_VALUE_DICT, and PORT.adv_speeds is one."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000", "adv_speeds": "all"}}
+    }
+    result = validate_config(config)
+    assert _port_errors(result, "adv_speeds") == []
+
+
+def test_string_valued_leaf_list_splits_multiple_elements():
+    config = {
+        "PORT": {
+            "Ethernet0": {"lanes": "0", "speed": "10000", "adv_speeds": "100000,50000"},
+        },
+    }
+    result = validate_config(config)
+    assert _port_errors(result, "adv_speeds") == []
+
+
+def test_string_valued_leaf_list_strips_whitespace_around_elements():
+    config = {
+        "PORT": {
+            "Ethernet0": {
+                "lanes": "0",
+                "speed": "10000",
+                "adv_speeds": "100000, 50000",
+            },
+        },
+    }
+    result = validate_config(config)
+    assert _port_errors(result, "adv_speeds") == []
+
+
+def test_string_valued_leaf_list_still_accepts_a_json_array():
+    """Both forms reach ConfigDB, so neither may be rejected."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000", "adv_speeds": ["all"]}},
+    }
+    result = validate_config(config)
+    assert _port_errors(result, "adv_speeds") == []
+
+
+def test_string_valued_leaf_list_still_validates_each_element():
+    """Accepting the string form must not stop checking what is in it: the
+    element type is a union of uint32 1..1600000 and the literal `all`."""
+    config = {
+        "PORT": {
+            "Ethernet0": {
+                "lanes": "0",
+                "speed": "10000",
+                "adv_speeds": "100000,nonsense",
+            },
+            "Ethernet4": {"lanes": "4", "speed": "10000", "adv_speeds": "0"},
+        },
+    }
+    result = validate_config(config)
+    errors = _port_errors(result, "adv_speeds")
+    assert _rows_flagged(result, "adv_speeds") == {"Ethernet0", "Ethernet4"}, errors
+    # The complaint must be about what the elements are, not about the value
+    # not being a JSON array.
+    assert not any("valid list" in e.message for e in errors), errors
+
+
+def test_string_valued_leaf_list_uses_the_delimiter_sonic_uses():
+    """The delimiter is per field, not always a comma, so a value split on the
+    wrong one must not quietly validate."""
+    row = {"lanes": "0", "speed": "10000"}
+    ok = {"PORT": {"Ethernet0": {**row, "adv_interface_types": "CR4,SR4"}}}
+    assert _port_errors(validate_config(ok), "adv_interface_types") == []
+    wrong = {"PORT": {"Ethernet0": {**row, "adv_interface_types": "CR4;SR4"}}}
+    assert _port_errors(validate_config(wrong), "adv_interface_types") != []
+
+
+def test_string_valued_leaf_list_references_are_split_before_resolving():
+    """profile_list is a leaf-list that ConfigDB carries as one delimited
+    string. The schema splits it; the reference check has to split it too, or
+    a config naming profiles that all exist is reported as dangling."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "BUFFER_PROFILE": {
+            "p1": {"size": "0", "pool": "pool1"},
+            "p2": {"size": "0", "pool": "pool1"},
+        },
+        "BUFFER_PORT_EGRESS_PROFILE_LIST": {"Ethernet0": {"profile_list": "p1,p2"}},
+    }
+    result = validate_config(config)
+    assert [
+        e
+        for e in _leafref_errors(result)
+        if e.table == "BUFFER_PORT_EGRESS_PROFILE_LIST"
+    ] == [], result.errors
+
+
+def test_string_valued_leaf_list_still_flags_a_missing_element():
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "BUFFER_PROFILE": {"p1": {"size": "0", "pool": "pool1"}},
+        "BUFFER_PORT_EGRESS_PROFILE_LIST": {"Ethernet0": {"profile_list": "p1,gone"}},
+    }
+    errors = _leafref_errors(validate_config(config))
+    assert any("gone" in e.message for e in errors), errors
+    assert not any("p1,gone" in e.message for e in errors), errors
