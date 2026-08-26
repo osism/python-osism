@@ -183,6 +183,7 @@ def test_union_with_plain_type_arm_accepts_a_plain_value():
     and a Vlan pattern. A literal address satisfies the first arm, so the
     leafref arms must not be enforced against it."""
     config = {
+        "BGP_GLOBALS": {"default": {"local_asn": "65001"}},
         "BGP_NEIGHBOR": {
             "default|10.0.0.2": {"local_addr": "10.0.0.1", "asn": "65001"},
         },
@@ -193,6 +194,7 @@ def test_union_with_plain_type_arm_accepts_a_plain_value():
 
 def test_union_with_plain_type_arm_accepts_an_ipv6_address():
     config = {
+        "BGP_GLOBALS": {"default": {"local_asn": "65001"}},
         "BGP_NEIGHBOR": {
             "default|fe80::2": {"local_addr": "fe80::1", "asn": "65001"},
         },
@@ -205,6 +207,7 @@ def test_union_with_plain_type_arm_accepts_a_value_matching_its_pattern():
     """The Vlan arm is a bare pattern, not a leafref — SONiC comments the VLAN
     leafref out — so a Vlan name resolves without any VLAN table present."""
     config = {
+        "BGP_GLOBALS": {"default": {"local_asn": "65001"}},
         "BGP_NEIGHBOR": {
             "default|10.0.0.2": {"local_addr": "Vlan100", "asn": "65001"},
         },
@@ -216,6 +219,7 @@ def test_union_with_plain_type_arm_accepts_a_value_matching_its_pattern():
 def test_union_with_plain_type_arm_accepts_a_resolvable_leafref_value():
     config = {
         "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "BGP_GLOBALS": {"default": {"local_asn": "65001"}},
         "BGP_NEIGHBOR": {
             "default|10.0.0.2": {"local_addr": "Ethernet0", "asn": "65001"},
         },
@@ -226,9 +230,16 @@ def test_union_with_plain_type_arm_accepts_a_resolvable_leafref_value():
 
 def test_union_with_plain_type_arm_still_flags_an_unresolvable_value():
     """A value that matches no plain arm must still resolve to a target: the
-    plain arm exempts the values it admits, not the whole constraint."""
+    plain arm exempts the values it admits, not the whole constraint.
+
+    local_addr may name a PORT, a PORTCHANNEL or a LOOPBACK_INTERFACE, so all
+    three have to be present for the value to be judged rather than deferred to
+    the base config."""
     config = {
         "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PORTCHANNEL": {"PortChannel0": {"admin_status": "up"}},
+        "LOOPBACK_INTERFACE": {"Loopback0": {}},
+        "BGP_GLOBALS": {"default": {"local_asn": "65001"}},
         "BGP_NEIGHBOR": {
             "default|10.0.0.2": {"local_addr": "Ethernet999", "asn": "65001"},
         },
@@ -378,37 +389,6 @@ def test_string_valued_leaf_list_uses_the_delimiter_sonic_uses():
     assert _port_errors(validate_config(wrong), "adv_interface_types") != []
 
 
-def test_string_valued_leaf_list_references_are_split_before_resolving():
-    """profile_list is a leaf-list that ConfigDB carries as one delimited
-    string. The schema splits it; the reference check has to split it too, or
-    a config naming profiles that all exist is reported as dangling."""
-    config = {
-        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
-        "BUFFER_PROFILE": {
-            "p1": {"size": "0", "pool": "pool1"},
-            "p2": {"size": "0", "pool": "pool1"},
-        },
-        "BUFFER_PORT_EGRESS_PROFILE_LIST": {"Ethernet0": {"profile_list": "p1,p2"}},
-    }
-    result = validate_config(config)
-    assert [
-        e
-        for e in _leafref_errors(result)
-        if e.table == "BUFFER_PORT_EGRESS_PROFILE_LIST"
-    ] == [], result.errors
-
-
-def test_string_valued_leaf_list_still_flags_a_missing_element():
-    config = {
-        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
-        "BUFFER_PROFILE": {"p1": {"size": "0", "pool": "pool1"}},
-        "BUFFER_PORT_EGRESS_PROFILE_LIST": {"Ethernet0": {"profile_list": "p1,gone"}},
-    }
-    errors = _leafref_errors(validate_config(config))
-    assert any("gone" in e.message for e in errors), errors
-    assert not any("p1,gone" in e.message for e in errors), errors
-
-
 def _warnings_for(result, table):
     return [w for w in result.warnings if table in w]
 
@@ -480,3 +460,186 @@ def test_unmodelled_and_divergent_warnings_are_distinguishable():
     divergent = _warnings_for(result, "SYSLOG_SERVER")
     assert unmodelled and divergent
     assert unmodelled[0] != divergent[0]
+
+
+def test_composite_key_supplies_the_leafref_value():
+    """Real configs carry no explicit `name`/`port` fields on
+    PORTCHANNEL_MEMBER — both values live only in the `|`-joined row key, so
+    the check is reachable only by splitting it."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PORTCHANNEL": {"PortChannel0": {"admin_status": "up"}},
+        "PORTCHANNEL_MEMBER": {"PortChannel0|Ethernet0": {}},
+    }
+    assert _leafref_errors(validate_config(config)) == []
+
+
+def test_composite_key_flags_a_dangling_reference():
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PORTCHANNEL": {"PortChannel0": {"admin_status": "up"}},
+        "PORTCHANNEL_MEMBER": {"PortChannel0|Ethernet999": {}},
+    }
+    errors = _leafref_errors(validate_config(config))
+    assert any(
+        e.table == "PORTCHANNEL_MEMBER" and "Ethernet999" in e.message for e in errors
+    ), errors
+
+
+def test_composite_key_checks_every_component():
+    """Both key components are leafrefs: the port channel and the port."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PORTCHANNEL": {"PortChannel0": {"admin_status": "up"}},
+        "PORTCHANNEL_MEMBER": {"PortChannel9|Ethernet0": {}},
+    }
+    errors = _leafref_errors(validate_config(config))
+    assert any(
+        e.table == "PORTCHANNEL_MEMBER" and "PortChannel9" in e.message for e in errors
+    ), errors
+
+
+def test_composite_key_picks_the_list_matching_the_key_arity():
+    """INTERFACE declares one list keyed by name and another by name plus
+    prefix. A two-part key must map onto the second, so the first component is
+    still read as the interface name."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "INTERFACE": {
+            "Ethernet0": {},
+            "Ethernet0|10.0.0.1/31": {},
+            "Ethernet999|10.0.0.3/31": {},
+        },
+    }
+    errors = [
+        e for e in _leafref_errors(validate_config(config)) if e.table == "INTERFACE"
+    ]
+    assert any("Ethernet999" in e.message for e in errors), errors
+    assert not any("Ethernet0" in e.message for e in errors), errors
+
+
+def test_composite_key_of_unknown_arity_is_skipped():
+    """A row key with more parts than any declared list must not be guessed
+    at — mapping it positionally would invent values."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PORTCHANNEL": {"PortChannel0": {"admin_status": "up"}},
+        "PORTCHANNEL_MEMBER": {"PortChannel0|Ethernet0|extra|parts": {}},
+    }
+    assert [
+        e
+        for e in _leafref_errors(validate_config(config))
+        if e.table == "PORTCHANNEL_MEMBER"
+    ] == []
+
+
+def test_three_part_composite_key_maps_positionally():
+    """BGP_NEIGHBOR_AF is keyed vrf_name|neighbor|afi_safi; vrf_name must
+    resolve into BGP_GLOBALS."""
+    config = {
+        "BGP_GLOBALS": {"default": {"local_asn": "65001"}},
+        "BGP_NEIGHBOR_AF": {"nosuchvrf|10.0.0.2|ipv4_unicast": {}},
+    }
+    errors = _leafref_errors(validate_config(config))
+    assert any(
+        e.table == "BGP_NEIGHBOR_AF" and "nosuchvrf" in e.message for e in errors
+    ), errors
+
+
+def test_leafref_warns_when_no_target_table_is_present_at_all():
+    """A generated config is a fragment: it is layered onto the device's own
+    base config, so it can legitimately refer to a table it does not carry.
+    MGMT_INTERFACE names an MGMT_PORT that the base config supplies. Absent
+    means "cannot tell", which is a warning, not a dangling reference."""
+    config = {"MGMT_INTERFACE": {"eth0|10.0.0.1/24": {}}}
+    result = validate_config(config)
+    assert [e for e in _leafref_errors(result) if e.table == "MGMT_INTERFACE"] == []
+    assert any(
+        "MGMT_INTERFACE" in w and "MGMT_PORT" in w for w in result.warnings
+    ), result.warnings
+
+
+def test_leafref_still_fails_when_the_target_table_is_present_but_empty():
+    """Present-but-empty is different from absent: the config does model the
+    table, so a value that is not in it really is dangling. This is the line
+    between the two, and it is what keeps the check meaningful."""
+    config = {"MGMT_PORT": {}, "MGMT_INTERFACE": {"eth0|10.0.0.1/24": {}}}
+    result = validate_config(config)
+    assert any(
+        e.table == "MGMT_INTERFACE" and "eth0" in e.message
+        for e in _leafref_errors(result)
+    ), result.errors
+
+
+def test_non_string_row_key_does_not_raise():
+    """`validate_config` is a library call, not only a CLI path: a caller can
+    hand it a dict whose row key is not a string. Reading key components must
+    return a result rather than propagate an AttributeError."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PORTCHANNEL_MEMBER": {123: {}, None: {}, "PortChannel0|Ethernet0": {}},
+    }
+    result = validate_config(config)
+    assert isinstance(result.errors, list)
+
+
+def test_string_valued_leaf_list_references_are_split_before_resolving():
+    """profile_list is a leaf-list that ConfigDB carries as one delimited
+    string. The schema splits it; the reference check has to split it too, or
+    a config naming profiles that all exist is reported as dangling."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "BUFFER_PROFILE": {
+            "p1": {"size": "0", "pool": "pool1"},
+            "p2": {"size": "0", "pool": "pool1"},
+        },
+        "BUFFER_PORT_EGRESS_PROFILE_LIST": {"Ethernet0": {"profile_list": "p1,p2"}},
+    }
+    result = validate_config(config)
+    assert [
+        e
+        for e in _leafref_errors(result)
+        if e.table == "BUFFER_PORT_EGRESS_PROFILE_LIST"
+    ] == [], result.errors
+
+
+def test_string_valued_leaf_list_still_flags_a_missing_element():
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "BUFFER_PROFILE": {"p1": {"size": "0", "pool": "pool1"}},
+        "BUFFER_PORT_EGRESS_PROFILE_LIST": {"Ethernet0": {"profile_list": "p1,gone"}},
+    }
+    errors = _leafref_errors(validate_config(config))
+    assert any("gone" in e.message for e in errors), errors
+    assert not any("p1,gone" in e.message for e in errors), errors
+
+
+def test_multi_target_reference_is_not_judged_when_a_target_is_absent():
+    """VLAN_MEMBER.port may name a PORT or a PORTCHANNEL. With PORTCHANNEL
+    absent from the fragment the device supplies it, so a port-channel name
+    cannot be called dangling merely because the other alternative is here."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "VLAN": {"Vlan100": {}},
+        "VLAN_MEMBER": {"Vlan100|PortChannel0": {}},
+    }
+    result = validate_config(config)
+    assert [
+        e for e in _leafref_errors(result) if e.table == "VLAN_MEMBER"
+    ] == [], result.errors
+    assert any(
+        "VLAN_MEMBER" in w and "PortChannel0" in w for w in result.warnings
+    ), result.warnings
+
+
+def test_multi_target_reference_is_judged_when_every_target_is_present():
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PORTCHANNEL": {"PortChannel0": {"admin_status": "up"}},
+        "VLAN": {"Vlan100": {}},
+        "VLAN_MEMBER": {"Vlan100|Ethernet999": {}},
+    }
+    errors = _leafref_errors(validate_config(config))
+    assert any(
+        e.table == "VLAN_MEMBER" and "Ethernet999" in e.message for e in errors
+    ), errors

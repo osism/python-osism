@@ -10,7 +10,7 @@ pydantic.
 
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Annotated, Any, Dict, Iterable, List, Optional
+from typing import Annotated, Any, Dict, Iterable, List, Optional, Tuple
 
 from pydantic import StringConstraints, TypeAdapter
 from pydantic import ValidationError as PydValidationError
@@ -19,6 +19,7 @@ from osism.tasks.conductor.sonic._generated import (
     LEAFREFS,
     LeafrefConstraint,
     PLATFORM_DIVERGENT_TABLES,
+    TABLE_KEY_FIELDS,
     TABLE_MODELS,
 )
 
@@ -114,12 +115,16 @@ def validate_config(config: Dict[str, Any]) -> ValidationResult:
             )
         )
 
-    errors.extend(_check_leafrefs(config))
+    leafref_errors, leafref_warnings = _check_leafrefs(config)
+    errors.extend(leafref_errors)
+    warnings.extend(leafref_warnings)
 
     return ValidationResult(valid=not errors, errors=errors, warnings=warnings)
 
 
-def _check_leafrefs(config: Dict[str, Any]) -> List[ValidationError]:
+def _check_leafrefs(
+    config: Dict[str, Any],
+) -> Tuple[List[ValidationError], List[str]]:
     """Verify every cross-table leafref reference resolves to an existing key.
 
     YANG `leafref` semantics say a leaf must point at an existing value in a
@@ -133,32 +138,59 @@ def _check_leafrefs(config: Dict[str, Any]) -> List[ValidationError]:
     no reference to resolve, so a value one of them admits is legal as it
     stands and is exempt from the leafref check.
 
-    Composite-key parsing is intentionally skipped — when the source field is
-    encoded only inside a `|`-separated row key, we can't safely split without
-    YANG key metadata, so we only check explicit row-dict fields plus the
-    ``source_is_simple_key`` shortcut where the row key alone is the value.
+    Most referring values reach ConfigDB only inside the `|`-joined row key
+    rather than as a field of the row, so the key is split using the key
+    leaves the generator records in :data:`TABLE_KEY_FIELDS`. A row key whose
+    part count matches no declared list is left alone rather than mapped
+    positionally, which would invent values.
+
+    A reference is only judged against the targets the config actually
+    carries. A generated config is a fragment, layered onto the device's own
+    base config, so it can name an `MGMT_PORT` it does not itself hold — and a
+    union leafref can name a `PORTCHANNEL` while the fragment carries only
+    `PORT`. A value that resolves nowhere is therefore an error only when every
+    target table is present; otherwise it is reported as unjudged, naming the
+    tables that were missing. A target that is present but empty is a different
+    matter: the config does model it, so a value missing from it is dangling.
     """
     errors: List[ValidationError] = []
+    warnings: List[str] = []
     for constraint in LEAFREFS:
         rows = config.get(constraint.source_table)
         if not isinstance(rows, dict):
             continue
         target_keysets = _collect_target_keysets(config, constraint)
-        # If the config does not declare any of the target tables, the
-        # references are unresolvable — flag them.
+        absent = [
+            table
+            for table, _ in constraint.targets
+            if not isinstance(config.get(table), dict)
+        ]
         for row_key, row in rows.items():
             for value in _iter_leafref_values(constraint, row_key, row):
                 if _matches_plain_arm(constraint, value):
                     continue
-                if not _value_in_any_target(value, target_keysets):
-                    errors.append(
-                        ValidationError(
-                            message=_format_missing_message(constraint, value),
-                            path=f"{row_key}.{constraint.source_field}",
-                            table=constraint.source_table,
-                        )
+                if _value_in_any_target(value, target_keysets):
+                    continue
+                if absent:
+                    # The value resolves in none of the targets this config
+                    # carries, but it may well name a row of one it does not.
+                    # Report it as unjudged rather than as dangling — and say
+                    # so, rather than dropping it silently, since a genuine
+                    # typo lands here too.
+                    warnings.append(
+                        f"{constraint.source_table}.{constraint.source_field}"
+                        f"={value!r} is not checked: this config does not carry "
+                        f"{', '.join(absent)}"
                     )
-    return errors
+                    continue
+                errors.append(
+                    ValidationError(
+                        message=_format_missing_message(constraint, value),
+                        path=f"{row_key}.{constraint.source_field}",
+                        table=constraint.source_table,
+                    )
+                )
+    return errors, warnings
 
 
 def _collect_target_keysets(
@@ -193,9 +225,15 @@ def _iter_leafref_values(
     raw: Any = None
     if isinstance(row, dict) and constraint.source_field in row:
         raw = row[constraint.source_field]
+    elif not isinstance(row_key, str):
+        # ConfigDB JSON always keys rows by string, but validate_config is a
+        # library call and a caller can hand us a dict that does not.
+        raw = None
     elif constraint.source_is_simple_key and "|" not in row_key:
         # Single-key list: row key directly carries the leaf value.
         raw = row_key
+    else:
+        raw = _value_from_row_key(constraint, row_key)
 
     if raw is None:
         return
@@ -216,6 +254,29 @@ def _iter_leafref_values(
     else:
         if isinstance(raw, str):
             yield raw
+
+
+def _value_from_row_key(constraint: LeafrefConstraint, row_key: str) -> Optional[str]:
+    """Recover this constraint's value from a `|`-joined ConfigDB row key.
+
+    ConfigDB stores a list's key values joined with `|` in that list's key
+    order, so the leaf names recorded for the table map onto the parts
+    positionally. A table may declare several lists; they are told apart by
+    how many parts the key has, and a key matching none of them — or matching
+    more than one, which the vendored models never produce — yields nothing,
+    because guessing would fabricate a reference to check.
+    """
+    variants = TABLE_KEY_FIELDS.get(constraint.source_table)
+    if not variants:
+        return None
+    parts = row_key.split("|")
+    matching = [v for v in variants if len(v) == len(parts)]
+    if len(matching) != 1:
+        return None
+    for name, value in zip(matching[0], parts):
+        if name == constraint.source_field:
+            return value
+    return None
 
 
 def _value_in_any_target(value: str, keysets: List[set]) -> bool:
