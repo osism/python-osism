@@ -18,6 +18,7 @@ from pydantic import ValidationError as PydValidationError
 from osism.tasks.conductor.sonic._generated import (
     LEAFREFS,
     LeafrefConstraint,
+    PLATFORM_DIVERGENT_TABLES,
     TABLE_MODELS,
 )
 
@@ -54,6 +55,13 @@ def validate_config(config: Dict[str, Any]) -> ValidationResult:
     yet modelled in upstream YANG — are reported as warnings rather than
     errors, so the validator does not reject otherwise-valid configurations
     just because YANG coverage lags.
+
+    A few tables are absent on purpose rather than for lack of coverage: the
+    vendored models are community SONiC while these configs run on an
+    Enterprise build, and where the two disagree a model exists but describes
+    a different table. Those are listed in
+    :data:`PLATFORM_DIVERGENT_TABLES` and warn with the reason, so the
+    difference reads as a deliberate gap rather than as missing upstream work.
     """
     errors: List[ValidationError] = []
     warnings: List[str] = []
@@ -61,9 +69,16 @@ def validate_config(config: Dict[str, Any]) -> ValidationResult:
     for table_name, table_data in config.items():
         model = TABLE_MODELS.get(table_name)
         if model is None:
-            warnings.append(
-                f"No YANG schema for table {table_name!r} (validation skipped)"
-            )
+            reason = PLATFORM_DIVERGENT_TABLES.get(table_name)
+            if reason is not None:
+                warnings.append(
+                    f"Table {table_name!r} is not validated: the vendored YANG "
+                    f"disagrees with the target platform — {reason}"
+                )
+            else:
+                warnings.append(
+                    f"No YANG schema for table {table_name!r} (validation skipped)"
+                )
             continue
 
         try:

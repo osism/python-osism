@@ -3787,30 +3787,6 @@ class MgmtInterfaceTable(RootModel[Dict[str, MgmtInterfaceListRow]]):
     pass
 
 
-# sonic-mgmt_port.yang :: sonic-mgmt_port :: MGMT_PORT
-class MgmtPortListRow(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    name: Optional[
-        Annotated[
-            str,
-            StringConstraints(
-                pattern="eth([1-3][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[0-9])"
-            ),
-        ]
-    ] = None
-    speed: Optional[Annotated[int, Field(ge=10, le=1000)]] = None
-    autoneg: Optional[Annotated[str, StringConstraints(pattern="on|off")]] = None
-    alias: Optional[str] = None
-    description: Optional[str] = None
-    mtu: Optional[Annotated[int, Field(ge=1500, le=9216)]] = 1500
-    admin_status: Optional[Literal["up", "down"]] = "up"
-
-
-class MgmtPortTable(RootModel[Dict[str, MgmtPortListRow]]):
-    pass
-
-
 # sonic-mgmt_vrf.yang :: sonic-mgmt_vrf :: MGMT_VRF_CONFIG
 class MgmtVrfConfigVrfGlobalRow(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
@@ -5831,56 +5807,6 @@ class SuppressAsicSdkHealthEventTable(
     pass
 
 
-# sonic-syslog.yang :: sonic-syslog :: SYSLOG_SERVER
-class SyslogServerListRow(BaseModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    server_address: Optional[
-        Union[
-            Union[
-                Annotated[
-                    str,
-                    StringConstraints(
-                        pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{N}\\p{L}]+)?"
-                    ),
-                ],
-                str,
-            ],
-            Annotated[
-                str,
-                StringConstraints(
-                    min_length=1,
-                    max_length=253,
-                    pattern="((([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){0,61})?[a-zA-Z0-9]\\.)*([a-zA-Z0-9_]([a-zA-Z0-9\\-_]){0,61})?[a-zA-Z0-9]\\.?)|\\.",
-                ),
-            ],
-        ]
-    ] = None
-    source: Optional[
-        Union[
-            Annotated[
-                str,
-                StringConstraints(
-                    pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{N}\\p{L}]+)?"
-                ),
-            ],
-            str,
-        ]
-    ] = None
-    port: Optional[Annotated[int, Field(ge=0, le=65535)]] = None
-    vrf: Optional[Union[str, Literal["default", "mgmt"]]] = None
-    filter: Optional[Literal["include", "exclude"]] = None
-    filter_regex: Optional[str] = None
-    protocol: Optional[Literal["tcp", "udp"]] = None
-    severity: Optional[
-        Literal["none", "debug", "info", "notice", "warn", "error", "crit"]
-    ] = None
-
-
-class SyslogServerTable(RootModel[Dict[str, SyslogServerListRow]]):
-    pass
-
-
 # sonic-syslog.yang :: sonic-syslog :: SYSLOG_CONFIG
 class SyslogConfigGlobalRow(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
@@ -6944,7 +6870,6 @@ TABLE_MODELS: Dict[str, type[BaseModel]] = {
     "MCLAG_UNIQUE_IP": MclagUniqueIpTable,
     "MEMORY_STATISTICS": MemoryStatisticsTable,
     "MGMT_INTERFACE": MgmtInterfaceTable,
-    "MGMT_PORT": MgmtPortTable,
     "MGMT_VRF_CONFIG": MgmtVrfConfigTable,
     "MID_PLANE_BRIDGE": MidPlaneBridgeTable,
     "MIRROR_SESSION": MirrorSessionTable,
@@ -7015,7 +6940,6 @@ TABLE_MODELS: Dict[str, type[BaseModel]] = {
     "SWITCH_TRIMMING": SwitchTrimmingTable,
     "SYSLOG_CONFIG": SyslogConfigTable,
     "SYSLOG_CONFIG_FEATURE": SyslogConfigFeatureTable,
-    "SYSLOG_SERVER": SyslogServerTable,
     "SYSTEM_DEFAULTS": SystemDefaultsTable,
     "SYSTEM_PORT": SystemPortTable,
     "TACPLUS": TacplusTable,
@@ -7043,4 +6967,11 @@ TABLE_MODELS: Dict[str, type[BaseModel]] = {
     "WRED_PROFILE": WredProfileTable,
     "XCVRD_LOG": XcvrdLogTable,
     "ZTP": ZtpTable,
+}
+
+# Tables deliberately left unvalidated: the vendored models describe
+# them differently from the platform these configs run on.
+PLATFORM_DIVERGENT_TABLES: Dict[str, str] = {
+    "MGMT_PORT": "the platform models autoneg as a boolean, not as `on`/`off`",
+    "SYSLOG_SERVER": "the platform models this table with different field names (message-type, remote-port, vrf_name) and an uppercase TCP/UDP/TLS protocol enum",
 }
