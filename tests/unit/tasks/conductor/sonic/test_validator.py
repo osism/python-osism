@@ -176,3 +176,113 @@ def test_unknown_table_emits_warning_not_error():
     result = validate_config(config)
     assert any("NOT_A_REAL_TABLE" in w for w in result.warnings)
     assert _leafref_errors(result) == []
+
+
+def test_union_with_plain_type_arm_accepts_a_plain_value():
+    """BGP_NEIGHBOR.local_addr is a union of `inet:ip-address`, three leafrefs
+    and a Vlan pattern. A literal address satisfies the first arm, so the
+    leafref arms must not be enforced against it."""
+    config = {
+        "BGP_NEIGHBOR": {
+            "default|10.0.0.2": {"local_addr": "10.0.0.1", "asn": "65001"},
+        },
+    }
+    result = validate_config(config)
+    assert _leafref_errors(result) == []
+
+
+def test_union_with_plain_type_arm_accepts_an_ipv6_address():
+    config = {
+        "BGP_NEIGHBOR": {
+            "default|fe80::2": {"local_addr": "fe80::1", "asn": "65001"},
+        },
+    }
+    result = validate_config(config)
+    assert _leafref_errors(result) == []
+
+
+def test_union_with_plain_type_arm_accepts_a_value_matching_its_pattern():
+    """The Vlan arm is a bare pattern, not a leafref — SONiC comments the VLAN
+    leafref out — so a Vlan name resolves without any VLAN table present."""
+    config = {
+        "BGP_NEIGHBOR": {
+            "default|10.0.0.2": {"local_addr": "Vlan100", "asn": "65001"},
+        },
+    }
+    result = validate_config(config)
+    assert _leafref_errors(result) == []
+
+
+def test_union_with_plain_type_arm_accepts_a_resolvable_leafref_value():
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "BGP_NEIGHBOR": {
+            "default|10.0.0.2": {"local_addr": "Ethernet0", "asn": "65001"},
+        },
+    }
+    result = validate_config(config)
+    assert _leafref_errors(result) == []
+
+
+def test_union_with_plain_type_arm_still_flags_an_unresolvable_value():
+    """A value that matches no plain arm must still resolve to a target: the
+    plain arm exempts the values it admits, not the whole constraint."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "BGP_NEIGHBOR": {
+            "default|10.0.0.2": {"local_addr": "Ethernet999", "asn": "65001"},
+        },
+    }
+    result = validate_config(config)
+    assert any(
+        e.table == "BGP_NEIGHBOR" and "Ethernet999" in e.message
+        for e in _leafref_errors(result)
+    ), result.errors
+
+
+def test_union_with_literal_escape_arm_accepts_the_literal():
+    """PFC_WD.ifname is a leafref to PORT unioned with the literal `GLOBAL`."""
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PFC_WD": {"GLOBAL": {"detection_time": "200"}},
+    }
+    result = validate_config(config)
+    assert _leafref_errors(result) == []
+
+
+def test_union_with_literal_escape_arm_still_flags_other_values():
+    config = {
+        "PORT": {"Ethernet0": {"lanes": "0", "speed": "10000"}},
+        "PFC_WD": {"Ethernet999": {"detection_time": "200"}},
+    }
+    result = validate_config(config)
+    assert any(
+        e.table == "PFC_WD" and "Ethernet999" in e.message
+        for e in _leafref_errors(result)
+    ), result.errors
+
+
+def test_uncompilable_arm_pattern_is_reported_not_silently_skipped(monkeypatch):
+    """A generated pattern the runtime cannot compile means the committed
+    schemas and the installed pydantic disagree. Exempting every value from
+    the reference check would leave the validator reporting success while
+    checking nothing, so the incompatibility is reported instead."""
+    from osism.tasks.conductor.sonic import validator as v
+
+    broken = v.LeafrefConstraint(
+        source_table="VLAN_MEMBER",
+        source_field="port",
+        targets=(("PORT", "name"),),
+        plain_arms=((r"\A(?:[unbalanced)\z",),),
+    )
+    monkeypatch.setattr(v, "LEAFREFS", (broken,))
+    v._pattern_adapter.cache_clear()
+    try:
+        result = v.validate_config({"PORT": {}, "VLAN_MEMBER": {"Vlan1|Ethernet0": {}}})
+        assert any(
+            "unbalanced" in e.message or "pattern" in e.message.lower()
+            for e in result.errors
+        ), result.errors
+        assert not result.valid
+    finally:
+        v._pattern_adapter.cache_clear()

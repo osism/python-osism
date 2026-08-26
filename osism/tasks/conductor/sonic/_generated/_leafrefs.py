@@ -10,13 +10,20 @@ from typing import Tuple
 
 @dataclass(frozen=True)
 class LeafrefConstraint:
-    """A leafref from ``source_table.source_field`` to one of ``targets``."""
+    """A leafref from ``source_table.source_field`` to one of ``targets``.
+
+    ``plain_arms`` holds the non-leafref arms of a YANG union, as anchored
+    regexes. A union accepts a value if any arm does, so a value matching
+    one of these is legal without resolving to a target; an arm matches
+    when every pattern in it matches.
+    """
 
     source_table: str
     source_field: str
     targets: Tuple[Tuple[str, str], ...]
     is_leaf_list: bool = False
     source_is_simple_key: bool = False
+    plain_arms: Tuple[Tuple[str, ...], ...] = ()
 
 
 LEAFREFS: Tuple[LeafrefConstraint, ...] = (
@@ -25,6 +32,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_field="vrf_name",
         targets=(("VRF", "name"),),
         source_is_simple_key=True,
+        plain_arms=(("\\A(?:default)\\z",),),
     ),
     LeafrefConstraint(
         source_table="BGP_GLOBALS_AF",
@@ -59,11 +67,35 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
             ("PORTCHANNEL", "name"),
             ("LOOPBACK_INTERFACE", "name"),
         ),
+        plain_arms=(
+            (
+                "\\A(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{N}\\p{L}]+)?)\\z",
+            ),
+            (
+                "\\A(?:((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{N}\\p{L}]+)?)\\z",
+                "\\A(?:(([^:]+:){6}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?)\\z",
+            ),
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
+        ),
     ),
     LeafrefConstraint(
         source_table="BGP_NEIGHBOR",
         source_field="neighbor",
         targets=(("PORT", "name"), ("PORTCHANNEL", "name")),
+        plain_arms=(
+            (
+                "\\A(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{N}\\p{L}]+)?)\\z",
+            ),
+            (
+                "\\A(?:((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{N}\\p{L}]+)?)\\z",
+                "\\A(?:(([^:]+:){6}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?)\\z",
+            ),
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
+        ),
     ),
     LeafrefConstraint(
         source_table="BGP_NEIGHBOR",
@@ -124,6 +156,18 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
             ("PORT", "name"),
             ("PORTCHANNEL", "name"),
             ("LOOPBACK_INTERFACE", "name"),
+        ),
+        plain_arms=(
+            (
+                "\\A(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{N}\\p{L}]+)?)\\z",
+            ),
+            (
+                "\\A(?:((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{N}\\p{L}]+)?)\\z",
+                "\\A(?:(([^:]+:){6}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?)\\z",
+            ),
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
         ),
     ),
     LeafrefConstraint(
@@ -187,6 +231,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_table="BUFFER_PG",
         source_field="profile",
         targets=(("BUFFER_PROFILE", "name"),),
+        plain_arms=(("\\A(?:NULL)\\z",),),
     ),
     LeafrefConstraint(
         source_table="BUFFER_PORT_EGRESS_PROFILE_LIST",
@@ -320,6 +365,11 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
             ("PORTCHANNEL", "name"),
             ("LOOPBACK_INTERFACE", "name"),
         ),
+        plain_arms=(
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
+        ),
     ),
     LeafrefConstraint(
         source_table="DHCP_SERVER_IPV4",
@@ -332,6 +382,11 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_field="name",
         targets=(("MID_PLANE_BRIDGE", "bridge"),),
         source_is_simple_key=True,
+        plain_arms=(
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
+        ),
     ),
     LeafrefConstraint(
         source_table="DHCP_SERVER_IPV4_PORT",
@@ -419,6 +474,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_table="MIRROR_SESSION",
         source_field="dst_port",
         targets=(("PORT", "name"),),
+        plain_arms=(("\\A(?:CPU)\\z",),),
     ),
     LeafrefConstraint(
         source_table="MIRROR_SESSION",
@@ -435,6 +491,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_table="NEIGH",
         source_field="port",
         targets=(("PORTCHANNEL", "name"), ("PORT", "name")),
+        plain_arms=(("\\A(?:Vlan[0-9]+)\\z",),),
     ),
     LeafrefConstraint(
         source_table="NTP",
@@ -446,6 +503,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
             ("MGMT_PORT", "name"),
         ),
         is_leaf_list=True,
+        plain_arms=(("\\A(?:eth0)\\z",),),
     ),
     LeafrefConstraint(
         source_table="NTP_SERVER",
@@ -484,6 +542,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_field="ifname",
         targets=(("PORT", "name"),),
         source_is_simple_key=True,
+        plain_arms=(("\\A(?:GLOBAL)\\z",),),
     ),
     LeafrefConstraint(
         source_table="PORT",
@@ -526,6 +585,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_field="ifname",
         targets=(("PORT", "name"),),
         source_is_simple_key=True,
+        plain_arms=(("\\A(?:global)\\z",),),
     ),
     LeafrefConstraint(
         source_table="PORT_QOS_MAP",
@@ -566,6 +626,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_table="QUEUE",
         source_field="ifname",
         targets=(("PORT", "name"),),
+        plain_arms=(("\\A(?:CPU)\\z",),),
     ),
     LeafrefConstraint(
         source_table="QUEUE",
@@ -585,6 +646,11 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
             ("PORTCHANNEL", "name"),
             ("LOOPBACK_INTERFACE", "name"),
             ("MGMT_PORT", "name"),
+        ),
+        plain_arms=(
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
         ),
     ),
     LeafrefConstraint(
@@ -610,6 +676,11 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
             ("PORTCHANNEL", "name"),
             ("LOOPBACK_INTERFACE", "name"),
         ),
+        plain_arms=(
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
+        ),
     ),
     LeafrefConstraint(
         source_table="ROUTE_MAP",
@@ -621,6 +692,18 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_field="match_neighbor",
         targets=(("PORT", "name"), ("PORTCHANNEL", "name")),
         is_leaf_list=True,
+        plain_arms=(
+            (
+                "\\A(?:(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])(%[\\p{N}\\p{L}]+)?)\\z",
+            ),
+            (
+                "\\A(?:((:|[0-9a-fA-F]{0,4}):)([0-9a-fA-F]{0,4}:){0,5}((([0-9a-fA-F]{0,4}:)?(:|[0-9a-fA-F]{0,4}))|(((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])))(%[\\p{N}\\p{L}]+)?)\\z",
+                "\\A(?:(([^:]+:){6}(([^:]+:[^:]+)|(.*\\..*)))|((([^:]+:)*[^:]+)?::(([^:]+:)*[^:]+)?)(%.+)?)\\z",
+            ),
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
+        ),
     ),
     LeafrefConstraint(
         source_table="ROUTE_MAP",
@@ -636,6 +719,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_table="ROUTE_MAP",
         source_field="match_src_vrf",
         targets=(("VRF", "name"),),
+        plain_arms=(("\\A(?:default)\\z",),),
     ),
     LeafrefConstraint(
         source_table="ROUTE_MAP",
@@ -657,27 +741,36 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_table="ROUTE_REDISTRIBUTE",
         source_field="vrf_name",
         targets=(("VRF", "name"),),
+        plain_arms=(("\\A(?:default)\\z",),),
     ),
     LeafrefConstraint(
         source_table="SFLOW",
         source_field="agent_id",
         targets=(("PORT", "name"), ("PORTCHANNEL", "name"), ("MGMT_PORT", "name")),
+        plain_arms=(
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
+        ),
     ),
     LeafrefConstraint(
         source_table="SFLOW_SESSION",
         source_field="port",
         targets=(("PORT", "name"),),
         source_is_simple_key=True,
+        plain_arms=(("\\A(?:all)\\z",),),
     ),
     LeafrefConstraint(
         source_table="SRV6_MY_LOCATORS",
         source_field="vrf",
         targets=(("VRF", "name"),),
+        plain_arms=(("\\A(?:default)\\z",),),
     ),
     LeafrefConstraint(
         source_table="SRV6_MY_SIDS",
         source_field="decap_vrf",
         targets=(("VRF", "name"),),
+        plain_arms=(("\\A(?:default)\\z",),),
     ),
     LeafrefConstraint(
         source_table="SRV6_MY_SIDS",
@@ -694,6 +787,7 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
         source_table="SYSLOG_SERVER",
         source_field="vrf",
         targets=(("VRF", "name"),),
+        plain_arms=(("\\A(?:default|mgmt)\\z",),),
     ),
     LeafrefConstraint(
         source_table="TACPLUS",
@@ -703,6 +797,11 @@ LEAFREFS: Tuple[LeafrefConstraint, ...] = (
             ("PORTCHANNEL", "name"),
             ("LOOPBACK_INTERFACE", "name"),
             ("MGMT_PORT", "name"),
+        ),
+        plain_arms=(
+            (
+                "\\A(?:Vlan([0-9]{1,3}|[1-3][0-9]{3}|[4][0][0-8][0-9]|[4][0][9][0-4]))\\z",
+            ),
         ),
     ),
     LeafrefConstraint(

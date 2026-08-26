@@ -120,6 +120,13 @@ class LeafrefConstraint:
     ``is_leaf_list`` flags element-wise checks; ``source_is_simple_key`` is
     true when the source leaf is the sole `key` of its YANG list, so the row
     key in ConfigDB JSON directly carries the value.
+
+    ``plain_arms`` carries the non-leafref arms of a union — a union accepts a
+    value if *any* arm does, so a value one of these admits is legal even
+    though it resolves to no target. Each arm is the tuple of YANG patterns
+    that arm imposes; YANG requires every pattern of an arm to match, so an
+    arm matches when all of its patterns do, and an *empty* arm therefore
+    matches everything. See :func:`extract_union_plain_arms`.
     """
 
     source_table: str
@@ -127,6 +134,13 @@ class LeafrefConstraint:
     targets: Tuple[Tuple[str, str], ...]
     is_leaf_list: bool = False
     source_is_simple_key: bool = False
+    plain_arms: Tuple[Tuple[str, ...], ...] = ()
+
+    @property
+    def is_vacuous(self) -> bool:
+        """True when a plain arm admits any string, making the leafref
+        unenforceable: every value is legal via that arm."""
+        return any(len(arm) == 0 for arm in self.plain_arms)
 
 
 def parse_leafref_path(path: str) -> Optional[Tuple[str, str]]:
@@ -182,6 +196,113 @@ def extract_leafref_targets(type_stmt) -> List[Tuple[str, str]]:
     return []
 
 
+def extract_union_plain_arms(type_stmt) -> List[Tuple[str, ...]]:
+    """Return one entry per non-leafref arm of a union, as that arm's patterns.
+
+    A YANG `union` accepts a value if any arm accepts it, so the leafref arms
+    of a mixed union constrain only the values no plain arm admits. The
+    generator therefore has to keep the plain arms rather than discard them —
+    dropping them makes a legal value look like a dangling reference, and
+    dropping the whole constraint instead gives up checks the plain arms
+    barely widen (`PFC_WD.ifname` is a PORT leafref unioned with the single
+    literal `GLOBAL`).
+
+    An arm is represented by the YANG patterns it imposes; YANG requires all
+    of them to match. An arm that restricts nothing a pattern can
+    express — a bare `string`, or a numeric or boolean type we do not render —
+    yields an empty tuple, which matches everything and so renders the whole
+    constraint unenforceable (:attr:`LeafrefConstraint.is_vacuous`).
+    `length` restrictions are not rendered either; ignoring them only widens
+    what an arm admits, which costs coverage rather than causing false errors.
+    """
+    base = type_stmt.arg
+    if base == "leafref":
+        return []
+    if base == "union":
+        arms: List[Tuple[str, ...]] = []
+        for s in type_stmt.substmts:
+            if s.keyword == "type":
+                arms.extend(extract_union_plain_arms(s))
+        return arms
+    td = getattr(type_stmt, "i_typedef", None)
+    if td is not None:
+        inner = td.search_one("type")
+        if inner is not None:
+            return extract_union_plain_arms(inner)
+    if base == "enumeration":
+        enums = [s.arg for s in type_stmt.substmts if s.keyword == "enum"]
+        if enums:
+            return [("|".join(re.escape(e) for e in enums),)]
+        return [()]
+    if base == "string":
+        return [tuple(s.arg for s in type_stmt.substmts if s.keyword == "pattern")]
+    return [()]
+
+
+# Values the generator matches each pattern against to confirm the runtime
+# engine reads it the way YANG means it. Not a proof — a smoke check wide
+# enough to catch the ways the two dialects are known to diverge: unanchored
+# matching, and Unicode category escapes such as `\\p{N}`.
+PATTERN_PROBES = (
+    "10.0.0.1",
+    "999.1.1.1",
+    "10.0.0.1%eth0",
+    "fe80::1",
+    "Ethernet0",
+    "Vlan100",
+    "Vlan4095",
+    "default",
+    "GLOBAL",
+    "",
+    " ",
+    "10.0.0.1\n",
+    "\n10.0.0.1",
+)
+
+
+def render_arm_pattern(pattern: str) -> str:
+    """Return *pattern* in the form the validator will match it in.
+
+    Two things happen here rather than at runtime, so that exactly one place
+    knows how a YANG pattern becomes a runtime one and the two cannot drift.
+
+    First, the pattern is anchored: XSD patterns match a whole value, while
+    the pydantic engine the validator uses searches, which would accept
+    `999.1.1.1` for an IPv4 arm.
+
+    Second, generation fails unless both engines then agree. pyang carries a
+    conformant XSD matcher (libxml2 via lxml), so a dialect difference — the
+    Unicode escapes in `inet:ip-address`, say — is settled here as a build
+    failure instead of surfacing in the validator as a wrong error about a
+    real config.
+    """
+    from typing import Annotated
+
+    from pyang.types import XSDPattern  # generation-time only, not a runtime dep
+    from pydantic import StringConstraints, TypeAdapter, ValidationError
+
+    reference = XSDPattern(pattern, pos=None, invert_match=False)
+    if not reference:
+        raise ValueError(f"not a valid XSD pattern: {pattern!r} ({reference.error})")
+
+    rendered = rf"\A(?:{pattern})\z"
+    adapter: TypeAdapter[str] = TypeAdapter(
+        Annotated[str, StringConstraints(pattern=rendered)]
+    )
+    for probe in PATTERN_PROBES:
+        try:
+            adapter.validate_python(probe)
+            got = True
+        except ValidationError:
+            got = False
+        if got != reference(probe):
+            raise ValueError(
+                f"pattern {pattern!r} reads differently at runtime: XSD says "
+                f"{reference(probe)} for {probe!r}, the validator says {got}"
+            )
+    return rendered
+
+
 def list_keys(list_stmt) -> List[str]:
     """Return the leaf names that form a YANG `list`'s key (empty if none)."""
     key_stmt = list_stmt.search_one("key")
@@ -211,6 +332,10 @@ def collect_leafref_constraints(
         if not targets:
             continue
         is_simple_key = len(keys) == 1 and leaf.arg == keys[0]
+        plain_arms = tuple(
+            tuple(render_arm_pattern(p) for p in arm)
+            for arm in extract_union_plain_arms(type_stmt)
+        )
         constraints.append(
             LeafrefConstraint(
                 source_table=table_name,
@@ -218,6 +343,7 @@ def collect_leafref_constraints(
                 targets=tuple(targets),
                 is_leaf_list=(leaf.keyword == "leaf-list"),
                 source_is_simple_key=is_simple_key,
+                plain_arms=plain_arms,
             )
         )
     return constraints
@@ -630,9 +756,14 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
     Constraints that share `(source_table, source_field)` — typically because
     a table declares multiple `list` siblings with the same leafref leaf, e.g.
     INTERFACE_LIST and INTERFACE_IPPREFIX_LIST both having `name` →
-    PORT/name — are merged: targets are unioned and the is_leaf_list /
-    source_is_simple_key flags become true if any contributing constraint had
-    them set.
+    PORT/name — are merged: targets and plain arms are unioned and the
+    is_leaf_list / source_is_simple_key flags become true if any contributing
+    constraint had them set.
+
+    Constraints left unenforceable by a plain arm that admits any string are
+    dropped, so the module carries no rule that cannot fail. Merging happens
+    first: a sibling list that widens the leaf to a bare string widens it for
+    the merged constraint too.
     """
     merged: Dict[Tuple[str, str], LeafrefConstraint] = {}
     for c in constraints:
@@ -647,6 +778,12 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
             if t not in seen:
                 seen.add(t)
                 new_targets.append(t)
+        seen_arms: set = set()
+        new_arms: List[Tuple[str, ...]] = []
+        for arm in (*existing.plain_arms, *c.plain_arms):
+            if arm not in seen_arms:
+                seen_arms.add(arm)
+                new_arms.append(arm)
         merged[key] = LeafrefConstraint(
             source_table=c.source_table,
             source_field=c.source_field,
@@ -654,10 +791,12 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
             is_leaf_list=existing.is_leaf_list or c.is_leaf_list,
             source_is_simple_key=existing.source_is_simple_key
             or c.source_is_simple_key,
+            plain_arms=tuple(new_arms),
         )
 
     sorted_constraints = sorted(
-        merged.values(), key=lambda c: (c.source_table, c.source_field)
+        (c for c in merged.values() if not c.is_vacuous),
+        key=lambda c: (c.source_table, c.source_field),
     )
     lines: List[str] = []
     lines.append("# SPDX-License-Identifier: Apache-2.0")
@@ -673,14 +812,27 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
     lines.append("@dataclass(frozen=True)")
     lines.append("class LeafrefConstraint:")
     lines.append(
-        '    """A leafref from ``source_table.source_field`` to one of ``targets``."""'
+        '    """A leafref from ``source_table.source_field`` to one of ``targets``.'
     )
+    lines.append("")
+    lines.append(
+        "    ``plain_arms`` holds the non-leafref arms of a YANG union, as anchored"
+    )
+    lines.append(
+        "    regexes. A union accepts a value if any arm does, so a value matching"
+    )
+    lines.append(
+        "    one of these is legal without resolving to a target; an arm matches"
+    )
+    lines.append("    when every pattern in it matches.")
+    lines.append('    """')
     lines.append("")
     lines.append("    source_table: str")
     lines.append("    source_field: str")
     lines.append("    targets: Tuple[Tuple[str, str], ...]")
     lines.append("    is_leaf_list: bool = False")
     lines.append("    source_is_simple_key: bool = False")
+    lines.append("    plain_arms: Tuple[Tuple[str, ...], ...] = ()")
     lines.append("")
     lines.append("")
     lines.append("LEAFREFS: Tuple[LeafrefConstraint, ...] = (")
@@ -696,6 +848,17 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
             lines.append("        is_leaf_list=True,")
         if c.source_is_simple_key:
             lines.append("        source_is_simple_key=True,")
+        if c.plain_arms:
+            arms_repr = ", ".join(
+                "("
+                + ", ".join(repr(p) for p in arm)
+                + ("," if len(arm) == 1 else "")
+                + ")"
+                for arm in c.plain_arms
+            )
+            if len(c.plain_arms) == 1:
+                arms_repr += ","
+            lines.append(f"        plain_arms=({arms_repr}),")
         lines.append("    ),")
     lines.append(")")
     lines.append("")

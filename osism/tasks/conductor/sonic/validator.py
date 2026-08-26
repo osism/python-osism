@@ -9,8 +9,10 @@ pydantic.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from functools import lru_cache
+from typing import Annotated, Any, Dict, Iterable, List, Optional
 
+from pydantic import StringConstraints, TypeAdapter
 from pydantic import ValidationError as PydValidationError
 
 from osism.tasks.conductor.sonic._generated import (
@@ -84,6 +86,19 @@ def validate_config(config: Dict[str, Any]) -> ValidationResult:
                 )
             )
 
+    for pattern in _unusable_patterns():
+        # Not a defect in the config: the committed schemas and the installed
+        # pydantic disagree. Reported as an error all the same, because the
+        # alternative is reporting success while quietly checking less.
+        errors.append(
+            ValidationError(
+                message=(
+                    "generated schema is not usable with the installed pydantic: "
+                    f"pattern {pattern!r} does not compile"
+                )
+            )
+        )
+
     errors.extend(_check_leafrefs(config))
 
     return ValidationResult(valid=not errors, errors=errors, warnings=warnings)
@@ -97,6 +112,11 @@ def _check_leafrefs(config: Dict[str, Any]) -> List[ValidationError]:
     key value, so a missing reference is "value not in
     ``config[target_table]``". Multi-target (union-of-leafref) succeeds if
     *any* target accepts the value.
+
+    A union may also offer non-leafref arms — ``BGP_NEIGHBOR.local_addr``
+    takes a literal address as readily as an interface name. Those arms carry
+    no reference to resolve, so a value one of them admits is legal as it
+    stands and is exempt from the leafref check.
 
     Composite-key parsing is intentionally skipped — when the source field is
     encoded only inside a `|`-separated row key, we can't safely split without
@@ -113,6 +133,8 @@ def _check_leafrefs(config: Dict[str, Any]) -> List[ValidationError]:
         # references are unresolvable — flag them.
         for row_key, row in rows.items():
             for value in _iter_leafref_values(constraint, row_key, row):
+                if _matches_plain_arm(constraint, value):
+                    continue
                 if not _value_in_any_target(value, target_keysets):
                     errors.append(
                         ValidationError(
@@ -176,6 +198,63 @@ def _iter_leafref_values(
 
 def _value_in_any_target(value: str, keysets: List[set]) -> bool:
     return any(value in ks for ks in keysets)
+
+
+@lru_cache(maxsize=None)
+def _pattern_adapter(pattern: str) -> Optional[TypeAdapter]:
+    """Compile one generated arm pattern, or ``None`` if it will not compile.
+
+    Failing here should be impossible: the generator matches every pattern it
+    emits against both a conformant XSD engine and this one before committing
+    it. If it happens anyway, the generated schemas and the installed pydantic
+    disagree — an environment fault rather than anything about the config —
+    and :func:`_unusable_patterns` reports it. The matcher then treats the arm
+    as matching, so one bad pattern cannot also manufacture dangling-reference
+    errors on top of the incompatibility.
+    """
+    try:
+        return TypeAdapter(Annotated[str, StringConstraints(pattern=pattern)])
+    except Exception:
+        return None
+
+
+def _matches_plain_arm(constraint: LeafrefConstraint, value: str) -> bool:
+    """True when a non-leafref arm of the union already admits ``value``.
+
+    Arms are alternatives, so one matching arm is enough; within an arm YANG
+    requires every pattern to match.
+    """
+    for arm in constraint.plain_arms:
+        if all(_matches_pattern(pattern, value) for pattern in arm):
+            return True
+    return False
+
+
+def _matches_pattern(pattern: str, value: str) -> bool:
+    adapter = _pattern_adapter(pattern)
+    if adapter is None:
+        return True
+    try:
+        adapter.validate_python(value)
+    except PydValidationError:
+        return False
+    return True
+
+
+def _unusable_patterns() -> List[str]:
+    """Generated arm patterns this pydantic cannot compile.
+
+    Keyed on the committed schemas rather than on the config, so this reports
+    the same thing for every input: an incompatibility is surfaced once, and
+    never as noise proportional to the configuration.
+    """
+    unusable: List[str] = []
+    for constraint in LEAFREFS:
+        for arm in constraint.plain_arms:
+            for pattern in arm:
+                if _pattern_adapter(pattern) is None and pattern not in unusable:
+                    unusable.append(pattern)
+    return unusable
 
 
 def _format_missing_message(constraint: LeafrefConstraint, value: str) -> str:
