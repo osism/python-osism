@@ -345,18 +345,6 @@ def test_clean_steps_no_raid_requested_on_full_clean():
     assert _steps(node, raid=False) == [("deploy", "erase_devices")]
 
 
-def test_clean_steps_do_not_accumulate_across_nodes():
-    """Regression: the list used to be built once and prepended to per node."""
-    nodes = [
-        FakeNode(
-            name=f"node{index}", raid_interface="agent", target_raid_config={"x": 1}
-        )
-        for index in range(3)
-    ]
-    for node in nodes:
-        assert _steps(node).count(("raid", "delete_configuration")) == 1
-
-
 # --- _apply_metalbox_vars ---
 
 
@@ -1402,6 +1390,7 @@ def test_burnin_unsupported_state_warns(loguru_logs):
 ERASE_DEVICES_STEP = {"interface": "deploy", "step": "erase_devices"}
 ERASE_METADATA_STEP = {"interface": "deploy", "step": "erase_devices_metadata"}
 RAID_DELETE_STEP = {"interface": "raid", "step": "delete_configuration"}
+RAID_CREATE_STEP = {"interface": "raid", "step": "create_configuration"}
 
 
 def _run_baremetal_clean(args, conn):
@@ -1457,6 +1446,77 @@ def test_clean_metadata_only_skips_delete_configuration_on_raid_node():
 
     conn.baremetal.set_node_provision_state.assert_called_once_with(
         node.id, "clean", clean_steps=[ERASE_METADATA_STEP]
+    )
+
+
+def test_clean_all_builds_the_step_list_per_node():
+    """Regression: the list used to be built once and prepended to per node.
+
+    The three kinds have to differ. Three identical RAID nodes would also pass
+    with the call hoisted back out of the node loop.
+    """
+    plain = FakeNode(id="uuid-1", name="node1", provision_state="manageable")
+    raid_only = FakeNode(
+        id="uuid-2",
+        name="node2",
+        provision_state="manageable",
+        raid_interface="agent",
+    )
+    raid_declared = FakeNode(
+        id="uuid-3",
+        name="node3",
+        provision_state="manageable",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = [plain, raid_only, raid_declared]
+
+    _run_baremetal_clean(["--all", "--yes-i-really-really-mean-it"], conn)
+
+    assert conn.baremetal.set_node_provision_state.call_args_list == [
+        call("uuid-1", "clean", clean_steps=[ERASE_DEVICES_STEP]),
+        call("uuid-2", "clean", clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP]),
+        call(
+            "uuid-3",
+            "clean",
+            clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP, RAID_CREATE_STEP],
+        ),
+    ]
+
+
+def test_clean_metadata_only_with_raid_requested():
+    """The combination a fleet needs whose disks cannot be erased in band."""
+    node = FakeNode(
+        provision_state="manageable",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    _run_baremetal_clean(["node1", "--metadata-only", "--raid"], conn)
+
+    conn.baremetal.set_node_provision_state.assert_called_once_with(
+        node.id,
+        "clean",
+        clean_steps=[RAID_DELETE_STEP, ERASE_METADATA_STEP, RAID_CREATE_STEP],
+    )
+
+
+def test_clean_no_raid_skips_the_raid_steps_on_a_full_clean():
+    node = FakeNode(
+        provision_state="manageable",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    _run_baremetal_clean(["node1", "--no-raid"], conn)
+
+    conn.baremetal.set_node_provision_state.assert_called_once_with(
+        node.id, "clean", clean_steps=[ERASE_DEVICES_STEP]
     )
 
 
