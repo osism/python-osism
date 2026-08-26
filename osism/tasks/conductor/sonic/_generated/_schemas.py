@@ -6,7 +6,33 @@
 
 from typing import Annotated, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StringConstraints
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    RootModel,
+    StringConstraints,
+)
+
+
+def _split_delimited(delimiter: str):
+    """Accept a ConfigDB leaf-list written as one delimited string.
+
+    A few leaf-lists reach ConfigDB as `"100000,50000"` rather than as a JSON
+    array; see LEAF_LIST_WITH_STRING_VALUE_DICT in upstream sonic-yang-mgmt.
+    Splitting mirrors what SONiC does before validating, down to stripping
+    each element, so an empty string yields one empty element and is rejected
+    here exactly as SONiC would reject it. Values already in array form are
+    passed through untouched.
+    """
+
+    def split(value):
+        if isinstance(value, str):
+            return [element.strip() for element in value.split(delimiter)]
+        return value
+
+    return split
 
 
 # sonic-asic-sensors.yang :: sonic-asic-sensors :: ASIC_SENSORS
@@ -133,16 +159,21 @@ class BgpAllowedPrefixesListRow(BaseModel):
     id: Optional[Annotated[int, Field(ge=0, le=4294967295)]] = None
     default_action: Optional[Literal["permit", "deny"]] = None
     prefixes_v4: Optional[
-        List[
-            Annotated[
-                str,
-                StringConstraints(
-                    pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))( (le|ge) (([0-9])|([1-2][0-9])|(3[0-2])))?"
-                ),
-            ]
+        Annotated[
+            List[
+                Annotated[
+                    str,
+                    StringConstraints(
+                        pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))( (le|ge) (([0-9])|([1-2][0-9])|(3[0-2])))?"
+                    ),
+                ]
+            ],
+            BeforeValidator(_split_delimited(",")),
         ]
     ] = None
-    prefixes_v6: Optional[List[str]] = None
+    prefixes_v6: Optional[
+        Annotated[List[str], BeforeValidator(_split_delimited(","))]
+    ] = None
 
 
 class BgpAllowedPrefixesNeighListRow(BaseModel):
@@ -158,16 +189,21 @@ class BgpAllowedPrefixesNeighListRow(BaseModel):
     neighbor_type: Optional[str] = None
     default_action: Optional[Literal["permit", "deny"]] = None
     prefixes_v4: Optional[
-        List[
-            Annotated[
-                str,
-                StringConstraints(
-                    pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))( (le|ge) (([0-9])|([1-2][0-9])|(3[0-2])))?"
-                ),
-            ]
+        Annotated[
+            List[
+                Annotated[
+                    str,
+                    StringConstraints(
+                        pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))( (le|ge) (([0-9])|([1-2][0-9])|(3[0-2])))?"
+                    ),
+                ]
+            ],
+            BeforeValidator(_split_delimited(",")),
         ]
     ] = None
-    prefixes_v6: Optional[List[str]] = None
+    prefixes_v6: Optional[
+        Annotated[List[str], BeforeValidator(_split_delimited(","))]
+    ] = None
 
 
 class BgpAllowedPrefixesComListRow(BaseModel):
@@ -180,16 +216,21 @@ class BgpAllowedPrefixesComListRow(BaseModel):
     community: Optional[str] = None
     default_action: Optional[Literal["permit", "deny"]] = None
     prefixes_v4: Optional[
-        List[
-            Annotated[
-                str,
-                StringConstraints(
-                    pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))( (le|ge) (([0-9])|([1-2][0-9])|(3[0-2])))?"
-                ),
-            ]
+        Annotated[
+            List[
+                Annotated[
+                    str,
+                    StringConstraints(
+                        pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))( (le|ge) (([0-9])|([1-2][0-9])|(3[0-2])))?"
+                    ),
+                ]
+            ],
+            BeforeValidator(_split_delimited(",")),
         ]
     ] = None
-    prefixes_v6: Optional[List[str]] = None
+    prefixes_v6: Optional[
+        Annotated[List[str], BeforeValidator(_split_delimited(","))]
+    ] = None
 
 
 class BgpAllowedPrefixesNeighComListRow(BaseModel):
@@ -206,16 +247,21 @@ class BgpAllowedPrefixesNeighComListRow(BaseModel):
     community: Optional[str] = None
     default_action: Optional[Literal["permit", "deny"]] = None
     prefixes_v4: Optional[
-        List[
-            Annotated[
-                str,
-                StringConstraints(
-                    pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))( (le|ge) (([0-9])|([1-2][0-9])|(3[0-2])))?"
-                ),
-            ]
+        Annotated[
+            List[
+                Annotated[
+                    str,
+                    StringConstraints(
+                        pattern="(([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])/(([0-9])|([1-2][0-9])|(3[0-2]))( (le|ge) (([0-9])|([1-2][0-9])|(3[0-2])))?"
+                    ),
+                ]
+            ],
+            BeforeValidator(_split_delimited(",")),
         ]
     ] = None
-    prefixes_v6: Optional[List[str]] = None
+    prefixes_v6: Optional[
+        Annotated[List[str], BeforeValidator(_split_delimited(","))]
+    ] = None
 
 
 class BgpAllowedPrefixesTable(
@@ -998,7 +1044,9 @@ class BufferPortEgressProfileListListRow(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     port: Optional[str] = None
-    profile_list: Optional[List[str]] = None
+    profile_list: Optional[
+        Annotated[List[str], BeforeValidator(_split_delimited(","))]
+    ] = None
 
 
 class BufferPortEgressProfileListTable(
@@ -1012,7 +1060,9 @@ class BufferPortIngressProfileListListRow(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     port: Optional[str] = None
-    profile_list: Optional[List[str]] = None
+    profile_list: Optional[
+        Annotated[List[str], BeforeValidator(_split_delimited(","))]
+    ] = None
 
 
 class BufferPortIngressProfileListTable(
@@ -4108,7 +4158,10 @@ class NtpGlobalRow(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     src_intf: Optional[
-        List[Union[str, Annotated[str, StringConstraints(pattern="eth0")]]]
+        Annotated[
+            List[Union[str, Annotated[str, StringConstraints(pattern="eth0")]]],
+            BeforeValidator(_split_delimited(";")),
+        ]
     ] = None
     vrf: Optional[Annotated[str, StringConstraints(pattern="mgmt|default")]] = None
     authentication: Optional[Literal["enabled", "disabled"]] = "disabled"
@@ -4545,11 +4598,14 @@ class PortListRow(BaseModel):
     link_training: Optional[Annotated[str, StringConstraints(pattern="on|off")]] = None
     autoneg: Optional[Annotated[str, StringConstraints(pattern="on|off")]] = None
     adv_speeds: Optional[
-        List[
-            Union[
-                Annotated[int, Field(ge=1, le=1600000)],
-                Annotated[str, StringConstraints(pattern="all")],
-            ]
+        Annotated[
+            List[
+                Union[
+                    Annotated[int, Field(ge=1, le=1600000)],
+                    Annotated[str, StringConstraints(pattern="all")],
+                ]
+            ],
+            BeforeValidator(_split_delimited(",")),
         ]
     ] = None
     interface_type: Optional[
@@ -4581,36 +4637,39 @@ class PortListRow(BaseModel):
         ]
     ] = None
     adv_interface_types: Optional[
-        List[
-            Union[
-                Literal[
-                    "CR",
-                    "CR2",
-                    "CR4",
-                    "CR8",
-                    "SR",
-                    "SR2",
-                    "SR4",
-                    "SR8",
-                    "LR",
-                    "LR4",
-                    "LR8",
-                    "KR",
-                    "KR4",
-                    "KR8",
-                    "CAUI",
-                    "GMII",
-                    "SFI",
-                    "XLAUI",
-                    "KR2",
-                    "CAUI4",
-                    "XAUI",
-                    "XFI",
-                    "XGMII",
-                    "none",
-                ],
-                Annotated[str, StringConstraints(pattern="all")],
-            ]
+        Annotated[
+            List[
+                Union[
+                    Literal[
+                        "CR",
+                        "CR2",
+                        "CR4",
+                        "CR8",
+                        "SR",
+                        "SR2",
+                        "SR4",
+                        "SR8",
+                        "LR",
+                        "LR4",
+                        "LR8",
+                        "KR",
+                        "KR4",
+                        "KR8",
+                        "CAUI",
+                        "GMII",
+                        "SFI",
+                        "XLAUI",
+                        "KR2",
+                        "CAUI4",
+                        "XAUI",
+                        "XFI",
+                        "XGMII",
+                        "none",
+                    ],
+                    Annotated[str, StringConstraints(pattern="all")],
+                ]
+            ],
+            BeforeValidator(_split_delimited(",")),
         ]
     ] = None
     mtu: Optional[Annotated[int, Field(ge=68, le=9216)]] = None
