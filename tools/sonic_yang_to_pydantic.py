@@ -359,6 +359,31 @@ def list_keys(list_stmt) -> List[str]:
     return key_stmt.arg.split()
 
 
+def collect_table_key_fields(table_container) -> List[Tuple[str, ...]]:
+    """Return the key-leaf names of every `list` under one table container.
+
+    ConfigDB joins a list's key values into the row key with `|`, so
+    ``BGP_NEIGHBOR_AF|default|10.0.0.2|ipv4_unicast`` carries `vrf_name`,
+    `neighbor` and `afi_safi` in that order. Emitting the key leaves lets the
+    validator recover those values positionally, which is the only way most
+    leafrefs are reachable at all — the referring leaf is usually a key
+    component and never appears as a field in the row dict.
+
+    One entry per list, because a table may declare several with different key
+    arities (`INTERFACE` has one keyed by name and one by name plus prefix).
+    Splitting on `|` and matching on the number of parts tells them apart; no
+    table in the vendored models declares two lists of the same arity.
+    """
+    out: List[Tuple[str, ...]] = []
+    for node in iter_resolved_children(table_container):
+        if node.keyword != "list":
+            continue
+        keys = tuple(list_keys(node))
+        if keys and keys not in out:
+            out.append(keys)
+    return out
+
+
 def collect_leafref_constraints(
     table_name: str, list_or_container, leaves
 ) -> List[LeafrefConstraint]:
@@ -779,6 +804,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     leafrefs: List[LeafrefConstraint] = []
     skipped: List[Tuple[str, str]] = []
     divergent: List[str] = []
+    key_fields: Dict[str, List[Tuple[str, ...]]] = {}
     seen_tables: set = set()
 
     for path, module, container in find_table_containers(modules):
@@ -806,6 +832,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         code_blocks.append(f"\n# {path.name} :: {module.arg} :: {table_name}\n{code}")
         registry.append((table_name, table_class))
         leafrefs.extend(table_leafrefs)
+        keys = collect_table_key_fields(container)
+        if keys:
+            key_fields[table_name] = keys
 
     body = "".join(code_blocks)
     body += "\n\nTABLE_MODELS: Dict[str, type[BaseModel]] = {\n"
@@ -838,19 +867,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     out_file.write_text(schema_code)
 
     leafrefs_file = output / "_leafrefs.py"
-    leafrefs_file.write_text(render_leafrefs_module(leafrefs))
+    leafrefs_file.write_text(render_leafrefs_module(leafrefs, key_fields))
 
     init_file = output / "__init__.py"
     init_file.write_text(
         "# SPDX-License-Identifier: Apache-2.0\n"
         "# AUTO-GENERATED — DO NOT EDIT BY HAND.\n"
         '"""Generated SONiC ConfigDB schemas."""\n\n'
-        "from ._leafrefs import LEAFREFS, LeafrefConstraint\n"
+        "from ._leafrefs import LEAFREFS, TABLE_KEY_FIELDS, LeafrefConstraint\n"
         "from ._schemas import PLATFORM_DIVERGENT_TABLES, TABLE_MODELS\n\n"
         "__all__ = [\n"
         '    "LEAFREFS",\n'
         '    "LeafrefConstraint",\n'
         '    "PLATFORM_DIVERGENT_TABLES",\n'
+        '    "TABLE_KEY_FIELDS",\n'
         '    "TABLE_MODELS",\n'
         "]\n"
     )
@@ -861,6 +891,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         for name in sorted(divergent):
             print(f"  - {name}: {PLATFORM_DIVERGENT_TABLES[name]}")
     print(f"Wrote {len(leafrefs)} leafref constraints -> {leafrefs_file}")
+    print(f"Wrote key fields for {len(key_fields)} tables")
     if skipped:
         print(f"Skipped {len(skipped)} containers:")
         for name, reason in skipped:
@@ -870,7 +901,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     return 0
 
 
-def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
+def render_leafrefs_module(
+    constraints: List[LeafrefConstraint],
+    key_fields: Optional[Dict[str, List[Tuple[str, ...]]]] = None,
+) -> str:
     """Render the auto-generated `_leafrefs.py` module.
 
     Constraints that share `(source_table, source_field)` — typically because
@@ -927,7 +961,7 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
     lines.append('"""SONiC ConfigDB cross-table leafref constraints."""')
     lines.append("")
     lines.append("from dataclasses import dataclass")
-    lines.append("from typing import Optional, Tuple")
+    lines.append("from typing import Dict, Optional, Tuple")
     lines.append("")
     lines.append("")
     lines.append("@dataclass(frozen=True)")
@@ -985,6 +1019,23 @@ def render_leafrefs_module(constraints: List[LeafrefConstraint]) -> str:
             lines.append(f"        element_delimiter={c.element_delimiter!r},")
         lines.append("    ),")
     lines.append(")")
+    lines.append("")
+    lines.append("")
+    lines.append("# Key leaves of every `list` in a table, in the order ConfigDB joins")
+    lines.append("# them into the row key with `|`. Lists are told apart by how many")
+    lines.append("# parts they have; no table declares two of the same length.")
+    lines.append("TABLE_KEY_FIELDS: Dict[str, Tuple[Tuple[str, ...], ...]] = {")
+    all_key_fields = key_fields or {}
+    for table_name in sorted(all_key_fields):
+        variants = all_key_fields[table_name]
+        rendered = ", ".join(
+            "(" + ", ".join(repr(k) for k in v) + ("," if len(v) == 1 else "") + ")"
+            for v in variants
+        )
+        if len(variants) == 1:
+            rendered += ","
+        lines.append(f"    {table_name!r}: ({rendered}),")
+    lines.append("}")
     lines.append("")
     return "\n".join(lines)
 

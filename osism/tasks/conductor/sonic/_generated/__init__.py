@@ -2,12 +2,13 @@
 # AUTO-GENERATED — DO NOT EDIT BY HAND.
 """Generated SONiC ConfigDB schemas."""
 
-from ._leafrefs import LEAFREFS, LeafrefConstraint
+from ._leafrefs import LEAFREFS, TABLE_KEY_FIELDS, LeafrefConstraint
 from ._schemas import PLATFORM_DIVERGENT_TABLES, TABLE_MODELS
 
 __all__ = [
     "LEAFREFS",
     "LeafrefConstraint",
     "PLATFORM_DIVERGENT_TABLES",
+    "TABLE_KEY_FIELDS",
     "TABLE_MODELS",
 ]
