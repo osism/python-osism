@@ -13,6 +13,22 @@ from osism.data import enums
 from osism.data.enums import Role
 
 
+def _collect_result(result):
+    """Wait for a background task, absorbing an expected play failure.
+
+    A non-zero Ansible rc raises in the worker and is re-raised here. The rc
+    has already been read from the task-output stream, so the exception adds
+    nothing; anything else is unexpected and propagates.
+    """
+    from osism.tasks import AnsibleFailure
+
+    try:
+        result.get()
+    except AnsibleFailure as exc:
+        # Not logger.debug: the sink is pinned to INFO, so that would be silent.
+        logger.info(f"Background task reported a failed play: {exc}")
+
+
 class Run(Command):
     def get_parser(self, prog_name):
         parser = super(Run, self).get_parser(prog_name)
@@ -118,7 +134,7 @@ class Run(Command):
         # ImportError: sys.meta_path is None, Python is likely shutting down
 
         if not wait:
-            t.parent.get()
+            _collect_result(t.parent)
 
         # process the child tasks
         if format == "log":
@@ -128,7 +144,7 @@ class Run(Command):
                 )
 
         # As explained above, it is neceesary to wait for all tasks.
-        t.get()
+        _collect_result(t)
 
         return rc
 

@@ -528,11 +528,49 @@ def test_run_ansible_logs_start_then_success_with_sorted_hosts(runner_mocks):
 
 
 def test_run_ansible_nonzero_rc_logs_failure(runner_mocks):
+    """A non-zero rc is still logged and still published to the output stream.
+
+    The raise added for chain abortion must happen *after* both, so the
+    non-collection CLI path -- which reads the rc back out of the Redis stream
+    rather than out of the Celery result -- keeps working unchanged.
+    """
     runner_mocks.popen.return_value = make_process(["ok: [node-1]\n"], rc=1)
-    run_ansible()
+    with pytest.raises(tasks.AnsibleFailure):
+        run_ansible()
     calls = runner_mocks.log_play.call_args_list
     assert calls[1].kwargs["result"] == "failure"
     runner_mocks.finish.assert_called_once_with("req-1", rc=1)
+
+
+def test_run_ansible_nonzero_rc_raises_with_context(runner_mocks):
+    """The exception message has to identify the play, since it is all the
+    Celery result backend keeps -- the output itself is not serialized."""
+    runner_mocks.popen.return_value = make_process(["ok: [node-1]\n"], rc=2)
+    with pytest.raises(tasks.AnsibleFailure) as excinfo:
+        run_ansible(worker="kolla-ansible", environment="kolla", role="keystone")
+    message = str(excinfo.value)
+    assert "kolla-ansible" in message
+    assert "kolla" in message
+    assert "keystone" in message
+    assert "2" in message
+
+
+def test_run_ansible_nonzero_rc_releases_lock_and_cleans_ssh_dir(runner_mocks):
+    """Raising must not leak the redlock or the per-task ControlPath dir; both
+    are released in ``finally`` blocks the raise passes through."""
+    lock = runner_mocks.create_redlock.return_value
+    runner_mocks.popen.return_value = make_process(["ok: [node-1]\n"], rc=1)
+
+    with pytest.raises(tasks.AnsibleFailure):
+        run_ansible(locking=True)
+
+    lock.release.assert_called_once_with()
+    runner_mocks.rmtree.assert_called_once()
+
+
+def test_run_ansible_zero_rc_does_not_raise(runner_mocks):
+    runner_mocks.popen.return_value = make_process(["ok: [node-1]\n"], rc=0)
+    assert run_ansible() == "ok: [node-1]\n"
 
 
 def test_run_ansible_duplicate_hosts_deduplicated(runner_mocks):

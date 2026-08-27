@@ -494,3 +494,75 @@ def test_peek_failure_is_reported_at_a_visible_level(loguru_logs):
     notices = [r for r in loguru_logs if "stall reporting" in r["message"].lower()]
     assert len(notices) == 1
     assert notices[0]["level"] in ("WARNING", "ERROR")
+
+
+# terminal failure states
+
+
+def test_failed_task_sets_nonzero_exit_code(loguru_logs):
+    """A FAILURE task must set a non-zero exit code.
+
+    Before the fix the loop branched on PENDING/SUCCESS/STARTED only, so a
+    FAILURE task fell through every branch, was dropped from the queue without
+    being re-queued, and ``rc`` stayed 0 -- which is why an aborted collection
+    chain still let ``deploy-in-a-nutshell.sh`` exit 0 under ``set -e``.
+    """
+    mocks = _run_states(
+        ["taskid1"],
+        results=[_make_result("FAILURE")],
+    )
+
+    assert mocks.rc == 1
+    assert mocks.async_result.call_count == 1
+    mocks.sleep.assert_not_called()
+    assert "Task taskid1 is in state FAILURE" in [
+        record["message"] for record in loguru_logs
+    ]
+
+
+def test_revoked_task_sets_nonzero_exit_code(loguru_logs):
+    mocks = _run_states(
+        ["taskid1"],
+        results=[_make_result("REVOKED")],
+    )
+
+    assert mocks.rc == 1
+    assert "Task taskid1 is in state REVOKED" in [
+        record["message"] for record in loguru_logs
+    ]
+
+
+def test_failure_is_not_reset_by_a_later_successful_task():
+    """``rc`` has to survive the rest of the queue.
+
+    IDs are sorted and popped from the end, so ``taskid2`` is inspected first;
+    the SUCCESS branch that follows must not clear the recorded failure.
+    """
+    mocks = _run_states(
+        ["taskid1", "taskid2"],
+        results=[_make_result("FAILURE"), _make_result("SUCCESS")],
+    )
+
+    assert mocks.rc == 1
+
+
+def test_failed_task_with_output_does_not_fetch_the_result():
+    """``--output`` must not call ``result.get()`` on a failed task: Celery
+    re-raises the task's exception there, which would replace the exit code
+    with a traceback."""
+    result = _make_result("FAILURE")
+    mocks = _run_states(["taskid1", "--output"], results=[result])
+
+    assert mocks.rc == 1
+    result.get.assert_not_called()
+
+
+def test_script_format_prints_failure_state(capsys, loguru_logs):
+    mocks = _run_states(
+        ["taskid1", "--format", "script"],
+        results=[_make_result("FAILURE")],
+    )
+
+    assert mocks.rc == 1
+    assert capsys.readouterr().out == "taskid1 = FAILURE\n"
+    assert not any("taskid1" in record["message"] for record in loguru_logs)
