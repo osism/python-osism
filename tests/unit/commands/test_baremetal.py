@@ -283,6 +283,9 @@ def _patch_cloud(setup, getconn, cleanup):
 # --- _build_clean_steps ---
 
 
+DECLARED = {"logical_disks": [{"controller": "software"}]}
+
+
 def _steps(node, metadata_only=False, raid=None):
     return [
         (step["interface"], step["step"])
@@ -295,8 +298,22 @@ def test_clean_steps_without_raid_interface():
     assert _steps(node) == [("deploy", "erase_devices")]
 
 
+def test_clean_steps_no_raid_interface_ignores_the_raid_mode():
+    """A node that cannot hold a configuration is unaffected by any mode."""
+    node = FakeNode(raid_interface="no-raid", target_raid_config=DECLARED)
+    assert _steps(node, raid="recreate") == [("deploy", "erase_devices")]
+
+
+def test_clean_steps_default_deletes_without_rebuilding():
+    """A full clean leaves nothing behind unless a rebuild is asked for."""
+    node = FakeNode(raid_interface="agent", target_raid_config=DECLARED)
+    assert _steps(node) == [
+        ("raid", "delete_configuration"),
+        ("deploy", "erase_devices"),
+    ]
+
+
 def test_clean_steps_raid_capable_without_target_config():
-    """Unchanged behaviour: delete only, there is nothing to create."""
     node = FakeNode(raid_interface="agent", target_raid_config=None)
     assert _steps(node) == [
         ("raid", "delete_configuration"),
@@ -304,45 +321,49 @@ def test_clean_steps_raid_capable_without_target_config():
     ]
 
 
-def test_clean_steps_creates_configuration_when_declared():
-    node = FakeNode(
-        raid_interface="agent",
-        target_raid_config={"logical_disks": [{"controller": "software"}]},
-    )
-    assert _steps(node) == [
+def test_clean_steps_delete_removes_the_configuration():
+    node = FakeNode(raid_interface="agent", target_raid_config=DECLARED)
+    assert _steps(node, raid="delete") == [
+        ("raid", "delete_configuration"),
+        ("deploy", "erase_devices"),
+    ]
+
+
+def test_clean_steps_keep_leaves_the_configuration_in_place():
+    node = FakeNode(raid_interface="agent", target_raid_config=DECLARED)
+    assert _steps(node, raid="keep") == [("deploy", "erase_devices")]
+
+
+def test_clean_steps_recreate_rebuilds_the_declared_array():
+    node = FakeNode(raid_interface="agent", target_raid_config=DECLARED)
+    assert _steps(node, raid="recreate") == [
         ("raid", "delete_configuration"),
         ("deploy", "erase_devices"),
         ("raid", "create_configuration"),
     ]
 
 
-def test_clean_steps_metadata_only_keeps_raid_untouched_by_default():
-    node = FakeNode(
-        raid_interface="agent",
-        target_raid_config={"logical_disks": [{"controller": "software"}]},
-    )
+def test_clean_steps_metadata_only_keeps_the_array_by_default():
+    node = FakeNode(raid_interface="agent", target_raid_config=DECLARED)
     assert _steps(node, metadata_only=True) == [("deploy", "erase_devices_metadata")]
 
 
-def test_clean_steps_metadata_only_with_raid_requested():
+def test_clean_steps_metadata_only_with_recreate():
     """The combination a fleet needs whose disks cannot be erased in band."""
-    node = FakeNode(
-        raid_interface="agent",
-        target_raid_config={"logical_disks": [{"controller": "software"}]},
-    )
-    assert _steps(node, metadata_only=True, raid=True) == [
+    node = FakeNode(raid_interface="agent", target_raid_config=DECLARED)
+    assert _steps(node, metadata_only=True, raid="recreate") == [
         ("raid", "delete_configuration"),
         ("deploy", "erase_devices_metadata"),
         ("raid", "create_configuration"),
     ]
 
 
-def test_clean_steps_no_raid_requested_on_full_clean():
-    node = FakeNode(
-        raid_interface="agent",
-        target_raid_config={"logical_disks": [{"controller": "software"}]},
-    )
-    assert _steps(node, raid=False) == [("deploy", "erase_devices")]
+def test_clean_steps_metadata_only_with_delete():
+    node = FakeNode(raid_interface="agent", target_raid_config=DECLARED)
+    assert _steps(node, metadata_only=True, raid="delete") == [
+        ("raid", "delete_configuration"),
+        ("deploy", "erase_devices_metadata"),
+    ]
 
 
 # --- _apply_metalbox_vars ---
@@ -1401,6 +1422,83 @@ def _run_baremetal_clean(args, conn):
         return cmd.take_action(parsed_args)
 
 
+def _clean_parser():
+    return baremetal.BaremetalClean(MagicMock(), MagicMock()).get_parser("test")
+
+
+def test_clean_raid_flag_omitted_leaves_the_mode_unset():
+    assert _clean_parser().parse_args(["node1"]).raid is None
+
+
+def test_clean_raid_flag_without_a_value_means_recreate():
+    """Bare ``--raid`` keeps the meaning it had as a boolean flag."""
+    assert _clean_parser().parse_args(["node1", "--raid"]).raid == "recreate"
+
+
+@pytest.mark.parametrize("mode", ["delete", "keep", "recreate"])
+def test_clean_raid_flag_accepts_each_mode(mode):
+    assert _clean_parser().parse_args(["node1", "--raid", mode]).raid == mode
+
+
+def test_clean_raid_flag_rejects_an_unknown_mode():
+    with pytest.raises(SystemExit):
+        _clean_parser().parse_args(["node1", "--raid", "rebuild"])
+
+
+def test_clean_raid_flag_explains_the_node_name_ordering(capsys):
+    """``--raid`` takes an optional value, so a node name after it is swallowed.
+
+    Inherent to an optional-value flag beside an optional positional. The
+    error has to name the orders that work, because the bare argparse message
+    ("invalid choice: 'node101'") gives the operator nothing to act on.
+    """
+    with pytest.raises(SystemExit):
+        _clean_parser().parse_args(["--metadata-only", "--raid", "node101"])
+
+    message = capsys.readouterr().err
+    assert "node101 --raid" in message
+    assert "--raid recreate node101" in message
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["node101", "--raid"],
+        ["node101", "--metadata-only", "--raid"],
+        ["--all", "--metadata-only", "--raid"],
+        ["--raid", "recreate", "node101"],
+    ],
+)
+def test_clean_raid_flag_orders_that_work(args):
+    assert _clean_parser().parse_args(args).raid == "recreate"
+
+
+def test_clean_no_raid_flag_is_gone():
+    """Replaced by ``--raid keep``, which says what it does."""
+    with pytest.raises(SystemExit):
+        _clean_parser().parse_args(["node1", "--no-raid"])
+
+
+def test_clean_help_lists_the_example_invocations():
+    """The epilog is the only user-facing documentation these flags have."""
+    help_text = _clean_parser().format_help()
+    for example in [
+        "osism baremetal clean node101",
+        "osism baremetal clean --raid recreate node101",
+        "osism baremetal clean --raid keep node101",
+        "osism baremetal clean --metadata-only node101",
+        "osism baremetal clean --metadata-only --raid recreate node101",
+    ]:
+        assert example in help_text
+
+
+def test_clean_help_states_the_recreate_refusal_rule():
+    """The named-node and --all rules differ in exit status, so both are documented."""
+    help_text = _clean_parser().format_help()
+    assert "refuses" in help_text
+    assert "skips" in help_text
+
+
 def test_clean_manageable_without_raid_interface():
     node = FakeNode(provision_state="manageable")
     conn = MagicMock()
@@ -1452,8 +1550,12 @@ def test_clean_metadata_only_skips_delete_configuration_on_raid_node():
 def test_clean_all_builds_the_step_list_per_node():
     """Regression: the list used to be built once and prepended to per node.
 
-    The three kinds have to differ. Three identical RAID nodes would also pass
-    with the call hoisted back out of the node loop.
+    The kinds have to differ. Three identical RAID nodes would also pass with
+    the call hoisted back out of the node loop; here the node without a RAID
+    interface is what makes a hoist visible. Under the default mode a declared
+    and an undeclared RAID node do get the same steps, because the default
+    deletes and does not rebuild — the two are told apart by
+    ``test_clean_all_recreate_skips_nodes_with_nothing_to_build``.
     """
     plain = FakeNode(id="uuid-1", name="node1", provision_state="manageable")
     raid_only = FakeNode(
@@ -1477,11 +1579,7 @@ def test_clean_all_builds_the_step_list_per_node():
     assert conn.baremetal.set_node_provision_state.call_args_list == [
         call("uuid-1", "clean", clean_steps=[ERASE_DEVICES_STEP]),
         call("uuid-2", "clean", clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP]),
-        call(
-            "uuid-3",
-            "clean",
-            clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP, RAID_CREATE_STEP],
-        ),
+        call("uuid-3", "clean", clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP]),
     ]
 
 
@@ -1504,7 +1602,7 @@ def test_clean_metadata_only_with_raid_requested():
     )
 
 
-def test_clean_no_raid_skips_the_raid_steps_on_a_full_clean():
+def test_clean_raid_keep_skips_the_raid_steps_on_a_full_clean():
     node = FakeNode(
         provision_state="manageable",
         raid_interface="agent",
@@ -1513,7 +1611,7 @@ def test_clean_no_raid_skips_the_raid_steps_on_a_full_clean():
     conn = MagicMock()
     conn.baremetal.find_node.return_value = node
 
-    _run_baremetal_clean(["node1", "--no-raid"], conn)
+    _run_baremetal_clean(["node1", "--raid", "keep"], conn)
 
     conn.baremetal.set_node_provision_state.assert_called_once_with(
         node.id, "clean", clean_steps=[ERASE_DEVICES_STEP]
@@ -1541,6 +1639,235 @@ def test_clean_raid_requested_on_a_full_clean():
         node.id,
         "clean",
         clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP, RAID_CREATE_STEP],
+    )
+
+
+def test_clean_recreate_refuses_a_named_node_without_a_declaration(loguru_logs):
+    """``recreate`` delivers its outcome or refuses; it never degrades.
+
+    The node is ``available`` on purpose: the refusal has to land before the
+    move to ``manageable``, not merely before the clean call.
+    """
+    node = FakeNode(
+        provision_state="available", raid_interface="agent", target_raid_config=None
+    )
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    rc = _run_baremetal_clean(["node1", "--raid", "recreate"], conn)
+
+    assert rc == 1
+    conn.baremetal.set_node_provision_state.assert_not_called()
+    assert any(
+        "no target_raid_config" in record["message"] and record["level"] == "ERROR"
+        for record in loguru_logs
+    )
+
+
+def test_clean_recreate_refuses_a_named_node_without_a_raid_interface(loguru_logs):
+    """A named node is an assertion about that node, and this one is wrong."""
+    node = FakeNode(provision_state="available", raid_interface="no-raid")
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    rc = _run_baremetal_clean(["node1", "--raid", "recreate"], conn)
+
+    assert rc == 1
+    conn.baremetal.set_node_provision_state.assert_not_called()
+    assert any(
+        "no raid interface" in record["message"] and record["level"] == "ERROR"
+        for record in loguru_logs
+    )
+
+
+def test_clean_recreate_accepts_a_named_node_with_a_declaration():
+    node = FakeNode(
+        provision_state="manageable",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    rc = _run_baremetal_clean(["node1", "--raid", "recreate"], conn)
+
+    assert rc is None
+    conn.baremetal.set_node_provision_state.assert_called_once_with(
+        node.id,
+        "clean",
+        clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP, RAID_CREATE_STEP],
+    )
+
+
+def test_clean_all_recreate_skips_nodes_with_nothing_to_build(loguru_logs):
+    """A fleet is a discovered set, so one undeclared node does not abort it.
+
+    A node without a raid interface is out of scope for the raid axis and is
+    cleaned with the erase step alone. A raid capable node with nothing
+    declared is misconfigured, so it is left untouched and reported, and the
+    run exits non-zero so automation sees the gap.
+    """
+    plain = FakeNode(id="uuid-1", name="node1", provision_state="manageable")
+    undeclared = FakeNode(
+        id="uuid-2",
+        name="node2",
+        provision_state="manageable",
+        raid_interface="agent",
+    )
+    declared = FakeNode(
+        id="uuid-3",
+        name="node3",
+        provision_state="manageable",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = [plain, undeclared, declared]
+
+    rc = _run_baremetal_clean(
+        ["--all", "--yes-i-really-really-mean-it", "--raid", "recreate"], conn
+    )
+
+    assert rc == 1
+    assert conn.baremetal.set_node_provision_state.call_args_list == [
+        call("uuid-1", "clean", clean_steps=[ERASE_DEVICES_STEP]),
+        call(
+            "uuid-3",
+            "clean",
+            clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP, RAID_CREATE_STEP],
+        ),
+    ]
+    assert any("node2" in record["message"] for record in loguru_logs)
+    assert not any(
+        "node1" in record["message"]
+        for record in loguru_logs
+        if record["level"] == "ERROR"
+    )
+
+
+def test_clean_all_recreate_ignores_nodes_it_would_not_clean(loguru_logs):
+    """A node in an unsupported state is not a raid problem.
+
+    Only ``available`` and ``manageable`` nodes are ever cleaned; the rest get
+    a warning and do not affect the exit code. Preflighting them would fail a
+    run over the raid configuration of a node that was never going to be
+    touched.
+    """
+    active = FakeNode(
+        id="uuid-1",
+        name="node1",
+        provision_state="active",
+        raid_interface="agent",
+    )
+    declared = FakeNode(
+        id="uuid-2",
+        name="node2",
+        provision_state="manageable",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = [active, declared]
+
+    rc = _run_baremetal_clean(
+        ["--all", "--yes-i-really-really-mean-it", "--raid", "recreate"], conn
+    )
+
+    assert rc is None
+    conn.baremetal.set_node_provision_state.assert_called_once_with(
+        "uuid-2",
+        "clean",
+        clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP, RAID_CREATE_STEP],
+    )
+    assert not any(record["level"] == "ERROR" for record in loguru_logs)
+
+
+def test_clean_recreate_does_not_refuse_a_named_node_in_a_bad_state(loguru_logs):
+    """The state is the operator's problem to hear about, not the raid mode."""
+    node = FakeNode(
+        provision_state="active", raid_interface="agent", target_raid_config=None
+    )
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    rc = _run_baremetal_clean(["node1", "--raid", "recreate"], conn)
+
+    assert rc is None
+    conn.baremetal.set_node_provision_state.assert_not_called()
+    assert any("not in supported state" in record["message"] for record in loguru_logs)
+    assert not any(record["level"] == "ERROR" for record in loguru_logs)
+
+
+def test_clean_all_recreate_preflights_before_transitioning_any_node():
+    """The skip list is known before the first node is touched."""
+    available = FakeNode(
+        id="uuid-1",
+        name="node1",
+        provision_state="available",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    undeclared = FakeNode(
+        id="uuid-2",
+        name="node2",
+        provision_state="available",
+        raid_interface="agent",
+    )
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = [available, undeclared]
+    conn.baremetal.set_node_provision_state.return_value = available
+    conn.baremetal.wait_for_nodes_provision_state.return_value = [
+        FakeNode(
+            id="uuid-1",
+            name="node1",
+            provision_state="manageable",
+            raid_interface="agent",
+            target_raid_config={"logical_disks": [{"controller": "software"}]},
+        )
+    ]
+
+    rc = _run_baremetal_clean(
+        ["--all", "--yes-i-really-really-mean-it", "--raid", "recreate"], conn
+    )
+
+    assert rc == 1
+    transitioned = [
+        args[0] for args, _ in conn.baremetal.set_node_provision_state.call_args_list
+    ]
+    assert "uuid-2" not in transitioned
+
+
+def test_clean_all_recreate_exits_zero_when_every_node_can_be_built():
+    declared = FakeNode(
+        id="uuid-1",
+        name="node1",
+        provision_state="manageable",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = [declared]
+
+    rc = _run_baremetal_clean(
+        ["--all", "--yes-i-really-really-mean-it", "--raid", "recreate"], conn
+    )
+
+    assert rc is None
+
+
+def test_clean_delete_mode_does_not_preflight_the_declaration(loguru_logs):
+    """Only ``recreate`` promises to build something."""
+    node = FakeNode(
+        provision_state="manageable", raid_interface="agent", target_raid_config=None
+    )
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    rc = _run_baremetal_clean(["node1", "--raid", "delete"], conn)
+
+    assert rc is None
+    conn.baremetal.set_node_provision_state.assert_called_once_with(
+        node.id, "clean", clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP]
     )
 
 
