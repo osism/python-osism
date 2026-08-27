@@ -385,6 +385,56 @@ def test_run_ansible_list_multitoken_element_word_split_not_quoted(runner_mocks)
     assert "'-e status=True'" not in command
 
 
+def test_run_ansible_list_element_with_metacharacters_is_quoted(runner_mocks):
+    # A value containing shell metacharacters must reach /bin/sh quoted. The
+    # motivating case is a tempest regex alternation: unquoted, `/bin/sh -c`
+    # parses the parens and the command dies with
+    # `Syntax error: "(" unexpected` before ansible ever runs.
+    run_ansible(arguments=["-e", "tempest_include_regex=(A|B)"])
+    command = runner_mocks.popen.call_args.args[0]
+    assert "'tempest_include_regex=(A|B)'" in command
+
+
+def test_run_ansible_multitoken_element_tokens_quoted_individually(runner_mocks):
+    # The two requirements together: a multi-token element still word-splits
+    # (see the regression guard above), AND a metacharacter inside one of its
+    # tokens is still quoted -- so the split happens before quoting, not after.
+    run_ansible(arguments=["-e status=True", "-e regex=(A|B)"])
+    command = runner_mocks.popen.call_args.args[0]
+    assert command.endswith("-e status=True -e 'regex=(A|B)'")
+    assert "'-e status=True'" not in command
+
+
+def test_run_ansible_quoted_whitespace_stays_one_value(runner_mocks):
+    # A packed element may use shell quoting to hold whitespace inside ONE
+    # value. Tokenizing must respect that quoting: naive str.split() cuts
+    # inside the quotes and yields several malformed arguments.
+    run_ansible(arguments=["-e foo='hello world'"])
+    command = runner_mocks.popen.call_args.args[0]
+    assert command.endswith("-e 'foo=hello world'")
+
+
+def test_run_ansible_double_quoted_whitespace_stays_one_value(runner_mocks):
+    run_ansible(arguments=['-e foo="hello world"'])
+    command = runner_mocks.popen.call_args.args[0]
+    assert command.endswith("-e 'foo=hello world'")
+
+
+def test_run_ansible_backslash_escaped_whitespace_stays_one_value(runner_mocks):
+    run_ansible(arguments=["-e path=a\\ b"])
+    command = runner_mocks.popen.call_args.args[0]
+    assert command.endswith("-e 'path=a b'")
+
+
+def test_run_ansible_unbalanced_quote_passed_through_verbatim(runner_mocks):
+    # shlex cannot tokenize unbalanced quoting. Emit the element unchanged so
+    # /bin/sh reports the same error it does today, rather than raising here
+    # and turning a shell error into a worker traceback.
+    run_ansible(arguments=["-e foo='unbalanced"])
+    command = runner_mocks.popen.call_args.args[0]
+    assert command.endswith("-e foo='unbalanced")
+
+
 def test_run_ansible_string_arguments_passed_through(runner_mocks):
     run_ansible(arguments="-e a=b")
     command = runner_mocks.popen.call_args.args[0]

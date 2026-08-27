@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -173,7 +174,40 @@ def run_ansible_in_environment(
     extracted_hosts = set()  # Local set for host deduplication
 
     if type(arguments) == list:
-        joined_arguments = " ".join(arguments)
+        # The command below runs through `/bin/sh -c`, and callers rely on that
+        # shell to tokenize list elements: several deliberately pack more than
+        # one shell word into ONE element, e.g. commands/set.py and
+        # commands/noset.py pass ["-e status=True", f"-l {host}"], and
+        # commands/apply.py prepends f"-e kolla_action={action}". The
+        # run-<environment>.sh scripts forward args via "$@" without
+        # re-splitting, so that tokenization is load-bearing.
+        #
+        # Tokenize each element the way the shell would, then quote the
+        # resulting tokens. Quoting whole elements instead would glue
+        # "-e status=True" into one token and break -e/-l parsing (guarded by
+        # test_run_ansible_list_multitoken_element_word_split_not_quoted).
+        # str.split() is not sufficient either: an element may use quoting or a
+        # backslash to hold whitespace inside a single value, and splitting on
+        # raw whitespace cuts that value into malformed arguments. shlex.split
+        # honours both, matching what /bin/sh does today.
+        #
+        # The gain is that a value containing shell metacharacters becomes safe.
+        # Without it an `-e` value such as the regex alternation "(A|B)" reaches
+        # /bin/sh unquoted and the command dies with `Syntax error: "("
+        # unexpected` before ansible runs at all.
+        quoted_arguments = []
+        for argument in arguments:
+            try:
+                quoted_arguments.extend(
+                    shlex.quote(token) for token in shlex.split(argument)
+                )
+            except ValueError:
+                # Unbalanced quoting: shlex cannot tokenize it. Emit the element
+                # verbatim so /bin/sh reports the same error it reports today,
+                # rather than raising here and turning a shell-level error into
+                # a worker traceback.
+                quoted_arguments.append(argument)
+        joined_arguments = " ".join(quoted_arguments)
     else:
         joined_arguments = arguments
 
