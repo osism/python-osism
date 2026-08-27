@@ -377,6 +377,22 @@ def test_handle_collection_applies_prepared_group(loguru_logs):
     assert "Tasks are running in the background" in messages
 
 
+def test_handle_collection_returns_zero_exit_code(loguru_logs):
+    """``handle_collection`` has to return an exit code, not ``None``.
+
+    ``take_action`` tests the result with ``if rc != 0``, and ``None != 0`` is
+    True, so returning ``None`` made every collection look like a failure and
+    skip the remaining ``//`` segments.
+    """
+    cmd = make_command(apply.Run)
+    cmd._handle_collection = MagicMock(return_value=MagicMock())
+
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": [Role("a")]}):
+        rc = cmd.handle_collection(**_public_collection_kwargs())
+
+    assert rc == 0
+
+
 def test_handle_collection_show_tree_does_not_apply(loguru_logs):
     cmd = make_command(apply.Run)
     prepared = MagicMock()
@@ -678,12 +694,6 @@ def test_take_action_routes_collection_to_handle_collection(take_action_mocks):
     assert cmd.handle_collection.call_args.args[4] == "testcollection"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="handle_collection returns None instead of an exit code, so the "
-    "'//' loop treats a successful collection as failed, silently skips the "
-    "remaining segments and take_action returns None (exit 0)",
-)
 def test_take_action_collection_chain_continues_after_success(take_action_mocks):
     """A successful collection segment must not swallow the following ``//``
     segments: ``osism apply testcollection//other`` has to schedule the
