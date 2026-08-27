@@ -282,6 +282,8 @@ class Run(Command):
             )
             logger.info("Tasks are running in the background")
 
+        return 0
+
     def _prepare_task(
         self,
         arguments,
