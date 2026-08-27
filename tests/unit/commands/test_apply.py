@@ -517,6 +517,29 @@ def test_handle_loadbalancer_task_group_failure_propagates(mocker):
     handle_task.assert_called_once_with(t.parent, True, "log", 300)
 
 
+def test_handle_loadbalancer_task_absorbs_ansible_failure(mocker):
+    """A failed play must not surface as a traceback here.
+
+    Now that the task raises on a non-zero Ansible rc, ``t.get()`` re-raises
+    it. The rc has already been read from the task-output stream by
+    ``handle_task``, so the exception carries no new information and must be
+    absorbed -- unlike the unexpected exceptions pinned above, which still
+    propagate.
+    """
+    from osism.tasks import AnsibleFailure
+
+    handle_task = mocker.patch("osism.tasks.handle_task", return_value=4)
+    cmd = make_command(apply.Run)
+    t = MagicMock()
+    t.children = [MagicMock(task_id="child-1")]
+    t.get.side_effect = AnsibleFailure("play failed")
+
+    rc = cmd.handle_loadbalancer_task(t, True, "log", 300)
+
+    assert rc == 4
+    handle_task.assert_called_once_with(t.parent, True, "log", 300)
+
+
 # take_action
 
 

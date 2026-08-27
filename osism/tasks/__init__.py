@@ -19,6 +19,18 @@ from osism import settings, utils
 HOST_PATTERN = re.compile(r"^(ok|changed|failed|skipping|unreachable):\s+\[([^\]]+)\]")
 
 
+class AnsibleFailure(Exception):
+    """Raised when an Ansible run in a worker container exits non-zero.
+
+    Celery marks a task as failed only if it raises, and only a failed task
+    stops the rest of a chain from running.
+
+    The message must carry its own context: with the JSON result serializer
+    Celery keeps only the exception type and its string form. The play output
+    reaches the operator over the Redis output stream, not through here.
+    """
+
+
 class Config:
     broker_connection_retry_on_startup = True
     enable_utc = True
@@ -351,6 +363,14 @@ def run_ansible_in_environment(
 
             if publish:
                 utils.finish_task_output(request_id, rc=rc)
+
+            # Raise only after the rc has been logged and published, so the
+            # CLI paths that read it from the output stream are unaffected.
+            if rc != 0:
+                raise AnsibleFailure(
+                    f"{worker} play {role} in environment {environment} "
+                    f"failed with rc {rc}"
+                )
 
             return result
         finally:

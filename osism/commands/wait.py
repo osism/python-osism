@@ -249,6 +249,16 @@ class Run(Command):
                     if output:
                         print(result.get())
 
+                elif result.state in ["FAILURE", "REVOKED"]:
+                    if format == "log":
+                        logger.error(f"Task {task_id} is in state {result.state}")
+                    elif format == "script":
+                        print(f"{task_id} = {result.state}")
+
+                    # Deliberately no result.get() here even with --output:
+                    # Celery re-raises the task's exception from it.
+                    rc = 1
+
                 elif result.state == "STARTED":
                     if format == "log":
                         logger.info(f"Task {task_id} is in state STARTED")
