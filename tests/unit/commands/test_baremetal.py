@@ -1520,6 +1520,30 @@ def test_clean_no_raid_skips_the_raid_steps_on_a_full_clean():
     )
 
 
+def test_clean_raid_requested_on_a_full_clean():
+    """Bare ``--raid`` rebuilds the declared array on a full clean.
+
+    Written before the default changes, while it is still a duplicate of the
+    default path, so that it anchors the behaviour bare ``--raid`` keeps rather
+    than restating whatever the new default does.
+    """
+    node = FakeNode(
+        provision_state="manageable",
+        raid_interface="agent",
+        target_raid_config={"logical_disks": [{"controller": "software"}]},
+    )
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+
+    _run_baremetal_clean(["node1", "--raid"], conn)
+
+    conn.baremetal.set_node_provision_state.assert_called_once_with(
+        node.id,
+        "clean",
+        clean_steps=[RAID_DELETE_STEP, ERASE_DEVICES_STEP, RAID_CREATE_STEP],
+    )
+
+
 def test_clean_available_node_moved_to_manageable_first(loguru_logs):
     available = FakeNode(provision_state="available")
     manageable = FakeNode(provision_state="manageable")
