@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from cliff.command import Command
-from argparse import BooleanOptionalAction
+from argparse import (
+    ArgumentTypeError,
+    BooleanOptionalAction,
+    RawDescriptionHelpFormatter,
+)
+from textwrap import dedent
 
 import tempfile
 import os
@@ -15,20 +20,35 @@ from osism import settings, utils
 from osism.tasks.conductor.ironic import _get_metalbox_primary_ip4
 from osism.utils.ssh import cleanup_ssh_known_hosts_for_node
 
+RAID_MODES = ("delete", "keep", "recreate")
+
+# NOTE: The states the clean loop acts on. Anything else only draws a warning,
+#       so a node in such a state must not make a --raid recreate run fail.
+CLEANABLE_PROVISION_STATES = ("available", "manageable")
+
 
 def _build_clean_steps(node, metadata_only, raid=None):
     """Build the clean step list for a single node.
 
-    ``metadata_only`` selects the erase step. RAID capable nodes additionally
-    get ``delete_configuration`` in front of it and, when the node carries a
-    ``target_raid_config``, ``create_configuration`` behind it. That is the
-    order the Ironic documentation prescribes for software RAID: the create step
-    does not remove existing disks and fails outright on a partitioned target,
-    so delete and erase have to run first.
+    ``metadata_only`` selects the erase step. ``raid`` names what to leave
+    behind on a RAID capable node:
 
-    ``raid`` overrides when the RAID steps are added. ``None`` keeps the
-    previous behaviour, RAID steps on a full clean and none on a metadata only
-    clean, which is what ``--raid`` and ``--no-raid`` make explicit.
+    ``delete``
+        ``delete_configuration`` in front of the erase step.
+    ``keep``
+        no RAID steps; the erase runs through the existing array.
+    ``recreate``
+        ``delete_configuration`` in front and ``create_configuration`` behind.
+        That is the order the Ironic documentation prescribes for software
+        RAID: the create step does not remove existing disks and fails outright
+        on a partitioned target, so delete and erase have to run first.
+
+    ``None`` resolves to ``delete`` on a full clean and ``keep`` with
+    ``metadata_only``, so the default tracks the erase depth and matches the
+    behaviour the command had before the mode became selectable.
+
+    Nodes without a RAID interface cannot hold a configuration and get the
+    erase step alone whatever the mode.
 
     The list is built per node on purpose. Building it once and prepending to it
     inside the node loop accumulated one ``delete_configuration`` per RAID
@@ -39,15 +59,64 @@ def _build_clean_steps(node, metadata_only, raid=None):
     else:
         steps = [{"interface": "deploy", "step": "erase_devices"}]
 
-    raid_wanted = (not metadata_only) if raid is None else raid
-    if not raid_wanted or node.get("raid_interface", "no-raid") == "no-raid":
+    mode = raid or ("keep" if metadata_only else "delete")
+    if mode == "keep" or node.get("raid_interface", "no-raid") == "no-raid":
         return steps
 
     steps = [{"interface": "raid", "step": "delete_configuration"}] + steps
-    if node.get("target_raid_config"):
+    # NOTE: A node reaching this without a target_raid_config under "recreate"
+    #       is refused before any provision state changes, see
+    #       _raid_recreate_blocker.
+    if mode == "recreate" and node.get("target_raid_config"):
         steps = steps + [{"interface": "raid", "step": "create_configuration"}]
 
     return steps
+
+
+def _raid_mode(value):
+    """Validate a ``--raid`` mode and explain the node name ordering trap.
+
+    ``--raid`` takes an optional value, so argparse hands it the next token
+    even when that token is the node name. The stock ``choices`` message
+    ("invalid choice: 'node101'") does not tell the operator what to do about
+    it, and the shape that trips is a plausible one to type.
+    """
+    if value not in RAID_MODES:
+        raise ArgumentTypeError(
+            f"invalid raid mode '{value}', choose from "
+            f"{', '.join(RAID_MODES)}. Note that --raid takes an optional "
+            f"value, so a node name cannot follow it directly: write "
+            f"'clean node101 --raid' to use the default mode, or name the "
+            f"mode as in 'clean --raid recreate node101'"
+        )
+    return value
+
+
+def _raid_recreate_blocker(node, raid, fleet):
+    """Why ``node`` cannot satisfy the requested ``raid`` mode, or ``None``.
+
+    Only ``recreate`` promises to build something, so only ``recreate`` can be
+    unsatisfiable. A mode that names an outcome has to deliver it or refuse:
+    degrading to ``delete`` would hand the operator the opposite of what they
+    asked for, destructively.
+
+    ``fleet`` selects the ``--all`` rule. There the node set is discovered
+    rather than asserted, so a node without a raid interface is simply out of
+    scope for the raid axis and is cleaned with the erase step alone. Naming
+    that node is an assertion about it, and the assertion is wrong, so it is
+    refused. A raid capable node with nothing declared is misconfigured either
+    way and is never silently cleaned under ``recreate``.
+    """
+    if raid != "recreate":
+        return None
+
+    if node.get("raid_interface", "no-raid") == "no-raid":
+        return None if fleet else "it has no raid interface"
+
+    if not node.get("target_raid_config"):
+        return "it has no target_raid_config"
+
+    return None
 
 
 def _apply_metalbox_vars(play_vars, device):
@@ -1205,6 +1274,29 @@ class BaremetalClean(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalClean, self).get_parser(prog_name)
 
+        # NOTE: These examples are the only user-facing documentation the clean
+        #       flags have; the published pages document none of them. Raw
+        #       formatting keeps the invocations on their own lines.
+        parser.formatter_class = RawDescriptionHelpFormatter
+        parser.epilog = dedent("""\
+            examples:
+              wipe a node completely, leaving no array behind
+                osism baremetal clean node101
+
+              recycle a node into the pool with its declared array rebuilt
+                osism baremetal clean --raid recreate node101
+
+              wipe the data but leave the existing array in place
+                osism baremetal clean --raid keep node101
+
+              fast recycle, erase disk metadata only
+                osism baremetal clean --metadata-only node101
+
+              build or rebuild the declared array on disks that cannot be
+              erased in band
+                osism baremetal clean --metadata-only --raid recreate node101
+            """)
+
         parser.add_argument(
             "--cloud",
             type=str,
@@ -1225,13 +1317,22 @@ class BaremetalClean(Command):
         )
         parser.add_argument(
             "--raid",
+            nargs="?",
+            const="recreate",
+            type=_raid_mode,
+            choices=RAID_MODES,
             default=None,
+            metavar="{delete,keep,recreate}",
             help=(
-                "Include the raid clean steps, delete_configuration and, when the "
-                "node has a target_raid_config, create_configuration. Defaults to "
-                "on for a full clean and off for --metadata-only"
+                "What to do with the raid configuration of raid capable nodes. "
+                "delete: remove the existing configuration (default for a full "
+                "clean). keep: leave it in place and erase through the existing "
+                "array (default with --metadata-only). recreate: remove it and "
+                "build the node's target_raid_config again. Given without a "
+                "value, --raid means recreate. Nodes without a raid interface "
+                "are unaffected. recreate refuses a named node that has nothing "
+                "to build, and skips such nodes under --all with a non-zero exit"
             ),
-            action=BooleanOptionalAction,
         )
         parser.add_argument(
             "--all",
@@ -1287,14 +1388,42 @@ class BaremetalClean(Command):
                     return 1
                 clean_nodes = [node]
 
-            failed = False
+            # NOTE: Preflight the whole set before touching anything. The refusal
+            #       has to land before any provision state transition, not just
+            #       before the clean call: an available node is moved to
+            #       manageable and waited for further down.
+            blocked = {}
             for node in clean_nodes:
                 if not node:
                     continue
 
-                # NOTE: The step list is built per node: a raid capable node gets
-                #       delete_configuration in front of the erase step and, when it
-                #       carries a target_raid_config, create_configuration behind it.
+                if node.provision_state not in CLEANABLE_PROVISION_STATES:
+                    continue
+
+                blocker = _raid_recreate_blocker(node, raid, all_nodes)
+                if blocker:
+                    blocked[node.id] = blocker
+                    logger.error(
+                        f"Node {node.name} ({node.id}) cannot satisfy --raid recreate, {blocker}"
+                    )
+
+            if blocked and not all_nodes:
+                return 1
+
+            # NOTE: Under --all the remaining nodes are still cleaned, so one
+            #       misconfigured node does not abort the fleet, but the run
+            #       exits non-zero so the gap is visible in automation.
+            failed = bool(blocked)
+            for node in clean_nodes:
+                if not node:
+                    continue
+
+                if node.id in blocked:
+                    continue
+
+                # NOTE: The step list is built per node: the raid mode decides
+                #       whether a raid capable node gets delete_configuration in
+                #       front of the erase step and create_configuration behind it.
                 clean_steps = _build_clean_steps(node, metadata_only, raid)
 
                 if node.provision_state in ["available"]:
