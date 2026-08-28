@@ -137,10 +137,15 @@ class TestBgpNeighborAfInterfaces:
         assert "default|Ethernet0|l2vpn_evpn" not in af
 
     def test_transfer_role_ipv4_adds_ipv4_only(self, bgp_config, patch_bgp):
-        self._base(bgp_config, transfer_ips={"eth0": "10.0.0.1/31"})
+        patch_bgp.peer_ipv4.return_value = "192.0.2.5"
+        self._base(
+            bgp_config,
+            netbox=object(),
+            transfer_ips={"eth0": "10.0.0.1/31"},
+        )
         af = bgp_config["BGP_NEIGHBOR_AF"]
-        assert af["default|Ethernet0|ipv4_unicast"] == {"admin_status": "true"}
-        assert "default|Ethernet0|ipv6_unicast" not in af
+        assert af["default|192.0.2.5|ipv4_unicast"] == {"admin_status": "true"}
+        assert "default|192.0.2.5|ipv6_unicast" not in af
 
     def test_switch_to_switch_adds_l2vpn(self, bgp_config, patch_bgp):
         patch_bgp.connected_device.return_value = _switch_device()
@@ -276,8 +281,13 @@ class TestBgpNeighborInterfaces:
         assert entry["v6only"] == "false"
 
     def test_transfer_role_ipv4_v6only_false(self, bgp_config, patch_bgp):
-        self._base(bgp_config, transfer_ips={"eth0": "10.2.2.2/31"})
-        assert bgp_config["BGP_NEIGHBOR"]["default|Ethernet0"]["v6only"] == "false"
+        patch_bgp.peer_ipv4.return_value = "192.0.2.5"
+        self._base(
+            bgp_config,
+            netbox=object(),
+            transfer_ips={"eth0": "10.2.2.2/31"},
+        )
+        assert bgp_config["BGP_NEIGHBOR"]["default|192.0.2.5"]["v6only"] == "false"
 
     def test_non_default_vrf_no_v6only(self, bgp_config, patch_bgp):
         self._base(
@@ -310,16 +320,6 @@ class TestBgpNeighborPortChannels:
             "peer_type": "external",
             "v6only": "true",
         }
-
-    def test_default_vrf_peer_ip_no_local_addr(self, bgp_config, patch_bgp):
-        patch_bgp.peer_ipv4.return_value = "192.0.2.9"
-        _call_bgp(
-            bgp_config,
-            connected_portchannels={"PortChannel1"},
-            netbox=object(),
-        )
-        entry = bgp_config["BGP_NEIGHBOR"]["default|192.0.2.9"]
-        assert "local_addr" not in entry
 
     def test_non_default_vrf_no_v6only(self, bgp_config, patch_bgp):
         _call_bgp(
@@ -1079,3 +1079,188 @@ class TestBgpUntaggedPortChannel:
         # without the flag the resolver stops at the uncabled bundle and this
         # peering disappears again.
         assert patch_bgp.peer_ips.call_args.kwargs["resolve_lag_members"] is True
+
+
+# ---------------------------------------------------------------------------
+# The resolver/generator seam: BGP_NEIGHBOR and BGP_NEIGHBOR_AF must agree on
+# how they name a peer. These tests deliberately do NOT use ``patch_bgp`` --
+# the resolver stays real, because whether it returns an address is what
+# decides the branch under test.
+# ---------------------------------------------------------------------------
+
+
+class TestNeighborAndAfAgreeOnTheKey:
+    def _run(self, mocker, bgp_config, peer_ipv4, transfer_ipv4=None):
+        """Drive the real resolver for a cabled Ethernet0 with an optional peer IP."""
+        local = SimpleNamespace(
+            id=1,
+            name="eth0",
+            type=SimpleNamespace(value="1000base-t"),
+            connected_endpoints_reachable=bool(peer_ipv4),
+            connected_endpoints=None,
+            lag=None,
+        )
+        peer = SimpleNamespace(id=99, name="Ethernet1/1")
+        if peer_ipv4:
+            local.connected_endpoints = [peer]
+
+        mocker.patch.object(
+            config_generator,
+            "get_connected_device_for_sonic_interface",
+            return_value=None,
+        )
+        mocker.patch(
+            "osism.tasks.conductor.sonic.connections.get_cached_device_interfaces",
+            return_value=[local],
+        )
+        mocker.patch(
+            "osism.tasks.conductor.sonic.connections.convert_netbox_interface_to_sonic",
+            side_effect=lambda iface, _device: "Ethernet0",
+        )
+        netbox = SimpleNamespace(
+            dcim=SimpleNamespace(
+                interfaces=SimpleNamespace(
+                    get=lambda **kw: local if kw.get("name") == "Ethernet0" else None
+                )
+            ),
+            ipam=SimpleNamespace(
+                ip_addresses=SimpleNamespace(
+                    filter=lambda **kw: (
+                        [SimpleNamespace(address=f"{peer_ipv4}/31")]
+                        if peer_ipv4 and kw.get("assigned_object_id") == peer.id
+                        else []
+                    )
+                ),
+                fhrp_group_assignments=SimpleNamespace(filter=lambda **kw: []),
+            ),
+        )
+        bgp_config["PORT"] = {"Ethernet0": {}}
+        _call_bgp(
+            bgp_config,
+            connected_interfaces={"Ethernet0"},
+            netbox_interfaces={"Ethernet0": _nbif("eth0")},
+            netbox=netbox,
+            transfer_ips=({"eth0": f"{transfer_ipv4}/31"} if transfer_ipv4 else {}),
+        )
+
+    @staticmethod
+    def _neighbors_of(bgp_config):
+        """The vrf|neighbor identity each AF row references."""
+        return {"|".join(k.split("|")[:2]) for k in bgp_config["BGP_NEIGHBOR_AF"]}
+
+    def test_numbered_peer_keys_both_tables_by_the_peer_address(
+        self, mocker, bgp_config, reset_vip_cache
+    ):
+        self._run(
+            mocker,
+            bgp_config,
+            peer_ipv4="192.0.2.1",
+            transfer_ipv4="192.0.2.0",
+        )
+        assert "default|192.0.2.1" in bgp_config["BGP_NEIGHBOR"]
+        # Every address family must hang off a neighbor that exists.
+        assert self._neighbors_of(bgp_config) == set(bgp_config["BGP_NEIGHBOR"])
+        assert set(bgp_config["BGP_NEIGHBOR_AF"]) == {"default|192.0.2.1|ipv4_unicast"}
+
+    def test_peer_ipv4_does_not_turn_an_unnumbered_session_into_a_numbered_one(
+        self, mocker, bgp_config, reset_vip_cache
+    ):
+        self._run(mocker, bgp_config, peer_ipv4="192.0.2.1")
+        assert set(bgp_config["BGP_NEIGHBOR"]) == {"default|Ethernet0"}
+        assert set(bgp_config["BGP_NEIGHBOR_AF"]) == {
+            "default|Ethernet0|ipv4_unicast",
+            "default|Ethernet0|ipv6_unicast",
+        }
+
+    def test_unnumbered_peer_keys_both_tables_by_the_interface(
+        self, mocker, bgp_config, reset_vip_cache
+    ):
+        self._run(mocker, bgp_config, peer_ipv4=None)
+        assert "default|Ethernet0" in bgp_config["BGP_NEIGHBOR"]
+        assert self._neighbors_of(bgp_config) == set(bgp_config["BGP_NEIGHBOR"])
+
+    def test_local_transfer_address_without_peer_address_stays_unnumbered(
+        self, mocker, bgp_config, reset_vip_cache
+    ):
+        self._run(
+            mocker,
+            bgp_config,
+            peer_ipv4=None,
+            transfer_ipv4="192.0.2.0",
+        )
+        assert bgp_config["BGP_NEIGHBOR"] == {
+            "default|Ethernet0": {
+                "peer_type": "external",
+                "v6only": "true",
+            }
+        }
+        assert set(bgp_config["BGP_NEIGHBOR_AF"]) == {
+            "default|Ethernet0|ipv4_unicast",
+            "default|Ethernet0|ipv6_unicast",
+        }
+
+
+class TestPortChannelAddressFamiliesFollowPeeringMode:
+    def test_ipv4_transfer_peer_does_not_enable_ipv6_af(self, bgp_config, patch_bgp):
+        patch_bgp.peer_ipv4.return_value = "192.0.2.1"
+        _call_bgp(
+            bgp_config,
+            connected_portchannels={"PortChannel1"},
+            netbox_interfaces={"PortChannel1": _nbif("bond1")},
+            netbox=object(),
+            transfer_ips={"bond1": "192.0.2.0/31"},
+        )
+
+        assert bgp_config["BGP_NEIGHBOR"] == {
+            "default|192.0.2.1": {
+                "local_addr": "192.0.2.0",
+                "peer_type": "external",
+                "v6only": "false",
+            }
+        }
+        assert set(bgp_config["BGP_NEIGHBOR_AF"]) == {"default|192.0.2.1|ipv4_unicast"}
+
+    def test_peer_ipv4_without_local_transfer_address_stays_unnumbered(
+        self, bgp_config, patch_bgp
+    ):
+        patch_bgp.peer_ipv4.return_value = "192.0.2.1"
+        _call_bgp(
+            bgp_config,
+            connected_portchannels={"PortChannel1"},
+            netbox_interfaces={"PortChannel1": _nbif("bond1")},
+            netbox=object(),
+            transfer_ips={},
+        )
+
+        assert bgp_config["BGP_NEIGHBOR"] == {
+            "default|PortChannel1": {
+                "peer_type": "external",
+                "v6only": "true",
+            }
+        }
+        assert set(bgp_config["BGP_NEIGHBOR_AF"]) == {
+            "default|PortChannel1|ipv4_unicast",
+            "default|PortChannel1|ipv6_unicast",
+        }
+
+    def test_local_transfer_address_without_peer_address_stays_unnumbered(
+        self, bgp_config, patch_bgp
+    ):
+        _call_bgp(
+            bgp_config,
+            connected_portchannels={"PortChannel1"},
+            netbox_interfaces={"PortChannel1": _nbif("bond1")},
+            netbox=object(),
+            transfer_ips={"bond1": "192.0.2.0/31"},
+        )
+
+        assert bgp_config["BGP_NEIGHBOR"] == {
+            "default|PortChannel1": {
+                "peer_type": "external",
+                "v6only": "true",
+            }
+        }
+        assert set(bgp_config["BGP_NEIGHBOR_AF"]) == {
+            "default|PortChannel1|ipv4_unicast",
+            "default|PortChannel1|ipv6_unicast",
+        }

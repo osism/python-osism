@@ -1148,6 +1148,53 @@ def _has_transfer_role_ipv4(port_name, transfer_ips, netbox_interfaces):
     return False
 
 
+def _numbered_peer_address(has_transfer_ipv4, connected_ipv4):
+    """Return the peer address a *numbered* BGP session is keyed by, or None.
+
+    A numbered session needs a routable IPv4 at both ends: the peer address the
+    resolver found, and a transfer-role IPv4 on this switch to source it from.
+    The peer's address alone is not enough -- with no local address the session
+    cannot come up, and keying on it would name a neighbor whose address
+    families this switch cannot activate. Without both, the peering is
+    unnumbered and is keyed by the interface or port channel name instead.
+
+    Args:
+        has_transfer_ipv4: Whether this side has a transfer role IPv4 address
+        connected_ipv4: The connected endpoint's IPv4 address, or None
+
+    Returns:
+        str or None: The peer address to key on, or None for unnumbered peering
+    """
+    return connected_ipv4 if (connected_ipv4 and has_transfer_ipv4) else None
+
+
+def _local_ipv4_address(port_name, interface_ips, transfer_ips, netbox_interfaces):
+    """Return the IPv4 address a numbered BGP session sources from, or None.
+
+    A numbered neighbor carries local_addr so the session binds to the address
+    on this side of the link. Direct assignments win over transfer role ones;
+    both are keyed by NetBox interface name, which is not always the SONiC name.
+
+    Args:
+        port_name: SONiC interface or port channel name (e.g., "Ethernet0")
+        interface_ips: Dict mapping NetBox interface names to IPv4 addresses
+        transfer_ips: Dict mapping NetBox interface names to transfer role IPv4
+        netbox_interfaces: Dict mapping SONiC names to NetBox interface info
+
+    Returns:
+        str or None: The local IPv4 address without its prefix length
+    """
+    if port_name not in netbox_interfaces:
+        return None
+
+    netbox_interface_name = netbox_interfaces[port_name]["netbox_name"]
+    if interface_ips and netbox_interface_name in interface_ips:
+        return interface_ips[netbox_interface_name].split("/")[0]
+    if transfer_ips and netbox_interface_name in transfer_ips:
+        return transfer_ips[netbox_interface_name].split("/")[0]
+    return None
+
+
 def _is_untagged_vlan_member(port_name, vlan_info, netbox_interfaces):
     """Check if an interface is an untagged member of any VLAN.
 
@@ -1253,15 +1300,25 @@ def _add_bgp_configurations(
                         device, port_name, netbox
                     )
 
-                # For BGP_NEIGHBOR_AF, always use interface name like IPv6 does
-                neighbor_id = port_name
+                # Must match how the BGP_NEIGHBOR loop below keys this peer:
+                # BGP_NEIGHBOR_AF.neighbor is a leafref into BGP_NEIGHBOR, so an
+                # AF row naming anything else activates no address family.
+                numbered_peer = _numbered_peer_address(
+                    has_transfer_ipv4, connected_ipv4
+                )
+                neighbor_id = numbered_peer if numbered_peer else port_name
                 vrf_name = get_vrf_for_interface(port_name)
 
                 ipv4_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV4_UNICAST}"
                 config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
 
-                # Only add ipv6_unicast if v6only would be true (no transfer role IPv4)
-                if not has_transfer_ipv4:
+                # The address families follow the peering mode, like the key
+                # and v6only above. A numbered session runs over an IPv4
+                # transfer link and peers over IPv4 alone; an unnumbered one is
+                # an IPv6 link-local session and carries both families over it.
+                # Gating this on anything else puts an ipv6_unicast row under a
+                # neighbor named by an IPv4 literal.
+                if not numbered_peer:
                     ipv6_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV6_UNICAST}"
                     config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
                     logger.debug(
@@ -1269,7 +1326,7 @@ def _add_bgp_configurations(
                     )
                 else:
                     logger.debug(
-                        f"Added BGP_NEIGHBOR_AF with ipv4_unicast only for interface {port_name} (transfer role IPv4, v6only=false)"
+                        f"Added BGP_NEIGHBOR_AF with ipv4_unicast only for interface {port_name} (transfer role IPv4)"
                     )
 
                 # Add l2vpn_evpn only for switch-to-switch connections (default VRF)
@@ -1328,14 +1385,23 @@ def _add_bgp_configurations(
                 device, pc_name, netbox
             )
 
-        # For BGP_NEIGHBOR_AF, always use port channel name like interfaces
-        neighbor_id = pc_name
+        # Must match how the BGP_NEIGHBOR loop below keys this peer; see the
+        # physical-interface loop above.
+        has_transfer_ipv4 = _has_transfer_role_ipv4(
+            pc_name, transfer_ips, netbox_interfaces
+        )
+        numbered_peer = _numbered_peer_address(has_transfer_ipv4, connected_ipv4)
+        neighbor_id = numbered_peer if numbered_peer else pc_name
         vrf_name = get_vrf_for_interface(pc_name)
 
         ipv4_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV4_UNICAST}"
-        ipv6_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV6_UNICAST}"
         config["BGP_NEIGHBOR_AF"][ipv4_key] = {"admin_status": "true"}
-        config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
+
+        # Same rule as the physical-interface loop: the address families
+        # follow the peering mode.
+        if not numbered_peer:
+            ipv6_key = f"{vrf_name}|{neighbor_id}|{BGP_AF_IPV6_UNICAST}"
+            config["BGP_NEIGHBOR_AF"][ipv6_key] = {"admin_status": "true"}
 
         # Add l2vpn_evpn only for switch-to-switch connections (default VRF)
         if vrf_name == "default":
@@ -1395,16 +1461,20 @@ def _add_bgp_configurations(
                 # Get VRF for this interface
                 vrf_name = get_vrf_for_interface(port_name)
 
-                # Use the connected interface's IPv4 address if available, otherwise use interface name
-                if connected_ipv4:
-                    neighbor_key = f"{vrf_name}|{connected_ipv4}"
+                # Key a numbered session by the peer address, an unnumbered
+                # one by the interface name
+                numbered_peer = _numbered_peer_address(
+                    has_transfer_ipv4, connected_ipv4
+                )
+                if numbered_peer:
+                    neighbor_key = f"{vrf_name}|{numbered_peer}"
                     logger.debug(
-                        f"Using connected interface IPv4 address {connected_ipv4} for BGP neighbor on {port_name}"
+                        f"Using connected interface IPv4 address {numbered_peer} for BGP neighbor on {port_name}"
                     )
                 else:
                     neighbor_key = f"{vrf_name}|{port_name}"
                     logger.debug(
-                        f"No connected interface IPv4 found, using interface name {port_name} for BGP neighbor"
+                        f"No numbered peering on {port_name}, using interface name for BGP neighbor"
                     )
 
                 # Determine peer_type based on connected device AS
@@ -1417,47 +1487,34 @@ def _add_bgp_configurations(
                         device, connected_device, device_as_mapping
                     )
 
-                # Set v6only based on whether interface has transfer role IPv4
-                # - Transfer role IPv4: v6only=false (dual-stack BGP)
-                # - No direct IPv4: v6only=true (IPv6-only BGP)
-                # - Non-default VRF: no v6only parameter
+                # v6only is a property of the key form, not of the local
+                # address families: frrcfgd renders an interface-keyed neighbor
+                # as "neighbor {} interface", the only form FRR accepts v6only
+                # on. So it follows the peering mode, and a non-default VRF
+                # carries no v6only parameter at all.
                 bgp_neighbor_config = {
                     "peer_type": peer_type,
                 }
                 if vrf_name == "default":
-                    bgp_neighbor_config["v6only"] = (
-                        "false" if has_transfer_ipv4 else "true"
+                    bgp_neighbor_config["v6only"] = "false" if numbered_peer else "true"
+
+                # A numbered session binds to the address on this side
+                if numbered_peer:
+                    local_ipv4 = _local_ipv4_address(
+                        port_name, interface_ips, transfer_ips, netbox_interfaces
                     )
-
-                # If using IP address as key, also store the local address
-                if connected_ipv4:
-                    # Get the local interface IPv4 address
-                    local_ipv4 = None
-                    if port_name in netbox_interfaces:
-                        netbox_interface_name = netbox_interfaces[port_name][
-                            "netbox_name"
-                        ]
-                        if interface_ips and netbox_interface_name in interface_ips:
-                            local_ipv4 = interface_ips[netbox_interface_name].split(
-                                "/"
-                            )[0]
-                        elif transfer_ips and netbox_interface_name in transfer_ips:
-                            local_ipv4 = transfer_ips[netbox_interface_name].split("/")[
-                                0
-                            ]
-
                     if local_ipv4:
                         bgp_neighbor_config["local_addr"] = local_ipv4
 
                 config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
 
-                if has_transfer_ipv4:
+                if numbered_peer:
                     logger.debug(
-                        f"Added BGP_NEIGHBOR for interface {port_name} (transfer role IPv4, v6only=false)"
+                        f"Added numbered BGP_NEIGHBOR for interface {port_name} (peer {numbered_peer})"
                     )
                 else:
                     logger.debug(
-                        f"Added BGP_NEIGHBOR for interface {port_name} (no direct IPv4, v6only=true)"
+                        f"Added unnumbered BGP_NEIGHBOR for interface {port_name}"
                     )
 
     # Add BGP_NEIGHBOR configuration for connected port channels
@@ -1481,16 +1538,21 @@ def _add_bgp_configurations(
         # Get VRF for this port channel
         vrf_name = get_vrf_for_interface(pc_name)
 
-        # Use the connected interface's IPv4 address if available, otherwise use port channel name
-        if connected_ipv4:
-            neighbor_key = f"{vrf_name}|{connected_ipv4}"
+        # Key a numbered session by the peer address, an unnumbered one by the
+        # port channel name
+        has_transfer_ipv4 = _has_transfer_role_ipv4(
+            pc_name, transfer_ips, netbox_interfaces
+        )
+        numbered_peer = _numbered_peer_address(has_transfer_ipv4, connected_ipv4)
+        if numbered_peer:
+            neighbor_key = f"{vrf_name}|{numbered_peer}"
             logger.debug(
-                f"Using connected interface IPv4 address {connected_ipv4} for BGP neighbor on {pc_name}"
+                f"Using connected interface IPv4 address {numbered_peer} for BGP neighbor on {pc_name}"
             )
         else:
             neighbor_key = f"{vrf_name}|{pc_name}"
             logger.debug(
-                f"No connected interface IPv4 found, using port channel name {pc_name} for BGP neighbor"
+                f"No numbered peering on {pc_name}, using port channel name for BGP neighbor"
             )
 
         # Determine peer_type based on connected device AS
@@ -1505,17 +1567,17 @@ def _add_bgp_configurations(
             "peer_type": peer_type,
         }
         if vrf_name == "default":
-            bgp_neighbor_config["v6only"] = "true"
+            bgp_neighbor_config["v6only"] = "false" if numbered_peer else "true"
 
-        # If using IP address as key, also store the local address
-        if connected_ipv4:
-            # For port channels, get the local IPv4 address from interface IPs
-            # Note: Port channels don't have direct IP assignments in NetBox,
-            # so we use the connected interface IP logic
-            local_ipv4 = None
-            # Port channels don't have NetBox interface entries,
-            # so we skip local_addr for port channels for now
-            # TODO: Implement port channel local address lookup if needed
+        # A numbered session binds to the address on this side. A port channel
+        # reaches one only through a transfer role IPv4 on the aggregate, so
+        # that is the address the lookup finds.
+        if numbered_peer:
+            local_ipv4 = _local_ipv4_address(
+                pc_name, interface_ips, transfer_ips, netbox_interfaces
+            )
+            if local_ipv4:
+                bgp_neighbor_config["local_addr"] = local_ipv4
 
         config["BGP_NEIGHBOR"][neighbor_key] = bgp_neighbor_config
 
