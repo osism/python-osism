@@ -7,6 +7,11 @@
 # ports referencing it via their lag field, exactly as real deployments
 # model it. Reuses the site / location / tenant from 100-base.yml, and
 # takes the next free position in the shared E2E rack.
+#
+# The device is also where the BGP peering modes are pinned: its LAG is
+# cabled (an uncabled one never reaches the neighbour loops), and one of
+# its plain ports faces an endpoint that carries an address while the port
+# itself carries none. See the two blocks at the end of this file.
 
 - device:
     name: e2e-portchannel
@@ -40,3 +45,114 @@
     device: e2e-portchannel
     name: Ethernet4
     lag: PortChannel1
+
+# ----------------------------------------------------- connected LAG --
+# Cabling the two members is what makes PortChannel1 reach the BGP
+# neighbour loops: get_connected_interfaces() walks members and marks the
+# port channel connected, so an uncabled LAG (which is all this scenario
+# modelled before) never got there and left BGP_NEIGHBOR/BGP_NEIGHBOR_AF
+# empty on this device.
+#
+# The peer is the metalbox rather than a switch so that only this device's
+# golden moves: e2e-metalbox-1 has no SONiC role and no managed-by-metalbox
+# tag, so it never gets a golden of its own. A bonded server NIC facing a
+# switch is also how a LAG is usually cabled in the first place, so the far
+# end is a LAG too -- an aggregate cabled to two standalone routed ports
+# would not form.
+#
+# The peer address sits on the aggregate, not on the cabled members, which
+# is the conventional way to model it and the shape live fleet data uses.
+# Two lookups would have to reach it and neither does: the resolver's
+# LAG member fallback is off for BGP on purpose (turning it on would key
+# BGP_NEIGHBOR by a peer address the AF rows do not share), and nothing
+# follows a member up to the peer's own aggregate. So this pins the port
+# channel peering *unnumbered* -- both tables key on PortChannel1 and both
+# address families are activated on that link-local session -- and it moves
+# the day either lookup changes. The numbered port-channel case cannot be
+# reached from NetBox data at all, since a LAG interface is not cablable;
+# the unit tests pin that one.
+
+- device_interface:
+    device: e2e-metalbox-1
+    name: bond0
+    type: lag
+
+- device_interface:
+    device: e2e-metalbox-1
+    name: Ethernet8
+    type: 100gbase-x-qsfp28
+    lag: bond0
+
+- device_interface:
+    device: e2e-metalbox-1
+    name: Ethernet12
+    type: 100gbase-x-qsfp28
+    lag: bond0
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.61.1/24
+    assigned_object:
+      name: bond0
+      device: e2e-metalbox-1
+
+- cable:
+    termination_a_type: dcim.interface
+    termination_a:
+      device: e2e-portchannel
+      name: Ethernet0
+    termination_b_type: dcim.interface
+    termination_b:
+      device: e2e-metalbox-1
+      name: Ethernet8
+
+- cable:
+    termination_a_type: dcim.interface
+    termination_a:
+      device: e2e-portchannel
+      name: Ethernet4
+    termination_b_type: dcim.interface
+    termination_b:
+      device: e2e-metalbox-1
+      name: Ethernet12
+
+# ------------------------------------------- peer address, none of ours --
+# A cabled port that carries no address of its own facing an endpoint that
+# does. The peer address resolves, but there is no local address to source
+# a numbered session from -- no Transfer prefix covers 192.168.60.0/24, and
+# this switch has nothing on Ethernet8 at all -- so the session must stay
+# unnumbered and both tables must key on Ethernet8.
+#
+# This is the shape where the neighbour identity and the ipv6_unicast guard
+# used to disagree: keying on the peer address alone produced a numbered
+# BGP_NEIGHBOR with no local_addr, and an ipv6_unicast row underneath an
+# IPv4 literal. Nothing else in the fixture set reaches it, because every
+# other cabled port is either addressed from the Transfer prefix or faces
+# an endpoint with no address.
+
+- device_interface:
+    device: e2e-portchannel
+    name: Ethernet8
+    type: 100gbase-x-qsfp28
+
+- device_interface:
+    device: e2e-metalbox-1
+    name: Ethernet16
+    type: 100gbase-x-qsfp28
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.60.10/24
+    assigned_object:
+      name: Ethernet16
+      device: e2e-metalbox-1
+
+- cable:
+    termination_a_type: dcim.interface
+    termination_a:
+      device: e2e-portchannel
+      name: Ethernet8
+    termination_b_type: dcim.interface
+    termination_b:
+      device: e2e-metalbox-1
+      name: Ethernet16
