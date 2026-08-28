@@ -36,8 +36,30 @@
     "default|L2VPN_EVPN|IPV4_UNICAST": {},
     "default|L2VPN_EVPN|IPV6_UNICAST": {}
   },
-  "BGP_NEIGHBOR": {},
-  "BGP_NEIGHBOR_AF": {},
+  "BGP_NEIGHBOR": {
+    "default|192.168.60.10": {
+      "peer_type": "external",
+      "v6only": "true"
+    },
+    "default|PortChannel1": {
+      "peer_type": "external",
+      "v6only": "true"
+    }
+  },
+  "BGP_NEIGHBOR_AF": {
+    "default|Ethernet8|ipv4_unicast": {
+      "admin_status": "true"
+    },
+    "default|Ethernet8|ipv6_unicast": {
+      "admin_status": "true"
+    },
+    "default|PortChannel1|ipv4_unicast": {
+      "admin_status": "true"
+    },
+    "default|PortChannel1|ipv6_unicast": {
+      "admin_status": "true"
+    }
+  },
   "BREAKOUT_CFG": {},
   "BREAKOUT_PORTS": {},
   "DEVICE_METADATA": {
@@ -49,7 +71,11 @@
     }
   },
   "DNS_NAMESERVER": {},
-  "INTERFACE": {},
+  "INTERFACE": {
+    "Ethernet8": {
+      "ipv6_use_link_local_only": "enable"
+    }
+  },
   "LOOPBACK": {},
   "LOOPBACK_INTERFACE": {},
   "MGMT_INTERFACE": {},
@@ -420,7 +446,7 @@
       "valid_speeds": "100000,40000"
     },
     "Ethernet8": {
-      "admin_status": "down",
+      "admin_status": "up",
       "adv_speeds": "all",
       "alias": "Eth1/3",
       "autoneg": "off",
