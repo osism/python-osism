@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ff723d0397d1c00e6ebbcf8bf57b39bdc30f4d8ee505239bc4a610ab0d19a8ab"
+            "sha256": "ef6cd106e6b9ff26290d02bba5bc713060af4b4f813fe64a82b2230152745676"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -1326,12 +1326,12 @@
         },
         "keystoneauth1": {
             "hashes": [
-                "sha256:9e2a4cf45cc2e2164093157091bc073eda1f334f755e8fab9fd25420c6f6acef",
-                "sha256:ce2cacdfd028e65bd23ff403d6572ebfab3b006d6d2dde3aa85c263675a9fbb5"
+                "sha256:c0fd79fa8f541e4954b5c6c935b9910e6d8041c8c88e071c1b4995891a7d7ccc",
+                "sha256:ccf33516fd1b880c508b34b4d74d3a1c29345119a5a381d446083b39b6fcb3b0"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.11'",
-            "version": "==5.15.0"
+            "version": "==5.16.0"
         },
         "kombu": {
             "extras": [
