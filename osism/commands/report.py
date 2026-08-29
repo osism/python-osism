@@ -9,10 +9,13 @@ from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
 
-from osism import settings
-from osism.commands.console import resolve_host_with_fallback
+from osism.utils.hosts import resolve_host_with_fallback
 from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
-from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
+from osism.utils.ssh import (
+    build_ssh_command,
+    ensure_known_hosts_file,
+    KNOWN_HOSTS_PATH,
+)
 
 
 class Memory(Command):
@@ -63,19 +66,6 @@ class Memory(Command):
             logger.error("No hosts found in inventory.")
             return
 
-        ssh_base = [
-            "/usr/bin/ssh",
-            "-i",
-            "/ansible/secrets/id_rsa.operator",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "LogLevel=ERROR",
-            "-o",
-            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
-            "-o",
-            "ConnectTimeout=10",
-        ]
         dmidecode_command = (
             "sudo dmidecode -t memory | grep 'Size:' | grep -v 'No Module'"
             " | awk '{if($3==\"MB\") s+=$2/1024; else s+=$2} END {print s}'"
@@ -91,11 +81,11 @@ class Memory(Command):
 
             try:
                 memory_result = subprocess.run(
-                    [
-                        *ssh_base,
-                        f"{settings.OPERATOR_USER}@{resolved_host}",
-                        dmidecode_command,
-                    ],
+                    build_ssh_command(
+                        resolved_host,
+                        remote_command=dmidecode_command,
+                        connect_timeout=10,
+                    ),
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -109,11 +99,11 @@ class Memory(Command):
                     continue
 
                 uuid_result = subprocess.run(
-                    [
-                        *ssh_base,
-                        f"{settings.OPERATOR_USER}@{resolved_host}",
-                        uuid_command,
-                    ],
+                    build_ssh_command(
+                        resolved_host,
+                        remote_command=uuid_command,
+                        connect_timeout=10,
+                    ),
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -201,19 +191,6 @@ class Lldp(Command):
             logger.error("No hosts found in inventory.")
             return
 
-        ssh_base = [
-            "/usr/bin/ssh",
-            "-i",
-            "/ansible/secrets/id_rsa.operator",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "LogLevel=ERROR",
-            "-o",
-            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
-            "-o",
-            "ConnectTimeout=10",
-        ]
         lldp_command = "lldpctl -f json"
 
         table = []
@@ -224,11 +201,11 @@ class Lldp(Command):
 
             try:
                 lldp_result = subprocess.run(
-                    [
-                        *ssh_base,
-                        f"{settings.OPERATOR_USER}@{resolved_host}",
-                        lldp_command,
-                    ],
+                    build_ssh_command(
+                        resolved_host,
+                        remote_command=lldp_command,
+                        connect_timeout=10,
+                    ),
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -370,19 +347,6 @@ class Bgp(Command):
             logger.error("No hosts found in inventory.")
             return
 
-        ssh_base = [
-            "/usr/bin/ssh",
-            "-i",
-            "/ansible/secrets/id_rsa.operator",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "LogLevel=ERROR",
-            "-o",
-            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
-            "-o",
-            "ConnectTimeout=10",
-        ]
         bgp_command = 'sudo vtysh -c "show bgp summary json"'
 
         table = []
@@ -393,11 +357,11 @@ class Bgp(Command):
 
             try:
                 bgp_result = subprocess.run(
-                    [
-                        *ssh_base,
-                        f"{settings.OPERATOR_USER}@{resolved_host}",
-                        bgp_command,
-                    ],
+                    build_ssh_command(
+                        resolved_host,
+                        remote_command=bgp_command,
+                        connect_timeout=10,
+                    ),
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -547,19 +511,6 @@ class Status(Command):
             logger.error("No hosts found in inventory.")
             return
 
-        ssh_base = [
-            "/usr/bin/ssh",
-            "-i",
-            "/ansible/secrets/id_rsa.operator",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "LogLevel=ERROR",
-            "-o",
-            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
-            "-o",
-            "ConnectTimeout=10",
-        ]
         fact_command = "cat /etc/ansible/facts.d/osism.fact"
 
         section = parsed_args.type
@@ -574,11 +525,11 @@ class Status(Command):
 
             try:
                 fact_result = subprocess.run(
-                    [
-                        *ssh_base,
-                        f"{settings.OPERATOR_USER}@{resolved_host}",
-                        fact_command,
-                    ],
+                    build_ssh_command(
+                        resolved_host,
+                        remote_command=fact_command,
+                        connect_timeout=10,
+                    ),
                     capture_output=True,
                     text=True,
                     timeout=30,
