@@ -23,8 +23,9 @@
 #
 # Note also that the models are community SONiC while the supported HWSKUs run
 # Enterprise SONiC builds. Where the two disagree the table is opted out via
-# PLATFORM_DIVERGENT_TABLES in tools/sonic_yang_to_pydantic.py; re-check that
-# list when this pin moves.
+# PLATFORM_DIVERGENT_TABLES in tools/sonic_yang_to_pydantic.py, or a single leaf
+# is retyped via PLATFORM_DIVERGENT_FIELDS beside it; re-check both lists when
+# this pin moves.
 giltDir: ~/.gilt/clone
 debug: false
 parallel: true

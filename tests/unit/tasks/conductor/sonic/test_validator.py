@@ -393,6 +393,17 @@ def _warnings_for(result, table):
     return [w for w in result.warnings if table in w]
 
 
+def _bgp_neighbor_af_config(admin_status):
+    """A BGP_NEIGHBOR_AF row with the neighbor its key references, so nothing
+    but the admin_status value is under test."""
+    return {
+        "BGP_NEIGHBOR": {"default|Ethernet0": {"peer_type": "external"}},
+        "BGP_NEIGHBOR_AF": {
+            "default|Ethernet0|ipv4_unicast": {"admin_status": admin_status},
+        },
+    }
+
+
 def test_platform_divergent_table_is_not_schema_validated():
     """The vendored models are community SONiC; these devices run an
     Enterprise build that models SYSLOG_SERVER with different field names and
@@ -428,6 +439,44 @@ def test_platform_divergent_mgmt_port_accepts_the_device_value():
     config = {"MGMT_PORT": {"eth0": {"autoneg": "true", "admin_status": "up"}}}
     result = validate_config(config)
     assert [e for e in result.errors if e.table == "MGMT_PORT"] == [], result.errors
+
+
+def test_platform_divergent_af_admin_status_accepts_the_device_value():
+    """BGP_NEIGHBOR_AF.admin_status is true/false on the target platform: that
+    is what the frr-mgmt-framework CONFIG_DB schema specifies and the only
+    spelling frrcfgd turns into `neighbor <x> activate`. The community model
+    types the leaf as the up/down enum shared with PORT."""
+    config = _bgp_neighbor_af_config("true")
+    result = validate_config(config)
+    assert [
+        e for e in result.errors if e.table == "BGP_NEIGHBOR_AF"
+    ] == [], result.errors
+
+
+def test_platform_divergent_af_admin_status_rejects_the_yang_spelling():
+    """`up` is what the community YANG model asks for and what the platform
+    ignores: frrcfgd never activates the address family for it. The carve-out
+    keeps the field validated against the platform rather than dropping it,
+    so emitting the model's spelling here is an error."""
+    result = validate_config(_bgp_neighbor_af_config("up"))
+    assert [
+        e for e in result.errors if e.table == "BGP_NEIGHBOR_AF"
+    ] != [], result.errors
+
+
+def test_platform_divergent_field_leaves_the_rest_of_the_table_validated():
+    """Overriding one leaf must not cost the table its schema the way
+    PLATFORM_DIVERGENT_TABLES does — its other fields stay checked."""
+    config = _bgp_neighbor_af_config("true")
+    config["BGP_NEIGHBOR_AF"]["default|Ethernet0|ipv4_unicast"][
+        "send_community"
+    ] = "foobar"
+    result = validate_config(config)
+    assert any(
+        "send_community" in e.path
+        for e in result.errors
+        if e.table == "BGP_NEIGHBOR_AF"
+    ), result.errors
 
 
 def test_platform_divergent_table_drops_its_own_leafrefs():
