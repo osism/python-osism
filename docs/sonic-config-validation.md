@@ -46,6 +46,70 @@ Tables like these are listed in `PLATFORM_DIVERGENT_TABLES` in the generator.
 They get no schema and are reported as a warning naming the reason, instead of
 producing errors about values that are correct.
 
+Where the divergence is one leaf rather than a whole table, dropping the table
+gives up too much. Those are listed in `PLATFORM_DIVERGENT_FIELDS` instead,
+which retypes just that leaf to what the platform accepts and emits the reason
+as a comment beside the generated field. The rest of the table stays validated,
+and so does the leaf — against the platform rather than against the model.
+
+| field                          | community model | what the devices run |
+|--------------------------------|-----------------|----------------------|
+| `BGP_NEIGHBOR_AF.admin_status` | enum `up`/`down`| `true`/`false`       |
+
+### Why `BGP_NEIGHBOR_AF.admin_status` is `true`/`false`
+
+This one is worth spelling out, because the community model is not merely a
+different flavour here — following it takes BGP down on the builds we run.
+
+`BGP_NEIGHBOR_AF` belongs to the unified FRR management interface, and that
+feature's own CONFIG_DB schema types the leaf as a boolean, in the same
+document where `PORT` and the interface tables are `up`/`down`:
+
+    admin_status = "true" / "false" ; Neighbor admin status
+
+— `doc/mgmt/SONiC_Design_Doc_Unified_FRR_Mgmt_Interface.md` §3.2.1.7 in
+`sonic-net/SONiC`.
+
+The consumer agrees. In `frrcfgd`, the address-family `admin_status` entries of
+`nbr_af_key_map` are bound to the token pair `['true', 'false', False]`. A
+value outside that pair does not fall back to anything: `get_command_cmn` logs
+`Input token up is neither true or false` and returns no command, so
+`neighbor <x> activate` is never issued and the address family is silently left
+inactive. A config that reads correctly produces a peering that carries no
+routes.
+
+The community YANG model says otherwise — `stypes:admin_status`, the `up`/`down`
+enumeration — and upstream resolved the contradiction in the consumer, not in
+the model: `frrcfgd` was taught to accept `up`/`down` *in addition to*
+`true`/`false`, explicitly so that existing deployments keep working
+([sonic-buildimage#21697][af-admin], merged 2025-03-12). That change is in
+community `master` and `202505`; it is **not** in `202411`, `202405` or
+`202311`.
+
+So the generator emits `true`, and this entry keeps the validator from calling
+that an error.
+
+### When this entry can go
+
+When every switch OSISM manages runs a build whose `frrcfgd` carries that
+change. Then `up`/`down` becomes the better value — it satisfies both the model
+and the consumer, and `config reload` on newer `sonic-utilities` YANG-validates
+`/etc/sonic/config_db.json` and aborts on a value outside the model.
+
+Establish it on a device, not from a release note. Enterprise builds are cut
+from community branches, but which branch a given build carries is not
+something a version number answers, and no published mapping settles it. The
+check is in the `bgp` container's `frrcfgd.py`: the `admin_status|ipv4` entry
+of `nbr_af_key_map` must name a handler function rather than the literal token
+list.
+
+Change both sides together. Emitting `up` while this entry still says
+`true`/`false` turns every generated AF row into a validation error; retyping
+the leaf while the generator still emits `true` does the same in reverse. And
+neither is safe until the fleet has moved, whatever the validator says.
+
+[af-admin]: https://github.com/sonic-net/sonic-buildimage/pull/21697
+
 Vendoring the devices' own models instead is not currently possible: there is
 no authoritative published Enterprise model set. The management-framework
 lineage in `sonic-net/sonic-mgmt-common` carries only a handful of modules, the

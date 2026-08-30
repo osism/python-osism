@@ -663,7 +663,10 @@ class BgpNeighborAfListRow(BaseModel):
     vrf_name: Optional[str] = None
     neighbor: Optional[str] = None
     afi_safi: Optional[str] = None
-    admin_status: Optional[Literal["up", "down"]] = None
+    # Platform divergence: the frr-mgmt-framework CONFIG_DB schema types this
+    # leaf true/false, and frrcfgd only activates the address family for those
+    # two tokens; see docs/sonic-config-validation.md
+    admin_status: Optional[Literal["true", "false"]] = None
     send_default_route: Optional[bool] = None
     default_rmap: Optional[str] = None
     max_prefix_limit: Optional[Annotated[int, Field(ge=0, le=4294967295)]] = None

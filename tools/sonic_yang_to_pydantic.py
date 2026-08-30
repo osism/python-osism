@@ -22,6 +22,7 @@ import argparse
 import re
 import subprocess
 import sys
+import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -80,6 +81,23 @@ PLATFORM_DIVERGENT_TABLES = {
         "TCP/UDP/TLS protocol enum"
     ),
     "MGMT_PORT": ("the platform models autoneg as a boolean, not as `on`/`off`"),
+}
+
+# Individual leaves the vendored models type differently from the platform,
+# where opting the whole table out via PLATFORM_DIVERGENT_TABLES would give up
+# too much. Maps (table, leaf) to the annotation the platform actually accepts
+# plus the reason, which is emitted as a comment beside the generated field.
+#
+# Same evidentiary bar as PLATFORM_DIVERGENT_TABLES, and the same trap: our own
+# generated configs are not evidence. Each entry needs the platform's own
+# schema or its consumer, and a note on what would let it be dropped again.
+PLATFORM_DIVERGENT_FIELDS = {
+    ("BGP_NEIGHBOR_AF", "admin_status"): (
+        'Optional[Literal["true", "false"]] = None',
+        "the frr-mgmt-framework CONFIG_DB schema types this leaf true/false, "
+        "and frrcfgd only activates the address family for those two tokens; "
+        "see docs/sonic-config-validation.md",
+    ),
 }
 
 YANG_INT_BOUNDS = {
@@ -577,13 +595,32 @@ def default_for_type(default_arg: str, annotation: str) -> str:
     return repr(default_arg)
 
 
-def leaf_field_decl(leaf_stmt) -> str:
+def leaf_field_decl(leaf_stmt, table_name: Optional[str] = None) -> str:
+    field_name, alias = safe_field_name(leaf_stmt.arg)
+
+    override = (
+        PLATFORM_DIVERGENT_FIELDS.get((table_name, leaf_stmt.arg))
+        if table_name is not None
+        else None
+    )
+    if override is not None:
+        annotation, reason = override
+        if alias:
+            raise NotImplementedError(
+                f"platform-divergent field {table_name}.{leaf_stmt.arg} needs an "
+                "alias, which the override does not carry"
+            )
+        comment = "\n".join(
+            f"    # {line}"
+            for line in textwrap.wrap(f"Platform divergence: {reason}", width=74)
+        )
+        return f"{comment}\n    {field_name}: {annotation}"
+
     py = (
         yang_type_to_py(leaf_stmt.search_one("type"))
         if leaf_stmt.search_one("type")
         else PyType("Any")
     )
-    field_name, alias = safe_field_name(leaf_stmt.arg)
     mandatory = is_mandatory(leaf_stmt)
     default_stmt = leaf_stmt.search_one("default")
 
@@ -682,7 +719,7 @@ def generate_row_class(
     rows = []
     for leaf in leaves:
         if leaf.keyword == "leaf":
-            rows.append(leaf_field_decl(leaf))
+            rows.append(leaf_field_decl(leaf, table_name))
         elif leaf.keyword == "leaf-list":
             rows.append(leaf_list_field_decl(leaf, table_name))
     if not rows:
