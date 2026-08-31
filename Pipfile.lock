@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2b5c4f1b8a1e2ee09a9d2dbc3ed9bc01beaf27958a1ae9b1ba14b399dde74911"
+            "sha256": "0cf725801f5122f375be077fcd6821b48dcd481e01db8219bb2c34ddc35ec3e5"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -2747,12 +2747,12 @@
         },
         "sqlmodel": {
             "hashes": [
-                "sha256:23d8e50a8d8ee936032ed79c55023a5d618dd6bc3c510bbf4909d1a7a605a570",
-                "sha256:90ebe92ce5cc11d7fff8dc7cb594790a102333c8fe7c14865254f6fc5c939795"
+                "sha256:9ecec2b6aa4c2aa58da39d2572e7bef4373419dcd6ec52973c07de7be2b1c516",
+                "sha256:a732dab1a40e5cbd6ac250cf2b12e8d9b1bf1a47edf27c34d612f359e8875c63"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.10'",
-            "version": "==0.0.39"
+            "version": "==0.0.42"
         },
         "stevedore": {
             "hashes": [
@@ -2902,11 +2902,11 @@
         },
         "websocket-client": {
             "hashes": [
-                "sha256:19a871b81d0022589dd9e8e1b1891e0516d32113837dfb987d7691b6a425a1e2",
-                "sha256:2e0916d2e28ccc82702f2f70aa7a654588e84a5cf2f5914099638b33547f2b7c"
+                "sha256:0fcb57545848be86992e128218fd96dd87a6769ffdb1a968dff79632b85604d0",
+                "sha256:e1a673830a9c7bfa47b1cd3d5e4178f4c9651d80a4eab02c9c23a1c3ec6250ce"
             ],
             "markers": "python_version >= '3.10'",
-            "version": "==1.9.1"
+            "version": "==1.9.2"
         },
         "xmltodict": {
             "hashes": [
