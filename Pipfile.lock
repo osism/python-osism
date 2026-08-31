@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "ef6cd106e6b9ff26290d02bba5bc713060af4b4f813fe64a82b2230152745676"
+            "sha256": "2b5c4f1b8a1e2ee09a9d2dbc3ed9bc01beaf27958a1ae9b1ba14b399dde74911"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -1016,12 +1016,12 @@
         },
         "gitpython": {
             "hashes": [
-                "sha256:0a1475cfdc38a5bfba1a3e9a4a9da52a39749ecec322b772915c019f94e5b7e4",
-                "sha256:67a82f537384578643624c8b2c531938a9b82be431663e575dcf638526631d4c"
+                "sha256:39548bffb8fa0f3a548133348868bb4838e79d73283052207dc97781a569b6b4",
+                "sha256:e936431879fa85581b4311fa63492ea52251909e2d655b6529c704c904ddcc24"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.7'",
-            "version": "==3.1.59"
+            "version": "==3.1.60"
         },
         "greenlet": {
             "hashes": [
@@ -2902,11 +2902,11 @@
         },
         "websocket-client": {
             "hashes": [
-                "sha256:9e813624b6eb619999a97dc7958469217c3176312b3a16a4bd1bc7e08a46ec98",
-                "sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef"
+                "sha256:19a871b81d0022589dd9e8e1b1891e0516d32113837dfb987d7691b6a425a1e2",
+                "sha256:2e0916d2e28ccc82702f2f70aa7a654588e84a5cf2f5914099638b33547f2b7c"
             ],
-            "markers": "python_version >= '3.9'",
-            "version": "==1.9.0"
+            "markers": "python_version >= '3.10'",
+            "version": "==1.9.1"
         },
         "xmltodict": {
             "hashes": [
