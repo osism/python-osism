@@ -29,7 +29,7 @@ python-dateutil==2.9.0.post0
 python-openstackclient==10.2.1
 redfish==3.4.0
 setuptools==84.0.0
-sqlmodel==0.0.39
+sqlmodel==0.0.42
 sushy==5.13.0
 tabulate==0.10.0
 transitions==0.9.3
