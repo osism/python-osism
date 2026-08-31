@@ -24,6 +24,42 @@ from osism.tasks.conductor.sonic._generated import (
 )
 
 
+@dataclass(frozen=True)
+class KeyPrefixRef:
+    """A reference carried by a composite row key rather than by a row field.
+
+    ``source_table`` rows are keyed ``a|b|...``; the first ``prefix_len``
+    components must together name an existing key in ``target_table``. This
+    expresses the YANG leafrefs whose path is relative and predicated, which
+    :mod:`osism.tasks.conductor.sonic._generated._leafrefs` cannot represent:
+    ``parse_leafref_path()`` returns ``None`` for both shapes, so the generator
+    emits no constraint for them. Hand-maintained for that reason.
+    """
+
+    source_table: str
+    target_table: str
+    prefix_len: int
+    yang_path: str
+
+
+# BGP_NEIGHBOR_AF.neighbor is a leafref into BGP_NEIGHBOR restricted to the same
+# VRF, so the vrf_name|neighbor prefix of an AF key must name a real neighbor.
+# Without this, an AF row can activate an address family for a peer that has no
+# BGP_NEIGHBOR entry, and the neighbor it does name is left with no address
+# family at all.
+KEY_PREFIX_REFS = (
+    KeyPrefixRef(
+        source_table="BGP_NEIGHBOR_AF",
+        target_table="BGP_NEIGHBOR",
+        prefix_len=2,
+        yang_path=(
+            "../../../BGP_NEIGHBOR/BGP_NEIGHBOR_LIST"
+            "[vrf_name=current()/../vrf_name]/neighbor"
+        ),
+    ),
+)
+
+
 @dataclass
 class ValidationError:
     message: str
@@ -118,6 +154,7 @@ def validate_config(config: Dict[str, Any]) -> ValidationResult:
     leafref_errors, leafref_warnings = _check_leafrefs(config)
     errors.extend(leafref_errors)
     warnings.extend(leafref_warnings)
+    errors.extend(_check_key_prefix_refs(config))
 
     return ValidationResult(valid=not errors, errors=errors, warnings=warnings)
 
@@ -346,3 +383,41 @@ def _format_missing_message(constraint: LeafrefConstraint, value: str) -> str:
         f"leafref {constraint.source_field}={value!r} does not resolve to "
         f"an existing entry in {targets}"
     )
+
+
+def _check_key_prefix_refs(config: Dict[str, Any]) -> List[ValidationError]:
+    """Verify every composite-key reference in :data:`KEY_PREFIX_REFS` resolves.
+
+    Rows whose key has too few components are skipped: key arity is the row
+    schema's business, and reporting it here as well would double up on one
+    defect.
+    """
+    errors: List[ValidationError] = []
+    for ref in KEY_PREFIX_REFS:
+        rows = config.get(ref.source_table)
+        if not isinstance(rows, dict):
+            continue
+        target_keys = config.get(ref.target_table)
+        target_keys = set(target_keys) if isinstance(target_keys, dict) else set()
+        for row_key in rows:
+            if not isinstance(row_key, str):
+                # Malformed row; the row schema reports it. Reporting here too
+                # would turn one defect into two.
+                continue
+            parts = row_key.split("|")
+            if len(parts) <= ref.prefix_len:
+                continue
+            prefix = "|".join(parts[: ref.prefix_len])
+            if prefix not in target_keys:
+                errors.append(
+                    ValidationError(
+                        message=(
+                            f"{ref.source_table} key {row_key!r} references "
+                            f"{ref.target_table} entry {prefix!r}, which does "
+                            f"not exist"
+                        ),
+                        path=row_key,
+                        table=ref.source_table,
+                    )
+                )
+    return errors
