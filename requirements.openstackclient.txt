@@ -14,7 +14,7 @@ python-ironicclient==6.3.0
 python-keystoneclient==5.8.0
 python-magnumclient==4.11.0
 python-manilaclient==6.2.0
-python-masakariclient==8.8.0
+python-masakariclient==8.9.0
 python-mistralclient==6.3.0
 python-neutronclient==13.0.0
 python-novaclient==18.13.0
