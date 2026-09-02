@@ -235,6 +235,47 @@ def test_gather_facts_delegates_with_defaults(mocker):
     check.assert_not_called()
 
 
+def test_dispatch_kolla_facts_skips_without_the_kolla_runtime(mocker, capsys):
+    """No kolla-ansible container means nothing consumes the kolla-ansible
+    queue, so dispatching would strand a task in redis on every run."""
+    from osism.data import playbooks
+
+    playbooks.MAP_ROLE2RUNTIME = {"osism-ansible": ["facts"]}
+    try:
+        delay = mocker.patch("osism.tasks.kolla.run.delay")
+        assert ansible.dispatch_kolla_facts() is None
+        delay.assert_not_called()
+    finally:
+        playbooks._reset_caches()
+
+
+def test_dispatch_kolla_facts_queues_when_runtime_present(mocker):
+    """With kolla-ansible present, gather in its runtime so the cache generation
+    it can actually read gets written (it never gathers for itself)."""
+    from osism.data import playbooks
+
+    playbooks.MAP_ROLE2RUNTIME = {"kolla-ansible": ["kolla-facts"]}
+    try:
+        delay = mocker.patch("osism.tasks.kolla.run.delay")
+        result = ansible.dispatch_kolla_facts()
+        delay.assert_called_once_with("kolla", "facts", [], auto_release_time=3600)
+        assert result is delay.return_value
+    finally:
+        playbooks._reset_caches()
+
+
+def test_gather_facts_also_dispatches_the_kolla_gather(mocker):
+    """The periodic gather must cover both cache generations, or the kolla one
+    expires 24 h after a deploy with nothing to rewrite it."""
+    mocker.patch(
+        "osism.tasks.ansible.run_ansible_in_environment", return_value="RESULT"
+    )
+    dispatch = mocker.patch("osism.tasks.ansible.dispatch_kolla_facts")
+
+    assert ansible.gather_facts.__wrapped__() == "RESULT"
+    dispatch.assert_called_once_with()
+
+
 def test_gather_facts_forwards_publish_false(mocker):
     """``publish=False`` is forwarded as the sixth positional argument."""
     delegate = mocker.patch("osism.tasks.ansible.run_ansible_in_environment")
