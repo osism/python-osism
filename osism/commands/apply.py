@@ -338,10 +338,25 @@ class Run(Command):
 
             kolla_arguments = [f"-e kolla_action={action}"] + arguments
 
+            # Some kolla-environment playbooks are implemented in osism-ansible
+            # rather than kolla-ansible (ansible-playbooks playbooks/kolla/:
+            # stepca, fix-gh973, nova-update-cell-mappings, ...), so they have to
+            # run in the osism-ansible runtime. Requiring the role to be mapped
+            # to the kolla environment is what keeps that override from also
+            # swallowing roles osism-ansible registers for a DIFFERENT
+            # environment: it ships generic/{facts,gather-facts,certificates}.yml
+            # and therefore advertises those names as `generic`, while
+            # kolla-ansible advertises kolla-{facts,gather-facts,certificates}.
+            # Since the `kolla-` prefix is stripped above, without the
+            # environment check every one of those collapsed onto the generic
+            # entry and was dispatched to osism-ansible with ENVIRONMENT=kolla,
+            # where run-kolla.sh finds no such playbook and reports
+            # "service <name> in environment kolla not available".
             if (
                 role not in ["common"]
                 and "osism-ansible" in MAP_ROLE2RUNTIME
                 and role in MAP_ROLE2RUNTIME["osism-ansible"]
+                and MAP_ROLE2ENVIRONMENT.get(role) == "kolla"
             ):
                 t = ansible.run.si(
                     environment, role, arguments, auto_release_time=task_timeout

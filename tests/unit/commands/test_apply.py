@@ -231,6 +231,51 @@ def test_prepare_task_kolla_role_in_osism_ansible_runtime(task_mocks):
     assert t is task_mocks.ansible_run.si.return_value
 
 
+def test_prepare_task_kolla_facts_reaches_kolla_ansible(task_mocks):
+    """A kolla-ansible playbook whose bare name collides with an osism-ansible
+    playbook registered for a DIFFERENT environment must still reach
+    kolla-ansible. osism-ansible ships generic/facts.yml, so it advertises
+    `facts -> generic`; kolla-ansible advertises `kolla-facts -> kolla`. The
+    runtime override may only claim roles osism-ansible registered *for kolla*
+    (stepca, fix-gh973, ...), never a generic one."""
+    _set_playbook_maps(
+        role2environment={"facts": "generic", "kolla-facts": "kolla"},
+        role2runtime={"osism-ansible": ["facts"], "kolla-ansible": ["kolla-facts"]},
+    )
+    cmd = make_command(apply.Run)
+
+    _prepare_task(cmd, role="facts", environment="kolla")
+    _prepare_task(cmd, role="kolla-facts")
+
+    assert task_mocks.kolla_run.si.call_count == 2
+    task_mocks.kolla_run.si.assert_has_calls(
+        [
+            call("kolla", "facts", ["-e kolla_action=deploy"], auto_release_time=3600),
+            call("kolla", "facts", ["-e kolla_action=deploy"], auto_release_time=3600),
+        ]
+    )
+    task_mocks.ansible_run.si.assert_not_called()
+
+
+def test_prepare_task_kolla_environment_osism_role_still_overrides(task_mocks):
+    """The override's real purpose keeps working: a role osism-ansible registers
+    *for the kolla environment* (playbooks/kolla/stepca.yml) runs in
+    osism-ansible, not kolla-ansible."""
+    _set_playbook_maps(
+        role2environment={"stepca": "kolla"},
+        role2runtime={"osism-ansible": ["stepca"]},
+    )
+    cmd = make_command(apply.Run)
+
+    t = _prepare_task(cmd, role="stepca")
+
+    task_mocks.ansible_run.si.assert_called_once_with(
+        "kolla", "stepca", [], auto_release_time=3600
+    )
+    task_mocks.kolla_run.si.assert_not_called()
+    assert t is task_mocks.ansible_run.si.return_value
+
+
 def test_prepare_task_common_role_stays_in_kolla(task_mocks):
     _set_playbook_maps(
         role2environment={"common": "kolla"},
