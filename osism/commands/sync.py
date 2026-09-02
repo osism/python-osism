@@ -29,6 +29,17 @@ class Facts(Command):
             "generic", "gather-facts", arguments, auto_release_time=3600
         )
         rc = handle_task(t)
+        if rc != 0:
+            return rc
+
+        # The gather above writes only osism-ansible's own fact-cache
+        # generation. Since ansible-core 2.19 namespaces cache entries per
+        # schema, kolla-ansible cannot read those entries when it sits on the
+        # other side of 2.19 -- and it never gathers for itself. Refresh its
+        # generation too, so one command repairs the whole cache.
+        kolla_task = ansible.dispatch_kolla_facts()
+        if kolla_task is not None:
+            rc = handle_task(kolla_task)
         return rc
 
 

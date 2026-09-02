@@ -16,7 +16,7 @@ import io
 import json
 import subprocess
 import tarfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 import requests
@@ -47,6 +47,62 @@ def test_facts_schedules_gather_facts_and_returns_rc(rc):
     )
     mock_handle.assert_called_once_with(mock_delay.return_value)
     assert result == rc
+
+
+def test_facts_also_refreshes_the_kolla_generation():
+    """`osism sync facts` is the command check_ansible_facts advertises, so it
+    has to repair both cache generations, not just osism-ansible's."""
+    cmd, parsed_args = parse_args(sync.Facts, [])
+
+    with patch("osism.commands.sync.utils.check_task_lock_and_exit"), patch(
+        "osism.tasks.ansible.run.delay"
+    ) as mock_delay, patch(
+        "osism.tasks.ansible.dispatch_kolla_facts"
+    ) as mock_dispatch, patch(
+        "osism.tasks.handle_task", side_effect=[0, 0]
+    ) as mock_handle:
+        result = cmd.take_action(parsed_args)
+
+    mock_dispatch.assert_called_once_with()
+    assert mock_handle.call_args_list == [
+        call(mock_delay.return_value),
+        call(mock_dispatch.return_value),
+    ]
+    assert result == 0
+
+
+def test_facts_returns_early_when_the_generic_gather_fails():
+    """A failed generic gather is reported as-is; the kolla gather is not
+    attempted, since its own reachability is a separate question."""
+    cmd, parsed_args = parse_args(sync.Facts, [])
+
+    with patch("osism.commands.sync.utils.check_task_lock_and_exit"), patch(
+        "osism.tasks.ansible.run.delay"
+    ), patch("osism.tasks.ansible.dispatch_kolla_facts") as mock_dispatch, patch(
+        "osism.tasks.handle_task", return_value=2
+    ):
+        result = cmd.take_action(parsed_args)
+
+    assert result == 2
+    mock_dispatch.assert_not_called()
+
+
+def test_facts_skips_the_kolla_handle_when_runtime_absent():
+    """When dispatch is skipped (no kolla-ansible container) there is no second
+    task to wait on."""
+    cmd, parsed_args = parse_args(sync.Facts, [])
+
+    with patch("osism.commands.sync.utils.check_task_lock_and_exit"), patch(
+        "osism.tasks.ansible.run.delay"
+    ) as mock_delay, patch(
+        "osism.tasks.ansible.dispatch_kolla_facts", return_value=None
+    ), patch(
+        "osism.tasks.handle_task", return_value=0
+    ) as mock_handle:
+        result = cmd.take_action(parsed_args)
+
+    mock_handle.assert_called_once_with(mock_delay.return_value)
+    assert result == 0
 
 
 # --- CephKeys.take_action ---
