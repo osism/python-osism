@@ -19,6 +19,6 @@ python-mistralclient==6.3.0
 python-neutronclient==14.0.0
 python-novaclient==18.13.1
 python-octaviaclient==3.15.0
-python-swiftclient==4.10.0
+python-swiftclient==4.11.0
 python-troveclient==8.11.0
 python-watcherclient==4.11.0
