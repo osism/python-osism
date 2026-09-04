@@ -5,7 +5,7 @@
 gnocchiclient==7.2.0
 osc-placement==4.9.1
 python-barbicanclient==7.6.0
-python-cinderclient==9.9.0
+python-cinderclient==9.10.0
 python-cloudkittyclient==6.2.0
 python-designateclient==7.0.0
 python-glanceclient==4.13.0
