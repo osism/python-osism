@@ -19,6 +19,37 @@ from osism import settings, utils
 # Regex pattern for extracting hosts from Ansible output
 HOST_PATTERN = re.compile(r"^(ok|changed|failed|skipping|unreachable):\s+\[([^\]]+)\]")
 
+# Environment variables a subprocess started with ignore_env=True inherits from
+# the worker container. Starting from an empty environment keeps the OS_*
+# variables of openstack.env away from the manager tools, where they would
+# override the --cloud selection taken from clouds.yaml, but it also strips the
+# proxy configuration, the CA bundles, and the basics a subprocess cannot work
+# without. Those are passed through by name instead.
+ISOLATED_ENV_NAMES = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "LANG",
+        "TZ",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "ALL_PROXY",
+        # aria2c, which openstack-image-manager spawns to prefetch images, only
+        # reads the lowercase spellings.
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+        "all_proxy",
+    }
+)
+
+ISOLATED_ENV_PREFIXES = ("LC_",)
+
 
 class AnsibleFailure(Exception):
     """Raised when an Ansible run in a worker container exits non-zero.
@@ -425,6 +456,23 @@ def run_ansible_in_environment(
             )
 
 
+def build_isolated_env(env):
+    """Build the environment for a subprocess started with ignore_env=True.
+
+    Returns the allowlisted variables inherited from os.environ, overlaid with
+    env. Variables outside the allowlist are not inherited; entries passed
+    explicitly through env are always kept, including the OS_* credentials of
+    openstack.env if a caller ever passes them.
+    """
+    command_env = {
+        key: value
+        for key, value in os.environ.items()
+        if key in ISOLATED_ENV_NAMES or key.startswith(ISOLATED_ENV_PREFIXES)
+    }
+    command_env.update(env)
+    return command_env
+
+
 def run_command(
     request_id,
     command,
@@ -438,7 +486,7 @@ def run_command(
     result = ""
 
     if ignore_env:
-        command_env = env
+        command_env = build_isolated_env(env)
     else:
         command_env = os.environ.copy()
         command_env.update(env)
