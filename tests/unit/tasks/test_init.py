@@ -727,10 +727,86 @@ def test_run_command_popen_argv_no_shell(command_mocks):
     assert "shell" not in kwargs
 
 
-def test_run_command_ignore_env_passes_env_verbatim(command_mocks):
-    env = {"FOO": "bar"}
+# The names run_command(ignore_env=True) inherits from the worker container.
+# Kept as a literal instead of being derived from tasks.ISOLATED_ENV_NAMES so
+# that a misspelt or deleted entry in the allowlist fails here instead of being
+# mirrored into the expectation.
+ISOLATED_ENV_EXPECTED_NAMES = [
+    "PATH",
+    "HOME",
+    "LANG",
+    "TZ",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "REQUESTS_CA_BUNDLE",
+    "CURL_CA_BUNDLE",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "all_proxy",
+]
+
+
+def test_isolated_env_names_match_expected_inventory():
+    assert set(tasks.ISOLATED_ENV_NAMES) == set(ISOLATED_ENV_EXPECTED_NAMES)
+    assert tasks.ISOLATED_ENV_PREFIXES == ("LC_",)
+
+
+@pytest.mark.parametrize("name", ISOLATED_ENV_EXPECTED_NAMES)
+def test_run_command_ignore_env_inherits_allowlisted_name(
+    command_mocks, monkeypatch, name
+):
+    monkeypatch.setenv(name, "from-worker")
+
+    tasks.run_command("req-1", "echo", {}, ignore_env=True)
+
+    assert command_mocks.popen.call_args.kwargs["env"][name] == "from-worker"
+
+
+@pytest.mark.parametrize("name", ["LC_ALL", "LC_CTYPE", "LC_MESSAGES"])
+def test_run_command_ignore_env_inherits_lc_prefixed_name(
+    command_mocks, monkeypatch, name
+):
+    monkeypatch.setenv(name, "C.UTF-8")
+
+    tasks.run_command("req-1", "echo", {}, ignore_env=True)
+
+    assert command_mocks.popen.call_args.kwargs["env"][name] == "C.UTF-8"
+
+
+def test_run_command_ignore_env_drops_openstack_variables(command_mocks, monkeypatch):
+    monkeypatch.setenv("OS_AUTH_URL", "https://keystone:5000")
+    monkeypatch.setenv("OS_PASSWORD", "secret")
+    monkeypatch.setenv("OS_CLOUD", "from-openstack-env")
+    monkeypatch.setenv("SOME_OTHER_VAR", "leaked")
+    # Contains the LC_ prefix without starting with it.
+    monkeypatch.setenv("XLC_ALL", "leaked")
+
+    tasks.run_command("req-1", "echo", {}, ignore_env=True)
+
+    passed = command_mocks.popen.call_args.kwargs["env"]
+    assert "OS_AUTH_URL" not in passed
+    assert "OS_PASSWORD" not in passed
+    assert "OS_CLOUD" not in passed
+    assert "SOME_OTHER_VAR" not in passed
+    assert "XLC_ALL" not in passed
+
+
+def test_run_command_ignore_env_lets_caller_env_win(command_mocks, monkeypatch):
+    monkeypatch.setenv("HTTPS_PROXY", "http://inherited:3128")
+    env = {"HTTPS_PROXY": "http://explicit:3128", "TOOL_SPECIFIC": "x"}
+
     tasks.run_command("req-1", "echo", env, ignore_env=True)
-    assert command_mocks.popen.call_args.kwargs["env"] is env
+
+    passed = command_mocks.popen.call_args.kwargs["env"]
+    assert passed["HTTPS_PROXY"] == "http://explicit:3128"
+    assert passed["TOOL_SPECIFIC"] == "x"
+    assert passed is not env
+    assert env == {"HTTPS_PROXY": "http://explicit:3128", "TOOL_SPECIFIC": "x"}
 
 
 def test_run_command_merges_env_with_os_environ(command_mocks, monkeypatch):
