@@ -5,6 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260909.0] - 2026-09-09
+
+### Added
+- Install OpenStack CLI per-service plugins so `osism openstack` command groups like loadbalancer, dns, baremetal, share, and coe are available (osism/python-osism#2622)
+- Add `--raid`/`--no-raid` options to `osism baremetal clean` and create the raid configuration after cleaning per node (osism/python-osism#2609)
+- Report what a stalled task last did while `osism wait` is waiting for it, including line count and time since last output (osism/python-osism#2624)
+- Validate leafref references encoded in composite ConfigDB row keys (e.g. port channel, VLAN and BGP membership), significantly extending SONiC ConfigDB cross-table validation coverage (osism/python-osism#2626)
+- Validate shipped SONiC ConfigDB artifacts in CI so validator regressions are caught at PR time (osism/python-osism#2626)
+- Add documentation on how SONiC ConfigDB validation works and what it does not check (osism/python-osism#2626)
+- Validate BGP_NEIGHBOR_AF key references against BGP_NEIGHBOR entries in sonic config validation (osism/python-osism#2619)
+
+### Changed
+- Replace remaining registry.osism.cloud references with registry.osism.tech (osism/python-osism#2623)
+- Scope the SONiC LAG member IP fallback to the SVI lookup and let lookup errors surface as warnings instead of being swallowed (osism/python-osism#2606)
+- Pin vendored SONiC YANG models to a fixed upstream commit instead of tracking master (osism/python-osism#2626)
+- Replace `clean --raid`/`--no-raid` booleans with `--raid {delete,keep,recreate}`, giving separate modes for deleting, keeping, or rebuilding a node's RAID configuration, with `recreate` refusing named nodes that have nothing to build and skipping such nodes under `--all` (osism/python-osism#2633)
+
+### Fixed
+- Resolve BGP peer addresses for port channels through LAG member ports and exclude untagged VLAN port channels from BGP neighbor configuration in SONiC (osism/python-osism#2606)
+- Abort the task chain when an Ansible play fails instead of continuing to dispatch dependent roles (osism/python-osism@a2103e9a)
+- Return a proper exit code from `handle_collection` so chained `osism apply` segments after a successful collection are no longer skipped (osism/python-osism#2630)
+- Honor non-leafref (plain) arms in YANG union leafrefs during SONiC config validation, fixing false-positive dangling-reference errors on fields like `BGP_NEIGHBOR.local_addr` and `PFC_WD.ifname` (osism/python-osism#2626)
+- Accept ConfigDB leaf-lists written as a single delimited string (e.g. `PORT.adv_speeds`) instead of rejecting them as invalid lists (osism/python-osism#2626)
+- Skip SONiC ConfigDB tables (MGMT_PORT, SYSLOG_SERVER) where vendored YANG models diverge from the platform's actual implementation (osism/python-osism#2626)
+- Quote shell metacharacters in ansible task arguments to prevent syntax errors, e.g. with tempest regex values containing parentheses (osism/python-osism#2629)
+- Keep BGP_NEIGHBOR_AF admin_status validated as true/false to match the platform's frr-mgmt-framework schema and frrcfgd, instead of the community YANG up/down enum that frrcfgd silently ignores (osism/python-osism#2654)
+- Ensure the sonic config validator reports non-string row keys in single-key tables instead of raising an exception (osism/python-osism#2619)
+- Route kolla-facts, kolla-gather-facts and kolla-certificates to kolla-ansible instead of osism-ansible, and gather facts in the kolla-ansible runtime to keep its fact cache from expiring (osism/python-osism#2670)
+- Preserve proxy and CA bundle environment variables for ignore_env commands such as the OpenStack image, flavor and project managers (osism/python-osism#2683)
+
+### Dependencies
+- ansible.utils 6.0.3 → 6.1.0 (osism/python-osism#2601)
+- boto3 1.43.61 → 1.43.88 (osism/python-osism#2593, osism/python-osism#2603, osism/python-osism#2614, osism/python-osism#2655, osism/python-osism#2678)
+- community.docker 5.2.1 → 5.2.2 (osism/python-osism#2599)
+- eslint 10.8.0 → 10.10.0 (osism/python-osism#2598, osism/python-osism#2617, osism/python-osism#2637, osism/python-osism#2681)
+- gitpython 3.1.58 → 3.1.61 (osism/python-osism#2585, osism/python-osism#2640, osism/python-osism#2665)
+- hiredis 3.4.0 → 3.4.1 (osism/python-osism#2595)
+- lucide-react 1.28.0 → 1.41.0 (osism/python-osism#2592, osism/python-osism#2596, osism/python-osism#2600, osism/python-osism#2611, osism/python-osism#2634, osism/python-osism#2656, osism/python-osism#2669, osism/python-osism#2672, osism/python-osism#2677)
+- netbox-manager 0.20260614.0 → 0.20260810.0 (osism/python-osism#2597)
+- postcss 8.5.25 → 8.5.28 (osism/python-osism#2591, osism/python-osism#2676)
+- typescript 6.0.3 → 7.0.2 (osism/python-osism#2450)
+- next 16.3.0 → 16.3.4 (osism/python-osism#2604, osism/python-osism#2616, osism/python-osism#2638, osism/python-osism#2671)
+- uvicorn 0.52.1 → 0.52.4 (osism/python-osism#2602, osism/python-osism#2612)
+- setuptools 83.0.0 → 84.0.0 (osism/python-osism#2605)
+- redfish 3.3.7 → 3.4.0 (osism/python-osism#2607, osism/python-osism#2615, osism/python-osism#2641)
+- flower 2.0.1 → 2.1.0 (osism/python-osism#2608)
+- sushy 5.12.0 → 5.13.0 (osism/python-osism#2613)
+- fakeredis 2.37.0 → 2.37.1 (osism/python-osism#2610)
+- eslint-config-next 16.3.1 → 16.3.2 (osism/python-osism#2616)
+- @tanstack/react-query 5.101.4 → 5.102.8 (osism/python-osism#2625, osism/python-osism#2627, osism/python-osism#2636, osism/python-osism#2639, osism/python-osism#2647)
+- @types/react-dom 19.2.4 → 19.2.7 (osism/python-osism#2628, osism/python-osism#2675)
+- cliff 4.15.0 → 4.16.0 (osism/python-osism#2635)
+- keystoneauth1 5.15.0 → 5.17.0 (osism/python-osism#2643, osism/python-osism#2666)
+- axios 1.19.0 → 1.20.0 (osism/python-osism#2642)
+- websockets 17.0.1 → 17.1 (osism/python-osism#2646)
+- python-octaviaclient 3.14.0 → 3.15.0 (osism/python-osism#2653)
+- python-cloudkittyclient 6.1.0 → 6.2.0 (osism/python-osism#2652)
+- python-mistralclient 6.2.0 → 6.3.0 (osism/python-osism#2650)
+- python-ironicclient 6.2.0 → 6.3.0 (osism/python-osism#2644)
+- python-masakariclient 8.8.0 → 8.9.0 (osism/python-osism#2649)
+- python-glanceclient 4.12.0 → 4.13.0 (osism/python-osism#2648)
+- python-neutronclient 13.0.0 → 14.0.0 (osism/python-osism#2645)
+- python-keystoneclient 5.8.0 → 6.0.0 (osism/python-osism#2657)
+- python-magnumclient 4.11.0 → 5.0.0 (osism/python-osism#2662)
+- python-novaclient 18.13.0 → 18.13.1 (osism/python-osism#2659)
+- python-troveclient 8.10.0 → 8.11.0 (osism/python-osism#2661)
+- python-barbicanclient 7.5.0 → 7.6.0 (osism/python-osism#2660)
+- python-watcherclient 4.10.0 → 4.11.0 (osism/python-osism#2664)
+- osc-placement 4.9.0 → 4.9.1 (osism/python-osism#2658)
+- sqlmodel 0.0.39 → 0.0.42 (osism/python-osism#2668)
+- python-manilaclient 6.2.0 → 6.3.0 (osism/python-osism#2667)
+- python-swiftclient 4.10.0 → 4.11.0 (osism/python-osism#2663)
+- python-cinderclient 9.9.0 → 9.10.0 (osism/python-osism#2673)
+- @eslint/eslintrc 3.3.6 → 3.3.7 (osism/python-osism#2674)
+- huey 3.3.4 → 3.4.0 (osism/python-osism#2679)
+- autoprefixer 10.5.4 → 10.5.5 (osism/python-osism#2680)
+- openstacksdk 4.17.0 → 4.20.0 (osism/python-osism#2581)
+- python-openstackclient 10.2.1 → 10.3.0 (osism/python-osism#2651)
+
 ## [v0.20260808.0] - 2026-08-08
 
 ### Added
