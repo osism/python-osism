@@ -111,6 +111,7 @@ def _public_collection_kwargs(**overrides):
         retry=0,
         dry_run=False,
         show_tree=False,
+        release=None,
     )
     params.update(overrides)
     return params
@@ -395,6 +396,247 @@ def test_handle_collection_show_tree_only_logs(task_mocks, loguru_logs):
     messages = [r["message"] for r in loguru_logs]
     assert "A [0] - parent" in messages
     assert "A [1] -- child" in messages
+
+
+# _handle_collection release bounds
+
+
+def test_handle_collection_keeps_role_inside_its_bounds(mocker):
+    group_mock = mocker.patch("celery.group")
+    cmd = make_command(apply.Run)
+    pt = MagicMock(name="pt-redis")
+    cmd._prepare_task = MagicMock(return_value=pt)
+
+    result = cmd._handle_collection(
+        [Role("redis", until="2025.1")], **_collection_kwargs(release=(2025, 1))
+    )
+
+    group_mock.assert_called_once_with([pt])
+    assert result is group_mock.return_value
+
+
+def test_handle_collection_drops_role_outside_its_bounds(mocker, loguru_logs):
+    group_mock = mocker.patch("celery.group")
+    cmd = make_command(apply.Run)
+    cmd._prepare_task = MagicMock()
+
+    result = cmd._handle_collection(
+        [Role("redis", until="2025.1")], **_collection_kwargs(release=(2026, 1))
+    )
+
+    cmd._prepare_task.assert_not_called()
+    group_mock.assert_not_called()
+    assert result is None
+    assert any(
+        r["level"] == "INFO"
+        and r["message"]
+        == "Skipping redis: not deployed by this collection on OpenStack 2026.1 (deployed up to 2025.1)"
+        for r in loguru_logs
+    )
+
+
+def test_handle_collection_selects_between_two_bounded_roles(mocker):
+    group_mock = mocker.patch("celery.group")
+    cmd = make_command(apply.Run)
+    valkey_pt = MagicMock(name="pt-valkey")
+    cmd._prepare_task = MagicMock(return_value=valkey_pt)
+    roles = [Role("redis", until="2025.1"), Role("valkey", since="2025.2")]
+
+    cmd._handle_collection(roles, **_collection_kwargs(release=(2026, 1)))
+
+    assert [c.args[4] for c in cmd._prepare_task.call_args_list] == ["valkey"]
+    group_mock.assert_called_once_with([valkey_pt])
+
+
+def test_handle_collection_without_release_ignores_bounds(mocker):
+    """``release=None`` means no bounded roles were requested; filter nothing."""
+    group_mock = mocker.patch("celery.group")
+    cmd = make_command(apply.Run)
+    prepared = [MagicMock(name="pt-redis"), MagicMock(name="pt-valkey")]
+    cmd._prepare_task = MagicMock(side_effect=prepared)
+    roles = [Role("redis", until="2025.1"), Role("valkey", since="2025.2")]
+
+    cmd._handle_collection(roles, **_collection_kwargs(release=None))
+
+    group_mock.assert_called_once_with(prepared)
+
+
+def test_handle_collection_without_release_warns_for_bounded_roles(mocker, loguru_logs):
+    """Diagnostic only: today the preflight guarantees this never happens, but
+
+    if a future caller ever expands a collection with ``release=None`` while
+    it still contains bounded roles, that silent fail-open must be visible.
+    """
+    mocker.patch("celery.group")
+    cmd = make_command(apply.Run)
+    cmd._prepare_task = MagicMock()
+    roles = [Role("redis", until="2025.1"), Role("valkey", since="2025.2")]
+
+    cmd._handle_collection(roles, **_collection_kwargs(release=None))
+
+    warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
+    assert any(
+        "redis" in m and "no OpenStack release was resolved" in m for m in warnings
+    )
+    assert any(
+        "valkey" in m and "no OpenStack release was resolved" in m for m in warnings
+    )
+
+
+def test_handle_collection_with_release_does_not_warn_for_bounded_roles(
+    mocker, loguru_logs
+):
+    """The warning is only for the ``release is None`` fail-open case."""
+    mocker.patch("celery.group")
+    cmd = make_command(apply.Run)
+    cmd._prepare_task = MagicMock()
+    roles = [Role("valkey", since="2025.2")]
+
+    cmd._handle_collection(roles, **_collection_kwargs(release=(2026, 1)))
+
+    warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
+    assert warnings == []
+
+
+# _handle_collection tree structure under exclusion
+
+
+def test_handle_collection_excluded_parent_promotes_subtree(mocker):
+    """pt None, st a task: the subtree replaces the parent, unchained."""
+    group_mock = mocker.patch("celery.group")
+    chain_mock = mocker.patch("celery.chain")
+    cmd = make_command(apply.Run)
+    child_pt = MagicMock(name="pt-child")
+    cmd._prepare_task = MagicMock(return_value=child_pt)
+
+    result = cmd._handle_collection(
+        [Role("parent", until="2025.1", dependencies=[Role("child")])],
+        **_collection_kwargs(release=(2026, 1)),
+    )
+
+    assert [c.args[4] for c in cmd._prepare_task.call_args_list] == ["child"]
+    chain_mock.assert_not_called()
+    assert group_mock.call_args_list == [
+        call([child_pt]),
+        call([group_mock.return_value]),
+    ]
+    assert result is group_mock.return_value
+
+
+def test_handle_collection_excluded_parent_preserves_sibling_order(mocker):
+    """Promotion must not reorder the surrounding group."""
+    group_mock = mocker.patch("celery.group")
+    mocker.patch("celery.chain")
+    cmd = make_command(apply.Run)
+    cmd._prepare_task = MagicMock(side_effect=lambda *args, **kwargs: args[4])
+    roles = [
+        Role("first"),
+        Role("gone", until="2025.1", dependencies=[Role("promoted")]),
+        Role("last"),
+    ]
+
+    cmd._handle_collection(roles, **_collection_kwargs(release=(2026, 1)))
+
+    outer = group_mock.call_args_list[-1].args[0]
+    assert outer == ["first", group_mock.return_value, "last"]
+
+
+def test_handle_collection_retained_parent_all_children_excluded(mocker):
+    """pt a task, st None: schedule the parent alone, never chain(pt, None)."""
+    group_mock = mocker.patch("celery.group")
+    chain_mock = mocker.patch("celery.chain")
+    cmd = make_command(apply.Run)
+    parent_pt = MagicMock(name="pt-parent")
+    cmd._prepare_task = MagicMock(return_value=parent_pt)
+
+    result = cmd._handle_collection(
+        [Role("parent", dependencies=[Role("child", until="2025.1")])],
+        **_collection_kwargs(release=(2026, 1)),
+    )
+
+    assert [c.args[4] for c in cmd._prepare_task.call_args_list] == ["parent"]
+    chain_mock.assert_not_called()
+    group_mock.assert_called_once_with([parent_pt])
+    assert result is group_mock.return_value
+
+
+def test_handle_collection_nested_fully_excluded_subtree(mocker):
+    """pt None, st None, nested: append nothing, never group([None]).
+
+    The emptiness has to propagate all the way out as ``None`` rather than as an
+    empty group, through however many excluded levels there are.
+    """
+    group_mock = mocker.patch("celery.group")
+    chain_mock = mocker.patch("celery.chain")
+    cmd = make_command(apply.Run)
+    cmd._prepare_task = MagicMock()
+
+    result = cmd._handle_collection(
+        [
+            Role(
+                "outer",
+                until="2025.1",
+                dependencies=[
+                    Role(
+                        "middle",
+                        until="2025.1",
+                        dependencies=[Role("inner", until="2025.1")],
+                    )
+                ],
+            )
+        ],
+        **_collection_kwargs(release=(2026, 1)),
+    )
+
+    cmd._prepare_task.assert_not_called()
+    chain_mock.assert_not_called()
+    group_mock.assert_not_called()
+    assert result is None
+
+
+def test_handle_collection_all_roles_excluded_yields_nothing(mocker):
+    group_mock = mocker.patch("celery.group")
+    cmd = make_command(apply.Run)
+    cmd._prepare_task = MagicMock()
+
+    result = cmd._handle_collection(
+        [Role("redis", until="2025.1"), Role("other", until="2024.2")],
+        **_collection_kwargs(release=(2026, 1)),
+    )
+
+    group_mock.assert_not_called()
+    assert result is None
+
+
+def test_handle_collection_excluded_role_not_logged_as_applied(loguru_logs, mocker):
+    mocker.patch("celery.group")
+    cmd = make_command(apply.Run)
+    cmd._prepare_task = MagicMock()
+
+    cmd._handle_collection(
+        [Role("redis", until="2025.1")], **_collection_kwargs(release=(2026, 1))
+    )
+
+    assert not any(r["message"].startswith("A [0]") for r in loguru_logs)
+
+
+def test_handle_collection_show_tree_still_reports_exclusions(loguru_logs):
+    cmd = make_command(apply.Run)
+    cmd._prepare_task = MagicMock()
+
+    result = cmd._handle_collection(
+        [Role("redis", until="2025.1"), Role("valkey", since="2025.2")],
+        **_collection_kwargs(release=(2026, 1), show_tree=True),
+    )
+
+    assert result is None
+    cmd._prepare_task.assert_not_called()
+    messages = [r["message"] for r in loguru_logs]
+    assert (
+        "Skipping redis: not deployed by this collection on OpenStack 2026.1 (deployed up to 2025.1)"
+        in messages
+    )
+    assert "A [0] - valkey" in messages
 
 
 # handle_collection
