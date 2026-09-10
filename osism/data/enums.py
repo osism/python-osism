@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+from osism.data.releases import format_release, parse_release
+
 
 class Role:
     """
@@ -8,6 +10,20 @@ class Role:
     Args:
         name: The name of the role (string)
         dependencies: Optional list of dependent Role objects
+        since: Earliest OpenStack release, inclusive, on which a collection
+            should deploy this role (string, e.g. "2025.2")
+        until: Latest such release, inclusive (string, e.g. "2025.1")
+
+    ``since`` and ``until`` govern **collection membership only**: whether a
+    collection should deploy this role on a given release. They are NOT a
+    statement that the role's playbook exists, or that the role may be applied,
+    on those releases. ``valkey`` is the illustration -- its play ships from
+    OpenStack 2025.1, but collections deploy it only from 2025.2, because
+    ``osism/defaults`` leaves ``enable_valkey`` off until then. Reading the
+    bound as availability would wrongly reject ``osism apply valkey`` on 2025.1.
+
+    Only collection expansion consults these bounds. ``osism apply <role>``
+    never does.
 
     Example:
         >>> role = Role("keystone", dependencies=[Role("glance"), Role("cinder")])
@@ -17,10 +33,64 @@ class Role:
         2
     """
 
-    def __init__(self, name, dependencies=None):
-        """Initialize a Role with a name and optional dependencies."""
+    def __init__(self, name, dependencies=None, since=None, until=None):
+        """Initialize a Role with a name, optional dependencies and bounds."""
         self.name = name
         self.dependencies = dependencies or []
+        # Parsed eagerly, unlike the deployed release: these are literals in
+        # this file, so a bad value is a bug here that should surface at once
+        # rather than on the one deployment whose release happens to test it.
+        self.since = parse_release(since) if since else None
+        self.until = parse_release(until) if until else None
+
+    @property
+    def release_bounded(self):
+        """Whether collection membership depends on the OpenStack release."""
+        return self.since is not None or self.until is not None
+
+    def deployed_in(self, release):
+        """Whether a collection should deploy this role on ``release``.
+
+        ``release`` is a ``(year, minor)`` tuple from ``osism.data.releases``.
+        """
+        if self.since is not None and release < self.since:
+            return False
+
+        if self.until is not None and release > self.until:
+            return False
+
+        return True
+
+    def bound_description(self):
+        """Render the bounds for log and error text, e.g. "from 2025.2".
+
+        Only meaningful for a release-bounded role; raises ``ValueError`` on
+        one with neither bound, rather than silently rendering nonsense.
+        """
+        if self.since is not None and self.until is not None:
+            return f"from {format_release(self.since)} to {format_release(self.until)}"
+
+        if self.since is not None:
+            return f"from {format_release(self.since)}"
+
+        if self.until is not None:
+            return f"up to {format_release(self.until)}"
+
+        raise ValueError(f"{self.name!r} has no release bounds to describe")
+
+
+def bounded_roles(roles):
+    """Yield every release-bounded Role reachable from ``roles``.
+
+    Used to decide whether expanding a collection needs the release at all: a
+    collection with no bounded roles never triggers the lookup, and so can never
+    fail on it.
+    """
+    for role in roles:
+        if role.release_bounded:
+            yield role
+
+        yield from bounded_roles(role.dependencies)
 
 
 VALIDATE_PLAYBOOKS = {
