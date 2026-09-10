@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import pytest
+
 from osism.data.enums import (
     MAP_ROLE2ROLE,
     VALIDATE_PLAYBOOKS,
     Role,
+    bounded_roles,
 )
 
 
@@ -284,3 +287,107 @@ def test_map_role2role_walk_handles_cycles():
 
     assert {role.name for role in visited} == {"a", "b"}
     assert len(visited) == 2
+
+
+# ---------------------------------------------------------------------------
+# Role release bounds
+# ---------------------------------------------------------------------------
+
+
+def test_role_bounds_default_to_none():
+    role = Role("keystone")
+
+    assert role.since is None
+    assert role.until is None
+    assert role.release_bounded is False
+
+
+def test_role_bounds_parsed_to_tuples():
+    role = Role("valkey", since="2025.2", until="2026.1")
+
+    assert role.since == (2025, 2)
+    assert role.until == (2026, 1)
+    assert role.release_bounded is True
+
+
+def test_role_rejects_unparseable_bound():
+    """Catalog literals are parsed eagerly so a typo fails loudly, at once."""
+    from osism.data.releases import ReleaseUnparseable
+
+    with pytest.raises(ReleaseUnparseable):
+        Role("valkey", since="master")
+
+
+def test_role_without_bounds_is_in_every_release():
+    role = Role("keystone")
+
+    assert role.deployed_in((2024, 1)) is True
+    assert role.deployed_in((2026, 1)) is True
+
+
+def test_role_since_is_inclusive():
+    role = Role("valkey", since="2025.2")
+
+    assert role.deployed_in((2025, 1)) is False
+    assert role.deployed_in((2025, 2)) is True
+    assert role.deployed_in((2026, 1)) is True
+
+
+def test_role_until_is_inclusive():
+    role = Role("redis", until="2025.1")
+
+    assert role.deployed_in((2024, 2)) is True
+    assert role.deployed_in((2025, 1)) is True
+    assert role.deployed_in((2025, 2)) is False
+
+
+def test_role_both_bounds_form_a_closed_range():
+    role = Role("interim", since="2025.2", until="2026.1")
+
+    assert role.deployed_in((2025, 1)) is False
+    assert role.deployed_in((2025, 2)) is True
+    assert role.deployed_in((2026, 1)) is True
+    assert role.deployed_in((2026, 2)) is False
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected",
+    [
+        ({"since": "2025.2"}, "from 2025.2"),
+        ({"until": "2025.1"}, "up to 2025.1"),
+        ({"since": "2025.2", "until": "2026.1"}, "from 2025.2 to 2026.1"),
+    ],
+)
+def test_role_bound_description(kwargs, expected):
+    assert Role("role", **kwargs).bound_description() == expected
+
+
+def test_role_bound_description_raises_on_unbounded_role():
+    """Nothing to describe on an unbounded Role; fail loud, not with nonsense."""
+    with pytest.raises(ValueError):
+        Role("keystone").bound_description()
+
+
+# ---------------------------------------------------------------------------
+# bounded_roles
+# ---------------------------------------------------------------------------
+
+
+def test_bounded_roles_finds_nothing_when_unbounded():
+    roles = [Role("a", dependencies=[Role("b")]), Role("c")]
+
+    assert list(bounded_roles(roles)) == []
+
+
+def test_bounded_roles_finds_nested_bounds():
+    valkey = Role("valkey", since="2025.2")
+    roles = [Role("a", dependencies=[Role("b", dependencies=[valkey])]), Role("c")]
+
+    assert list(bounded_roles(roles)) == [valkey]
+
+
+def test_bounded_roles_includes_a_bounded_parent_and_its_bounded_child():
+    child = Role("child", since="2026.1")
+    parent = Role("parent", until="2025.1", dependencies=[child])
+
+    assert list(bounded_roles([parent])) == [parent, child]
