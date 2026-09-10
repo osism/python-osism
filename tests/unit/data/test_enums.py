@@ -391,3 +391,109 @@ def test_bounded_roles_includes_a_bounded_parent_and_its_bounded_child():
     parent = Role("parent", until="2025.1", dependencies=[child])
 
     assert list(bounded_roles([parent])) == [parent, child]
+
+
+# ---------------------------------------------------------------------------
+# The key-value store cut-over
+# ---------------------------------------------------------------------------
+
+
+KVS_COLLECTIONS = ["nutshell", "collection-infrastructure", "cloudpod-infrastructure"]
+
+
+@pytest.mark.parametrize("collection", KVS_COLLECTIONS)
+def test_kvs_collections_carry_both_backends(collection):
+    roles = MAP_ROLE2ROLE[collection]
+
+    assert find_role(roles, "redis") is not None
+    assert find_role(roles, "valkey") is not None
+
+
+@pytest.mark.parametrize("collection", KVS_COLLECTIONS)
+def test_kvs_backends_are_bounded_and_disjoint(collection):
+    roles = MAP_ROLE2ROLE[collection]
+    redis = find_role(roles, "redis")
+    valkey = find_role(roles, "valkey")
+
+    assert redis.until == (2025, 1)
+    assert redis.since is None
+    assert valkey.since == (2025, 2)
+    assert valkey.until is None
+
+
+@pytest.mark.parametrize("collection", KVS_COLLECTIONS)
+@pytest.mark.parametrize(
+    "release,expected",
+    [
+        ((2024, 2), "redis"),
+        ((2025, 1), "redis"),
+        ((2025, 2), "valkey"),
+        ((2026, 1), "valkey"),
+    ],
+)
+def test_exactly_one_backend_per_release(collection, release, expected):
+    """Never both, never neither -- on any release, past or future."""
+    roles = MAP_ROLE2ROLE[collection]
+    selected = [
+        name
+        for name in ("redis", "valkey")
+        if find_role(roles, name).deployed_in(release)
+    ]
+
+    assert selected == [expected]
+
+
+def test_only_the_kvs_roles_carry_bounds():
+    """A bound anywhere else is new and wants its own test above."""
+    bounded = {
+        role.name for roles in MAP_ROLE2ROLE.values() for role in bounded_roles(roles)
+    }
+
+    assert bounded == {"redis", "valkey"}
+
+
+def test_no_bounded_role_has_dependencies():
+    """A release-bounded role must be a leaf, until someone settles ordering.
+
+    Excluding a role promotes its dependencies into the surrounding group so
+    the subtree survives. That keeps the subtree and its position among
+    retained siblings, but not what the excluded role supplied to it:
+    ``chain(pt, st)`` runs a role BEFORE its ``dependencies``, so they are its
+    dependents and it is their prerequisite. Promote them past an excluded
+    parent and they run with no predecessor -- a well-formed task graph that
+    may be ordered wrongly, which is worse than an error because it looks
+    intentional. Nothing at expansion time can know which retained or
+    replacement role belongs in that place.
+
+    So the decision is forced here, in CI, in the change that introduces such
+    a role -- not at deploy time, and not only for whoever reads the design
+    document. The case this exists for is the kolla 2026.1 split of ``common``
+    into ``logs``, ``kolla_toolbox``, ``cron`` and ``fluentd``: ``common`` has
+    six dependents, so bounding it trips this test.
+
+    If you are here because you added one: decide what runs in the excluded
+    role's place on each release, encode that, and replace this test with one
+    that pins the ordering you chose.
+    """
+    offenders = {
+        role.name: [dependency.name for dependency in role.dependencies]
+        for roles in MAP_ROLE2ROLE.values()
+        for role in bounded_roles(roles)
+        if role.dependencies
+    }
+
+    assert not offenders, (
+        f"release-bounded roles with dependencies: {offenders}. "
+        "Excluding one promotes its dependents but not the prerequisite it "
+        "was; settle the ordering and replace this test. See the docstring."
+    )
+
+
+def test_valkey_absent_from_collections_that_never_had_redis():
+    """The cut-over touches exactly the three collections that listed redis."""
+    for name, roles in MAP_ROLE2ROLE.items():
+        if name in KVS_COLLECTIONS:
+            continue
+
+        assert find_role(roles, "valkey") is None, name
+        assert find_role(roles, "redis") is None, name
