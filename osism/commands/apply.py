@@ -108,6 +108,19 @@ class Run(Command):
             action="store_true",
         )
         parser.add_argument(
+            "--openstack-version",
+            default=None,
+            type=str,
+            help=(
+                "OpenStack release the collection is applied to, e.g. 2026.1. "
+                "Collections deploy a few roles only on certain releases (redis "
+                "up to 2025.1, valkey from 2025.2). Read from openstack_version "
+                "in /interface/versions/kolla-ansible.yml when not given. Must "
+                "be given before the collection name, or it is swallowed as an "
+                "Ansible argument. (env: OPENSTACK_VERSION)"
+            ),
+        )
+        parser.add_argument(
             "--show-tree",
             dest="show_tree",
             default=False,
@@ -329,6 +342,49 @@ class Run(Command):
 
         return 0
 
+    def _resolve_release(self, override, bounded):
+        """Return the deployed release, or exit reporting why it is unknown.
+
+        ``bounded`` maps collection name to the release-bounded roles it
+        contains; it is used only to name what needed the release.
+        """
+        from osism.data.releases import (
+            ReleaseUndetermined,
+            ReleaseUnparseable,
+            openstack_release,
+        )
+
+        try:
+            return openstack_release(override)
+        except ReleaseUnparseable as exc:
+            # Already a complete sentence.
+            logger.error(str(exc))
+        except ReleaseUndetermined as exc:
+            names = ", ".join(sorted(bounded))
+            noun = "Collection" if len(bounded) == 1 else "Collections"
+            verb = "contains" if len(bounded) == 1 else "contain"
+            logger.error(
+                f"{noun} {names} {verb} roles that depend on the OpenStack "
+                f"release, but the release could not be determined: {exc}"
+            )
+
+        # One role can appear in several collections; report it once.
+        descriptions = {}
+        for roles in bounded.values():
+            for role in roles:
+                descriptions[role.name] = role.bound_description()
+
+        affected = ", ".join(
+            f"{name} ({descriptions[name]})" for name in sorted(descriptions)
+        )
+        logger.error(f"Affected roles: {affected}")
+        logger.error(
+            "Supply the release with OPENSTACK_VERSION=<release> osism apply "
+            "<collection>, or with --openstack-version <release> before the "
+            "collection name."
+        )
+        exit(1)
+
     def _prepare_task(
         self,
         arguments,
@@ -502,6 +558,21 @@ class Run(Command):
 
         rc = 0
 
+        # Resolve the release before the dispatch loop below, not inside it: each
+        # iteration ends in apply_async(), so resolving per entry would let an
+        # earlier collection reach the cluster before a later one failed.
+        release = None
+        if role:
+            bounded = {}
+            for entry in role.split("//"):
+                if entry in enums.MAP_ROLE2ROLE:
+                    found = list(enums.bounded_roles(enums.MAP_ROLE2ROLE[entry]))
+                    if found:
+                        bounded[entry] = found
+
+            if bounded:
+                release = self._resolve_release(parsed_args.openstack_version, bounded)
+
         if not role:
             table = []
             for role in MAP_ROLE2ENVIRONMENT:
@@ -529,6 +600,7 @@ class Run(Command):
                         retry,
                         dry_run,
                         show_tree,
+                        release=release,
                     )
                     if rc != 0:
                         outer_break = True
