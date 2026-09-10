@@ -13,6 +13,19 @@ from osism import utils
 # continuously, so this only fires on a task that is genuinely wedged.
 DEFAULT_STALL_REPORT_SECONDS = 600
 
+# How many trailing output lines to print for a task that ended in FAILURE.
+# Enough to carry an Ansible ``fatal:`` block and the recap that follows it,
+# without replaying a whole play into the log of a collection run where
+# several roles can fail at once.
+FAILED_TASK_OUTPUT_LINES = 50
+
+# Records a completed task's stream ends with that are not output:
+# ``finish_task_output`` appends one ``rc`` and one ``action: quit``
+# (``osism/utils/__init__.py``). Every Celery task calls
+# ``run_ansible_in_environment`` at most once, so there is at most one such
+# pair and it is always at the very end of the stream.
+STREAM_CONTROL_RECORDS = 2
+
 
 def stall_report_seconds():
     """Seconds of silence before a STARTED task is reported.
@@ -72,6 +85,52 @@ def peek_task_output(redis_conn, task_id, now=None):
         stalled_for=now - last_ms / 1000.0,
         last_id=entry_id.decode(),
     )
+
+
+def tail_task_output(redis_conn, task_id, limit):
+    """Return a task's last ``limit`` output lines without consuming them.
+
+    Same non-destructive read as ``peek_task_output`` -- ``xrevrange``, no
+    ``xdel`` -- but it keeps the lines rather than just the newest one, and
+    reverses them back into emit order, because ``xrevrange`` answers
+    newest first and a play printed backwards is no diagnosis at all.
+
+    Only ``stdout`` records count. A stream also carries the ``rc`` and
+    ``action: quit`` records ``finish_task_output`` appends when the task
+    completes, and this helper -- unlike ``peek_task_output``, which by
+    construction only ever sees a task still in flight -- runs after
+    completion, which is exactly when they exist. Taken as output they
+    would append a bare rc and ``quit`` to the tail, spend two slots of
+    ``limit``, and make a task that failed before writing a single line
+    look like it produced two. Hence the allowlist, and the over-read by
+    ``STREAM_CONTROL_RECORDS`` so filtering them out does not shorten the
+    tail.
+
+    ``lines`` is the number of ``stdout`` records and ``omitted`` how many
+    the tail leaves out. Both are derived here rather than left to the
+    caller, for the same reason ``peek_task_output`` derives
+    ``stalled_for``: everything computed from a Redis reply then sits
+    inside whatever guard wraps the call, and a malformed reply cannot
+    raise past it.
+    """
+    entries = redis_conn.xrevrange(
+        task_id, "+", "-", count=limit + STREAM_CONTROL_RECORDS
+    )
+    if not entries:
+        return SimpleNamespace(lines=0, tail=[], omitted=0)
+
+    # All control records live at the tail of the stream, so the over-read
+    # above sees every one of them and the subtraction is exact rather than
+    # an estimate.
+    control = sum(1 for _, fields in entries if fields.get(b"type") != b"stdout")
+    lines = redis_conn.xlen(task_id) - control
+    tail = [
+        fields.get(b"content", b"").decode().rstrip("\n")
+        for _, fields in reversed(entries)
+        if fields.get(b"type") == b"stdout"
+    ][-limit:]
+
+    return SimpleNamespace(lines=lines, tail=tail, omitted=lines - len(tail))
 
 
 class Run(Command):
@@ -194,6 +253,48 @@ class Run(Command):
                 f"Last output: {peek.last_line}"
             )
 
+    def _report_failure_output(self, task_id):
+        """Print what a task that ended in FAILURE last emitted.
+
+        ``result.get()`` is not usable here -- Celery re-raises the task's
+        exception from it, which would replace the exit code with a
+        traceback -- so the play output is read from the task's own Redis
+        stream instead. Without this a failed role is as opaque as a hung
+        one: on the collection path nothing ever drains the stream, so the
+        output is intact in Redis and simply never looked at.
+        """
+        if self._peek_disabled:
+            return
+
+        try:
+            tail = tail_task_output(utils.redis, task_id, FAILED_TASK_OUTPUT_LINES)
+        except Exception as exc:
+            # Same contract as the stall peek: the non-``--live`` path
+            # never needed Redis, so a read failure must stay cosmetic --
+            # a task that has already failed cleanly with rc 1 must not
+            # acquire a traceback on top. Report once, then stop trying.
+            logger.warning(
+                f"Cannot read the output stream of failed task {task_id}: {exc}"
+            )
+            self._peek_disabled = True
+            return
+
+        if not tail.lines:
+            logger.error(f"Task {task_id} produced no output before it failed")
+            return
+
+        if tail.omitted:
+            logger.error(
+                f"Last {len(tail.tail)} of {tail.lines} output lines of "
+                f"failed task {task_id} "
+                f"({tail.omitted} earlier lines not shown):"
+            )
+        else:
+            logger.error(f"Output of failed task {task_id} ({tail.lines} lines):")
+
+        for line in tail.tail:
+            print(line)
+
     def take_action(self, parsed_args):
         from celery import Celery
         from celery.result import AsyncResult
@@ -256,7 +357,12 @@ class Run(Command):
                         print(f"{task_id} = {result.state}")
 
                     # Deliberately no result.get() here even with --output:
-                    # Celery re-raises the task's exception from it.
+                    # Celery re-raises the task's exception from it. The
+                    # play output comes from the task's Redis stream
+                    # instead.
+                    if output:
+                        self._report_failure_output(task_id)
+
                     rc = 1
 
                 elif result.state == "STARTED":

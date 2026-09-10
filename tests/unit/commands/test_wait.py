@@ -566,3 +566,216 @@ def test_script_format_prints_failure_state(capsys, loguru_logs):
     assert mocks.rc == 1
     assert capsys.readouterr().out == "taskid1 = FAILURE\n"
     assert not any("taskid1" in record["message"] for record in loguru_logs)
+
+
+# --- a failed task's output ---------------------------------------------------
+
+
+def _stdout(content):
+    """A stream record as ``push_task_output`` writes it."""
+    return {b"type": b"stdout", b"content": content}
+
+
+def _control_pair(rc=b"2"):
+    """The records ``finish_task_output`` appends when a task completes.
+
+    Newest first, matching ``xrevrange`` order: the ``action`` record is
+    written last, so it comes back first.
+    """
+    return [
+        (b"1787674033909-0", {b"type": b"action", b"content": b"quit"}),
+        (b"1787674033908-0", {b"type": b"rc", b"content": rc}),
+    ]
+
+
+def _run_failure_tail(*, entries=(), xlen=0, args=None, redis_error=None):
+    """Drive one FAILURE iteration with a controlled output stream.
+
+    Mirrors ``_run_started_peek``, including the ``utils.redis`` cache
+    eviction: the lazy ``__getattr__`` stores the resolved connection in
+    module globals, so it has to be dropped for the patched factory to be
+    picked up.
+    """
+    cmd = wait.Run(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(args or ["taskid1", "--output"])
+
+    conn = MagicMock()
+    if redis_error is not None:
+        conn.xrevrange.side_effect = redis_error
+    else:
+        conn.xrevrange.return_value = list(entries)
+        conn.xlen.return_value = xlen
+
+    osism_utils.__dict__.pop("redis", None)
+
+    with patch("celery.Celery"), patch(
+        "celery.result.AsyncResult", side_effect=[_make_result("FAILURE")]
+    ), patch("osism.commands.wait.time.sleep"), patch(
+        "osism.utils._init_redis", return_value=conn
+    ):
+        rc = cmd.take_action(parsed_args)
+
+    osism_utils.__dict__.pop("redis", None)
+
+    return SimpleNamespace(rc=rc, conn=conn)
+
+
+def test_tail_returns_the_last_lines_in_emit_order_without_consuming():
+    """``xrevrange`` yields newest first; the tail has to read chronologically.
+
+    Printing a play backwards would be worse than printing nothing. The
+    read must also stay non-destructive, or it steals output from
+    ``--live`` and from the operator.
+    """
+    r = MagicMock()
+    r.xrevrange.return_value = [
+        (b"1787674033907-0", _stdout(b"fatal: [node-0]: FAILED!\n")),
+        (b"1787674033906-0", _stdout(b"TASK [keystone : Bootstrap]\n")),
+    ]
+    r.xlen.return_value = 142
+
+    tail = wait.tail_task_output(r, "taskid1", 2)
+
+    assert tail.lines == 142
+    assert tail.omitted == 140
+    assert tail.tail == ["TASK [keystone : Bootstrap]", "fatal: [node-0]: FAILED!"]
+    r.xdel.assert_not_called()
+    r.xrevrange.assert_called_once_with("taskid1", "+", "-", count=4)
+
+
+def test_failed_task_with_output_prints_what_it_last_emitted(capsys, loguru_logs):
+    """The whole point: a failed nutshell role must name its own error.
+
+    Before this, the FAILURE branch printed the state line and nothing
+    else, so a role that failed was exactly as opaque as one that hung.
+    """
+    mocks = _run_failure_tail(
+        entries=_control_pair()
+        + [
+            (b"1787674033907-0", _stdout(b"fatal: [node-0]: FAILED!\n")),
+            (b"1787674033906-0", _stdout(b"TASK [keystone : Bootstrap]\n")),
+        ],
+        xlen=4,
+    )
+
+    assert mocks.rc == 1
+    assert capsys.readouterr().out == (
+        "TASK [keystone : Bootstrap]\nfatal: [node-0]: FAILED!\n"
+    )
+    assert any("taskid1" in record["message"] for record in loguru_logs)
+
+
+def test_failed_task_output_says_how_much_it_left_out(loguru_logs):
+    """A truncated tail must say so, or it reads as the whole run."""
+    _run_failure_tail(
+        entries=_control_pair() + [(b"1787674033907-0", _stdout(b"last\n"))],
+        xlen=143,
+    )
+
+    assert any(
+        "141" in record["message"] and "taskid1" in record["message"]
+        for record in loguru_logs
+    )
+
+
+def test_failed_task_that_emitted_nothing_is_reported_as_such(loguru_logs):
+    """An empty stream is a diagnosis: the task died before its first line."""
+    _run_failure_tail(entries=[], xlen=0)
+
+    assert any("no output" in record["message"] for record in loguru_logs)
+
+
+def test_failed_task_output_read_failure_never_breaks_wait(loguru_logs):
+    """Redis is not a hard dependency of the non-``--live`` path.
+
+    A failed task already sets rc 1; a broken read must not add a
+    traceback on top of it.
+    """
+    mocks = _run_failure_tail(redis_error=RuntimeError("redis down"))
+
+    assert mocks.rc == 1
+    assert any("redis down" in record["message"] for record in loguru_logs)
+
+
+def test_failed_task_without_output_flag_does_not_read_redis():
+    """``--output`` gates the payload, exactly as it does for SUCCESS."""
+    mocks = _run_failure_tail(args=["taskid1"], entries=[], xlen=0)
+
+    assert mocks.rc == 1
+    mocks.conn.xrevrange.assert_not_called()
+
+
+def test_failed_task_output_survives_a_malformed_redis_reply(loguru_logs):
+    """Everything computed from the reply belongs inside the helper.
+
+    The stream length shapes the truncation notice. Computed in the
+    caller, a reply that reads fine but does not behave like an integer
+    raises *after* the guarded call and turns a reporting feature into a
+    crash on a task that had already failed cleanly with rc 1. Derived
+    inside ``tail_task_output`` -- as ``peek_task_output`` derives
+    ``stalled_for`` -- it cannot escape the guard.
+    """
+    conn = MagicMock()
+    conn.xrevrange.return_value = [(b"1787674033907-0", _stdout(b"last\n"))]
+    conn.xlen.return_value = "not-a-number"
+
+    cmd = wait.Run(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(["taskid1", "--output"])
+
+    osism_utils.__dict__.pop("redis", None)
+    with patch("celery.Celery"), patch(
+        "celery.result.AsyncResult", side_effect=[_make_result("FAILURE")]
+    ), patch("osism.commands.wait.time.sleep"), patch(
+        "osism.utils._init_redis", return_value=conn
+    ):
+        rc = cmd.take_action(parsed_args)
+    osism_utils.__dict__.pop("redis", None)
+
+    assert rc == 1
+    assert any(
+        "Cannot read the output stream" in record["message"] for record in loguru_logs
+    )
+
+
+def test_tail_excludes_the_completion_control_records():
+    """`finish_task_output` appends `rc` and `action: quit` before the task
+    raises, so a completed task's stream ends with records that are not
+    output. Printing them appends bare `2` and `quit` to the play tail, and
+    they eat two slots of the line budget."""
+    r = MagicMock()
+    r.xrevrange.return_value = _control_pair() + [
+        (b"1787674033907-0", _stdout(b"fatal: [node-0]: FAILED!\n")),
+        (b"1787674033906-0", _stdout(b"TASK [keystone : Bootstrap]\n")),
+    ]
+    r.xlen.return_value = 4
+
+    tail = wait.tail_task_output(r, "taskid1", 50)
+
+    assert tail.tail == ["TASK [keystone : Bootstrap]", "fatal: [node-0]: FAILED!"]
+    assert tail.lines == 2
+    assert tail.omitted == 0
+
+
+def test_tail_reads_past_the_control_records_to_fill_the_budget():
+    """The over-read has to cover them, or the caller silently gets
+    `limit - 2` lines whenever the task completed."""
+    r = MagicMock()
+    r.xrevrange.return_value = _control_pair() + [
+        (f"178767403390{i}-0".encode(), _stdout(f"line{i}\n".encode()))
+        for i in range(3)
+    ]
+    r.xlen.return_value = 5
+
+    wait.tail_task_output(r, "taskid1", 3)
+
+    r.xrevrange.assert_called_once_with("taskid1", "+", "-", count=5)
+
+
+def test_failed_task_with_only_control_records_reports_no_output(loguru_logs):
+    """A task that failed before writing a line still has two records, so a
+    raw stream length reads as output and the no-output diagnosis -- the
+    one thing distinguishing died-mid-play from died-before-first-line --
+    never fires."""
+    _run_failure_tail(entries=_control_pair(), xlen=2)
+
+    assert any("no output" in record["message"] for record in loguru_logs)
