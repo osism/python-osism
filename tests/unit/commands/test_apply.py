@@ -35,7 +35,7 @@ from osism.commands import apply
 from osism.data import enums, playbooks
 from osism.data.enums import Role
 
-from ._helpers import assert_not_called_before_lock_check, make_command
+from ._helpers import assert_not_called_before_lock_check, make_command, parse_args
 
 
 @pytest.fixture(autouse=True)
@@ -997,3 +997,291 @@ def test_take_action_collection_chain_continues_after_success(take_action_mocks)
     assert rc == 0
     cmd.handle_role.assert_called_once()
     assert cmd.handle_role.call_args.args[4] == "other"
+
+
+# take_action release preflight
+
+
+def _bounded_collection():
+    return [Role("valkey", since="2025.2"), Role("plain")]
+
+
+def test_apply_accepts_openstack_version_argument():
+    _, parsed = parse_args(apply.Run, ["--openstack-version", "2026.1", "nutshell"])
+
+    assert parsed.openstack_version == "2026.1"
+
+
+def test_apply_openstack_version_defaults_to_none():
+    _, parsed = parse_args(apply.Run, ["nutshell"])
+
+    assert parsed.openstack_version is None
+
+
+def test_apply_openstack_version_help_warns_about_ordering():
+    """``arguments`` is ``REMAINDER``: a flag after the role is swallowed."""
+    cmd = make_command(apply.Run)
+    parser = cmd.get_parser("test")
+    action = next(
+        a for a in parser._actions if "--openstack-version" in a.option_strings
+    )
+
+    assert "before the collection name" in action.help
+
+
+def test_apply_openstack_version_help_names_the_versions_file():
+    """The fallback source has to be the one the CLI actually reads.
+
+    The manager configuration is not it: openstack_version is stripped from
+    that file for a stable release, so help text pointing an operator there
+    would describe a source that is absent on every pinned deployment.
+    """
+    from osism.data import releases
+
+    cmd = make_command(apply.Run)
+    parser = cmd.get_parser("test")
+    action = next(
+        a for a in parser._actions if "--openstack-version" in a.option_strings
+    )
+
+    assert releases.VERSIONS_FILE in action.help
+    assert "/opt/configuration" not in action.help
+
+
+def test_take_action_passes_resolved_release_to_collection(take_action_mocks):
+    cmd, parsed = parse_args(
+        apply.Run, ["--openstack-version", "2026.1", "testcollection"]
+    )
+    cmd.handle_collection = MagicMock(return_value=0)
+
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _bounded_collection()}):
+        cmd.take_action(parsed)
+
+    assert cmd.handle_collection.call_args.kwargs["release"] == (2026, 1)
+
+
+def test_take_action_unbounded_collection_never_resolves_release(
+    take_action_mocks, mocker
+):
+    resolve = mocker.patch.object(apply.Run, "_resolve_release")
+    cmd, parsed = parse_args(apply.Run, ["testcollection"])
+    cmd.handle_collection = MagicMock(return_value=0)
+
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": [Role("plain")]}):
+        cmd.take_action(parsed)
+
+    resolve.assert_not_called()
+    assert cmd.handle_collection.call_args.kwargs["release"] is None
+
+
+def test_take_action_undeterminable_release_exits(
+    take_action_mocks, mocker, loguru_logs
+):
+    from osism.data import releases
+
+    mocker.patch.object(
+        releases,
+        "openstack_release",
+        side_effect=releases.ReleaseUndetermined("/some/versions.yml not found."),
+    )
+    cmd, parsed = parse_args(apply.Run, ["testcollection"])
+    cmd.handle_collection = MagicMock(return_value=0)
+
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _bounded_collection()}):
+        with pytest.raises(SystemExit) as excinfo:
+            cmd.take_action(parsed)
+
+    assert excinfo.value.code == 1
+    cmd.handle_collection.assert_not_called()
+    messages = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any(
+        "Collection testcollection contains roles that depend on the OpenStack "
+        "release, but the release could not be determined: "
+        "/some/versions.yml not found." == m
+        for m in messages
+    )
+    assert any("Affected roles: valkey (from 2025.2)" == m for m in messages)
+    assert any(
+        m.startswith("Supply the release with OPENSTACK_VERSION=")
+        and "--openstack-version" in m
+        for m in messages
+    )
+
+
+def test_take_action_undeterminable_release_advice_is_order_independent(
+    take_action_mocks, mocker, loguru_logs
+):
+    """The advice must not recommend a flag placement that silently fails.
+
+    ``arguments`` is ``nargs=argparse.REMAINDER``, so a flag placed after the
+    collection name is swallowed as an Ansible argument rather than parsed.
+    The advice therefore leads with the env-var form and, if it mentions the
+    flag at all, says where it must go. It names no file to edit either: the
+    versions file it failed to read belongs to the kolla-ansible container.
+    """
+    from osism.data import releases
+
+    mocker.patch.object(
+        releases,
+        "openstack_release",
+        side_effect=releases.ReleaseUndetermined("/some/versions.yml not found."),
+    )
+    cmd, parsed = parse_args(apply.Run, ["testcollection"])
+    cmd.handle_collection = MagicMock(return_value=0)
+
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _bounded_collection()}):
+        with pytest.raises(SystemExit):
+            cmd.take_action(parsed)
+
+    messages = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any(
+        m
+        == (
+            "Supply the release with OPENSTACK_VERSION=<release> osism apply "
+            "<collection>, or with --openstack-version <release> before the "
+            "collection name."
+        )
+        for m in messages
+    )
+
+
+def test_take_action_unparseable_release_prints_bare_message(
+    take_action_mocks, mocker, loguru_logs
+):
+    cmd, parsed = parse_args(
+        apply.Run, ["--openstack-version", "master", "testcollection"]
+    )
+    cmd.handle_collection = MagicMock(return_value=0)
+
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _bounded_collection()}):
+        with pytest.raises(SystemExit):
+            cmd.take_action(parsed)
+
+    messages = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any(
+        m == "Could not parse OpenStack release 'master' "
+        "(expected a release like 2025.1)."
+        for m in messages
+    )
+    assert not any("could not be determined" in m for m in messages)
+
+
+def test_take_action_preflight_schedules_nothing_across_slashes(
+    take_action_mocks, mocker
+):
+    """The guarantee is command-wide, not collection-wide.
+
+    Resolving inside the dispatch loop would let the first entry reach
+    apply_async before the second one failed.
+    """
+    from osism.data import releases
+
+    mocker.patch.object(
+        releases,
+        "openstack_release",
+        side_effect=releases.ReleaseUndetermined("/some/versions.yml not found."),
+    )
+    cmd, parsed = parse_args(apply.Run, ["unbounded//testcollection"])
+    cmd._handle_collection = MagicMock()
+
+    with patch.dict(
+        enums.MAP_ROLE2ROLE,
+        {"unbounded": [Role("plain")], "testcollection": _bounded_collection()},
+    ):
+        with pytest.raises(SystemExit):
+            cmd.take_action(parsed)
+
+    cmd._handle_collection.assert_not_called()
+
+
+def test_take_action_resolves_the_release_once_per_invocation(
+    take_action_mocks, mocker
+):
+    from osism.data import releases
+
+    resolve = mocker.patch.object(releases, "openstack_release", return_value=(2026, 1))
+    cmd, parsed = parse_args(apply.Run, ["testcollection//othercollection"])
+    cmd.handle_collection = MagicMock(return_value=0)
+
+    with patch.dict(
+        enums.MAP_ROLE2ROLE,
+        {
+            "testcollection": _bounded_collection(),
+            "othercollection": [Role("redis", until="2025.1")],
+        },
+    ):
+        cmd.take_action(parsed)
+
+    resolve.assert_called_once()
+    assert [c.kwargs["release"] for c in cmd.handle_collection.call_args_list] == [
+        (2026, 1),
+        (2026, 1),
+    ]
+
+
+def test_take_action_names_every_affected_collection(
+    take_action_mocks, mocker, loguru_logs
+):
+    from osism.data import releases
+
+    mocker.patch.object(
+        releases,
+        "openstack_release",
+        side_effect=releases.ReleaseUndetermined("/some/versions.yml not found."),
+    )
+    cmd, parsed = parse_args(apply.Run, ["testcollection//othercollection"])
+
+    with patch.dict(
+        enums.MAP_ROLE2ROLE,
+        {
+            "testcollection": _bounded_collection(),
+            "othercollection": [Role("redis", until="2025.1")],
+        },
+    ):
+        with pytest.raises(SystemExit):
+            cmd.take_action(parsed)
+
+    messages = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
+    assert any(
+        m.startswith("Collections othercollection, testcollection contain roles")
+        for m in messages
+    )
+    assert any(
+        m == "Affected roles: redis (up to 2025.1), valkey (from 2025.2)"
+        for m in messages
+    )
+
+
+# bounds are collection membership, never role availability
+
+
+def test_take_action_explicit_bounded_role_ignores_bounds(take_action_mocks, mocker):
+    """``osism apply valkey`` on 2025.1 must dispatch.
+
+    valkey's play exists on 2025.1; the ``since="2025.2"`` bound says only that
+    collections should not deploy it there. Reading the bound as availability
+    would reject a legitimate command.
+    """
+    resolve = mocker.patch.object(apply.Run, "_resolve_release")
+    cmd, parsed = parse_args(apply.Run, ["--openstack-version", "2025.1", "valkey"])
+    cmd.handle_role = MagicMock(return_value=0)
+
+    cmd.take_action(parsed)
+
+    resolve.assert_not_called()
+    # handle_role is called positionally: (arguments, environment, overwrite,
+    # sub, role, ...), so the role is args[4].
+    assert cmd.handle_role.call_args.args[4] == "valkey"
+
+
+def test_take_action_explicit_redis_still_dispatches_on_2026_1(
+    take_action_mocks, mocker
+):
+    resolve = mocker.patch.object(apply.Run, "_resolve_release")
+    cmd, parsed = parse_args(apply.Run, ["--openstack-version", "2026.1", "redis"])
+    cmd.handle_role = MagicMock(return_value=0)
+
+    cmd.take_action(parsed)
+
+    resolve.assert_not_called()
+    assert cmd.handle_role.call_args.args[4] == "redis"
