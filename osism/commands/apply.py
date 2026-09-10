@@ -11,6 +11,7 @@ from tabulate import tabulate
 from osism import utils
 from osism.data import enums
 from osism.data.enums import Role
+from osism.data.releases import format_release
 
 
 def _collect_result(result):
@@ -165,6 +166,7 @@ class Run(Command):
         retry,
         dry_run,
         show_tree,
+        release=None,
     ):
         from celery import chain, group
         from osism.tasks import ansible
@@ -182,27 +184,47 @@ class Run(Command):
             role_name = item.name
             dependencies = item.dependencies
 
-            logger.info(f"A [{counter}] {'-' * (counter + 1)} {role_name}")
-
-            if show_tree:
-                # Only show the tree, don't create tasks
-                pt = None
-            elif dry_run:
-                pt = ansible.noop.si()
-            else:
-                pt = self._prepare_task(
-                    arguments,
-                    environment,
-                    overwrite,
-                    sub,
-                    role_name,
-                    action,
-                    wait,
-                    format,
-                    timeout,
-                    task_timeout,
+            if release is not None and not item.deployed_in(release):
+                # Not a warning: on a release where the role does not belong,
+                # this is correct output on every run, and a warning that always
+                # fires teaches operators to ignore warnings.
+                logger.info(
+                    f"Skipping {role_name}: not deployed by this collection "
+                    f"on OpenStack {format_release(release)} "
+                    f"(deployed {item.bound_description()})"
                 )
+                pt = None
+            else:
+                if release is None and item.release_bounded:
+                    logger.warning(
+                        f"{role_name} has release bounds "
+                        f"({item.bound_description()}) but no OpenStack "
+                        f"release was resolved; its bounds are being ignored "
+                        f"and it will be scheduled unconditionally."
+                    )
 
+                logger.info(f"A [{counter}] {'-' * (counter + 1)} {role_name}")
+
+                if show_tree:
+                    # Only show the tree, don't create tasks
+                    pt = None
+                elif dry_run:
+                    pt = ansible.noop.si()
+                else:
+                    pt = self._prepare_task(
+                        arguments,
+                        environment,
+                        overwrite,
+                        sub,
+                        role_name,
+                        action,
+                        wait,
+                        format,
+                        timeout,
+                        task_timeout,
+                    )
+
+            st = None
             if dependencies:
                 logger.debug(f"X [{counter + 1}] --> {dependencies}")
                 st = self._handle_collection(
@@ -221,12 +243,33 @@ class Run(Command):
                     retry,
                     dry_run,
                     show_tree,
+                    release,
                 )
-                if not show_tree:
-                    g.append(chain(pt, st))
-            else:
-                if not show_tree:
-                    g.append(pt)
+
+            if show_tree:
+                continue
+
+            # Both halves can be absent: pt when the role is excluded, st when
+            # its dependencies all were. Appending either unconditionally would
+            # build chain(pt, None) or group([None]).
+            if pt is not None and st is not None:
+                g.append(chain(pt, st))
+            elif pt is not None:
+                g.append(pt)
+            elif st is not None:
+                # Promotion keeps the subtree and its position among retained
+                # siblings, but not what the excluded role supplied to it:
+                # chain(pt, st) ran the role BEFORE its dependencies, so they
+                # are its dependents and it is their prerequisite. Dropping it
+                # leaves them with no predecessor, and nothing here can know
+                # which retained or replacement role belongs in that place.
+                #
+                # Nothing checks that at runtime, deliberately. The catalog
+                # cannot grow a bounded role with dependencies without turning
+                # test_no_bounded_role_has_dependencies red first, so by the
+                # time this branch runs the ordering has already been settled
+                # by whoever made that test pass.
+                g.append(st)
 
         if g:
             return group(g)
@@ -246,6 +289,7 @@ class Run(Command):
         retry,
         dry_run,
         show_tree,
+        release=None,
     ):
         if dry_run:
             logger.info(f"Dry run for collection {collection}. No tasks are scheduled.")
@@ -270,6 +314,7 @@ class Run(Command):
             retry,
             dry_run,
             show_tree,
+            release,
         )
 
         # Only apply tasks if not in show_tree mode
