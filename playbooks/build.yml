@@ -128,7 +128,19 @@
 
           curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
           chmod +x cosign-linux-amd64
-          ./cosign-linux-amd64 sign --yes --key env://COSIGN_PRIVATE_KEY "$repository:$version"
+          set +e
+          ./cosign-linux-amd64 sign --yes --key env://COSIGN_PRIVATE_KEY "$repository:$version" 2>&1 | tee cosign-output.txt
+          cosign_rc=${PIPESTATUS[0]}
+          set -e
+          if [[ $cosign_rc -ne 0 ]]; then
+            if grep -q "createLogEntryConflict" cosign-output.txt 2>/dev/null; then
+              echo "NOTE: https://github.com/sigstore/cosign/issues/4711 --"
+              echo "  Rekor accepted the signing bundle but the OCI .sig push then failed,"
+              echo "  causing this retry to see a duplicate Rekor entry. The next build"
+              echo "  will produce a fresh image digest and sign successfully."
+            fi
+            exit $cosign_rc
+          fi
 
       when: push_image | default(false) | bool
       changed_when: true
