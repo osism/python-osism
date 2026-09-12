@@ -6,8 +6,11 @@ import subprocess
 from cliff.command import Command
 from loguru import logger
 
-from osism import settings
-from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
+from osism.utils.ssh import (
+    build_ssh_command,
+    ensure_known_hosts_file,
+    KNOWN_HOSTS_PATH,
+)
 
 
 class Run(Command):
@@ -33,13 +36,9 @@ class Run(Command):
                 f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
             )
 
-        ssh_command = (
+        remote_command = (
             f"docker compose --project-directory=/opt/{environment} {arguments}"
         )
-        ssh_options = f"-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
-        subprocess.call(
-            f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{host} '{ssh_command}'",
-            shell=True,
-        )
+        subprocess.call(build_ssh_command(host, remote_command=remote_command))
