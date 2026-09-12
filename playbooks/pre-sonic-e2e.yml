@@ -1,0 +1,74 @@
+---
+# Node preparation for the SONiC config-generation E2E golden test.
+#
+# The test's NetBox fixture is a docker compose stack (tests/e2e/compose.yaml),
+# so the node only needs Docker: ensure-docker installs docker-compose-plugin
+# along with docker-ce. No kind, kubectl or helm. netbox-manager's own E2E job
+# still provisions NetBox on kind, so there is nothing to keep in sync here.
+- name: Prepare the SONiC E2E node
+  hosts: all
+
+  pre_tasks:
+    # This CI node is IPv6-only and learns its address and default route via
+    # SLAAC / Router Advertisements. If Docker enables
+    # net.ipv6.conf.all.forwarding=1, the kernel stops honouring RAs at the
+    # default accept_ra=1, so the SLAAC default route expires and the node
+    # drops off the network a few minutes into the run. accept_ra=2 keeps RAs
+    # honoured even while forwarding is on, preserving the default route.
+    # Compose's default bridge network is IPv4-only, so Docker probably will
+    # not turn on IPv6 forwarding here -- but this guard is cheap insurance
+    # against a severe failure mode (an unreachable CI node) and is kept
+    # deliberately; removing it should be its own separate experiment, not a
+    # side effect of some other change. Set it here -- before Docker enables
+    # forwarding -- so the route never lapses. See
+    # https://docs.docker.com/engine/daemon/ipv6/ and
+    # https://forums.docker.com/t/docker-removes-host-ipv6-default-route/83238
+    - name: Keep accepting IPv6 RAs after Docker enables forwarding (preserve default route)
+      become: true
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-sonic-e2e-accept-ra.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          net.ipv6.conf.all.accept_ra = 2
+          net.ipv6.conf.default.accept_ra = 2
+          {% if ansible_default_ipv6.interface is defined %}
+          net.ipv6.conf.{{ ansible_default_ipv6.interface }}.accept_ra = 2
+          {% endif %}
+
+    - name: Apply the accept_ra sysctl settings now
+      become: true
+      ansible.builtin.command:
+        cmd: sysctl -p /etc/sysctl.d/99-sonic-e2e-accept-ra.conf
+      changed_when: true
+      # A node without an ansible_default_ipv6.interface fact (or otherwise
+      # missing these IPv6 keys) fails sysctl -p; this is best-effort
+      # insurance for the common IPv6-only case, not a hard requirement, so
+      # do not fail pre-run over it.
+      failed_when: false
+
+  roles:
+    - ensure-pip
+    - ensure-pipenv
+    - ensure-docker
+
+  tasks:
+    - name: Ensure the Docker service is running
+      become: true
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    # openssl is used by tests/e2e/sonic_golden_test.sh directly. curl is used
+    # by the NetBox container's healthcheck rather than by the script itself,
+    # but ensure-docker needs it anyway. python3-venv provides the venv module
+    # the script uses for the seeding venv.
+    - name: Install required packages
+      become: true
+      ansible.builtin.apt:
+        name:
+          - curl
+          - openssl
+          - python3-venv

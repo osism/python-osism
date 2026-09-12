@@ -1,0 +1,47 @@
+---
+# Standalone OOB switch. Role "switch" is in DEFAULT_SONIC_ROLES, so this
+# device also gets a golden -- it exercises the filter with a role other
+# than spine/leaf.
+
+- device:
+    name: e2e-oob-1
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-7726-32x-e2e
+    device_role: switch
+    status: active
+    face: front
+    position: 4
+    tags:
+      - managed-by-metalbox
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS7726-32X
+        version: 4.5.0
+
+- device_interface:
+    device: e2e-oob-1
+    name: Loopback0
+    type: virtual
+    enabled: true
+
+- ip_address:
+    tenant: Testbed
+    address: 172.16.10.21/20
+    assigned_object:
+      name: eth0
+      device: e2e-oob-1
+
+- ip_address:
+    tenant: Testbed
+    address: 192.168.20.21/32
+    assigned_object:
+      name: Loopback0
+      device: e2e-oob-1
+
+- device:
+    name: e2e-oob-1
+    oob_ip: 172.16.10.21/20
+    primary_ip4: 192.168.20.21/32

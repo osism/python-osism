@@ -1,0 +1,40 @@
+---
+# The metalbox. Role "metalbox" is NOT in DEFAULT_SONIC_ROLES and this
+# device is deliberately NOT tagged managed-by-metalbox, so it must never
+# get a golden of its own -- if one appears, this device wrongly acquired a
+# SONiC role or the tag.
+#
+# _get_metalbox_ip_for_device() walks every role=metalbox device's
+# interfaces and returns the first IPv4 that falls inside the SONiC
+# device's OOB network; it does not follow a cable. All four switches use
+# /20 oob_ips, so that network is 172.16.0.0/20, and 172.16.10.254 sits
+# inside it -- that subnet membership, not any cabling, is what unlocks
+# DNS_NAMESERVER and NTP_SERVER.
+#
+# The address must NOT sit on a mgmt_only interface:
+# _load_metalbox_devices_cache() explicitly skips those, so it cannot be on
+# eth0 (mgmt_only: true in the device type). Ethernet0 is a plain data port
+# on this device type and is otherwise unused here.
+
+- device:
+    name: e2e-metalbox-1
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-7726-32x-e2e
+    device_role: metalbox
+    status: active
+    face: front
+    position: 5
+
+- ip_address:
+    tenant: Testbed
+    address: 172.16.10.254/20
+    assigned_object:
+      name: Ethernet0
+      device: e2e-metalbox-1
+
+- device:
+    name: e2e-metalbox-1
+    primary_ip4: 172.16.10.254/20
