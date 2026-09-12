@@ -8,7 +8,7 @@
 # fields created by 100-base.yml, and take the next free positions in the
 # shared E2E rack so they never collide with the base devices.
 #
-# Both devices use the edgecore-9726-32d-e2e device type (hwsku
+# The first two devices use the edgecore-9726-32d-e2e device type (hwsku
 # Accton-AS9726-32D) and break Eth1/1 into a 4x100G group. They differ
 # only in how the sub-port speed reaches NetBox:
 #
@@ -21,6 +21,9 @@
 #                          collection step must normalise.
 #
 # Both must yield sub-port speed 100000 in the generated config.
+#
+# A third device, e2e-breakout-declared, covers the explicit
+# sonic_parameters.breakout declaration path (see its block below).
 
 # --- Derived-speed breakout (the real-deployment shape) --------------------
 
@@ -96,3 +99,45 @@
     name: Eth1/1/4
     type: 100gbase-x-qsfp28
     speed: 100000000
+
+# --- Declared breakout map (the explicit sonic_parameters.breakout path) ---
+#
+# e2e-breakout-declared carries an authoritative device-level breakout map
+# instead of modelling sub-ports in NetBox. It exercises the declared-mode
+# code path end to end on the 8-lane Accton-AS9726-32D:
+#
+#   Ethernet0: 4x100G   canonical key; 8 lanes -> 4 children (Ethernet0/2/4/6),
+#                       2 lanes each (73,74 / 75,76 / 77,78 / 79,80), 100000
+#   Ethernet8: 2x50G    canonical key; 8 lanes -> 2 children (Ethernet8/12),
+#                       4 lanes each (65,66,67,68 / 69,70,71,72), 50000
+#   Eth1/9:    8x50G    physical key normalised to Ethernet64; 8 lanes -> 8
+#                       children (Ethernet64..71), 1 lane each (41..48), 50000
+#
+# The map is the sole breakout signal: no sub-port interfaces are modelled,
+# so a golden diff here proves the declared path, not inference. Each
+# BREAKOUT_CFG entry must carry breakout_owner MANUAL, the canonical mode
+# string, and the port_config index (1/1, 1/2, 1/9 -- correct on this
+# mixed-lane platform); each BREAKOUT_PORTS child must contain only its
+# master; and the per-child PORT lanes/speed must match the mode.
+
+- device:
+    name: e2e-breakout-declared
+    tenant: Testbed
+    site: Discworld
+    location: Ankh-Morpork
+    rack: E2E
+    device_type: edgecore-9726-32d-e2e
+    device_role: leaf
+    face: front
+    position: 8
+    status: active
+    tags:
+      - managed-by-metalbox
+    custom_fields:
+      sonic_parameters:
+        hwsku: Accton-AS9726-32D
+        version: 4.5.0
+        breakout:
+          Ethernet0: 4x100G
+          Ethernet8: 2x50G
+          Eth1/9: 8x50G

@@ -352,6 +352,55 @@ class TestAddPortConfigurations:
 
         assert config["PORT"]["Ethernet1"]["index"] == "42"
 
+    def test_declared_child_in_port_config_uses_declared_speed_lanes(
+        self, config, device, mocker
+    ):
+        """A declared non-master child that also exists in port_config is
+        processed by the main loop; the declared stash must win over the
+        NetBox-speed override and the inferred lane calculation."""
+        mocker.patch.object(
+            config_generator, "convert_sonic_interface_to_alias", return_value="a"
+        )
+        port_config = {
+            "Ethernet0": _port_info(index="1", lanes="1,2,3,4", speed="100000"),
+            "Ethernet2": _port_info(index="1", lanes="3,4", speed="25000"),
+        }
+        breakout_info = {
+            "breakout_cfgs": {
+                "Ethernet0": {"breakout_owner": "MANUAL", "brkout_mode": "2x50G"}
+            },
+            "breakout_ports": {
+                "Ethernet0": {
+                    "master": "Ethernet0",
+                    "declared": True,
+                    "lanes": "1,2",
+                    "speed": 50000,
+                },
+                "Ethernet2": {
+                    "master": "Ethernet0",
+                    "declared": True,
+                    "lanes": "3,4",
+                    "speed": 50000,
+                },
+            },
+        }
+        # STALE explicit NetBox 25G that must be overridden by the declared stash
+        netbox_interfaces = {"Ethernet2": _nb_iface(speed=25000, speed_explicit=True)}
+
+        _add_port_configurations(
+            config,
+            port_config,
+            connected_interfaces=set(),
+            portchannel_info={"portchannels": {}, "member_mapping": {}},
+            breakout_info=breakout_info,
+            netbox_interfaces=netbox_interfaces,
+            vlan_info={"vlan_members": {}},
+            device=device,
+        )
+
+        assert config["PORT"]["Ethernet2"]["speed"] == "50000"
+        assert config["PORT"]["Ethernet2"]["lanes"] == "3,4"
+
     def test_default_port_data_keys(
         self, config, device, mocker, patch_post_loop_hooks
     ):
@@ -849,6 +898,82 @@ class TestAddMissingBreakoutPorts:
         alias.assert_called_once_with(
             "Ethernet1", 25000, is_breakout=True, port_config=port_config
         )
+
+    def test_declared_authoritative(self, config):
+        breakout_info = {
+            "breakout_cfgs": {
+                "Ethernet0": {
+                    "breakout_owner": "MANUAL",
+                    "brkout_mode": "2x50G",
+                    "port": "1/1",
+                }
+            },
+            "breakout_ports": {
+                "Ethernet0": {
+                    "master": "Ethernet0",
+                    "declared": True,
+                    "lanes": "1,2",
+                    "speed": 50000,
+                },
+                "Ethernet2": {
+                    "master": "Ethernet0",
+                    "declared": True,
+                    "lanes": "3,4",
+                    "speed": 50000,
+                },
+            },
+        }
+        pc = {
+            "Ethernet0": {
+                "lanes": "1,2,3,4",
+                "alias": "Eth1/1",
+                "index": "1",
+                "speed": "100000",
+            }
+        }
+        nb = {
+            "Ethernet0": {"speed": 25000},
+            "Ethernet2": {"speed": 25000},
+        }  # STALE explicit 25G
+        _add_missing_breakout_ports(
+            config,
+            breakout_info,
+            pc,
+            connected_interfaces=set(),
+            portchannel_info={"portchannels": {}, "member_mapping": {}},
+            netbox_interfaces=nb,
+        )
+        assert config["PORT"]["Ethernet0"]["speed"] == "50000"
+        assert config["PORT"]["Ethernet0"]["lanes"] == "1,2"
+        assert config["PORT"]["Ethernet2"]["speed"] == "50000"
+        assert config["PORT"]["Ethernet2"]["lanes"] == "3,4"
+
+    def test_inferred_unchanged(self, config, mocker):
+        mocker.patch.object(
+            config_generator, "convert_sonic_interface_to_alias", return_value="a"
+        )
+        breakout_info = {
+            "breakout_cfgs": {"Ethernet0": {"brkout_mode": "4x25G"}},
+            "breakout_ports": {"Ethernet1": {"master": "Ethernet0"}},
+        }
+        pc = {
+            "Ethernet0": {
+                "lanes": "1,2,3,4",
+                "alias": "Eth1/1",
+                "index": "1",
+                "speed": "100000",
+            }
+        }
+        nb = {"Ethernet1": {"speed": 25000}}
+        _add_missing_breakout_ports(
+            config,
+            breakout_info,
+            pc,
+            connected_interfaces=set(),
+            portchannel_info={"portchannels": {}, "member_mapping": {}},
+            netbox_interfaces=nb,
+        )
+        assert config["PORT"]["Ethernet1"]["speed"] == "25000"  # existing behavior
 
 
 # ---------------------------------------------------------------------------
