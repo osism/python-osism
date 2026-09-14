@@ -327,8 +327,16 @@ def runner_mocks(mocker, tmp_path, mock_redis, monkeypatch):
     popen = mocker.patch("osism.tasks.subprocess.Popen")
     popen.return_value = make_process(["ok: [node-1]\n"])
 
+    # The default is a deployment that can run: no password in Redis, but the
+    # configuration repository carries the file the run scripts fall back to.
+    # Tests for the empty-Redis case unlink it.
+    vault_file = tmp_path / ".vault_pass"
+    vault_file.write_text("secret\n")
+    mocker.patch.object(tasks, "ANSIBLE_VAULT_PASSWORD_FILE", str(vault_file))
+
     return SimpleNamespace(
         popen=popen,
+        vault_file=vault_file,
         create_redlock=mocker.patch("osism.tasks.utils.create_redlock"),
         push=mocker.patch("osism.tasks.utils.push_task_output"),
         finish=mocker.patch("osism.tasks.utils.finish_task_output"),
@@ -514,11 +522,122 @@ def test_run_ansible_vault_env_set_when_password_present(runner_mocks):
     assert env["VAULT"] == "/ansible-vault.py"
 
 
-def test_run_ansible_vault_env_absent_without_password(runner_mocks):
+def test_run_ansible_vault_env_absent_when_only_the_file_exists(runner_mocks):
+    """No password in Redis but a file in the configuration repository is a
+    working deployment: VAULT stays unset so the run script falls back to
+    ``$ENVIRONMENTS_DIRECTORY/.vault_pass`` itself."""
     runner_mocks.redis.get.return_value = None
     run_ansible()
     env = runner_mocks.popen.call_args.kwargs["env"]
     assert "VAULT" not in env
+
+
+def test_run_ansible_vault_file_not_consulted_when_redis_has_password(runner_mocks):
+    """The Redis password wins, so a configuration repository without the file
+    -- the state a freshly generated one is in -- still runs."""
+    runner_mocks.redis.get.return_value = b"secret"
+    runner_mocks.vault_file.unlink()
+    run_ansible()
+    assert runner_mocks.popen.call_args.kwargs["env"]["VAULT"] == "/ansible-vault.py"
+
+
+def test_run_ansible_no_vault_password_anywhere_raises_before_dispatch(runner_mocks):
+    """With neither source available the run script would abort with "The vault
+    password file ... was not found", pointing at the configuration repository
+    instead of at the worker state that actually holds. Both sources are only
+    visible here, so the play is not started at all."""
+    runner_mocks.redis.get.return_value = None
+    runner_mocks.vault_file.unlink()
+
+    with pytest.raises(tasks.AnsibleFailure):
+        run_ansible()
+
+    runner_mocks.popen.assert_not_called()
+
+
+def test_run_ansible_no_vault_password_names_both_remedies(runner_mocks):
+    """The interactive remedy is not discoverable from the state, and the file
+    is the only unattended one -- so the message has to name both."""
+    runner_mocks.redis.get.return_value = None
+    runner_mocks.vault_file.unlink()
+
+    with pytest.raises(tasks.AnsibleFailure) as excinfo:
+        run_ansible()
+
+    message = str(excinfo.value)
+    assert "osism set vault password" in message
+    assert "environments/.vault_pass" in message
+
+
+def test_run_ansible_inherited_vault_env_suppresses_the_check(
+    runner_mocks, monkeypatch
+):
+    """An operator can point the run script at a custom password file or helper
+    by putting VAULT in manager_environment_extra, which reaches this process as
+    an inherited environment variable. The script prefers it over its own
+    fallback, so the fallback file being absent is not a failure then."""
+    monkeypatch.setenv("VAULT", "/opt/configuration/environments/custom.vault_pass")
+    runner_mocks.redis.get.return_value = None
+    runner_mocks.vault_file.unlink()
+
+    run_ansible()
+
+    env = runner_mocks.popen.call_args.kwargs["env"]
+    assert env["VAULT"] == "/opt/configuration/environments/custom.vault_pass"
+
+
+def test_run_ansible_empty_vault_env_does_not_suppress_the_check(
+    runner_mocks, monkeypatch
+):
+    """``${VAULT:-<the file>}`` substitutes on null as well as on unset, so an
+    empty VAULT leaves the run script on the fallback file and the check has to
+    treat it exactly like an absent one."""
+    monkeypatch.setenv("VAULT", "")
+    runner_mocks.redis.get.return_value = None
+    runner_mocks.vault_file.unlink()
+
+    with pytest.raises(tasks.AnsibleFailure):
+        run_ansible()
+
+    runner_mocks.popen.assert_not_called()
+
+
+def test_run_ansible_no_vault_password_streams_message_and_rc(runner_mocks):
+    """``osism apply`` reads both the message and the rc back out of the Redis
+    output stream, so raising alone would leave it waiting for output that
+    never arrives."""
+    runner_mocks.redis.get.return_value = None
+    runner_mocks.vault_file.unlink()
+
+    with pytest.raises(tasks.AnsibleFailure):
+        run_ansible()
+
+    pushed = "".join(call.args[1] for call in runner_mocks.push.call_args_list)
+    assert "osism set vault password" in pushed
+    runner_mocks.finish.assert_called_once_with("req-1", rc=1)
+
+
+def test_run_ansible_no_vault_password_publish_false_does_not_stream(runner_mocks):
+    runner_mocks.redis.get.return_value = None
+    runner_mocks.vault_file.unlink()
+
+    with pytest.raises(tasks.AnsibleFailure):
+        run_ansible(publish=False)
+
+    runner_mocks.push.assert_not_called()
+    runner_mocks.finish.assert_not_called()
+
+
+def test_run_ansible_no_vault_password_cleans_ssh_dir(runner_mocks):
+    """The raise happens inside the try whose ``finally`` removes the per-task
+    ControlPath directory."""
+    runner_mocks.redis.get.return_value = None
+    runner_mocks.vault_file.unlink()
+
+    with pytest.raises(tasks.AnsibleFailure):
+        run_ansible()
+
+    runner_mocks.rmtree.assert_called_once()
 
 
 # -- worker dispatch --
