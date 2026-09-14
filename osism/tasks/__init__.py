@@ -50,6 +50,10 @@ ISOLATED_ENV_NAMES = frozenset(
 
 ISOLATED_ENV_PREFIXES = ("LC_",)
 
+# The path the run scripts in the worker containers fall back to when VAULT is
+# unset: CONFIGURATION_DIRECTORY/environments/.vault_pass, both hardcoded there.
+ANSIBLE_VAULT_PASSWORD_FILE = "/opt/configuration/environments/.vault_pass"
+
 
 class AnsibleFailure(Exception):
     """Raised when an Ansible run in a worker container exits non-zero.
@@ -300,6 +304,35 @@ def run_ansible_in_environment(
         ansible_vault_password = utils.redis.get("ansible_vault_password")
         if ansible_vault_password:
             env["VAULT"] = "/ansible-vault.py"
+        elif not env.get("VAULT") and not os.path.exists(ANSIBLE_VAULT_PASSWORD_FILE):
+            # The run script resolves VAULT=${VAULT:-<the file>}, so both of its
+            # inputs have to be checked here. A non-empty inherited VAULT is an
+            # operator pointing at a custom password file or helper
+            # (manager_environment_extra reaches the worker containers as plain
+            # environment variables); the script prefers it and never looks at
+            # the file below. ${:-} substitutes on null as well as on unset, so
+            # an empty VAULT is the fallback case, not the operator one.
+            #
+            # With neither, the script falls back to the file, and every one of
+            # them passes --vault-password-file unconditionally, so the play
+            # dies with "The vault password file ... was not found". That
+            # message sends the operator looking for a file in the configuration
+            # repository, while the state that actually holds is "the worker has
+            # no vault password" -- and it recurs by design, because the password
+            # lives only in Redis, which the manager runs without a volume. This
+            # is the only layer that sees both sources, so it is the only one
+            # that can say so. Report it here and do not dispatch.
+            message = (
+                "No Ansible Vault password is available. Run "
+                "'osism set vault password' on the manager, or add "
+                "environments/.vault_pass to the configuration repository "
+                "for unattended operation."
+            )
+            logger.error(message)
+            if publish:
+                utils.push_task_output(request_id, f"{message}\n")
+                utils.finish_task_output(request_id, rc=1)
+            raise AnsibleFailure(message)
 
         # Log play execution start
         log_play_execution(
