@@ -165,6 +165,7 @@ VALIDATE_PLAYBOOKS = {
     "ceph-mgrs": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-mons": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-osds": {"environment": "ceph", "runtime": "osism-ansible"},
+    "ceph-rgws": {"environment": "ceph", "runtime": "osism-ansible"},
     "container-status": {"environment": "generic", "runtime": "osism-ansible"},
     "kernel-version": {"environment": "generic", "runtime": "osism-ansible"},
     "docker-version": {"environment": "generic", "runtime": "osism-ansible"},
