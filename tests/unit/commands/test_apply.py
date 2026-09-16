@@ -168,6 +168,62 @@ def test_prepare_task_strips_ceph_prefix(task_mocks):
     assert t is task_mocks.ceph_run.si.return_value
 
 
+def test_prepare_task_ceph_role_in_osism_ansible_runtime(task_mocks):
+    """A ceph-environment play shipped by osism-ansible (the cephadm deploy
+    plays, and the ceph validators) must run in the osism-ansible runtime, not
+    in the ceph-ansible container which has no such playbook."""
+    _set_playbook_maps(
+        role2environment={"cephadm-bootstrap": "ceph"},
+        role2runtime={"osism-ansible": ["cephadm-bootstrap"]},
+    )
+    cmd = make_command(apply.Run)
+
+    t = _prepare_task(cmd, role="cephadm-bootstrap", arguments=["-e x=1"])
+
+    task_mocks.ansible_run.si.assert_called_once_with(
+        "ceph", "cephadm-bootstrap", ["-e x=1"], auto_release_time=3600
+    )
+    task_mocks.ceph_run.si.assert_not_called()
+    assert t is task_mocks.ansible_run.si.return_value
+
+
+def test_prepare_task_ceph_ansible_role_still_reaches_ceph_ansible(task_mocks):
+    """This looks like a duplicate of test_prepare_task_strips_ceph_prefix but
+    is not: that test runs with EMPTY maps, so the override's guard is never
+    evaluated (it fails the runtime-membership check trivially). Here
+    role2runtime populates "ceph-ansible" (not "osism-ansible"), so the guard
+    is actually evaluated and must decline -- proving the override only claims
+    roles osism-ansible advertises for the ceph environment, and ceph-ansible's
+    own roles still reach ceph-ansible with the ceph- prefix stripped."""
+    _set_playbook_maps(
+        role2environment={"ceph-mons": "ceph"},
+        role2runtime={"ceph-ansible": ["ceph-mons"]},
+    )
+    cmd = make_command(apply.Run)
+
+    t = _prepare_task(cmd, role="ceph-mons", arguments=[])
+
+    task_mocks.ceph_run.si.assert_called_once_with(
+        "ceph", "mons", [], auto_release_time=3600
+    )
+    task_mocks.ansible_run.si.assert_not_called()
+    assert t is task_mocks.ceph_run.si.return_value
+
+
+def test_prepare_task_ceph_override_ignores_other_environments(task_mocks):
+    """The environment check is what stops the override swallowing an
+    osism-ansible role registered for a DIFFERENT environment."""
+    _set_playbook_maps(
+        role2environment={"facts": "generic"},
+        role2runtime={"osism-ansible": ["facts"]},
+    )
+    cmd = make_command(apply.Run)
+
+    _prepare_task(cmd, role="facts", arguments=[])
+
+    task_mocks.ceph_run.si.assert_not_called()
+
+
 def test_prepare_task_sub_environment_suffix(task_mocks):
     _set_playbook_maps()
     cmd = make_command(apply.Run)

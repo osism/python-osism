@@ -339,7 +339,25 @@ class Run(Command):
         if environment == "ceph":
             if sub:
                 environment = f"{environment}.{sub}"
-            if role.startswith("ceph-"):
+            # Some ceph-environment playbooks are implemented in osism-ansible
+            # rather than ceph-ansible (ansible-playbooks playbooks/ceph/: the
+            # validate-ceph-* validators and the cephadm deploy plays), so they
+            # have to run in the osism-ansible runtime. Requiring the role to be
+            # mapped to the ceph environment is what keeps that override from
+            # swallowing roles osism-ansible registers for a DIFFERENT
+            # environment. The two runtimes do not collide on names:
+            # ceph-ansible's renderer keeps the ceph- prefix (role `ceph-mons`)
+            # while osism-ansible's strips it (role `mons`), so a play in
+            # playbooks/ceph/ must not itself be named ceph-*.
+            if (
+                "osism-ansible" in MAP_ROLE2RUNTIME
+                and role in MAP_ROLE2RUNTIME["osism-ansible"]
+                and MAP_ROLE2ENVIRONMENT.get(role) == "ceph"
+            ):
+                t = ansible.run.si(
+                    environment, role, arguments, auto_release_time=task_timeout
+                )
+            elif role.startswith("ceph-"):
                 t = ceph.run.si(
                     environment, role[5:], arguments, auto_release_time=task_timeout
                 )
