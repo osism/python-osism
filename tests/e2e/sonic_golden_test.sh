@@ -204,6 +204,7 @@ export NETBOX_API="http://127.0.0.1:${NETBOX_PORT}"
 export SONIC_EXPORT_DIR="${EXPORT_DIR}"
 export SONIC_EXPORT_IDENTIFIER="hostname"
 export SONIC_PORT_CONFIG_PATH="${REPO_ROOT}/files/sonic/port_config"
+export SONIC_BASE_CONFIG_PATH="${REPO_ROOT}/files/sonic/config_db.json"
 
 echo ">>> Generating SONiC configurations (tests/e2e/generate.py)"
 if [[ "${REGENERATE}" == "1" ]]; then
