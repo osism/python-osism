@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260920.0] - 2026-09-20
+
+### Added
+- Resolve the OpenStack release up front for collection deployments via `--openstack-version`, `OPENSTACK_VERSION`, or the kolla-ansible versions file, and skip collection roles that fall outside the deployed release (osism/python-osism#2688)
+- Add synthetic NetBox fixtures and golden files for the SONiC E2E test, removing the dependency on osism/testbed seed data (osism/python-osism@230993c9)
+- Add config_db table coverage report for the SONiC E2E golden set via `make sonic-e2e-coverage` (osism/python-osism@b18d5927)
+- Document how to run the SONiC E2E golden test in the README (osism/python-osism@b9f53c20)
+- Add a Zuul CI job for the SONiC E2E golden test (osism/python-osism#2566)
+- Add breakout port generation coverage to the SONiC E2E golden test (osism/python-osism#2567)
+- Support declared breakout mode for SONiC devices via a device-level `sonic_parameters.breakout` custom field, taking precedence over inferred breakout detection (osism/python-osism#2568)
+- Add SONiC E2E test coverage for port-channel (LAG) config_db generation (osism/python-osism@051ede10)
+- Add SONiC E2E test coverage for numbered and unnumbered BGP peering modes (osism/python-osism#2569)
+- Add SONiC E2E test coverage for EVPN, VXLAN and multi-VRF config_db generation (osism/python-osism#2570)
+- Add unit test gating on full config_db table coverage in the SONiC E2E golden set (osism/python-osism#2571)
+
+### Changed
+- Deploy valkey instead of redis for collections on OpenStack release 2025.2 and later (osism/python-osism#2688)
+
+### Fixed
+- Print a failed task's output with `osism wait --output` so a failed role's cause is no longer hidden (osism/python-osism#2686)
+- `osism apply` now reports a missing Ansible Vault password explicitly instead of failing with a misleading missing-file error (osism/python-osism#2698)
+- Register the ceph-rgws validator so `osism validate ceph-rgws` no longer fails with an invalid choice error (osism/python-osism#2700)
+- Set `SONIC_BASE_CONFIG_PATH` in the e2e test harness and regenerate golden files against the shipped base config instead of an empty one (osism/python-osism#2707)
+
+### Removed
+- Drop the BGP_NEIGHBOR_AF key prefix reference check in the SONiC config validator (osism/python-osism#2703)
+
+### Dependencies
+- community.docker 5.2.2 → 5.3.0 (osism/python-osism#2685)
+- gitpython 3.1.61 → 3.1.62 (osism/python-osism#2687)
+- lucide-react 1.41.0 → 1.46.0 (osism/python-osism#2689, osism/python-osism#2690, osism/python-osism#2693, osism/python-osism#2697, osism/python-osism#2705)
+- fakeredis 2.37.1 → 2.38.0 (osism/python-osism#2691)
+- react and react-dom 19.2.8 → 19.3.0 (osism/python-osism#2692)
+- autoprefixer 10.5.5 → 10.6.0 (osism/python-osism#2694, osism/python-osism#2701)
+- boto3 1.43.88 → 1.43.92 (osism/python-osism#2696)
+- @types/node 24.13.3 → 24.13.4 (osism/python-osism#2695)
+- next and eslint-config-next 16.3.4 → 16.3.5 (osism/python-osism#2699)
+- tailwind-merge 3.6.0 → 3.7.0 (osism/python-osism#2702)
+- uvicorn 0.52.4 → 0.53.0 (osism/python-osism#2706)
+
 ## [v0.20260909.0] - 2026-09-09
 
 ### Added
