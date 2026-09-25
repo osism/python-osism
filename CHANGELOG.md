@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260924.0] - 2026-09-24
+
+### Dependencies
+- autoprefixer 10.6.0 → 10.6.1 (osism/python-osism#2708)
+- lucide-react 1.46.0 → 1.47.0 (osism/python-osism#2713)
+- pymysql 1.2.0 → 1.2.3 (osism/python-osism#2712, osism/python-osism#2714)
+- ansible.utils 6.1.0 → 6.1.1 (osism/python-osism#2711)
+- @tanstack/react-query 5.102.8 → 5.103.1 (osism/python-osism#2709)
+- boto3 1.43.92 → 1.43.97 (osism/python-osism#2716)
+- @types/node 24.13.4 → 24.13.5 (osism/python-osism#2715)
+- eslint 10.10.0 → 10.11.0 (osism/python-osism#2717)
+- jc 1.25.7 → 1.26.0 (osism/python-osism#2718)
+- multidict 6.9.0 → 6.9.1 (osism/python-osism#2718)
+- platformdirs 4.11.11 → 4.11.12 (osism/python-osism#2718)
+
 ## [v0.20260920.0] - 2026-09-20
 
 ### Added
