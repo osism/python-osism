@@ -2,6 +2,7 @@
 
 from datetime import datetime
 import pprint
+import re
 import subprocess
 import json
 
@@ -259,6 +260,83 @@ class Hosts(Command):
 
         if table:
             print(tabulate(table, headers=["Host"], tablefmt="psql"))
+
+        return
+
+
+# Printed once by kolla-mariadb-backup-host.yml: the host the backup runs on
+# (empty if none) and the host each shard resolved.
+BACKUP_HOST_PATTERN = re.compile(r"mariadb_backup_host=([^\s\"]*) resolved=([^\s\"]*)")
+
+
+class MariadbBackupHost(Command):
+    """Show the host that 'osism apply mariadb-backup' writes archives to.
+
+    The value is resolved by the mariadb role itself, in a read-only play on
+    the kolla-ansible worker, because its default, the shard grouping it
+    depends on and the usual override are all outside the inventory.
+    """
+
+    def get_parser(self, prog_name):
+        parser = super(MariadbBackupHost, self).get_parser(prog_name)
+        parser.add_argument(
+            "--format",
+            default="table",
+            choices=["table", "script"],
+            help="Output type; script prints the bare host name",
+        )
+        parser.add_argument(
+            "--timeout",
+            default=300,
+            type=int,
+            help="Seconds to wait for the play",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        from celery.exceptions import TimeoutError as CeleryTimeoutError
+
+        from osism.tasks import AnsibleFailure, kolla
+
+        utils.check_task_lock_and_exit()
+
+        t = kolla.run.delay("kolla", "mariadb-backup-host", [], publish=False)
+        try:
+            output = t.get(timeout=parsed_args.timeout)
+        except AnsibleFailure as exc:
+            logger.error(
+                f"{exc}. 'osism apply -e kolla mariadb-backup-host' shows "
+                "the full output."
+            )
+            return 1
+        except CeleryTimeoutError:
+            logger.error(f"Timeout while waiting for task {t.task_id}.")
+            # Unsubscribe now; left pending, the result is released during
+            # interpreter shutdown and Celery prints a traceback.
+            t.forget()
+            return 1
+
+        match = BACKUP_HOST_PATTERN.search(output)
+        if not match:
+            logger.error("The play did not report a backup host.")
+            return 1
+
+        hosts = [host for host in match.group(1).split(",") if host]
+        if not hosts:
+            # kolla skips the backup silently in this case.
+            resolved = match.group(2).replace(",", ", ")
+            logger.error(
+                f"No backup would be taken: no resolved backup host "
+                f"({resolved}) is in the default MariaDB shard."
+            )
+            return 1
+
+        if parsed_args.format == "script":
+            print("\n".join(hosts))
+        else:
+            print(
+                tabulate([[host] for host in hosts], headers=["Host"], tablefmt="psql")
+            )
 
         return
 
