@@ -420,3 +420,105 @@ def test_states_prints_nothing_without_cache_entry(monkeypatch, capsys):
     cmd.take_action(parsed_args)
 
     assert capsys.readouterr().out == ""
+
+
+# --- MariadbBackupHost.take_action ---
+
+
+def _backup_line(selected, resolved):
+    return (
+        "ok: [testbed-node-0] => {\n"
+        f'    "msg": "mariadb_backup_host={selected} resolved={resolved}"\n'
+        "}\n"
+    )
+
+
+def _run_backup_host(args, output=None, side_effect=None):
+    cmd = _make(get.MariadbBackupHost)
+    parsed_args = cmd.get_parser("test").parse_args(args)
+
+    task = MagicMock()
+    if side_effect is not None:
+        task.get.side_effect = side_effect
+    else:
+        task.get.return_value = output
+
+    with patch("osism.commands.get.utils.check_task_lock_and_exit"), patch(
+        "osism.tasks.kolla.run"
+    ) as mock_run:
+        mock_run.delay.return_value = task
+        result = cmd.take_action(parsed_args)
+
+    return result, mock_run
+
+
+def test_mariadb_backup_host_runs_the_play_without_publishing(capsys):
+    result, mock_run = _run_backup_host(
+        [], output=_backup_line("testbed-node-0", "testbed-node-0")
+    )
+
+    assert not result
+    mock_run.delay.assert_called_once_with(
+        "kolla", "mariadb-backup-host", [], publish=False
+    )
+    assert "testbed-node-0" in capsys.readouterr().out
+
+
+def test_mariadb_backup_host_script_format_prints_bare_host(capsys):
+    # Colour codes as the worker emits them must not leak into the host name.
+    output = "\x1b[0;32m" + _backup_line("testbed-node-1", "testbed-node-1") + "\x1b[0m"
+
+    result, _ = _run_backup_host(["--format", "script"], output=output)
+
+    assert not result
+    assert capsys.readouterr().out == "testbed-node-1\n"
+
+
+def test_mariadb_backup_host_ignores_other_shards(capsys):
+    # Every shard resolves a host; only the default shard's is backed up.
+    output = _backup_line("db-0", "db-0,db-shard1-0")
+
+    result, _ = _run_backup_host(["--format", "script"], output=output)
+
+    assert not result
+    assert capsys.readouterr().out == "db-0\n"
+
+
+def test_mariadb_backup_host_fails_when_no_backup_would_be_taken(loguru_logs, capsys):
+    result, _ = _run_backup_host([], output=_backup_line("", "db-shard1-0"))
+
+    assert result == 1
+    assert capsys.readouterr().out == ""
+    assert any(
+        r["level"] == "ERROR" and "db-shard1-0" in r["message"] for r in loguru_logs
+    )
+
+
+def test_mariadb_backup_host_fails_without_a_report(loguru_logs):
+    result, _ = _run_backup_host([], output="PLAY RECAP\n")
+
+    assert result == 1
+    assert any("did not report a backup host" in r["message"] for r in loguru_logs)
+
+
+def test_mariadb_backup_host_fails_when_the_play_fails(loguru_logs):
+    from osism.tasks import AnsibleFailure
+
+    result, _ = _run_backup_host(
+        [], side_effect=AnsibleFailure("kolla-ansible play failed with rc 1")
+    )
+
+    assert result == 1
+    assert any("osism apply -e kolla" in r["message"] for r in loguru_logs)
+
+
+def test_mariadb_backup_host_fails_on_timeout(loguru_logs):
+    from celery.exceptions import TimeoutError as CeleryTimeoutError
+
+    result, mock_run = _run_backup_host(
+        ["--timeout", "5"], side_effect=CeleryTimeoutError()
+    )
+
+    assert result == 1
+    assert any("Timeout" in r["message"] for r in loguru_logs)
+    mock_run.delay.return_value.forget.assert_called_once_with()
