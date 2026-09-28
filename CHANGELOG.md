@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260928.0] - 2026-09-28
+
+### Dependencies
+- @tanstack/react-query 5.103.1 → 5.103.2 (osism/python-osism#2720)
+- @types/node 24.13.5 → 24.13.6 (osism/python-osism#2730)
+- boto3 1.43.97 → 1.43.102 (osism/python-osism#2731)
+- eslint-config-next 16.3.5 → 16.3.6 (osism/python-osism#2724)
+- flower 2.1.0 → 2.2.0 (osism/python-osism#2725)
+- hiredis 3.4.1 → 3.4.2 (osism/python-osism#2722)
+- lucide-react 1.47.0 → 1.48.0 (osism/python-osism#2726)
+- next 16.3.5 → 16.3.6 (osism/python-osism#2724)
+- sqlmodel 0.0.42 → 0.0.47 (osism/python-osism#2721, osism/python-osism#2723)
+
 ## [v0.20260924.0] - 2026-09-24
 
 ### Dependencies
