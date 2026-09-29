@@ -203,7 +203,7 @@ PROJECT_MANAGER_VARIANTS = [
 @pytest.mark.parametrize("task_name, script_path", PROJECT_MANAGER_VARIANTS)
 def test_project_manager_delegates(mocker, mock_os, task_name, script_path):
     """The script path is prepended to the arguments and the command runs from
-    the openstack-project-manager checkout."""
+    the openstack-project-manager checkout, which is put on PYTHONPATH."""
     check = mocker.patch("osism.tasks.openstack.utils.check_task_lock_and_exit")
     setup = mocker.patch(
         "osism.tasks.openstack.setup_cloud_environment",
@@ -222,7 +222,7 @@ def test_project_manager_delegates(mocker, mock_os, task_name, script_path):
     run.assert_called_once_with(
         None,
         "/usr/local/bin/python3",
-        {},
+        {"PYTHONPATH": "/openstack-project-manager"},
         script_path,
         "--x",
         publish=False,

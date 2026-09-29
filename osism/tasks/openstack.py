@@ -923,10 +923,12 @@ def project_manager(
         # Change to working directory required by openstack-project-manager
         os.chdir("/openstack-project-manager")
 
+        # The scripts import the openstack_project_manager package, which is
+        # not installed, so the checkout has to be on the module search path
         return run_command(
             self.request.id,
             command,
-            {},
+            {"PYTHONPATH": "/openstack-project-manager"},
             *full_arguments,
             publish=publish,
             locking=locking,
@@ -970,10 +972,12 @@ def project_manager_sync(
         # Change to working directory required by openstack-project-manager
         os.chdir("/openstack-project-manager")
 
+        # The scripts import the openstack_project_manager package, which is
+        # not installed, so the checkout has to be on the module search path
         return run_command(
             self.request.id,
             command,
-            {},
+            {"PYTHONPATH": "/openstack-project-manager"},
             *full_arguments,
             publish=publish,
             locking=locking,
