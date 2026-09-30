@@ -1,97 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-from osism.data.releases import format_release, parse_release
-
-
-class Role:
-    """
-    Represents a role with optional dependencies in a hierarchical structure.
-
-    Args:
-        name: The name of the role (string)
-        dependencies: Optional list of dependent Role objects
-        since: Earliest OpenStack release, inclusive, on which a collection
-            should deploy this role (string, e.g. "2025.2")
-        until: Latest such release, inclusive (string, e.g. "2025.1")
-
-    ``since`` and ``until`` govern **collection membership only**: whether a
-    collection should deploy this role on a given release. They are NOT a
-    statement that the role's playbook exists, or that the role may be applied,
-    on those releases. ``valkey`` is the illustration -- its play ships from
-    OpenStack 2025.1, but collections deploy it only from 2025.2, because
-    ``osism/defaults`` leaves ``enable_valkey`` off until then. Reading the
-    bound as availability would wrongly reject ``osism apply valkey`` on 2025.1.
-
-    Only collection expansion consults these bounds. ``osism apply <role>``
-    never does.
-
-    Example:
-        >>> role = Role("keystone", dependencies=[Role("glance"), Role("cinder")])
-        >>> role.name
-        'keystone'
-        >>> len(role.dependencies)
-        2
-    """
-
-    def __init__(self, name, dependencies=None, since=None, until=None):
-        """Initialize a Role with a name, optional dependencies and bounds."""
-        self.name = name
-        self.dependencies = dependencies or []
-        # Parsed eagerly, unlike the deployed release: these are literals in
-        # this file, so a bad value is a bug here that should surface at once
-        # rather than on the one deployment whose release happens to test it.
-        self.since = parse_release(since) if since else None
-        self.until = parse_release(until) if until else None
-
-    @property
-    def release_bounded(self):
-        """Whether collection membership depends on the OpenStack release."""
-        return self.since is not None or self.until is not None
-
-    def deployed_in(self, release):
-        """Whether a collection should deploy this role on ``release``.
-
-        ``release`` is a ``(year, minor)`` tuple from ``osism.data.releases``.
-        """
-        if self.since is not None and release < self.since:
-            return False
-
-        if self.until is not None and release > self.until:
-            return False
-
-        return True
-
-    def bound_description(self):
-        """Render the bounds for log and error text, e.g. "from 2025.2".
-
-        Only meaningful for a release-bounded role; raises ``ValueError`` on
-        one with neither bound, rather than silently rendering nonsense.
-        """
-        if self.since is not None and self.until is not None:
-            return f"from {format_release(self.since)} to {format_release(self.until)}"
-
-        if self.since is not None:
-            return f"from {format_release(self.since)}"
-
-        if self.until is not None:
-            return f"up to {format_release(self.until)}"
-
-        raise ValueError(f"{self.name!r} has no release bounds to describe")
-
-
-def bounded_roles(roles):
-    """Yield every release-bounded Role reachable from ``roles``.
-
-    Used to decide whether expanding a collection needs the release at all: a
-    collection with no bounded roles never triggers the lookup, and so can never
-    fail on it.
-    """
-    for role in roles:
-        if role.release_bounded:
-            yield role
-
-        yield from bounded_roles(role.dependencies)
-
+from osism.data.plans import Parallel, Run, Select, Sequence
 
 VALIDATE_PLAYBOOKS = {
     "barbican-config": {
@@ -177,320 +86,280 @@ VALIDATE_PLAYBOOKS = {
     "stress": {"environment": "generic", "runtime": "osism-ansible"},
 }
 
-# Role dependency collections
-#
-# The MAP_ROLE2ROLE dictionary defines collections of roles with their dependencies.
-# All roles are defined using Role objects for consistency and type safety.
-#
-# Format:
-#   - Role("name", dependencies=[...]): A role with Role object dependencies
-#   - Role("name"): A role with no dependencies (empty dependencies list)
-#
+# Explicit execution plans: siblings run concurrently; sequences impose barriers.
 MAP_ROLE2ROLE = {
-    "nutshell": [
-        Role("dotfiles"),
-        Role("homer"),
-        Role("netdata"),
-        Role("openstackclient"),
-        Role("phpmyadmin"),
-        Role(
-            "common",
-            dependencies=[
-                Role(
-                    "loadbalancer",
-                    dependencies=[
-                        Role("opensearch"),
-                        Role(
-                            "mariadb",
-                            dependencies=[
-                                Role("horizon"),
-                                Role(
-                                    "keystone",
-                                    dependencies=[
-                                        Role(
-                                            "neutron",
-                                            dependencies=[
-                                                Role(
-                                                    "wait-for-nova",
-                                                    dependencies=[Role("octavia")],
+    "nutshell": Parallel(
+        Run("dotfiles"),
+        Run("homer"),
+        Run("netdata"),
+        Run("openstackclient"),
+        Run("phpmyadmin"),
+        Sequence(
+            Run("common"),
+            Parallel(
+                Sequence(
+                    Run("loadbalancer"),
+                    Parallel(
+                        Run("opensearch"),
+                        Sequence(
+                            Run("mariadb"),
+                            Parallel(
+                                Run("horizon"),
+                                Sequence(
+                                    Run("keystone"),
+                                    Parallel(
+                                        Sequence(
+                                            Run("neutron"),
+                                            Parallel(
+                                                Sequence(
+                                                    Run("wait-for-nova"),
+                                                    Parallel(Run("octavia")),
                                                 )
-                                            ],
+                                            ),
                                         ),
-                                        Role("barbican"),
-                                        Role("designate"),
-                                        Role("ironic"),
-                                        Role("placement"),
-                                        Role("magnum"),
-                                    ],
+                                        Run("barbican"),
+                                        Run("designate"),
+                                        Run("ironic"),
+                                        Run("placement"),
+                                        Run("magnum"),
+                                    ),
                                 ),
-                            ],
+                            ),
                         ),
-                    ],
+                    ),
                 ),
-                Role("openvswitch", dependencies=[Role("ovn")]),
-                Role("memcached"),
-                # kolla replaced redis with valkey at OpenStack 2025.2; on 2025.1
-                # both plays exist but osism/defaults leaves enable_valkey off.
-                Role("redis", until="2025.1"),
-                Role("valkey", since="2025.2"),
-                Role("rabbitmq"),
-            ],
+                Sequence(Run("openvswitch"), Parallel(Run("ovn"))),
+                Run("memcached"),
+                Select("kvs_backend", {"redis": Run("redis"), "valkey": Run("valkey")}),
+                Run("rabbitmq"),
+            ),
         ),
-        Role(
-            "kubernetes",
-            dependencies=[
-                Role("kubeconfig"),
-                Role("copy-kubeconfig"),
-            ],
+        Sequence(
+            Run("kubernetes"), Parallel(Run("kubeconfig"), Run("copy-kubeconfig"))
         ),
-        Role(
-            "ceph",
-            dependencies=[
-                Role(
-                    "ceph-pools",
-                    dependencies=[
-                        Role(
-                            "copy-ceph-keys",
-                            dependencies=[
-                                Role(
-                                    "cephclient",
-                                    dependencies=[
-                                        Role("ceph-bootstrap-dashboard"),
-                                        Role(
-                                            "wait-for-keystone",
-                                            dependencies=[
-                                                Role("kolla-ceph-rgw"),
-                                                Role("glance"),
-                                                Role("cinder"),
-                                                Role("nova"),
-                                            ],
+        Sequence(
+            Run("ceph"),
+            Parallel(
+                Sequence(
+                    Run("ceph-pools"),
+                    Parallel(
+                        Sequence(
+                            Run("copy-ceph-keys"),
+                            Parallel(
+                                Sequence(
+                                    Run("cephclient"),
+                                    Parallel(
+                                        Run("ceph-bootstrap-dashboard"),
+                                        Sequence(
+                                            Run("wait-for-keystone"),
+                                            Parallel(
+                                                Run("kolla-ceph-rgw"),
+                                                Run("glance"),
+                                                Run("cinder"),
+                                                Run("nova"),
+                                            ),
                                         ),
-                                        Role(
-                                            "prometheus", dependencies=[Role("grafana")]
+                                        Sequence(
+                                            Run("prometheus"), Parallel(Run("grafana"))
                                         ),
-                                    ],
+                                    ),
                                 )
-                            ],
+                            ),
                         )
-                    ],
+                    ),
                 )
-            ],
+            ),
         ),
-    ],
-    "collection-infrastructure": [
-        Role("openstackclient"),
-        Role("phpmyadmin"),
-        Role(
-            "common",
-            dependencies=[
-                Role(
-                    "loadbalancer",
-                    dependencies=[
-                        Role("letsencrypt"),
-                        Role("opensearch"),
-                        Role("mariadb"),
-                    ],
+    ),
+    "collection-infrastructure": Parallel(
+        Run("openstackclient"),
+        Run("phpmyadmin"),
+        Sequence(
+            Run("common"),
+            Parallel(
+                Sequence(
+                    Run("loadbalancer"),
+                    Parallel(Run("letsencrypt"), Run("opensearch"), Run("mariadb")),
                 ),
-                Role("openvswitch", dependencies=[Role("ovn")]),
-                Role("memcached"),
-                Role("redis", until="2025.1"),
-                Role("valkey", since="2025.2"),
-                Role("rabbitmq"),
-            ],
+                Sequence(Run("openvswitch"), Parallel(Run("ovn"))),
+                Run("memcached"),
+                Select("kvs_backend", {"redis": Run("redis"), "valkey": Run("valkey")}),
+                Run("rabbitmq"),
+            ),
         ),
-    ],
-    "collection-kubernetes": [
-        Role(
-            "kubernetes",
-            dependencies=[
-                Role("kubeconfig"),
-                Role("copy-kubeconfig"),
-            ],
-        ),
-    ],
-    "collection-openstack-core": [
-        Role("horizon"),
-        Role(
-            "keystone",
-            dependencies=[
-                Role("glance"),
-                Role("cinder"),
-                Role(
-                    "neutron",
-                    dependencies=[
-                        Role("wait-for-nova", dependencies=[Role("octavia")]),
-                    ],
+    ),
+    "collection-kubernetes": Parallel(
+        Sequence(Run("kubernetes"), Parallel(Run("kubeconfig"), Run("copy-kubeconfig")))
+    ),
+    "collection-openstack-core": Parallel(
+        Run("horizon"),
+        Sequence(
+            Run("keystone"),
+            Parallel(
+                Run("glance"),
+                Run("cinder"),
+                Sequence(
+                    Run("neutron"),
+                    Parallel(Sequence(Run("wait-for-nova"), Parallel(Run("octavia")))),
                 ),
-                Role("designate"),
-                Role("placement", dependencies=[Role("nova")]),
-            ],
+                Run("designate"),
+                Sequence(Run("placement"), Parallel(Run("nova"))),
+            ),
         ),
-    ],
-    "collection-openstack": [
-        Role("horizon"),
-        Role(
-            "keystone",
-            dependencies=[
-                Role("glance"),
-                Role("cinder"),
-                Role("barbican"),
-                Role("designate"),
-                Role(
-                    "neutron",
-                    dependencies=[
-                        Role("wait-for-nova", dependencies=[Role("octavia")]),
-                    ],
+    ),
+    "collection-openstack": Parallel(
+        Run("horizon"),
+        Sequence(
+            Run("keystone"),
+            Parallel(
+                Run("glance"),
+                Run("cinder"),
+                Run("barbican"),
+                Run("designate"),
+                Sequence(
+                    Run("neutron"),
+                    Parallel(Sequence(Run("wait-for-nova"), Parallel(Run("octavia")))),
                 ),
-                Role("ironic"),
-                Role("kolla-ceph-rgw"),
-                Role("magnum"),
-                Role("placement", dependencies=[Role("nova")]),
-            ],
+                Run("ironic"),
+                Run("kolla-ceph-rgw"),
+                Run("magnum"),
+                Sequence(Run("placement"), Parallel(Run("nova"))),
+            ),
         ),
-    ],
-    "collection-ceph": [
-        Role(
-            "ceph",
-            dependencies=[
-                Role(
-                    "ceph-pools",
-                    dependencies=[
-                        Role(
-                            "copy-ceph-keys",
-                            dependencies=[
-                                Role(
-                                    "cephclient",
-                                    dependencies=[Role("ceph-bootstrap-dashboard")],
+    ),
+    "collection-ceph": Parallel(
+        Sequence(
+            Run("ceph"),
+            Parallel(
+                Sequence(
+                    Run("ceph-pools"),
+                    Parallel(
+                        Sequence(
+                            Run("copy-ceph-keys"),
+                            Parallel(
+                                Sequence(
+                                    Run("cephclient"),
+                                    Parallel(Run("ceph-bootstrap-dashboard")),
                                 )
-                            ],
+                            ),
                         )
-                    ],
+                    ),
                 )
-            ],
-        ),
-    ],
-    "collection-monitoring": [
-        Role("prometheus", dependencies=[Role("grafana")]),
-        Role("netdata"),
-    ],
-    "collection-bootstrap": [
-        Role(
-            "gather-facts",
-            dependencies=[
-                Role(
-                    "hostname",
-                    dependencies=[
-                        Role(
-                            "hosts",
-                            dependencies=[
-                                Role(
-                                    "proxy",
-                                    dependencies=[
-                                        Role(
-                                            "resolvconf",
-                                            dependencies=[
-                                                Role(
-                                                    "repository",
-                                                    dependencies=[
-                                                        Role("rsyslog"),
-                                                        Role("journald"),
-                                                        Role("systohc"),
-                                                        Role("configfs"),
-                                                        Role("packages"),
-                                                        Role("sysctl"),
-                                                        Role("limits"),
-                                                        Role("services"),
-                                                        Role("motd"),
-                                                        Role("rng"),
-                                                        Role("smartd"),
-                                                        Role("cleanup"),
-                                                        Role("timezone"),
-                                                        Role("docker"),
-                                                        Role("docker-compose"),
-                                                        Role("chrony"),
-                                                        Role("lldpd"),
-                                                    ],
+            ),
+        )
+    ),
+    "collection-monitoring": Parallel(
+        Sequence(Run("prometheus"), Parallel(Run("grafana"))), Run("netdata")
+    ),
+    "collection-bootstrap": Parallel(
+        Sequence(
+            Run("gather-facts"),
+            Parallel(
+                Sequence(
+                    Run("hostname"),
+                    Parallel(
+                        Sequence(
+                            Run("hosts"),
+                            Parallel(
+                                Sequence(
+                                    Run("proxy"),
+                                    Parallel(
+                                        Sequence(
+                                            Run("resolvconf"),
+                                            Parallel(
+                                                Sequence(
+                                                    Run("repository"),
+                                                    Parallel(
+                                                        Run("rsyslog"),
+                                                        Run("journald"),
+                                                        Run("systohc"),
+                                                        Run("configfs"),
+                                                        Run("packages"),
+                                                        Run("sysctl"),
+                                                        Run("limits"),
+                                                        Run("services"),
+                                                        Run("motd"),
+                                                        Run("rng"),
+                                                        Run("smartd"),
+                                                        Run("cleanup"),
+                                                        Run("timezone"),
+                                                        Run("docker"),
+                                                        Run("docker-compose"),
+                                                        Run("chrony"),
+                                                        Run("lldpd"),
+                                                    ),
                                                 )
-                                            ],
+                                            ),
                                         )
-                                    ],
+                                    ),
                                 )
-                            ],
+                            ),
                         )
-                    ],
+                    ),
                 )
-            ],
-        ),
-    ],
-    "cloudpod-infrastructure": [
-        Role("openstackclient"),
-        Role("phpmyadmin"),
-        Role(
-            "common",
-            dependencies=[
-                Role(
-                    "loadbalancer",
-                    dependencies=[
-                        Role("letsencrypt"),
-                        Role("opensearch"),
-                        Role("mariadb"),
-                    ],
+            ),
+        )
+    ),
+    "cloudpod-infrastructure": Parallel(
+        Run("openstackclient"),
+        Run("phpmyadmin"),
+        Sequence(
+            Run("common"),
+            Parallel(
+                Sequence(
+                    Run("loadbalancer"),
+                    Parallel(Run("letsencrypt"), Run("opensearch"), Run("mariadb")),
                 ),
-                Role("openvswitch", dependencies=[Role("ovn")]),
-                Role("memcached"),
-                Role("redis", until="2025.1"),
-                Role("valkey", since="2025.2"),
-                Role("rabbitmq"),
-            ],
+                Sequence(Run("openvswitch"), Parallel(Run("ovn"))),
+                Run("memcached"),
+                Select("kvs_backend", {"redis": Run("redis"), "valkey": Run("valkey")}),
+                Run("rabbitmq"),
+            ),
         ),
-    ],
-    "cloudpod-openstack": [
-        Role("horizon"),
-        Role(
-            "keystone",
-            dependencies=[
-                Role("glance"),
-                Role("cinder"),
-                Role(
-                    "neutron",
-                    dependencies=[
-                        Role("wait-for-nova", dependencies=[Role("octavia")]),
-                    ],
+    ),
+    "cloudpod-openstack": Parallel(
+        Run("horizon"),
+        Sequence(
+            Run("keystone"),
+            Parallel(
+                Run("glance"),
+                Run("cinder"),
+                Sequence(
+                    Run("neutron"),
+                    Parallel(Sequence(Run("wait-for-nova"), Parallel(Run("octavia")))),
                 ),
-                Role("placement", dependencies=[Role("nova")]),
-                Role("designate"),
-                Role("skyline"),
-                Role("kolla-ceph-rgw"),
-            ],
+                Sequence(Run("placement"), Parallel(Run("nova"))),
+                Run("designate"),
+                Run("skyline"),
+                Run("kolla-ceph-rgw"),
+            ),
         ),
-    ],
-    "cloudpod-ceph": [
-        Role(
-            "ceph-create-lvm-devices",
-            dependencies=[
-                Role("facts"),
-                Role(
-                    "ceph",
-                    dependencies=[
-                        Role(
-                            "ceph-pools",
-                            dependencies=[
-                                Role(
-                                    "copy-ceph-keys",
-                                    dependencies=[
-                                        Role(
-                                            "cephclient",
-                                            dependencies=[
-                                                Role("ceph-bootstrap-dashboard")
-                                            ],
+    ),
+    "cloudpod-ceph": Parallel(
+        Sequence(
+            Run("ceph-create-lvm-devices"),
+            Parallel(
+                Run("facts"),
+                Sequence(
+                    Run("ceph"),
+                    Parallel(
+                        Sequence(
+                            Run("ceph-pools"),
+                            Parallel(
+                                Sequence(
+                                    Run("copy-ceph-keys"),
+                                    Parallel(
+                                        Sequence(
+                                            Run("cephclient"),
+                                            Parallel(Run("ceph-bootstrap-dashboard")),
                                         )
-                                    ],
+                                    ),
                                 )
-                            ],
+                            ),
                         )
-                    ],
+                    ),
                 ),
-            ],
-        ),
-    ],
+            ),
+        )
+    ),
 }
