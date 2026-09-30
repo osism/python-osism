@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20260930.0] - 2026-09-30
+
+### Added
+- Add `osism get mariadb-backup-host` command to show the host `osism apply mariadb-backup` writes archives to (osism/python-osism#2729)
+- Add `--osism-version` and `--ceph-backend` options to `osism apply` to select or override the nutshell Ceph deployment workflow (osism/python-osism#2737)
+
+### Changed
+- Replace role dependency trees with explicit execution plans (Run, Sequence, Parallel, Select) to resolve collection selections before scheduling, so excluded roles no longer implicitly promote their children (osism/python-osism#2737)
+- Select the nutshell collection's complete Ceph workflow (ceph-ansible or cephadm) based on the OSISM release instead of a fixed root role (osism/python-osism#2737)
+
+### Fixed
+- Fix `osism manage project create` and `osism manage project sync` failing with `ModuleNotFoundError` by putting the project manager checkout on PYTHONPATH (osism/python-osism#2735)
+
+### Dependencies
+- @tanstack/react-query 5.103.2 → 5.104.0 (osism/python-osism#2733, osism/python-osism#2734)
+- uvicorn 0.53.0 → 0.54.0 (osism/python-osism#2727)
+- pytest-mock 3.15.1 → 3.16.0 (osism/python-osism#2738)
+
 ## [v0.20260928.0] - 2026-09-28
 
 ### Dependencies
