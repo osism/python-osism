@@ -86,6 +86,69 @@ VALIDATE_PLAYBOOKS = {
     "stress": {"environment": "generic", "runtime": "osism-ansible"},
 }
 
+
+def _ceph_consumers():
+    return Sequence(
+        Run("wait-for-keystone"),
+        Parallel(Run("kolla-ceph-rgw"), Run("glance"), Run("cinder"), Run("nova")),
+    )
+
+
+def _ceph_monitoring():
+    return Sequence(Run("prometheus"), Parallel(Run("grafana")))
+
+
+def _ceph_ansible_plan():
+    """Keep the ceph-ansible workflow and its existing consumer readiness points."""
+    return Sequence(
+        Run("ceph"),
+        Parallel(
+            Sequence(
+                Run("ceph-pools"),
+                Parallel(
+                    Sequence(
+                        Run("copy-ceph-keys"),
+                        Parallel(
+                            Sequence(
+                                Run("cephclient"),
+                                Parallel(
+                                    Run("ceph-bootstrap-dashboard"),
+                                    _ceph_consumers(),
+                                    _ceph_monitoring(),
+                                ),
+                            )
+                        ),
+                    )
+                ),
+            )
+        ),
+    )
+
+
+def _cephadm_plan():
+    """Cephadm needs its client early and RGW before the Kolla consumers.
+
+    Match the previously validated nutshell-cephadm workflow. Monitoring,
+    dashboard and MDS may start once pools and key distribution are ready.
+    """
+    return Sequence(
+        Run("cephadm-bootstrap"),
+        Run("cephclient"),
+        Run("cephadm-hosts"),
+        Run("cephadm-config"),
+        Run("cephadm-mons"),
+        Run("cephadm-osds"),
+        Run("cephadm-pools"),
+        Run("copy-ceph-keys"),
+        Parallel(
+            Run("cephadm-dashboard"),
+            Run("cephadm-mds"),
+            Sequence(Run("cephadm-rgw"), _ceph_consumers()),
+            _ceph_monitoring(),
+        ),
+    )
+
+
 # Explicit execution plans: siblings run concurrently; sequences impose barriers.
 MAP_ROLE2ROLE = {
     "nutshell": Parallel(
@@ -137,38 +200,12 @@ MAP_ROLE2ROLE = {
         Sequence(
             Run("kubernetes"), Parallel(Run("kubeconfig"), Run("copy-kubeconfig"))
         ),
-        Sequence(
-            Run("ceph"),
-            Parallel(
-                Sequence(
-                    Run("ceph-pools"),
-                    Parallel(
-                        Sequence(
-                            Run("copy-ceph-keys"),
-                            Parallel(
-                                Sequence(
-                                    Run("cephclient"),
-                                    Parallel(
-                                        Run("ceph-bootstrap-dashboard"),
-                                        Sequence(
-                                            Run("wait-for-keystone"),
-                                            Parallel(
-                                                Run("kolla-ceph-rgw"),
-                                                Run("glance"),
-                                                Run("cinder"),
-                                                Run("nova"),
-                                            ),
-                                        ),
-                                        Sequence(
-                                            Run("prometheus"), Parallel(Run("grafana"))
-                                        ),
-                                    ),
-                                )
-                            ),
-                        )
-                    ),
-                )
-            ),
+        Select(
+            "ceph_backend",
+            {
+                "ceph-ansible": _ceph_ansible_plan(),
+                "cephadm": _cephadm_plan(),
+            },
         ),
     ),
     "collection-infrastructure": Parallel(

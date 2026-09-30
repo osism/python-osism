@@ -168,6 +168,62 @@ def test_prepare_task_strips_ceph_prefix(task_mocks):
     assert t is task_mocks.ceph_run.si.return_value
 
 
+def test_prepare_task_ceph_role_in_osism_ansible_runtime(task_mocks):
+    """A ceph-environment play shipped by osism-ansible (the cephadm deploy
+    plays, and the ceph validators) must run in the osism-ansible runtime, not
+    in the ceph-ansible container which has no such playbook."""
+    _set_playbook_maps(
+        role2environment={"cephadm-bootstrap": "ceph"},
+        role2runtime={"osism-ansible": ["cephadm-bootstrap"]},
+    )
+    cmd = make_command(apply.Run)
+
+    t = _prepare_task(cmd, role="cephadm-bootstrap", arguments=["-e x=1"])
+
+    task_mocks.ansible_run.si.assert_called_once_with(
+        "ceph", "cephadm-bootstrap", ["-e x=1"], auto_release_time=3600
+    )
+    task_mocks.ceph_run.si.assert_not_called()
+    assert t is task_mocks.ansible_run.si.return_value
+
+
+def test_prepare_task_ceph_ansible_role_still_reaches_ceph_ansible(task_mocks):
+    """This looks like a duplicate of test_prepare_task_strips_ceph_prefix but
+    is not: that test runs with EMPTY maps, so the override's guard is never
+    evaluated (it fails the runtime-membership check trivially). Here
+    role2runtime populates "ceph-ansible" (not "osism-ansible"), so the guard
+    is actually evaluated and must decline -- proving the override only claims
+    roles osism-ansible advertises for the ceph environment, and ceph-ansible's
+    own roles still reach ceph-ansible with the ceph- prefix stripped."""
+    _set_playbook_maps(
+        role2environment={"ceph-mons": "ceph"},
+        role2runtime={"ceph-ansible": ["ceph-mons"]},
+    )
+    cmd = make_command(apply.Run)
+
+    t = _prepare_task(cmd, role="ceph-mons", arguments=[])
+
+    task_mocks.ceph_run.si.assert_called_once_with(
+        "ceph", "mons", [], auto_release_time=3600
+    )
+    task_mocks.ansible_run.si.assert_not_called()
+    assert t is task_mocks.ceph_run.si.return_value
+
+
+def test_prepare_task_ceph_override_ignores_other_environments(task_mocks):
+    """The environment check is what stops the override swallowing an
+    osism-ansible role registered for a DIFFERENT environment."""
+    _set_playbook_maps(
+        role2environment={"facts": "generic"},
+        role2runtime={"osism-ansible": ["facts"]},
+    )
+    cmd = make_command(apply.Run)
+
+    _prepare_task(cmd, role="facts", arguments=[])
+
+    task_mocks.ceph_run.si.assert_not_called()
+
+
 def test_prepare_task_sub_environment_suffix(task_mocks):
     _set_playbook_maps()
     cmd = make_command(apply.Run)
@@ -1036,3 +1092,132 @@ def test_take_action_invalid_later_plan_prevents_earlier_dispatch(take_action_mo
         with pytest.raises(SystemExit):
             cmd.take_action(parsed)
     cmd.handle_collection.assert_not_called()
+
+
+def _ceph_collection():
+    return Select(
+        "ceph_backend",
+        {"ceph-ansible": Run("ceph"), "cephadm": Run("cephadm-bootstrap")},
+    )
+
+
+@pytest.mark.parametrize(
+    "version,expected",
+    [
+        ("10.2.0", "ceph"),
+        ("11.0.0", "cephadm-bootstrap"),
+        ("latest", "cephadm-bootstrap"),
+    ],
+)
+def test_take_action_osism_selects_ceph_plan(take_action_mocks, version, expected):
+    cmd, parsed = parse_args(apply.Run, ["--osism-version", version, "testcollection"])
+    cmd.handle_collection = MagicMock(return_value=0)
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _ceph_collection()}):
+        assert cmd.take_action(parsed) == 0
+    assert cmd.handle_collection.call_args.kwargs["plan"] == Run(expected)
+    assert cmd.handle_collection.call_args.kwargs["release"] is None
+
+
+def test_take_action_backend_override_skips_osism_lookup(take_action_mocks, mocker):
+    lookup = mocker.patch(
+        "osism.data.releases.osism_release",
+        side_effect=AssertionError("unexpected lookup"),
+    )
+    cmd, parsed = parse_args(
+        apply.Run, ["--ceph-backend", "ceph-ansible", "testcollection"]
+    )
+    cmd.handle_collection = MagicMock(return_value=0)
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _ceph_collection()}):
+        assert cmd.take_action(parsed) == 0
+    assert cmd.handle_collection.call_args.kwargs["plan"] == Run("ceph")
+    lookup.assert_not_called()
+
+
+def test_take_action_unrelated_collection_never_resolves_osism(
+    take_action_mocks, mocker
+):
+    lookup = mocker.patch("osism.data.releases.osism_release")
+    cmd, parsed = parse_args(apply.Run, ["testcollection"])
+    cmd.handle_collection = MagicMock(return_value=0)
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": Run("a")}):
+        assert cmd.take_action(parsed) == 0
+    lookup.assert_not_called()
+
+
+def test_take_action_osism_error_prevents_all_dispatch(take_action_mocks, mocker):
+    from osism.data.plans import PlanError
+
+    mocker.patch(
+        "osism.data.releases.osism_release",
+        side_effect=PlanError("missing manager_version"),
+    )
+    cmd, parsed = parse_args(apply.Run, ["ordinary-role//testcollection"])
+    cmd.handle_collection = MagicMock()
+    cmd.handle_role = MagicMock()
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _ceph_collection()}):
+        with pytest.raises(SystemExit):
+            cmd.take_action(parsed)
+    cmd.handle_collection.assert_not_called()
+    cmd.handle_role.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "openstack,osism,kvs,ceph",
+    [
+        ("2025.1", "11.0.0", "redis", "cephadm-bootstrap"),
+        ("2026.1", "10.2.0", "valkey", "ceph"),
+    ],
+)
+def test_nutshell_release_domains_are_independent(
+    take_action_mocks, openstack, osism, kvs, ceph
+):
+    from tests.unit.data.test_plans import role_names
+
+    cmd, parsed = parse_args(
+        apply.Run,
+        ["--openstack-version", openstack, "--osism-version", osism, "nutshell"],
+    )
+    cmd.handle_collection = MagicMock(return_value=0)
+    assert cmd.take_action(parsed) == 0
+    names = role_names(cmd.handle_collection.call_args.kwargs["plan"])
+    assert kvs in names
+    assert ceph in names
+    assert ("valkey" if kvs == "redis" else "redis") not in names
+    assert ("ceph" if ceph == "cephadm-bootstrap" else "cephadm-bootstrap") not in names
+
+
+@pytest.mark.parametrize(
+    "version,selected,excluded",
+    [
+        ("10.2.0", "ceph", "cephadm-bootstrap"),
+        ("latest", "cephadm-bootstrap", "ceph"),
+    ],
+)
+def test_nutshell_show_tree_uses_manager_configuration(
+    take_action_mocks,
+    mocker,
+    monkeypatch,
+    tmp_path,
+    loguru_logs,
+    version,
+    selected,
+    excluded,
+):
+    from osism.data import releases
+
+    configuration = tmp_path / "manager.yml"
+    configuration.write_text(f"manager_version: {version}\n")
+    monkeypatch.setattr(releases, "MANAGER_CONFIGURATION_FILE", str(configuration))
+    monkeypatch.delenv("OSISM_VERSION", raising=False)
+    cmd, parsed = parse_args(
+        apply.Run, ["--openstack-version", "2025.1", "--show-tree", "nutshell"]
+    )
+    prepare = mocker.patch.object(cmd, "_prepare_task")
+    assert cmd.take_action(parsed) == 0
+    rendered_roles = [
+        r["message"].split()[-1] for r in loguru_logs if r["message"].startswith("A [")
+    ]
+    assert selected in rendered_roles
+    assert excluded not in rendered_roles
+    assert rendered_roles.count("glance") == 1
+    prepare.assert_not_called()

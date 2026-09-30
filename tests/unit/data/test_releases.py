@@ -320,3 +320,60 @@ def test_import_does_not_read_environment():
     )
     imported_file = os.path.abspath(result.stdout.strip())
     assert imported_file == expected_file
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("10.2.0", (10, 2, 0)),
+        ("11", (11, 0, 0)),
+        ("11.1", (11, 1, 0)),
+        ("latest", "latest"),
+    ],
+)
+def test_parse_osism_release(value, expected):
+    assert releases.parse_osism_release(value) == expected
+
+
+@pytest.mark.parametrize("value", ["master", "11.0.0junk", "", None, "2025.2.3.4"])
+def test_parse_osism_release_rejects_invalid_values(value):
+    from osism.data.plans import PlanError
+
+    with pytest.raises(PlanError, match="Could not parse OSISM release"):
+        releases.parse_osism_release(value)
+
+
+def test_osism_release_source_precedence(monkeypatch, tmp_path):
+    configuration = tmp_path / "manager.yml"
+    configuration.write_text("manager_version: 10.2.0\n")
+    monkeypatch.setattr(releases, "MANAGER_CONFIGURATION_FILE", str(configuration))
+    monkeypatch.delenv("OSISM_VERSION", raising=False)
+    assert releases.osism_release() == (10, 2, 0)
+    monkeypatch.setenv("OSISM_VERSION", "latest")
+    assert releases.osism_release() == "latest"
+    assert releases.osism_release("11.0.0") == (11, 0, 0)
+
+
+@pytest.mark.parametrize(
+    "content", ["", "[]", "manager_version: invalid\n", "manager_version: ["]
+)
+def test_osism_release_bad_configuration_fails(monkeypatch, tmp_path, content):
+    from osism.data.plans import PlanError
+
+    configuration = tmp_path / "manager.yml"
+    configuration.write_text(content)
+    monkeypatch.setattr(releases, "MANAGER_CONFIGURATION_FILE", str(configuration))
+    monkeypatch.delenv("OSISM_VERSION", raising=False)
+    with pytest.raises(PlanError):
+        releases.osism_release()
+
+
+def test_osism_release_missing_file_fails(monkeypatch, tmp_path):
+    from osism.data.plans import PlanError
+
+    monkeypatch.setattr(
+        releases, "MANAGER_CONFIGURATION_FILE", str(tmp_path / "missing")
+    )
+    monkeypatch.delenv("OSISM_VERSION", raising=False)
+    with pytest.raises(PlanError, match="Could not read OSISM release"):
+        releases.osism_release()
