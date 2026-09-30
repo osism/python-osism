@@ -1092,3 +1092,132 @@ def test_take_action_invalid_later_plan_prevents_earlier_dispatch(take_action_mo
         with pytest.raises(SystemExit):
             cmd.take_action(parsed)
     cmd.handle_collection.assert_not_called()
+
+
+def _ceph_collection():
+    return Select(
+        "ceph_backend",
+        {"ceph-ansible": Run("ceph"), "cephadm": Run("cephadm-bootstrap")},
+    )
+
+
+@pytest.mark.parametrize(
+    "version,expected",
+    [
+        ("10.2.0", "ceph"),
+        ("11.0.0", "cephadm-bootstrap"),
+        ("latest", "cephadm-bootstrap"),
+    ],
+)
+def test_take_action_osism_selects_ceph_plan(take_action_mocks, version, expected):
+    cmd, parsed = parse_args(apply.Run, ["--osism-version", version, "testcollection"])
+    cmd.handle_collection = MagicMock(return_value=0)
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _ceph_collection()}):
+        assert cmd.take_action(parsed) == 0
+    assert cmd.handle_collection.call_args.kwargs["plan"] == Run(expected)
+    assert cmd.handle_collection.call_args.kwargs["release"] is None
+
+
+def test_take_action_backend_override_skips_osism_lookup(take_action_mocks, mocker):
+    lookup = mocker.patch(
+        "osism.data.releases.osism_release",
+        side_effect=AssertionError("unexpected lookup"),
+    )
+    cmd, parsed = parse_args(
+        apply.Run, ["--ceph-backend", "ceph-ansible", "testcollection"]
+    )
+    cmd.handle_collection = MagicMock(return_value=0)
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _ceph_collection()}):
+        assert cmd.take_action(parsed) == 0
+    assert cmd.handle_collection.call_args.kwargs["plan"] == Run("ceph")
+    lookup.assert_not_called()
+
+
+def test_take_action_unrelated_collection_never_resolves_osism(
+    take_action_mocks, mocker
+):
+    lookup = mocker.patch("osism.data.releases.osism_release")
+    cmd, parsed = parse_args(apply.Run, ["testcollection"])
+    cmd.handle_collection = MagicMock(return_value=0)
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": Run("a")}):
+        assert cmd.take_action(parsed) == 0
+    lookup.assert_not_called()
+
+
+def test_take_action_osism_error_prevents_all_dispatch(take_action_mocks, mocker):
+    from osism.data.plans import PlanError
+
+    mocker.patch(
+        "osism.data.releases.osism_release",
+        side_effect=PlanError("missing manager_version"),
+    )
+    cmd, parsed = parse_args(apply.Run, ["ordinary-role//testcollection"])
+    cmd.handle_collection = MagicMock()
+    cmd.handle_role = MagicMock()
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": _ceph_collection()}):
+        with pytest.raises(SystemExit):
+            cmd.take_action(parsed)
+    cmd.handle_collection.assert_not_called()
+    cmd.handle_role.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "openstack,osism,kvs,ceph",
+    [
+        ("2025.1", "11.0.0", "redis", "cephadm-bootstrap"),
+        ("2026.1", "10.2.0", "valkey", "ceph"),
+    ],
+)
+def test_nutshell_release_domains_are_independent(
+    take_action_mocks, openstack, osism, kvs, ceph
+):
+    from tests.unit.data.test_plans import role_names
+
+    cmd, parsed = parse_args(
+        apply.Run,
+        ["--openstack-version", openstack, "--osism-version", osism, "nutshell"],
+    )
+    cmd.handle_collection = MagicMock(return_value=0)
+    assert cmd.take_action(parsed) == 0
+    names = role_names(cmd.handle_collection.call_args.kwargs["plan"])
+    assert kvs in names
+    assert ceph in names
+    assert ("valkey" if kvs == "redis" else "redis") not in names
+    assert ("ceph" if ceph == "cephadm-bootstrap" else "cephadm-bootstrap") not in names
+
+
+@pytest.mark.parametrize(
+    "version,selected,excluded",
+    [
+        ("10.2.0", "ceph", "cephadm-bootstrap"),
+        ("latest", "cephadm-bootstrap", "ceph"),
+    ],
+)
+def test_nutshell_show_tree_uses_manager_configuration(
+    take_action_mocks,
+    mocker,
+    monkeypatch,
+    tmp_path,
+    loguru_logs,
+    version,
+    selected,
+    excluded,
+):
+    from osism.data import releases
+
+    configuration = tmp_path / "manager.yml"
+    configuration.write_text(f"manager_version: {version}\n")
+    monkeypatch.setattr(releases, "MANAGER_CONFIGURATION_FILE", str(configuration))
+    monkeypatch.delenv("OSISM_VERSION", raising=False)
+    cmd, parsed = parse_args(
+        apply.Run, ["--openstack-version", "2025.1", "--show-tree", "nutshell"]
+    )
+    prepare = mocker.patch.object(cmd, "_prepare_task")
+    assert cmd.take_action(parsed) == 0
+    rendered_roles = [
+        r["message"].split()[-1] for r in loguru_logs if r["message"].startswith("A [")
+    ]
+    assert selected in rendered_roles
+    assert excluded not in rendered_roles
+    assert rendered_roles.count("glance") == 1
+    prepare.assert_not_called()

@@ -120,6 +120,26 @@ class Run(Command):
             ),
         )
         parser.add_argument(
+            "--osism-version",
+            default=None,
+            help=(
+                "OSISM release used to select the collection's Ceph backend. "
+                "Read from OSISM_VERSION, then manager_version in "
+                "/opt/configuration/environments/manager/configuration.yml. "
+                "Accepts latest. Must be given before the collection name."
+            ),
+        )
+        parser.add_argument(
+            "--ceph-backend",
+            choices=("ceph-ansible", "cephadm"),
+            default=None,
+            help=(
+                "Override the collection's release-selected Ceph backend, "
+                "for example to retain ceph-ansible on an existing cluster. "
+                "Must be given before the collection name."
+            ),
+        )
+        parser.add_argument(
             "--show-tree",
             dest="show_tree",
             default=False,
@@ -189,6 +209,10 @@ class Run(Command):
             if "kvs_backend" in plans.selection_keys(data)
             else {}
         )
+        if "ceph_backend" in plans.selection_keys(data):
+            from osism.data.releases import osism_release
+
+            selections.update(plans.selections_for_osism(osism_release()))
         resolved = plans.resolve(data, selections)
 
         def compile_plan(node, depth):
@@ -499,32 +523,44 @@ class Run(Command):
 
         rc = 0
 
-        # Resolve the release before the dispatch loop below, not inside it: each
-        # iteration ends in apply_async(), so resolving per entry would let an
-        # earlier collection reach the cluster before a later one failed.
+        # Resolve every requested plan before dispatching any tasks. The two
+        # release domains are consulted only when a collection needs them.
         release = None
-        if role:
-            bounded = {}
-            for entry in role.split("//"):
-                if entry in enums.MAP_ROLE2ROLE:
-                    found = plans.selection_keys(enums.MAP_ROLE2ROLE[entry]) & {
-                        "kvs_backend"
-                    }
-                    if found:
-                        bounded[entry] = found
-
-            if bounded:
-                release = self._resolve_release(parsed_args.openstack_version, bounded)
-
         resolved_plans = {}
         if role:
-            selections = plans.selections_for_openstack(release) if bounded else {}
             try:
-                for entry in role.split("//"):
-                    if entry in enums.MAP_ROLE2ROLE:
-                        resolved_plans[entry] = plans.resolve(
-                            enums.MAP_ROLE2ROLE[entry], selections
+                required = {
+                    entry: plans.selection_keys(enums.MAP_ROLE2ROLE[entry])
+                    for entry in role.split("//")
+                    if entry in enums.MAP_ROLE2ROLE
+                }
+                bounded = {
+                    name: keys
+                    for name, keys in required.items()
+                    if "kvs_backend" in keys
+                }
+                selections = {}
+                if bounded:
+                    release = self._resolve_release(
+                        parsed_args.openstack_version, bounded
+                    )
+                    selections.update(plans.selections_for_openstack(release))
+                if any("ceph_backend" in keys for keys in required.values()):
+                    if parsed_args.ceph_backend:
+                        selections["ceph_backend"] = parsed_args.ceph_backend
+                    else:
+                        from osism.data.releases import osism_release
+
+                        selections.update(
+                            plans.selections_for_osism(
+                                osism_release(parsed_args.osism_version)
+                            )
                         )
+                    logger.info(f"Selected Ceph backend: {selections['ceph_backend']}")
+                for entry in required:
+                    resolved_plans[entry] = plans.resolve(
+                        enums.MAP_ROLE2ROLE[entry], selections
+                    )
             except plans.PlanError as exc:
                 logger.error(str(exc))
                 exit(1)
