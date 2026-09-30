@@ -10,8 +10,7 @@ from tabulate import tabulate
 
 from osism import utils
 from osism.data import enums
-from osism.data.enums import Role
-from osism.data.releases import format_release
+from osism.data import plans
 
 
 def _collect_result(result):
@@ -184,108 +183,42 @@ class Run(Command):
         from celery import chain, group
         from osism.tasks import ansible
 
-        g = []
-        for item in data:
-            # All items must be Role objects
-            if not isinstance(item, Role):
-                logger.error(f"Expected Role object, got {type(item).__name__}: {item}")
-                raise TypeError(
-                    f"Expected Role object, got {type(item).__name__}: {item}"
-                )
+        # Resolve first: neither rendering nor task preparation chooses branches.
+        selections = (
+            plans.selections_for_openstack(release)
+            if "kvs_backend" in plans.selection_keys(data)
+            else {}
+        )
+        resolved = plans.resolve(data, selections)
 
-            # Process Role object
-            role_name = item.name
-            dependencies = item.dependencies
-
-            if release is not None and not item.deployed_in(release):
-                # Not a warning: on a release where the role does not belong,
-                # this is correct output on every run, and a warning that always
-                # fires teaches operators to ignore warnings.
-                logger.info(
-                    f"Skipping {role_name}: not deployed by this collection "
-                    f"on OpenStack {format_release(release)} "
-                    f"(deployed {item.bound_description()})"
-                )
-                pt = None
-            else:
-                if release is None and item.release_bounded:
-                    logger.warning(
-                        f"{role_name} has release bounds "
-                        f"({item.bound_description()}) but no OpenStack "
-                        f"release was resolved; its bounds are being ignored "
-                        f"and it will be scheduled unconditionally."
-                    )
-
-                logger.info(f"A [{counter}] {'-' * (counter + 1)} {role_name}")
-
+        def compile_plan(node, depth):
+            if isinstance(node, plans.Run):
+                logger.info(f"A [{depth}] {'-' * (depth + 1)} {node.name}")
                 if show_tree:
-                    # Only show the tree, don't create tasks
-                    pt = None
-                elif dry_run:
-                    pt = ansible.noop.si()
-                else:
-                    pt = self._prepare_task(
-                        arguments,
-                        environment,
-                        overwrite,
-                        sub,
-                        role_name,
-                        action,
-                        wait,
-                        format,
-                        timeout,
-                        task_timeout,
-                    )
-
-            st = None
-            if dependencies:
-                logger.debug(f"X [{counter + 1}] --> {dependencies}")
-                st = self._handle_collection(
-                    dependencies,
-                    counter + 1,
+                    return None
+                if dry_run:
+                    return ansible.noop.si()
+                return self._prepare_task(
                     arguments,
                     environment,
                     overwrite,
                     sub,
-                    collection,
+                    node.name,
                     action,
                     wait,
                     format,
                     timeout,
                     task_timeout,
-                    retry,
-                    dry_run,
-                    show_tree,
-                    release,
                 )
-
+            logger.info(f"{' ' * depth}{type(node).__name__}")
+            children = [compile_plan(step, depth + 1) for step in node.steps]
             if show_tree:
-                continue
+                return None
+            if isinstance(node, plans.Sequence):
+                return chain(*children)
+            return group(children)
 
-            # Both halves can be absent: pt when the role is excluded, st when
-            # its dependencies all were. Appending either unconditionally would
-            # build chain(pt, None) or group([None]).
-            if pt is not None and st is not None:
-                g.append(chain(pt, st))
-            elif pt is not None:
-                g.append(pt)
-            elif st is not None:
-                # Promotion keeps the subtree and its position among retained
-                # siblings, but not what the excluded role supplied to it:
-                # chain(pt, st) ran the role BEFORE its dependencies, so they
-                # are its dependents and it is their prerequisite. Dropping it
-                # leaves them with no predecessor, and nothing here can know
-                # which retained or replacement role belongs in that place.
-                #
-                # Nothing checks that at runtime, deliberately. The catalog
-                # cannot grow a bounded role with dependencies without turning
-                # test_no_bounded_role_has_dependencies red first, so by the
-                # time this branch runs the ordering has already been settled
-                # by whoever made that test pass.
-                g.append(st)
-
-        if g:
-            return group(g)
+        return compile_plan(resolved, counter)
 
     def handle_collection(
         self,
@@ -303,6 +236,7 @@ class Run(Command):
         dry_run,
         show_tree,
         release=None,
+        plan=None,
     ):
         if dry_run:
             logger.info(f"Dry run for collection {collection}. No tasks are scheduled.")
@@ -312,7 +246,7 @@ class Run(Command):
             logger.info(f"Collection {collection} is prepared for execution")
 
         t = self._handle_collection(
-            enums.MAP_ROLE2ROLE[collection],
+            plan if plan is not None else enums.MAP_ROLE2ROLE[collection],
             0,
             arguments,
             environment,
@@ -345,8 +279,7 @@ class Run(Command):
     def _resolve_release(self, override, bounded):
         """Return the deployed release, or exit reporting why it is unknown.
 
-        ``bounded`` maps collection name to the release-bounded roles it
-        contains; it is used only to name what needed the release.
+        ``bounded`` names the collections whose selections need the release.
         """
         from osism.data.releases import (
             ReleaseUndetermined,
@@ -368,16 +301,6 @@ class Run(Command):
                 f"release, but the release could not be determined: {exc}"
             )
 
-        # One role can appear in several collections; report it once.
-        descriptions = {}
-        for roles in bounded.values():
-            for role in roles:
-                descriptions[role.name] = role.bound_description()
-
-        affected = ", ".join(
-            f"{name} ({descriptions[name]})" for name in sorted(descriptions)
-        )
-        logger.error(f"Affected roles: {affected}")
         logger.error(
             "Supply the release with OPENSTACK_VERSION=<release> osism apply "
             "<collection>, or with --openstack-version <release> before the "
@@ -566,12 +489,27 @@ class Run(Command):
             bounded = {}
             for entry in role.split("//"):
                 if entry in enums.MAP_ROLE2ROLE:
-                    found = list(enums.bounded_roles(enums.MAP_ROLE2ROLE[entry]))
+                    found = plans.selection_keys(enums.MAP_ROLE2ROLE[entry]) & {
+                        "kvs_backend"
+                    }
                     if found:
                         bounded[entry] = found
 
             if bounded:
                 release = self._resolve_release(parsed_args.openstack_version, bounded)
+
+        resolved_plans = {}
+        if role:
+            selections = plans.selections_for_openstack(release) if bounded else {}
+            try:
+                for entry in role.split("//"):
+                    if entry in enums.MAP_ROLE2ROLE:
+                        resolved_plans[entry] = plans.resolve(
+                            enums.MAP_ROLE2ROLE[entry], selections
+                        )
+            except plans.PlanError as exc:
+                logger.error(str(exc))
+                exit(1)
 
         if not role:
             table = []
@@ -601,6 +539,7 @@ class Run(Command):
                         dry_run,
                         show_tree,
                         release=release,
+                        plan=resolved_plans[role],
                     )
                     if rc != 0:
                         outer_break = True

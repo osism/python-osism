@@ -12,7 +12,7 @@ chains, and retries failed roles. These tests characterize:
   the ``kolla_action`` extra argument and the osism-ansible runtime
   override;
 - ``_handle_collection``/``handle_collection``: recursive group/chain
-  construction from ``Role`` trees, dry-run (noop tasks), show-tree
+  construction from explicit execution plans, dry-run (noop tasks), show-tree
   (log-only) mode and the scheduling/log contract;
 - ``handle_role``/``handle_loadbalancer_task``: exit-code pass-through,
   the ``GroupResult`` dispatch and the child-task semantics (a group
@@ -33,7 +33,7 @@ import pytest
 from osism import utils as osism_utils
 from osism.commands import apply
 from osism.data import enums, playbooks
-from osism.data.enums import Role
+from osism.data.plans import Parallel, Run, Select, Sequence
 
 from ._helpers import assert_not_called_before_lock_check, make_command, parse_args
 
@@ -320,323 +320,38 @@ def test_prepare_task_overwrite_replaces_default_environment(task_mocks):
 # _handle_collection
 
 
-def test_handle_collection_rejects_non_role_items(loguru_logs):
+def test_handle_collection_parallel_and_sequence(mocker):
     cmd = make_command(apply.Run)
-
-    with pytest.raises(TypeError, match="Expected Role object, got str"):
-        cmd._handle_collection(["not-a-role"], **_collection_kwargs())
-
-    assert any(
-        r["level"] == "ERROR" and "Expected Role object" in r["message"]
-        for r in loguru_logs
+    prepare = mocker.patch.object(cmd, "_prepare_task", side_effect=lambda *a: a[4])
+    group = mocker.patch(
+        "celery.group", side_effect=lambda steps: ("parallel", tuple(steps))
     )
-
-
-def test_handle_collection_flat_roles_wrapped_in_group(mocker):
-    group_mock = mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    prepared = [MagicMock(name="pt-a"), MagicMock(name="pt-b")]
-    cmd._prepare_task = MagicMock(side_effect=prepared)
-
-    result = cmd._handle_collection([Role("a"), Role("b")], **_collection_kwargs())
-
-    assert [c.args[4] for c in cmd._prepare_task.call_args_list] == ["a", "b"]
-    group_mock.assert_called_once_with(prepared)
-    assert result is group_mock.return_value
-
-
-def test_handle_collection_nested_dependencies_chained(mocker):
-    group_mock = mocker.patch("celery.group")
-    chain_mock = mocker.patch("celery.chain")
-    cmd = make_command(apply.Run)
-    parent_pt = MagicMock(name="pt-parent")
-    child_pt = MagicMock(name="pt-child")
-    cmd._prepare_task = MagicMock(side_effect=[parent_pt, child_pt])
-
+    chain = mocker.patch("celery.chain", side_effect=lambda *steps: ("sequence", steps))
     result = cmd._handle_collection(
-        [Role("parent", dependencies=[Role("child")])], **_collection_kwargs()
+        Parallel(Sequence(Run("parent"), Parallel(Run("a"), Run("b"))), Run("peer")),
+        **_collection_kwargs(),
     )
-
-    chain_mock.assert_called_once_with(parent_pt, group_mock.return_value)
-    assert group_mock.call_args_list == [
-        call([child_pt]),
-        call([chain_mock.return_value]),
-    ]
-    assert result is group_mock.return_value
-
-
-def test_handle_collection_dry_run_uses_noop_tasks(mocker, task_mocks):
-    group_mock = mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-
-    result = cmd._handle_collection(
-        [Role("a"), Role("b")], **_collection_kwargs(dry_run=True)
+    assert result == (
+        "parallel",
+        (("sequence", ("parent", ("parallel", ("a", "b")))), "peer"),
     )
-
-    cmd._prepare_task.assert_not_called()
-    assert task_mocks.ansible_noop.si.call_count == 2
-    task_mocks.ansible_noop.si.assert_called_with()
-    group_mock.assert_called_once_with([task_mocks.ansible_noop.si.return_value] * 2)
-    assert result is group_mock.return_value
+    assert prepare.call_count == 4
+    assert group.call_count == 2
+    chain.assert_called_once()
 
 
-def test_handle_collection_show_tree_only_logs(task_mocks, loguru_logs):
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-
-    result = cmd._handle_collection(
-        [Role("parent", dependencies=[Role("child")])],
-        **_collection_kwargs(show_tree=True),
-    )
-
-    assert result is None
-    cmd._prepare_task.assert_not_called()
-    task_mocks.ansible_noop.si.assert_not_called()
-    messages = [r["message"] for r in loguru_logs]
-    assert "A [0] - parent" in messages
-    assert "A [1] -- child" in messages
-
-
-# _handle_collection release bounds
-
-
-def test_handle_collection_keeps_role_inside_its_bounds(mocker):
-    group_mock = mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    pt = MagicMock(name="pt-redis")
-    cmd._prepare_task = MagicMock(return_value=pt)
-
-    result = cmd._handle_collection(
-        [Role("redis", until="2025.1")], **_collection_kwargs(release=(2025, 1))
-    )
-
-    group_mock.assert_called_once_with([pt])
-    assert result is group_mock.return_value
-
-
-def test_handle_collection_drops_role_outside_its_bounds(mocker, loguru_logs):
-    group_mock = mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-
-    result = cmd._handle_collection(
-        [Role("redis", until="2025.1")], **_collection_kwargs(release=(2026, 1))
-    )
-
-    cmd._prepare_task.assert_not_called()
-    group_mock.assert_not_called()
-    assert result is None
-    assert any(
-        r["level"] == "INFO"
-        and r["message"]
-        == "Skipping redis: not deployed by this collection on OpenStack 2026.1 (deployed up to 2025.1)"
-        for r in loguru_logs
-    )
-
-
-def test_handle_collection_selects_between_two_bounded_roles(mocker):
-    group_mock = mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    valkey_pt = MagicMock(name="pt-valkey")
-    cmd._prepare_task = MagicMock(return_value=valkey_pt)
-    roles = [Role("redis", until="2025.1"), Role("valkey", since="2025.2")]
-
-    cmd._handle_collection(roles, **_collection_kwargs(release=(2026, 1)))
-
-    assert [c.args[4] for c in cmd._prepare_task.call_args_list] == ["valkey"]
-    group_mock.assert_called_once_with([valkey_pt])
-
-
-def test_handle_collection_without_release_ignores_bounds(mocker):
-    """``release=None`` means no bounded roles were requested; filter nothing."""
-    group_mock = mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    prepared = [MagicMock(name="pt-redis"), MagicMock(name="pt-valkey")]
-    cmd._prepare_task = MagicMock(side_effect=prepared)
-    roles = [Role("redis", until="2025.1"), Role("valkey", since="2025.2")]
-
-    cmd._handle_collection(roles, **_collection_kwargs(release=None))
-
-    group_mock.assert_called_once_with(prepared)
-
-
-def test_handle_collection_without_release_warns_for_bounded_roles(mocker, loguru_logs):
-    """Diagnostic only: today the preflight guarantees this never happens, but
-
-    if a future caller ever expands a collection with ``release=None`` while
-    it still contains bounded roles, that silent fail-open must be visible.
-    """
-    mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-    roles = [Role("redis", until="2025.1"), Role("valkey", since="2025.2")]
-
-    cmd._handle_collection(roles, **_collection_kwargs(release=None))
-
-    warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
-    assert any(
-        "redis" in m and "no OpenStack release was resolved" in m for m in warnings
-    )
-    assert any(
-        "valkey" in m and "no OpenStack release was resolved" in m for m in warnings
-    )
-
-
-def test_handle_collection_with_release_does_not_warn_for_bounded_roles(
-    mocker, loguru_logs
+@pytest.mark.parametrize("show_tree,dry_run", [(True, False), (False, True)])
+def test_handle_collection_preview_never_prepares_roles(
+    mocker, task_mocks, show_tree, dry_run
 ):
-    """The warning is only for the ``release is None`` fail-open case."""
-    mocker.patch("celery.group")
     cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-    roles = [Role("valkey", since="2025.2")]
-
-    cmd._handle_collection(roles, **_collection_kwargs(release=(2026, 1)))
-
-    warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
-    assert warnings == []
-
-
-# _handle_collection tree structure under exclusion
-
-
-def test_handle_collection_excluded_parent_promotes_subtree(mocker):
-    """pt None, st a task: the subtree replaces the parent, unchained."""
-    group_mock = mocker.patch("celery.group")
-    chain_mock = mocker.patch("celery.chain")
-    cmd = make_command(apply.Run)
-    child_pt = MagicMock(name="pt-child")
-    cmd._prepare_task = MagicMock(return_value=child_pt)
-
-    result = cmd._handle_collection(
-        [Role("parent", until="2025.1", dependencies=[Role("child")])],
-        **_collection_kwargs(release=(2026, 1)),
-    )
-
-    assert [c.args[4] for c in cmd._prepare_task.call_args_list] == ["child"]
-    chain_mock.assert_not_called()
-    assert group_mock.call_args_list == [
-        call([child_pt]),
-        call([group_mock.return_value]),
-    ]
-    assert result is group_mock.return_value
-
-
-def test_handle_collection_excluded_parent_preserves_sibling_order(mocker):
-    """Promotion must not reorder the surrounding group."""
-    group_mock = mocker.patch("celery.group")
-    mocker.patch("celery.chain")
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock(side_effect=lambda *args, **kwargs: args[4])
-    roles = [
-        Role("first"),
-        Role("gone", until="2025.1", dependencies=[Role("promoted")]),
-        Role("last"),
-    ]
-
-    cmd._handle_collection(roles, **_collection_kwargs(release=(2026, 1)))
-
-    outer = group_mock.call_args_list[-1].args[0]
-    assert outer == ["first", group_mock.return_value, "last"]
-
-
-def test_handle_collection_retained_parent_all_children_excluded(mocker):
-    """pt a task, st None: schedule the parent alone, never chain(pt, None)."""
-    group_mock = mocker.patch("celery.group")
-    chain_mock = mocker.patch("celery.chain")
-    cmd = make_command(apply.Run)
-    parent_pt = MagicMock(name="pt-parent")
-    cmd._prepare_task = MagicMock(return_value=parent_pt)
-
-    result = cmd._handle_collection(
-        [Role("parent", dependencies=[Role("child", until="2025.1")])],
-        **_collection_kwargs(release=(2026, 1)),
-    )
-
-    assert [c.args[4] for c in cmd._prepare_task.call_args_list] == ["parent"]
-    chain_mock.assert_not_called()
-    group_mock.assert_called_once_with([parent_pt])
-    assert result is group_mock.return_value
-
-
-def test_handle_collection_nested_fully_excluded_subtree(mocker):
-    """pt None, st None, nested: append nothing, never group([None]).
-
-    The emptiness has to propagate all the way out as ``None`` rather than as an
-    empty group, through however many excluded levels there are.
-    """
-    group_mock = mocker.patch("celery.group")
-    chain_mock = mocker.patch("celery.chain")
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-
-    result = cmd._handle_collection(
-        [
-            Role(
-                "outer",
-                until="2025.1",
-                dependencies=[
-                    Role(
-                        "middle",
-                        until="2025.1",
-                        dependencies=[Role("inner", until="2025.1")],
-                    )
-                ],
-            )
-        ],
-        **_collection_kwargs(release=(2026, 1)),
-    )
-
-    cmd._prepare_task.assert_not_called()
-    chain_mock.assert_not_called()
-    group_mock.assert_not_called()
-    assert result is None
-
-
-def test_handle_collection_all_roles_excluded_yields_nothing(mocker):
-    group_mock = mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-
-    result = cmd._handle_collection(
-        [Role("redis", until="2025.1"), Role("other", until="2024.2")],
-        **_collection_kwargs(release=(2026, 1)),
-    )
-
-    group_mock.assert_not_called()
-    assert result is None
-
-
-def test_handle_collection_excluded_role_not_logged_as_applied(loguru_logs, mocker):
-    mocker.patch("celery.group")
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-
+    prepare = mocker.patch.object(cmd, "_prepare_task")
     cmd._handle_collection(
-        [Role("redis", until="2025.1")], **_collection_kwargs(release=(2026, 1))
+        Parallel(Run("a"), Run("b")),
+        **_collection_kwargs(show_tree=show_tree, dry_run=dry_run),
     )
-
-    assert not any(r["message"].startswith("A [0]") for r in loguru_logs)
-
-
-def test_handle_collection_show_tree_still_reports_exclusions(loguru_logs):
-    cmd = make_command(apply.Run)
-    cmd._prepare_task = MagicMock()
-
-    result = cmd._handle_collection(
-        [Role("redis", until="2025.1"), Role("valkey", since="2025.2")],
-        **_collection_kwargs(release=(2026, 1), show_tree=True),
-    )
-
-    assert result is None
-    cmd._prepare_task.assert_not_called()
-    messages = [r["message"] for r in loguru_logs]
-    assert (
-        "Skipping redis: not deployed by this collection on OpenStack 2026.1 (deployed up to 2025.1)"
-        in messages
-    )
-    assert "A [0] - valkey" in messages
+    prepare.assert_not_called()
+    assert task_mocks.ansible_noop.si.call_count == (0 if show_tree else 2)
 
 
 # handle_collection
@@ -646,7 +361,7 @@ def test_handle_collection_applies_prepared_group(loguru_logs):
     cmd = make_command(apply.Run)
     prepared = MagicMock()
     cmd._handle_collection = MagicMock(return_value=prepared)
-    collection_roles = [Role("a")]
+    collection_roles = Parallel(Run("a"))
 
     with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": collection_roles}):
         cmd.handle_collection(**_public_collection_kwargs())
@@ -674,7 +389,7 @@ def test_handle_collection_returns_zero_exit_code(loguru_logs):
     cmd = make_command(apply.Run)
     cmd._handle_collection = MagicMock(return_value=MagicMock())
 
-    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": [Role("a")]}):
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": Parallel(Run("a"))}):
         rc = cmd.handle_collection(**_public_collection_kwargs())
 
     assert rc == 0
@@ -685,7 +400,7 @@ def test_handle_collection_show_tree_does_not_apply(loguru_logs):
     prepared = MagicMock()
     cmd._handle_collection = MagicMock(return_value=prepared)
 
-    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": [Role("a")]}):
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": Parallel(Run("a"))}):
         cmd.handle_collection(**_public_collection_kwargs(show_tree=True))
 
     prepared.apply_async.assert_not_called()
@@ -703,7 +418,7 @@ def test_handle_collection_dry_run_logs_but_still_applies(loguru_logs):
     prepared = MagicMock()
     cmd._handle_collection = MagicMock(return_value=prepared)
 
-    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": [Role("a")]}):
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": Parallel(Run("a"))}):
         cmd.handle_collection(**_public_collection_kwargs(dry_run=True))
 
     prepared.apply_async.assert_called_once_with()
@@ -973,7 +688,7 @@ def test_take_action_routes_collection_to_handle_collection(take_action_mocks):
     cmd.handle_collection = MagicMock(return_value=0)
     parsed_args = cmd.get_parser("test").parse_args(["testcollection"])
 
-    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": [Role("a")]}):
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": Parallel(Run("a"))}):
         rc = cmd.take_action(parsed_args)
 
     assert rc == 0
@@ -991,7 +706,7 @@ def test_take_action_collection_chain_continues_after_success(take_action_mocks)
     cmd.handle_role = MagicMock(return_value=0)
     parsed_args = cmd.get_parser("test").parse_args(["testcollection//other"])
 
-    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": [Role("a")]}):
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": Parallel(Run("a"))}):
         rc = cmd.take_action(parsed_args)
 
     assert rc == 0
@@ -1003,7 +718,7 @@ def test_take_action_collection_chain_continues_after_success(take_action_mocks)
 
 
 def _bounded_collection():
-    return [Role("valkey", since="2025.2"), Role("plain")]
+    return Select("kvs_backend", {"redis": Run("redis"), "valkey": Run("valkey")})
 
 
 def test_apply_accepts_openstack_version_argument():
@@ -1067,7 +782,7 @@ def test_take_action_unbounded_collection_never_resolves_release(
     cmd, parsed = parse_args(apply.Run, ["testcollection"])
     cmd.handle_collection = MagicMock(return_value=0)
 
-    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": [Role("plain")]}):
+    with patch.dict(enums.MAP_ROLE2ROLE, {"testcollection": Parallel(Run("plain"))}):
         cmd.take_action(parsed)
 
     resolve.assert_not_called()
@@ -1100,7 +815,6 @@ def test_take_action_undeterminable_release_exits(
         "/some/versions.yml not found." == m
         for m in messages
     )
-    assert any("Affected roles: valkey (from 2025.2)" == m for m in messages)
     assert any(
         m.startswith("Supply the release with OPENSTACK_VERSION=")
         and "--openstack-version" in m
@@ -1186,7 +900,7 @@ def test_take_action_preflight_schedules_nothing_across_slashes(
 
     with patch.dict(
         enums.MAP_ROLE2ROLE,
-        {"unbounded": [Role("plain")], "testcollection": _bounded_collection()},
+        {"unbounded": Parallel(Run("plain")), "testcollection": _bounded_collection()},
     ):
         with pytest.raises(SystemExit):
             cmd.take_action(parsed)
@@ -1207,7 +921,7 @@ def test_take_action_resolves_the_release_once_per_invocation(
         enums.MAP_ROLE2ROLE,
         {
             "testcollection": _bounded_collection(),
-            "othercollection": [Role("redis", until="2025.1")],
+            "othercollection": _bounded_collection(),
         },
     ):
         cmd.take_action(parsed)
@@ -1235,7 +949,7 @@ def test_take_action_names_every_affected_collection(
         enums.MAP_ROLE2ROLE,
         {
             "testcollection": _bounded_collection(),
-            "othercollection": [Role("redis", until="2025.1")],
+            "othercollection": _bounded_collection(),
         },
     ):
         with pytest.raises(SystemExit):
@@ -1244,10 +958,6 @@ def test_take_action_names_every_affected_collection(
     messages = [r["message"] for r in loguru_logs if r["level"] == "ERROR"]
     assert any(
         m.startswith("Collections othercollection, testcollection contain roles")
-        for m in messages
-    )
-    assert any(
-        m == "Affected roles: redis (up to 2025.1), valkey (from 2025.2)"
         for m in messages
     )
 
@@ -1285,3 +995,44 @@ def test_take_action_explicit_redis_still_dispatches_on_2026_1(
 
     resolve.assert_not_called()
     assert cmd.handle_role.call_args.args[4] == "redis"
+
+
+def test_real_celery_canvas_waits_for_parallel_prerequisites(mocker):
+    from celery import Celery
+
+    app = Celery("plan-test", broker="memory://", backend="cache+memory://")
+    app.conf.update(task_always_eager=True, task_eager_propagates=True)
+    events = []
+
+    @app.task
+    def record(name):
+        events.append(name)
+
+    cmd = make_command(apply.Run)
+    mocker.patch.object(cmd, "_prepare_task", side_effect=lambda *a: record.si(a[4]))
+    canvas = cmd._handle_collection(
+        Sequence(Run("parent"), Parallel(Run("a"), Run("b")), Run("tail")),
+        **_collection_kwargs(),
+    )
+    try:
+        canvas.apply_async().get()
+        assert events[0] == "parent"
+        assert set(events[1:3]) == {"a", "b"}
+        assert events[3] == "tail"
+    finally:
+        app.close()
+
+
+def test_take_action_invalid_later_plan_prevents_earlier_dispatch(take_action_mocks):
+    cmd, parsed = parse_args(apply.Run, ["valid//invalid"])
+    cmd.handle_collection = MagicMock()
+    with patch.dict(
+        enums.MAP_ROLE2ROLE,
+        {
+            "valid": Run("a"),
+            "invalid": Select("missing", {"one": Run("b")}),
+        },
+    ):
+        with pytest.raises(SystemExit):
+            cmd.take_action(parsed)
+    cmd.handle_collection.assert_not_called()

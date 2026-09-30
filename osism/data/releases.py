@@ -2,9 +2,8 @@
 
 """Resolution of the OpenStack release a deployment runs.
 
-Collections deploy a few roles only on some releases -- see the ``since`` and
-``until`` bounds on ``osism.data.enums.Role`` -- so expanding one needs to know
-which release is deployed.
+Collections select their key-value-store backend according to the deployed
+OpenStack release. Execution ordering is defined separately in collection plans.
 
 The value is read at call time, never at import. ``osism/settings.py`` and
 ``osism/utils/__init__.py`` parse environment variables during module import,
