@@ -92,3 +92,16 @@ def selections_for_openstack(release):
     if release is None:
         raise PlanError("The kvs_backend selection requires an OpenStack release")
     return {"kvs_backend": "valkey" if release >= (2025, 2) else "redis"}
+
+
+def selections_for_osism(release):
+    """The greenfield Ceph backend follows OSISM, independently of OpenStack."""
+    if release is None:
+        raise PlanError("The ceph_backend selection requires an OSISM release")
+    return {
+        "ceph_backend": (
+            "cephadm"
+            if release == "latest" or release >= (11, 0, 0)
+            else "ceph-ansible"
+        )
+    }

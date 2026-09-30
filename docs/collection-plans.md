@@ -40,3 +40,41 @@ Actual overlap depends on workers and task behavior. Unit tests verify selection
 and canvas ordering; they do not establish that Ansible roles are safe under
 concurrent execution. Changing a collection's concurrency requires deployment
 validation separately from changing this representation.
+
+## Ceph selection in nutshell
+
+`nutshell` selects its complete Ceph workflow using the OSISM release:
+
+| OSISM release | Backend |
+| --- | --- |
+| Below 11 | ceph-ansible |
+| 11 and later | cephadm |
+| `latest` | cephadm |
+
+The OSISM release is read from `--osism-version`, then `OSISM_VERSION`, then
+`manager_version` in `/opt/configuration/environments/manager/configuration.yml`.
+Missing or invalid releases stop dispatch. Collections without a Ceph selector,
+and individual roles, do not read this source. The existing `collection-ceph`
+and `cloudpod-ceph` collections retain their ceph-ansible workflows.
+
+The OpenStack release still independently chooses Redis or Valkey. Both release
+options must precede the collection name, because later arguments are passed to
+Ansible:
+
+```console
+osism apply --osism-version latest --openstack-version 2026.1 --show-tree nutshell
+```
+
+The Ceph default is a greenfield deployment policy, not a migration procedure.
+For an existing ceph-ansible cluster, explicitly retain its backend:
+
+```console
+osism apply --ceph-backend ceph-ansible nutshell
+```
+
+`--ceph-backend` overrides the OSISM default and avoids the OSISM release lookup.
+It does not change the cluster's configuration or migrate it. Cephadm's workflow
+sets up the client before driving the orchestrator, distributes keys after pools,
+and deploys RGW before starting the Kolla RGW integration and other consumers.
+Ceph-environment roles advertised by osism-ansible use that runtime; the
+ceph-ansible roles continue to use their existing runtime.
