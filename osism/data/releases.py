@@ -1,10 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
-"""Resolution of deployed OpenStack and OSISM releases.
+"""Resolution of the OpenStack release a deployment runs.
 
 Collections select their key-value-store backend according to the deployed
-OpenStack release. OSISM independently selects the Ceph deployment backend.
-Execution ordering is defined separately in collection plans.
+OpenStack release. Execution ordering is defined separately in collection plans.
 
 The value is read at call time, never at import. ``osism/settings.py`` and
 ``osism/utils/__init__.py`` parse environment variables during module import,
@@ -127,57 +126,3 @@ def openstack_release(override=None):
         raise ReleaseUndetermined(f"openstack_version not set in {VERSIONS_FILE}.")
 
     return parse_release(value)
-
-
-MANAGER_CONFIGURATION_FILE = "/opt/configuration/environments/manager/configuration.yml"
-_OSISM_RELEASE_RE = re.compile(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?$")
-
-
-def parse_osism_release(value):
-    """Return a numeric OSISM release tuple, or the explicit rolling track.
-
-    OpenStack and OSISM versions are distinct domains. In particular, latest
-    is a supported OSISM track, not an OpenStack version or a numeric sentinel.
-    """
-    from osism.data.plans import PlanError
-
-    value = str(value).strip()
-    if value == "latest":
-        return value
-    match = _OSISM_RELEASE_RE.fullmatch(value)
-    if not match:
-        raise PlanError(
-            f"Could not parse OSISM release {value!r} "
-            "(expected a numeric release like 11.0.0, or latest)."
-        )
-    return tuple(int(part or 0) for part in match.groups())
-
-
-def osism_release(override=None):
-    """Resolve OSISM from CLI, OSISM_VERSION, then manager_version.
-
-    Called only for collections whose selections require an OSISM release.
-    Invalid and missing sources fail before any collection is submitted.
-    """
-    from osism.data.plans import PlanError
-
-    if override:
-        return parse_osism_release(override)
-    from_environment = os.environ.get("OSISM_VERSION")
-    if from_environment:
-        return parse_osism_release(from_environment)
-    try:
-        with open(MANAGER_CONFIGURATION_FILE) as fp:
-            configuration = yaml.safe_load(fp)
-    except yaml.YAMLError as exc:
-        raise PlanError(f"{MANAGER_CONFIGURATION_FILE} is not valid YAML.") from exc
-    except OSError as exc:
-        raise PlanError(
-            f"Could not read OSISM release from {MANAGER_CONFIGURATION_FILE}: {exc}"
-        ) from exc
-    if (
-        not isinstance(configuration, dict)
-        or configuration.get("manager_version") is None
-    ):
-        raise PlanError(f"manager_version not set in {MANAGER_CONFIGURATION_FILE}.")
-    return parse_osism_release(configuration["manager_version"])
