@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261001.0] - 2026-10-01
+
+### Fixed
+- Revert premature Ceph workflow selection by OSISM release, restoring a stable baseline after the change was merged before its dependencies (osism/python-osism#2740)
+
+### Dependencies
+- uv 0.11.26 → 0.12.19 (osism/python-osism#2728)
+- @types/node 24.13.6 → 24.19.0 (osism/python-osism#2743)
+- boto3 1.43.102 → 1.43.103 (osism/python-osism#2742)
+
 ## [v0.20260930.0] - 2026-09-30
 
 ### Added
