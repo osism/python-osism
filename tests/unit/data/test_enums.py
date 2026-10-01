@@ -13,7 +13,6 @@ from osism.data.plans import (
     Parallel,
     Run,
     Select,
-    Sequence,
     resolve,
     selections_for_openstack,
 )
@@ -39,11 +38,7 @@ def tree_view(plan):
     if isinstance(plan, Parallel):
         return [role for step in plan.steps for role in tree_view(step)]
     root = tree_view(plan.steps[0])
-    remaining = plan.steps[1:]
-    if remaining:
-        root[0].dependencies = tree_view(
-            remaining[0] if len(remaining) == 1 else Sequence(*remaining)
-        )
+    root[0].dependencies = tree_view(plan.steps[1])
     return root
 
 
@@ -298,10 +293,7 @@ def test_kvs_collections_carry_both_backends(collection):
 def test_exactly_one_backend_per_release(collection, release, expected):
     """Never both, never neither -- on any release, past or future."""
     roles = tree_view(
-        resolve(
-            COLLECTION_PLANS[collection],
-            {**selections_for_openstack(release), "ceph_backend": "ceph-ansible"},
-        )
+        resolve(COLLECTION_PLANS[collection], selections_for_openstack(release))
     )
     selected = [name for name in ("redis", "valkey") if find_role(roles, name)]
     assert selected == [expected]
