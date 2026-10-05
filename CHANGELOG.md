@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261005.0] - 2026-10-05
+
+### Added
+- Add `--osism-version` and `--ceph-backend` options to `osism apply` for selecting the Ceph backend of the nutshell collection (osism/python-osism#2741)
+
+### Changed
+- Select the nutshell Ceph workflow by OSISM release, using ceph-ansible below 11 and cephadm from 11 onward or on `latest` (osism/python-osism#2741)
+
+### Fixed
+- Route Ceph-environment roles that osism-ansible provides, such as the cephadm deploy plays and validators, to the osism-ansible runtime (osism/python-osism#2741)
+
+### Dependencies
+- next 16.3.6 → 16.3.8 (osism/python-osism#2747, osism/python-osism#2750)
+- eslint-config-next 16.3.6 → 16.3.8 (osism/python-osism#2747, osism/python-osism#2750)
+- lucide-react 1.48.0 → 1.50.0 (osism/python-osism#2748, osism/python-osism#2756)
+- fakeredis 2.38.0 → 2.39.0 (osism/python-osism#2751)
+- markupsafe 3.0.3 → 3.0.4 (osism/python-osism#2751)
+- mmh3 5.3.0 → 5.3.1 (osism/python-osism#2751)
+- platformdirs 4.12.2 → 4.12.3 (osism/python-osism#2751)
+- pytz 2026.4 → 2026.5 (osism/python-osism#2751)
+- tzdata 2026.4 → 2026.5 (osism/python-osism#2751)
+- @tanstack/query-core 5.104.0 → 5.104.1 (osism/python-osism#2755)
+- @tanstack/react-query 5.104.0 → 5.104.1 (osism/python-osism#2755)
+
 ## [v0.20261001.1] - 2026-10-01
 
 ### Dependencies
