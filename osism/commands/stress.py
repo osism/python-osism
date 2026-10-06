@@ -1,167 +1,49 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import argparse
 import subprocess
 
 from cliff.command import Command
 from loguru import logger
 
+STRESS_TOOL = "/openstack-simple-stress/openstack_simple_stress/main.py"
+
+
+class _PassThroughParser(argparse.ArgumentParser):
+    """Keep every argument this parser does not know for the stress tool."""
+
+    def parse_args(self, args=None, namespace=None):  # type: ignore[override]
+        parsed, extra = self.parse_known_args(args, namespace)
+        if "--" in extra:
+            extra.remove("--")
+        # Credentials are set up for parsed.cloud; a second --cloud would make
+        # the tool run against a cloud whose credentials were never prepared.
+        if any(a == "--cloud" or a.startswith("--cloud=") for a in extra):
+            self.error("--cloud must come before '--'")
+        parsed.tool_args = extra
+        return parsed
+
 
 class OpenStackStress(Command):
-    """Run OpenStack stress testing tool"""
+    """Run the OpenStack stress testing tool (openstack-simple-stress).
+
+    All options except --cloud are passed to the tool unchanged. Options that
+    the osism CLI itself uses (--debug, -h/--help, -v, -q, --version,
+    --log-file) must follow a "--": e.g. "osism openstack stress -- --help"
+    shows the tool's own options.
+    """
 
     def get_parser(self, prog_name):
-        parser = super(OpenStackStress, self).get_parser(prog_name)
-
-        # Boolean flags
-        parser.add_argument(
-            "--no-cleanup",
-            action="store_true",
-            help="Do not clean up resources after test",
+        parser = _PassThroughParser(
+            prog=prog_name,
+            description=self.get_description(),
+            add_help=False,
         )
-        parser.add_argument(
-            "--debug",
-            action="store_true",
-            help="Enable debug mode",
-        )
-        parser.add_argument(
-            "--no-delete",
-            action="store_true",
-            help="Do not delete resources",
-        )
-        parser.add_argument(
-            "--no-volume",
-            action="store_true",
-            help="Do not create volumes",
-        )
-        parser.add_argument(
-            "--no-boot-volume",
-            action="store_true",
-            help="Do not use boot volumes",
-        )
-        parser.add_argument(
-            "--no-wait",
-            action="store_true",
-            help="Do not wait for resources",
-        )
-        parser.add_argument(
-            "--clean",
-            action="store_true",
-            help="Clean up leftover resources matching the prefix",
-        )
-
-        # Integer parameters with defaults
-        parser.add_argument(
-            "--interval",
-            type=int,
-            default=10,
-            help="Interval in seconds (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--number",
-            type=int,
-            default=1,
-            help="Number of instances (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--parallel",
-            type=int,
-            default=1,
-            help="Parallel operations (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--timeout",
-            type=int,
-            default=600,
-            help="Timeout in seconds (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--volume-number",
-            type=int,
-            default=1,
-            help="Number of volumes per instance (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--volume-size",
-            type=int,
-            default=1,
-            help="Volume size in GB (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--boot-volume-size",
-            type=int,
-            default=20,
-            help="Boot volume size in GB (default: %(default)s)",
-        )
-
-        # String parameters with defaults
         parser.add_argument(
             "--cloud",
-            type=str,
             default="simple-stress",
             help="Cloud name in clouds.yaml (default: %(default)s)",
         )
-        parser.add_argument(
-            "--flavor",
-            type=str,
-            default="SCS-1V-2",
-            help="Flavor name (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--image",
-            type=str,
-            default="Ubuntu 24.04",
-            help="Image name (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--subnet-cidr",
-            type=str,
-            default="10.100.0.0/16",
-            help="Subnet CIDR (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--prefix",
-            type=str,
-            default="simple-stress",
-            help="Resource name prefix (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--compute-zone",
-            type=str,
-            default="nova",
-            help="Compute availability zone (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--storage-zone",
-            type=str,
-            default="nova",
-            help="Storage availability zone (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--affinity",
-            type=str,
-            default="soft-anti-affinity",
-            choices=[
-                "soft-affinity",
-                "soft-anti-affinity",
-                "affinity",
-                "anti-affinity",
-            ],
-            help="Server group policy (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--volume-type",
-            type=str,
-            default="__DEFAULT__",
-            help="Volume type (default: %(default)s)",
-        )
-        parser.add_argument(
-            "--mode",
-            type=str,
-            default="rolling",
-            choices=["rolling", "block"],
-            help="Execution mode (default: %(default)s)",
-        )
-
         return parser
 
     def take_action(self, parsed_args):
@@ -180,48 +62,13 @@ class OpenStackStress(Command):
             )
             return 1
 
-        # Build the command
         command = [
             "python3",
-            "/openstack-simple-stress/openstack_simple_stress/main.py",
+            STRESS_TOOL,
+            "--cloud",
+            parsed_args.cloud,
+            *parsed_args.tool_args,
         ]
-
-        # Add boolean flags
-        if parsed_args.no_cleanup:
-            command.append("--no-cleanup")
-        if parsed_args.debug:
-            command.append("--debug")
-        if parsed_args.no_delete:
-            command.append("--no-delete")
-        if parsed_args.no_volume:
-            command.append("--no-volume")
-        if parsed_args.no_boot_volume:
-            command.append("--no-boot-volume")
-        if parsed_args.no_wait:
-            command.append("--no-wait")
-        if parsed_args.clean:
-            command.append("--clean")
-
-        # Add integer parameters
-        command.extend(["--interval", str(parsed_args.interval)])
-        command.extend(["--number", str(parsed_args.number)])
-        command.extend(["--parallel", str(parsed_args.parallel)])
-        command.extend(["--timeout", str(parsed_args.timeout)])
-        command.extend(["--volume-number", str(parsed_args.volume_number)])
-        command.extend(["--volume-size", str(parsed_args.volume_size)])
-        command.extend(["--boot-volume-size", str(parsed_args.boot_volume_size)])
-
-        # Add string parameters
-        command.extend(["--cloud", parsed_args.cloud])
-        command.extend(["--flavor", parsed_args.flavor])
-        command.extend(["--image", parsed_args.image])
-        command.extend(["--subnet-cidr", parsed_args.subnet_cidr])
-        command.extend(["--prefix", parsed_args.prefix])
-        command.extend(["--compute-zone", parsed_args.compute_zone])
-        command.extend(["--storage-zone", parsed_args.storage_zone])
-        command.extend(["--affinity", parsed_args.affinity])
-        command.extend(["--volume-type", parsed_args.volume_type])
-        command.extend(["--mode", parsed_args.mode])
 
         logger.debug(
             f"Executing OpenStack stress test with command: {' '.join(command)}"
@@ -231,9 +78,7 @@ class OpenStackStress(Command):
             result = subprocess.run(command, check=False)
             return result.returncode
         except FileNotFoundError:
-            logger.error(
-                "OpenStack stress tool not found at /openstack-simple-stress/openstack_simple_stress/main.py"
-            )
+            logger.error(f"OpenStack stress tool not found at {STRESS_TOOL}")
             return 1
         except Exception as e:
             logger.error(f"Error executing OpenStack stress tool: {e}")
