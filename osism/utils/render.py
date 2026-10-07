@@ -229,6 +229,7 @@ def render_batch(
         env.update(
             ANSIBLE_GATHERING="explicit",
             ANSIBLE_NOCOLOR="1",
+            ANSIBLE_FORCE_COLOR="0",
             ANSIBLE_RETRY_FILES_ENABLED="False",
         )
         env["ANSIBLE_ACTION_PLUGINS"] = os.pathsep.join(

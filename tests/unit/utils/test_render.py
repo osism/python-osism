@@ -122,6 +122,8 @@ def test_render_batch_is_one_argv_run_with_neutral_cwd(tmp_path, mocker):
     assert isinstance(cmd, list) and cmd[1] == "node;rm -rf /" and "shell" not in kwargs
     assert kwargs["cwd"] not in ("/ansible", None)
     assert kwargs["env"]["ANSIBLE_NOCOLOR"] == "1"
+    # ANSIBLE_FORCE_COLOR in the caller's environment beats NOCOLOR.
+    assert kwargs["env"]["ANSIBLE_FORCE_COLOR"] == "0"
     extra = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-e"]
     # Final review I4: in a play, extra-vars outrank facts. Later -e wins,
     # so the facts file goes first.
