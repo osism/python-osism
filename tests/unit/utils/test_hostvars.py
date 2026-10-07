@@ -627,3 +627,16 @@ def test_undefined_outside_default_gets_no_fallback_note(world):
         {None: {"e": "xy"}},
     )("e")
     assert rows[0].notes == ["fallback: other undefined here, a role may define it"]
+
+
+def test_unsafe_stack_value_is_not_analysed(world, mocker):
+    from osism.utils.template_deps import UnsafeText
+
+    get = world(
+        {"a": "1"},
+        {None: {"lit": "{{ db_password }}", "db_password": "long-secret-1"}},
+        global_files={"lit": UnsafeText("{{ db_password }}")},
+        secrets_names={"db_password"},
+    )
+    rows = get("lit")
+    assert rows[0].value == "{{ db_password }}" and not rows[0].masked

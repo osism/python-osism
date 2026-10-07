@@ -155,7 +155,9 @@ def two_hosts(tmp_path):
     )
     root = tmp_path / "environments"
     root.mkdir()
-    (root / "configuration.yml").write_text("plain: 1\n")
+    (root / "configuration.yml").write_text(
+        "plain: 1\nliteral: !unsafe '{{ plain }}'\n"
+    )
     (root / "secrets.yml").write_text("redis_master_password: Redis-Secret-42\n")
     raw, all_raw = _inventory_hostvars(str(inv), "node1")
     return dict(
@@ -192,3 +194,8 @@ def test_real_render_reports_fallback(two_hosts):
             ["fallback: nope_undefined undefined here, a role may define it"],
         )
     ]
+
+
+def test_real_render_keeps_unsafe_literal(two_hosts):
+    rows = effective_rows("node1", "literal", None, False, **two_hosts)
+    assert [(r.value, r.masked, r.notes) for r in rows] == [("{{ plain }}", False, [])]

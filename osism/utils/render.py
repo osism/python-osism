@@ -22,6 +22,7 @@ from typing import cast
 import yaml
 
 from osism import settings
+from osism.utils.template_deps import UnsafeText
 
 _PLUGIN = """\
 import json
@@ -76,7 +77,8 @@ class Stack:
 
 
 class _VaultSafeLoader(yaml.SafeLoader):
-    """SafeLoader that keeps an inline !vault value as the encrypted marker."""
+    """SafeLoader that keeps an inline !vault value as the encrypted marker
+    and loads an !unsafe value as UnsafeText, which is never analysed."""
 
 
 def _construct_vault(loader: yaml.SafeLoader, node: yaml.Node) -> dict:
@@ -84,6 +86,13 @@ def _construct_vault(loader: yaml.SafeLoader, node: yaml.Node) -> dict:
 
 
 _VaultSafeLoader.add_constructor("!vault", _construct_vault)
+
+
+def _construct_unsafe(loader: yaml.SafeLoader, node: yaml.Node) -> UnsafeText:
+    return UnsafeText(loader.construct_scalar(cast(yaml.ScalarNode, node)))
+
+
+_VaultSafeLoader.add_constructor("!unsafe", _construct_unsafe)
 
 
 def list_environments(root: str | None = None) -> list:

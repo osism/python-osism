@@ -65,6 +65,30 @@ _MAPPING_ATTRS = frozenset(
 _UNMODELLED = (nodes.Macro, nodes.CallBlock, nodes.With, nodes.FilterBlock)
 
 
+_UNSAFE_MARKER = "__ansible_unsafe"
+
+
+class UnsafeText(str):
+    """A value tagged !unsafe: Ansible never templates it, so neither do we."""
+
+
+def encode_unsafe(obj: Any) -> Any:
+    """Keep the !unsafe tag through JSON, which turns UnsafeText into str."""
+    if isinstance(obj, UnsafeText):
+        return {_UNSAFE_MARKER: str(obj)}
+    if isinstance(obj, dict):
+        return {k: encode_unsafe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [encode_unsafe(v) for v in obj]
+    return obj
+
+
+def _is_unsafe(raw: Any) -> bool:
+    return isinstance(raw, UnsafeText) or (
+        isinstance(raw, dict) and set(raw) == {_UNSAFE_MARKER}
+    )
+
+
 @dataclass(frozen=True)
 class DynamicKey:
     expression: str | None
@@ -120,6 +144,8 @@ def references(raw: Any) -> Refs:
 
 
 def _collect(raw: Any, acc: _Acc) -> None:
+    if _is_unsafe(raw):
+        return
     if isinstance(raw, dict):
         for value in raw.values():
             _collect(value, acc)

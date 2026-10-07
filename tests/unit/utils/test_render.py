@@ -147,3 +147,15 @@ def test_own_render_errors_are_safe(tmp_path):
     with pytest.raises(RenderError) as exc:
         render_batch("h", {"names": []}, "/inv", build_stack("kolla", root), "pw")
     assert exc.value.safe is True
+
+
+def test_load_yaml_unsafe_is_a_literal_string(tmp_path):
+    # Final review I3: !unsafe made the command exit 1 (ConstructorError).
+    from osism.utils.template_deps import references
+
+    f = tmp_path / "c.yml"
+    f.write_text("literal: !unsafe '{{ x }}'\n")
+    loaded = load_yaml(str(f), "pw")
+    assert loaded == {"literal": "{{ x }}"}
+    assert references(loaded["literal"]) == references("plain")
+    assert json.loads(json.dumps(loaded)) == {"literal": "{{ x }}"}

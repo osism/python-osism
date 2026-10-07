@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import json
+
 from osism.utils.template_deps import references
 
 
@@ -209,3 +211,12 @@ def test_defaulted_names_are_those_under_default_or_d():
         "h",
         "p",
     }
+
+
+def test_unsafe_text_survives_the_request_as_a_literal():
+    from osism.utils.template_deps import UnsafeText, encode_unsafe
+
+    raw = {"a": UnsafeText("{{ secret_password }}"), "b": ["{{ c }}"]}
+    assert references(raw).names == {"c"}
+    encoded = json.loads(json.dumps(encode_unsafe(raw)))
+    assert references(encoded).names == {"c"}

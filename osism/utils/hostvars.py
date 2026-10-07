@@ -30,6 +30,7 @@ from osism.utils.render import (
     load_stack_files,
     render_batch,
 )
+from osism.utils.template_deps import encode_unsafe
 
 __all__ = ["HostvarsError", "Row", "effective_rows"]
 
@@ -119,7 +120,7 @@ def _render(stack: Stack, names: list, ctx: _Ctx, merged=None) -> Rendered:
     request = {
         "names": list(names),
         "secrets": sorted(secrets),
-        "raw": raw,
+        "raw": encode_unsafe(raw),
         "raw_all": _raw_all(ctx.all_raw_hostvars),
         "facts": sorted(ctx.facts) if isinstance(ctx.facts, dict) else [],
     }
