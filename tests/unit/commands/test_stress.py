@@ -8,16 +8,6 @@ from osism.commands import stress
 
 STRESS_TOOL = "/openstack-simple-stress/openstack_simple_stress/main.py"
 
-BOOLEAN_FLAGS = [
-    "--no-cleanup",
-    "--debug",
-    "--no-delete",
-    "--no-volume",
-    "--no-boot-volume",
-    "--no-wait",
-    "--clean",
-]
-
 
 def _run(args, run_mock=None, setup_success=True):
     """Drive OpenStackStress.take_action with mocked cloud helpers."""
@@ -33,65 +23,74 @@ def _run(args, run_mock=None, setup_success=True):
         return_value=(setup, MagicMock(), cleanup),
     ), patch("osism.commands.stress.subprocess.run", run_mock):
         result = cmd.take_action(parsed_args)
-    return result, run_mock, cleanup
+    return result, run_mock, setup, cleanup
 
 
-def _flag_value(command, flag):
-    return command[command.index(flag) + 1]
+def test_defaults_pass_only_the_cloud():
+    result, run_mock, setup, _ = _run([])
 
-
-def test_defaults_build_expected_command():
-    result, run_mock, _ = _run([])
-
-    command = run_mock.call_args[0][0]
-    assert command[:2] == ["python3", STRESS_TOOL]
-    for flag in BOOLEAN_FLAGS:
-        assert flag not in command
-
-    expected = {
-        "--interval": "10",
-        "--number": "1",
-        "--parallel": "1",
-        "--timeout": "600",
-        "--volume-number": "1",
-        "--volume-size": "1",
-        "--boot-volume-size": "20",
-        "--cloud": "simple-stress",
-        "--flavor": "SCS-1V-2",
-        "--image": "Ubuntu 24.04",
-        "--subnet-cidr": "10.100.0.0/16",
-        "--prefix": "simple-stress",
-        "--compute-zone": "nova",
-        "--storage-zone": "nova",
-        "--affinity": "soft-anti-affinity",
-        "--volume-type": "__DEFAULT__",
-        "--mode": "rolling",
-    }
-    for flag, value in expected.items():
-        assert _flag_value(command, flag) == value
-
+    assert run_mock.call_args[0][0] == [
+        "python3",
+        STRESS_TOOL,
+        "--cloud",
+        "simple-stress",
+    ]
+    setup.assert_called_once_with("simple-stress")
     assert result == 0
 
 
-@pytest.mark.parametrize("flag", BOOLEAN_FLAGS)
-def test_boolean_flag_appended(flag):
-    _, run_mock, _ = _run([flag])
-    assert flag in run_mock.call_args[0][0]
+def test_tool_options_are_forwarded_unchanged():
+    args = [
+        "--number",
+        "5",
+        "--profile",
+        "acceptance",
+        "--no-network",
+        "--clean",
+        "--yes",
+    ]
+    _, run_mock, _, _ = _run(args)
+
+    assert run_mock.call_args[0][0][4:] == args
 
 
-def test_custom_values_propagated():
-    _, run_mock, _ = _run(["--number", "5", "--flavor", "X", "--volume-size", "10"])
+def test_cloud_is_used_for_setup_and_forwarded():
+    _, run_mock, setup, _ = _run(["--cloud", "admin", "--number", "2"])
 
-    command = run_mock.call_args[0][0]
-    assert _flag_value(command, "--number") == "5"
-    assert _flag_value(command, "--flavor") == "X"
-    assert _flag_value(command, "--volume-size") == "10"
+    setup.assert_called_once_with("admin")
+    assert run_mock.call_args[0][0][2:] == ["--cloud", "admin", "--number", "2"]
 
 
-@pytest.mark.parametrize("returncode", [0, 3])
+def test_separator_is_removed():
+    _, run_mock, _, _ = _run(["--number", "3", "--", "--debug", "--help"])
+
+    assert run_mock.call_args[0][0][4:] == ["--number", "3", "--debug", "--help"]
+
+
+def test_cloud_after_separator_is_rejected():
+    cmd = stress.OpenStackStress(MagicMock(), MagicMock())
+    with pytest.raises(SystemExit) as exc:
+        cmd.get_parser("test").parse_args(["--", "--cloud", "admin"])
+    assert exc.value.code == 2
+
+
+def test_cloud_equals_after_separator_is_rejected():
+    cmd = stress.OpenStackStress(MagicMock(), MagicMock())
+    with pytest.raises(SystemExit) as exc:
+        cmd.get_parser("test").parse_args(["--number", "2", "--", "--cloud=admin"])
+    assert exc.value.code == 2
+
+
+def test_no_interval_is_imposed():
+    _, run_mock, _, _ = _run([])
+
+    assert "--interval" not in run_mock.call_args[0][0]
+
+
+@pytest.mark.parametrize("returncode", [0, 1, 2, 130])
 def test_returncode_passed_through(returncode):
     run_mock = MagicMock(return_value=MagicMock(returncode=returncode))
-    result, _, cleanup = _run([], run_mock=run_mock)
+    result, _, _, cleanup = _run([], run_mock=run_mock)
 
     assert result == returncode
     cleanup.assert_called_once_with(["tempfile"], "/cwd")
@@ -99,7 +98,7 @@ def test_returncode_passed_through(returncode):
 
 def test_tool_not_found_returns_1(loguru_logs):
     run_mock = MagicMock(side_effect=FileNotFoundError())
-    result, _, cleanup = _run([], run_mock=run_mock)
+    result, _, _, cleanup = _run([], run_mock=run_mock)
 
     assert result == 1
     assert any(
@@ -111,14 +110,14 @@ def test_tool_not_found_returns_1(loguru_logs):
 
 def test_generic_exception_returns_1():
     run_mock = MagicMock(side_effect=RuntimeError("boom"))
-    result, _, cleanup = _run([], run_mock=run_mock)
+    result, _, _, cleanup = _run([], run_mock=run_mock)
 
     assert result == 1
     cleanup.assert_called_once_with(["tempfile"], "/cwd")
 
 
 def test_setup_failure_returns_1():
-    result, run_mock, _ = _run([], setup_success=False)
+    result, run_mock, _, _ = _run([], setup_success=False)
 
     assert result == 1
     run_mock.assert_not_called()
