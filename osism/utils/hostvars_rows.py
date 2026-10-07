@@ -37,7 +37,7 @@ _UNKNOWN_CLOSURE: dict[str, Any] = {
     "unanalysable": True,
     "undefined": [],
     "secret_hits": [],
-    "uses_default": False,
+    "fallback": [],
 }
 
 
@@ -159,16 +159,15 @@ def _row(
                 value, rendered.secret_values, MASK, MIN_SECRET_LENGTH
             )
             value, masked = cleaned, cleaned != value
-    if closure["uses_default"]:
-        # A dynamic key resolved to a value can land in `undefined`.
-        notes += [
-            _clean(
-                f"fallback: {n} undefined here, a role may define it",
-                rendered,
-                show_secrets,
-            )
-            for n in sorted(closure["undefined"])
-        ]
+    # A dynamic key resolved to a value can land in `fallback`.
+    notes += [
+        _clean(
+            f"fallback: {n} undefined here, a role may define it",
+            rendered,
+            show_secrets,
+        )
+        for n in sorted(closure["fallback"])
+    ]
     return Row(host, name, environment, value, masked, notes, False)
 
 

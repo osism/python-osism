@@ -15,13 +15,16 @@ def _resolver(table, calls=None):
     return resolve
 
 
-def _req(names, raw, secrets=(), raw_all=None):
-    return {
+def _req(names, raw, secrets=(), raw_all=None, facts=None):
+    request = {
         "names": names,
         "secrets": list(secrets),
         "raw": raw,
         "raw_all": raw_all or {},
     }
+    if facts is not None:
+        request["facts"] = facts
+    return request
 
 
 def test_static_closure_and_secret_hits():
@@ -104,4 +107,53 @@ def test_undefined_and_default_are_reported():
         _resolver({"e": "fb"}), _req(["e"], {"e": "{{ nope | default('fb') }}"})
     )
     assert r["closures"]["e"]["undefined"] == ["nope"]
-    assert r["closures"]["e"]["uses_default"] is True
+    assert r["closures"]["e"]["fallback"] == ["nope"]
+
+
+# Final review I2: a fallback note needs an undefined name under default/d.
+
+
+def test_fact_names_count_as_defined():
+    raw = {
+        "internal_address": "{{ ansible_default_ipv4.address"
+        "|default(ansible_all_ipv4_addresses[0]) }}"
+    }
+    r = evaluate_request(
+        _resolver({"internal_address": "192.0.2.10"}),
+        _req(
+            ["internal_address"],
+            raw,
+            facts=["ansible_all_ipv4_addresses", "ansible_default_ipv4"],
+        ),
+    )
+    assert r["closures"]["internal_address"]["undefined"] == []
+    assert r["closures"]["internal_address"]["fallback"] == []
+
+
+def test_d_alias_is_a_fallback():
+    r = evaluate_request(_resolver({}), _req(["e"], {"e": "{{ nope | d('fb') }}"}))
+    assert r["closures"]["e"]["fallback"] == ["nope"]
+
+
+def test_undefined_outside_default_is_not_a_fallback():
+    r = evaluate_request(
+        _resolver({}),
+        _req(["e"], {"e": "{{ nope }}-{{ other | default('x') }}"}),
+    )
+    assert r["closures"]["e"]["undefined"] == ["nope", "other"]
+    assert r["closures"]["e"]["fallback"] == ["other"]
+
+
+def test_default_argument_and_nested_values_are_fallbacks():
+    r = evaluate_request(
+        _resolver({}),
+        _req(
+            ["e", "a"],
+            {
+                "e": {"k": ["{{ x | default(y) }}"]},
+                "a": "{{ e }}",
+            },
+        ),
+    )
+    assert r["closures"]["e"]["fallback"] == ["x", "y"]
+    assert r["closures"]["a"]["fallback"] == ["x", "y"]

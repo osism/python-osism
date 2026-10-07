@@ -197,3 +197,15 @@ def test_bare_vars_and_hostvars_are_unanalysable():
 def test_star_args_to_a_vars_lookup_are_unanalysable():
     assert references("{{ lookup('vars', *names) }}").unanalysable
     assert references("{{ vars.get(*names) }}").unanalysable
+
+
+def test_defaulted_names_are_those_under_default_or_d():
+    r = references("{{ a | default(b) }}{{ c | d('x') }}{{ e }}")
+    assert r.defaulted == {"a", "b", "c"}
+    r = references("{{ vars[k] | default('fb') }}")
+    assert r.dynamic_keys[0].defaulted is True
+    assert references("{{ vars[k] }}").dynamic_keys[0].defaulted is False
+    assert references({"x": ["{{ hostvars[h]['p'] | default(1) }}"]}).defaulted == {
+        "h",
+        "p",
+    }

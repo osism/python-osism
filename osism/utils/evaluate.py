@@ -17,12 +17,17 @@ Request:
                 applied over the inventory
     raw_all  -- name -> list of raw values across all hosts (and the stack
                 value), for cross-host references
+    facts    -- optional; names of the queried host's cached facts, which
+                count as defined
 
 Result:
     values   -- name -> {"value": v} | {"error": str}, for names and secrets
     closures -- name -> {"names": [...], "unanalysable": bool,
                          "undefined": [...], "secret_hits": [...],
-                         "uses_default": bool}
+                         "fallback": [...]}
+
+    fallback lists the undefined names that occur inside a default/d
+    filter's base or argument, where the value falls back.
 """
 
 from typing import Callable
@@ -34,11 +39,12 @@ Resolve = Callable[[str], dict]
 
 def _closure(name: str, request: dict, resolve: Resolve, key_cache: dict) -> dict:
     raw, raw_all = request["raw"], request["raw_all"]
+    facts = set(request.get("facts") or ())
     seen: set = set()
     names: set = set()
     undefined: set = set()
+    defaulted: set = set()
     unanalysable = False
-    uses_default = False
     work = [(name, "host")]
     while work:
         current, scope = work.pop()
@@ -53,15 +59,14 @@ def _closure(name: str, request: dict, resolve: Resolve, key_cache: dict) -> dic
             if current in raw:
                 sources.append(raw[current])
         if not sources:
-            if current != name:
+            if current != name and current not in facts:
                 undefined.add(current)
             continue
         for value in sources:
             refs = references(value)
             if refs.unanalysable:
                 unanalysable = True
-            if isinstance(value, str) and "default(" in value.replace(" ", ""):
-                uses_default = True
+            defaulted |= refs.defaulted
             for n in refs.names:
                 work.append((n, scope))
             for n in refs.cross_host_names:
@@ -76,6 +81,8 @@ def _closure(name: str, request: dict, resolve: Resolve, key_cache: dict) -> dic
                 if "error" in result or not isinstance(result.get("value"), str):
                     unanalysable = True
                     continue
+                if key.defaulted:
+                    defaulted.add(result["value"])
                 work.append((result["value"], "all" if key.cross_host else scope))
     secrets = set(request["secrets"])
     return {
@@ -83,7 +90,7 @@ def _closure(name: str, request: dict, resolve: Resolve, key_cache: dict) -> dic
         "unanalysable": unanalysable,
         "undefined": sorted(undefined),
         "secret_hits": sorted(names & secrets),
-        "uses_default": uses_default,
+        "fallback": sorted(undefined & defaulted),
     }
 
 

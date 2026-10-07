@@ -69,6 +69,8 @@ _UNMODELLED = (nodes.Macro, nodes.CallBlock, nodes.With, nodes.FilterBlock)
 class DynamicKey:
     expression: str | None
     cross_host: bool
+    # Inside a default/d filter's base or argument.
+    defaulted: bool = False
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,12 @@ class Refs:
     cross_host_names: frozenset = field(default_factory=frozenset)
     dynamic_keys: tuple = ()
     unanalysable: bool = False
+    # Referenced names (either scope) inside a default/d filter's base or
+    # argument: if undefined, the value falls back.
+    defaulted: frozenset = field(default_factory=frozenset)
+
+
+_DEFAULT_FILTERS = frozenset({"default", "d"})
 
 
 class _Acc:
@@ -84,7 +92,19 @@ class _Acc:
         self.names: set = set()
         self.cross: set = set()
         self.dynamic: list = []
+        self.defaulted: set = set()
+        self.defaulting = 0
         self.unanalysable = False
+
+    def add(self, name: str, cross: bool = False) -> None:
+        (self.cross if cross else self.names).add(name)
+        if self.defaulting:
+            self.defaulted.add(name)
+
+    def add_dynamic(self, expression: str | None, cross: bool) -> None:
+        self.dynamic.append(
+            DynamicKey(expression, cross, defaulted=bool(self.defaulting))
+        )
 
 
 def references(raw: Any) -> Refs:
@@ -94,6 +114,7 @@ def references(raw: Any) -> Refs:
         names=frozenset(acc.names),
         cross_host_names=frozenset(acc.cross),
         dynamic_keys=tuple(acc.dynamic),
+        defaulted=frozenset(acc.defaulted),
         unanalysable=acc.unanalysable,
     )
 
@@ -210,13 +231,21 @@ def _walk(node: nodes.Node, acc: _Acc, bound: frozenset) -> None:
                 if _is_mapping_attr(node.attr):
                     acc.unanalysable = True
                 else:
-                    (acc.cross if cross else acc.names).add(node.attr)
+                    acc.add(node.attr, cross)
             else:
                 _target(node.arg, acc, cross, bound)
             return
     if isinstance(node, nodes.Call) and _walk_call(node, acc, bound):
         return
     if isinstance(node, nodes.Filter) and _walk_map_extract(node, acc, bound):
+        return
+    if isinstance(node, nodes.Filter) and node.name in _DEFAULT_FILTERS:
+        acc.defaulting += 1
+        try:
+            for child in node.iter_child_nodes():
+                _walk(child, acc, bound)
+        finally:
+            acc.defaulting -= 1
         return
     if isinstance(node, nodes.Name) and node.ctx == "load":
         if node.name in bound:
@@ -225,7 +254,7 @@ def _walk(node: nodes.Node, acc: _Acc, bound: frozenset) -> None:
             # Not the base of a modelled access: it can reach anything.
             acc.unanalysable = True
         elif node.name not in _GLOBALS:
-            acc.names.add(node.name)
+            acc.add(node.name)
         return
     for child in node.iter_child_nodes():
         _walk(child, acc, bound)
@@ -279,13 +308,14 @@ def _walk_map_extract(node: nodes.Filter, acc: _Acc, bound: frozenset) -> bool:
         if key is None:
             acc.unanalysable = True
         else:
-            acc.cross.add(key)
+            acc.add(key, cross=True)
     else:
         items = node.node
         if isinstance(items, (nodes.List, nodes.Tuple)) and all(
             isinstance(_const(i), str) for i in items.items
         ):
-            acc.names.update(_const(i) for i in items.items)
+            for item in items.items:
+                acc.add(_const(item))
         else:
             acc.unanalysable = True
             if items is not None:
@@ -315,14 +345,14 @@ def _const(node: nodes.Node) -> Any:
 def _target(key: nodes.Node, acc: _Acc, cross: bool, bound: frozenset) -> None:
     value = _const(key)
     if isinstance(value, str):
-        (acc.cross if cross else acc.names).add(value)
+        acc.add(value, cross)
         return
     # A key that uses a template-bound name ({% set %}, a loop target) cannot
     # be resolved as a standalone expression: it would read the host's
     # variable of that name instead of the local binding. Unresolvable.
     uses_bound = bool(_target_names(key) & bound)
     expression = None if uses_bound else _unparse(key)
-    acc.dynamic.append(DynamicKey(expression=expression, cross_host=cross))
+    acc.add_dynamic(expression, cross)
     _walk(key, acc, bound)
 
 

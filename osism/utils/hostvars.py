@@ -121,6 +121,7 @@ def _render(stack: Stack, names: list, ctx: _Ctx, merged=None) -> Rendered:
         "secrets": sorted(secrets),
         "raw": raw,
         "raw_all": _raw_all(ctx.all_raw_hostvars),
+        "facts": sorted(ctx.facts) if isinstance(ctx.facts, dict) else [],
     }
     result = ctx.renderer(
         ctx.host, request, ctx.inventory_path, stack, ctx.vault_password, ctx.facts

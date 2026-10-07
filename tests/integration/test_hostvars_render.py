@@ -182,3 +182,13 @@ def test_real_render_masks_unmodelled_secret_shapes(two_hosts, name):
     # render failure in disguise.
     shown = effective_rows("node1", name, None, True, **two_hosts)
     assert any(s in repr(shown) for s in leaked)
+
+
+def test_real_render_reports_fallback(two_hosts):
+    rows = effective_rows("node1", "fb", None, False, **two_hosts)
+    assert [(r.value, r.notes) for r in rows] == [
+        (
+            "fallback-value",
+            ["fallback: nope_undefined undefined here, a role may define it"],
+        )
+    ]

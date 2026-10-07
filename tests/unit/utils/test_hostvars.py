@@ -68,7 +68,7 @@ def world(mocker):
 
             return evaluate_request(resolve, request)
 
-        def rows(variable=None, environment=None, show=False):
+        def rows(variable=None, environment=None, show=False, facts=None):
             return hv.effective_rows(
                 "node1",
                 variable,
@@ -76,7 +76,7 @@ def world(mocker):
                 show,
                 inventory_path="/inv",
                 vault_password="pw",
-                facts=None,
+                facts=facts,
                 raw_hostvars=raw,
                 all_raw_hostvars=all_raw or {"node1": raw},
                 renderer=renderer,
@@ -311,7 +311,7 @@ def test_error_detail_sanitised_for_untainted(mocker):
                     "unanalysable": False,
                     "undefined": ["q"],
                     "secret_hits": [],
-                    "uses_default": False,
+                    "fallback": [],
                 }
             },
         }
@@ -596,3 +596,34 @@ def test_bare_variable_maps_are_masked(world, template):
     assert rows[0].masked and rows[0].notes == [
         "masked: could not analyse dependencies"
     ]
+
+
+# Final review I2: no false fallback notes.
+
+
+def test_fact_backed_default_has_no_fallback_note(world):
+    raw = {
+        "internal_address": "{{ ansible_default_ipv4.address"
+        "|default(ansible_all_ipv4_addresses[0]) }}"
+    }
+    facts = {
+        "ansible_default_ipv4": {"address": "192.0.2.10"},
+        "ansible_all_ipv4_addresses": ["192.0.2.10"],
+    }
+    rows = world(raw, {None: {"internal_address": "192.0.2.10"}})(
+        "internal_address", facts=facts
+    )
+    assert rows[0].value == "192.0.2.10" and rows[0].notes == []
+
+
+def test_d_alias_fallback_note(world):
+    rows = world({"e": "{{ nope | d('fb') }}"}, {None: {"e": "fb"}})("e")
+    assert rows[0].notes == ["fallback: nope undefined here, a role may define it"]
+
+
+def test_undefined_outside_default_gets_no_fallback_note(world):
+    rows = world(
+        {"e": "{{ nope if false else 'x' }}{{ other | default('y') }}"},
+        {None: {"e": "xy"}},
+    )("e")
+    assert rows[0].notes == ["fallback: other undefined here, a role may define it"]
