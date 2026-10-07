@@ -31,34 +31,12 @@ from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 from osism.services.listener import BaremetalEvents
 from osism.services.websocket_manager import websocket_manager
 from osism.services.event_bridge import event_bridge
-from osism.tasks.conductor.utils import _is_secret_key
+from osism.utils.secrets import mask_structure
 
 
 def _mask_inventory_secrets(data: dict) -> dict:
-    """Mask secret values in inventory data before returning via API.
-
-    Masks values for keys matching secret patterns (password, secret,
-    ironic_osism_*) and values that are Ansible Vault encrypted, at any
-    nesting depth inside dicts and lists.
-    """
-    masked: dict = {}
-    for key, value in data.items():
-        if _is_secret_key(key):
-            masked[key] = "***"
-        else:
-            masked[key] = _mask_inventory_value(value)
-    return masked
-
-
-def _mask_inventory_value(value):
-    """Mask secrets in a single inventory value, recursing into containers."""
-    if isinstance(value, str) and value.strip().startswith("$ANSIBLE_VAULT;"):
-        return "***"
-    if isinstance(value, dict):
-        return _mask_inventory_secrets(value)
-    if isinstance(value, list):
-        return [_mask_inventory_value(item) for item in value]
-    return value
+    """Mask secret values in inventory data before returning via API."""
+    return mask_structure(data, mask="***")
 
 
 class NotificationBaremetal(BaseModel):

@@ -8,6 +8,7 @@ from ansible.parsing.vault import VaultLib, VaultSecret
 from loguru import logger
 
 from osism import utils
+from osism.utils.secrets import is_secret_key as _is_secret_key  # noqa: F401
 import sushy
 import urllib3
 import yaml
@@ -292,13 +293,6 @@ def check_task_lock_and_exit():
     This is a convenience wrapper around the main utils function.
     """
     return utils.check_task_lock_and_exit()
-
-
-def _is_secret_key(key):
-    if not isinstance(key, str):
-        return False
-    lower = key.lower()
-    return "password" in lower or "secret" in lower or lower.startswith("ironic_osism_")
 
 
 def mask_secrets(obj, mask="xxx", secret_values=None):
