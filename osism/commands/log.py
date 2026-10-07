@@ -13,8 +13,13 @@ from prompt_toolkit.history import FileHistory
 import requests
 
 from osism import settings
-from osism.commands.console import get_hosts_from_group, resolve_host_with_fallback
-from osism.utils.ssh import ensure_known_hosts_file, KNOWN_HOSTS_PATH
+from osism.utils.hosts import get_hosts_from_group, resolve_host_with_fallback
+from osism.utils.ssh import (
+    build_clush_command,
+    build_ssh_command,
+    ensure_known_hosts_file,
+    KNOWN_HOSTS_PATH,
+)
 
 
 class Ansible(Command):
@@ -62,14 +67,10 @@ class Container(Command):
                 f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
             )
 
-        ssh_command = f"docker logs {parameters} {container_name}"
-        ssh_options = f"-o StrictHostKeyChecking=no -o LogLevel=ERROR -o UserKnownHostsFile={KNOWN_HOSTS_PATH}"
+        remote_command = f"docker logs {parameters} {container_name}"
 
         # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
-        subprocess.call(
-            f"/usr/bin/ssh -i /ansible/secrets/id_rsa.operator {ssh_options} {settings.OPERATOR_USER}@{host} {ssh_command}",
-            shell=True,
-        )
+        subprocess.call(build_ssh_command(host, remote_command=remote_command))
 
 
 class File(Command):
@@ -133,14 +134,7 @@ class File(Command):
             # Use clush for multi-node log tailing.
             # SSH options are configured in clush.conf.
             rc = subprocess.call(
-                [
-                    "/usr/local/bin/clush",
-                    "-l",
-                    settings.OPERATOR_USER,
-                    "-w",
-                    ",".join(group_hosts),
-                    tail_command,
-                ]
+                build_clush_command(hosts=group_hosts, remote_command=tail_command)
             )
             if rc != 0:
                 logger.error(
@@ -158,25 +152,9 @@ class File(Command):
             # Resolve hostname with DNS + Netbox fallback
             resolved_host = resolve_host_with_fallback(host)
 
-            ssh_options = [
-                "-o",
-                "StrictHostKeyChecking=no",
-                "-o",
-                "LogLevel=ERROR",
-                "-o",
-                f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
-            ]
-
             # FIXME: use paramiko or something else more Pythonic + make operator user + key configurable
             rc = subprocess.call(
-                [
-                    "/usr/bin/ssh",
-                    "-i",
-                    "/ansible/secrets/id_rsa.operator",
-                    *ssh_options,
-                    f"{settings.OPERATOR_USER}@{resolved_host}",
-                    tail_command,
-                ]
+                build_ssh_command(resolved_host, remote_command=tail_command)
             )
             if rc != 0:
                 logger.error(
