@@ -73,3 +73,15 @@ def test_replace_literals_deep_copies():
     out = replace_literals_deep(obj, ["secret1"])
     assert out == {"a": ["xx-***-yy", 3]}
     assert obj == {"a": ["xx-secret1-yy", 3]}
+
+
+def test_mask_structure_keeps_api_inline_vault_shape():
+    # The API masks by string prefix only (spec D6): an inline vault dict
+    # keeps its shape, its ciphertext string is masked.
+    data = {"x": {"__ansible_vault": "$ANSIBLE_VAULT;1.1;AES256\n63"}}
+    assert mask_structure(data) == {"x": {"__ansible_vault": "***"}}
+
+
+def test_mask_structure_structural_vault_masks_whole_value():
+    data = {"x": {"__ansible_vault": "$ANSIBLE_VAULT;1.1;AES256\n63"}}
+    assert mask_structure(data, structural_vault=True) == {"x": "***"}

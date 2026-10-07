@@ -28,29 +28,43 @@ def is_vault_value(value: Any) -> bool:
     ``!vault`` value comes out of ``ansible-inventory`` as
     ``{"__ansible_vault": "<ciphertext>"}``.
     """
-    if isinstance(value, str):
-        return value.strip().startswith(VAULT_PREFIX)
+    if _is_vault_string(value):
+        return True
     if isinstance(value, dict) and set(value) == {"__ansible_vault"}:
         return True
     return False
 
 
-def mask_structure(data: dict, mask: str = "***") -> dict:
-    """Mask by key name and by vault value, recursively. The API's rule."""
+def mask_structure(
+    data: dict, mask: str = "***", structural_vault: bool = False
+) -> dict:
+    """Mask by key name and by vault value, recursively.
+
+    The default is the API's rule: a vault value is a string with the
+    vault header, so an inline vault dict keeps its shape and only its
+    ciphertext is masked. With structural_vault, the vault rule is
+    is_vault_value and the whole inline vault dict becomes the mask.
+    """
     masked: dict = {}
     for key, value in data.items():
-        masked[key] = mask if is_secret_key(key) else _mask_value(value, mask)
+        masked[key] = (
+            mask if is_secret_key(key) else _mask_value(value, mask, structural_vault)
+        )
     return masked
 
 
-def _mask_value(value: Any, mask: str) -> Any:
-    if is_vault_value(value):
+def _mask_value(value: Any, mask: str, structural_vault: bool) -> Any:
+    if is_vault_value(value) if structural_vault else _is_vault_string(value):
         return mask
     if isinstance(value, dict):
-        return mask_structure(value, mask)
+        return mask_structure(value, mask, structural_vault)
     if isinstance(value, list):
-        return [_mask_value(item, mask) for item in value]
+        return [_mask_value(item, mask, structural_vault) for item in value]
     return value
+
+
+def _is_vault_string(value: Any) -> bool:
+    return isinstance(value, str) and value.strip().startswith(VAULT_PREFIX)
 
 
 def replace_literals(
