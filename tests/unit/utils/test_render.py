@@ -115,13 +115,18 @@ def test_render_batch_is_one_argv_run_with_neutral_cwd(tmp_path, mocker):
         "/inv",
         build_stack("kolla", root),
         "pw",
+        facts={"ansible_hostname": "n"},
     )
     assert len(runs) == 1
     cmd, kwargs = runs[0]
     assert isinstance(cmd, list) and cmd[1] == "node;rm -rf /" and "shell" not in kwargs
     assert kwargs["cwd"] not in ("/ansible", None)
+    assert kwargs["env"]["ANSIBLE_NOCOLOR"] == "1"
     extra = [cmd[i + 1] for i, a in enumerate(cmd) if a == "-e"]
-    assert [e.replace("@" + root + "/", "") for e in extra] == [
+    # Final review I4: in a play, extra-vars outrank facts. Later -e wins,
+    # so the facts file goes first.
+    assert extra[0].endswith("/facts.json")
+    assert [e.replace("@" + root + "/", "") for e in extra[1:]] == [
         "configuration.yml",
         "secrets.yml",
         "kolla/secrets.yml",

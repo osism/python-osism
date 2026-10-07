@@ -216,13 +216,15 @@ def render_batch(
             "--vault-password-file",
             vault_file,
         ]
-        for path in stack.files:
-            command += ["-e", f"@{path}"]
+        # A later -e wins. In a play, facts rank below extra-vars, so the
+        # cached facts go before the stack files.
         if facts:
             facts_path = os.path.join(workdir, "facts.json")
             with open(facts_path, "w") as fp:
                 json.dump(facts, fp)
             command += ["-e", f"@{facts_path}"]
+        for path in stack.files:
+            command += ["-e", f"@{path}"]
         env = os.environ.copy()
         env.update(
             ANSIBLE_GATHERING="explicit",
