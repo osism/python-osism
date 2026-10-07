@@ -9,6 +9,8 @@ from osism.utils import hostvars as hv
 from osism.utils.evaluate import evaluate_request
 from osism.utils.render import Stack
 
+from ._fakes import by_name
+
 
 @pytest.fixture
 def world(mocker):
@@ -66,7 +68,7 @@ def world(mocker):
                     return {"error": f"{type(value).__name__}: {value}"}
                 return {"value": value}
 
-            return evaluate_request(resolve, request)
+            return evaluate_request(by_name(resolve), request)
 
         def rows(variable=None, environment=None, show=False, facts=None):
             return hv.effective_rows(
@@ -355,10 +357,12 @@ def test_environment_stack_failure_withholds_ansible_output(world, mocker):
         if stack.environment == "kolla":
             raise RenderError("fatal: kolla-only-secret-xyz leaked", safe=False)
         return evaluate_request(
-            lambda e: (
-                {"value": {"X": "g", "Y": "g"}[e]}
-                if e in ("X", "Y")
-                else {"error": f"AnsibleUndefinedVariable: '{e}' is undefined"}
+            by_name(
+                lambda e: (
+                    {"value": {"X": "g", "Y": "g"}[e]}
+                    if e in ("X", "Y")
+                    else {"error": f"AnsibleUndefinedVariable: '{e}' is undefined"}
+                )
             ),
             request,
         )

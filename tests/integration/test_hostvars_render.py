@@ -97,7 +97,7 @@ def test_one_run_resolves_chains_and_vaults(setup):
     assert out["values"]["svc_url"] == {"value": "https://u:inline-secret-xyz@h"}
     assert out["values"]["db_password"] == {"value": "long-secret-1"}
     # hostvars_rows matches this exact shape to drop the row of an absent
-    # variable; a change in ansible-core's wording must fail here.
+    # variable; evaluate composes it after "'zz' in vars" came back false.
     assert out["values"]["zz"]["error"] == "AnsibleUndefinedVariable: 'zz' is undefined"
     assert raw["inline_pw"].keys() == {"__ansible_vault"}
 
@@ -156,7 +156,7 @@ def two_hosts(tmp_path):
     root = tmp_path / "environments"
     root.mkdir()
     (root / "configuration.yml").write_text(
-        "plain: 1\nliteral: !unsafe '{{ plain }}'\n"
+        "plain: 1\nliteral: !unsafe '{{ plain }}'\n'plain ~ 2': lit\n"
     )
     (root / "secrets.yml").write_text("redis_master_password: Redis-Secret-42\n")
     raw, all_raw = _inventory_hostvars(str(inv), "node1")
@@ -199,3 +199,10 @@ def test_real_render_reports_fallback(two_hosts):
 def test_real_render_keeps_unsafe_literal(two_hosts):
     rows = effective_rows("node1", "literal", None, False, **two_hosts)
     assert [(r.value, r.masked, r.notes) for r in rows] == [("{{ plain }}", False, [])]
+
+
+def test_real_render_looks_names_up_without_templating(two_hosts):
+    rows = effective_rows("node1", "plain ~ 2", None, False, **two_hosts)
+    assert [(r.value, r.notes) for r in rows] == [("lit", [])]
+    rows = effective_rows("node1", "absent_name", None, False, **two_hosts)
+    assert rows == []

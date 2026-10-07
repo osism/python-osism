@@ -3,6 +3,8 @@
 
 from osism.utils.evaluate import evaluate_request
 
+from ._fakes import by_name
+
 
 def _resolver(table, calls=None):
     def resolve(expr):
@@ -12,7 +14,7 @@ def _resolver(table, calls=None):
             return {"value": table[expr]}
         return {"error": f"AnsibleUndefinedVariable: '{expr}' is undefined"}
 
-    return resolve
+    return by_name(resolve)
 
 
 def _req(names, raw, secrets=(), raw_all=None, facts=None):
@@ -157,3 +159,37 @@ def test_default_argument_and_nested_values_are_fallbacks():
     )
     assert r["closures"]["e"]["fallback"] == ["x", "y"]
     assert r["closures"]["a"]["fallback"] == ["x", "y"]
+
+
+# Final review minor 3: names are looked up, never templated as expressions.
+
+
+def _vars_resolver(table, calls):
+    def resolve(expr):
+        calls.append(expr)
+        for name, value in table.items():
+            if expr == f"{name!r} in vars":
+                return {"value": True}
+            if expr == f"vars[{name!r}]":
+                return {"value": value}
+        if expr.endswith(" in vars"):
+            return {"value": False}
+        return {"error": f"TypeError: unexpected expression {expr}"}
+
+    return resolve
+
+
+def test_names_are_resolved_as_vars_lookups():
+    calls = []
+    r = evaluate_request(
+        _vars_resolver({"a ~ db_password": "lit", "b": 1}, calls),
+        _req(["a ~ db_password", "b"], {"a ~ db_password": "lit", "b": 1}),
+    )
+    assert r["values"]["a ~ db_password"] == {"value": "lit"}
+    assert r["values"]["b"] == {"value": 1}
+    assert "a ~ db_password" not in calls and "b" not in calls
+
+
+def test_absent_name_reports_undefined():
+    r = evaluate_request(_vars_resolver({}, []), _req(["zz"], {}))
+    assert r["values"]["zz"] == {"error": "AnsibleUndefinedVariable: 'zz' is undefined"}

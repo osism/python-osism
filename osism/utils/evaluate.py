@@ -7,7 +7,8 @@ Runs inside the ``osism_render`` action plugin, so that dynamic keys
 discovered while walking a closure are resolved by Ansible's own templar
 in the same invocation (one Ansible run per stack). ``resolve`` templates
 one expression and returns ``{"value": ...}`` or ``{"error": str}``; unit
-tests pass a fake.
+tests pass a fake. Dynamic keys are templated as expressions; variable
+values are looked up as ``vars['<name>']``.
 
 Request:
     names    -- variables to report
@@ -94,6 +95,20 @@ def _closure(name: str, request: dict, resolve: Resolve, key_cache: dict) -> dic
     }
 
 
+def _value(resolve: Resolve, name: str) -> dict:
+    """Look a variable up by name; a name is never templated as an expression.
+
+    vars['<absent>'] fails with Jinja's "has no attribute" message, so an
+    absent name is checked first and reported in the shape of templating
+    an undefined name, which callers rely on to drop the row.
+    """
+    key = repr(str(name))
+    present = resolve(f"{key} in vars")
+    if present.get("value") is False:
+        return {"error": f"AnsibleUndefinedVariable: '{name}' is undefined"}
+    return resolve(f"vars[{key}]")
+
+
 def evaluate_request(resolve: Resolve, request: dict) -> dict:
     key_cache: dict = {}
     closures = {n: _closure(n, request, resolve, key_cache) for n in request["names"]}
@@ -101,5 +116,5 @@ def evaluate_request(resolve: Resolve, request: dict) -> dict:
     for n in list(request["names"]) + sorted(
         set(request["secrets"]) - set(request["names"])
     ):
-        values[n] = resolve(n)
+        values[n] = _value(resolve, n)
     return {"values": values, "closures": closures}

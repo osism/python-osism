@@ -112,6 +112,10 @@ class Tasks(Command):
         )
 
 
+# The rendered path looks the name up; it is never templated.
+VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
 class Hostvars(Command):
     def get_parser(self, prog_name):
         parser = super(Hostvars, self).get_parser(prog_name)
@@ -161,6 +165,17 @@ class Hostvars(Command):
     def take_action(self, parsed_args):
         host = parsed_args.host[0]
         variable = parsed_args.variable
+
+        if (
+            not parsed_args.raw
+            and variable is not None
+            and not VARIABLE_NAME.fullmatch(variable)
+        ):
+            logger.error(
+                f"not a valid variable name: {variable} "
+                "(letters, digits and underscores, not starting with a digit)"
+            )
+            return 1
 
         inventory_path = get_inventory_path(
             "/ansible/inventory/hosts.yml", prefer_minified=False

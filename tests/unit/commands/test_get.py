@@ -715,3 +715,15 @@ def test_hostvars_raw_json_format(mocker, capsys):
             "notes": [],
         }
     ]
+
+
+def test_hostvars_variable_must_be_an_identifier(mocker, loguru_logs):
+    # Final review minor 3: the name must never reach Ansible as an
+    # expression.
+    m = _hv(mocker)
+    assert _run(["h", "a ~ db_password"]) == 1
+    assert not m.called
+    assert any(
+        "not a valid variable name: a ~ db_password" in r["message"]
+        for r in loguru_logs
+    )
