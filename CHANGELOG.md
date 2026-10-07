@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261007.0] - 2026-10-07
+
+### Dependencies
+- gitpython 3.1.62 → 3.2.0 (osism/python-osism#2749)
+- @types/node 24.19.0 → 24.19.1 (osism/python-osism#2752)
+- boto3 1.43.103 → 1.43.107 (osism/python-osism#2753)
+- fastapi 0.141.1 → 0.142.2 (osism/python-osism#2754)
+- eslint 10.11.0 → 10.12.0 (osism/python-osism#2758)
+- lucide-react 1.50.0 → 1.52.0 (osism/python-osism#2759, osism/python-osism#2763)
+- openstack-image-manager 0.20261001.0 → 0.20261007.0 (osism/python-osism#2760, osism/python-osism#2767)
+- websockets 17.1 → 17.2 (osism/python-osism#2762)
+- community.docker 5.3.0 → 5.4.0 (osism/python-osism#2764)
+- netbox-manager 0.20260810.0 → 0.20261007.0 (osism/python-osism#2765)
+- openstack-flavor-manager 0.20260722.0 → 0.20261007.0 (osism/python-osism#2766)
+
 ## [v0.20261005.0] - 2026-10-05
 
 ### Added
