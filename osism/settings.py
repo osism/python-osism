@@ -30,6 +30,11 @@ ANSIBLE_VAULT_KEYFILE = os.getenv(
     "ANSIBLE_VAULT_KEYFILE", "/share/ansible_vault_password.key"
 )
 
+# Root of the configuration repository's environments, as `osism apply` sees it.
+ENVIRONMENTS_DIRECTORY = os.getenv(
+    "ENVIRONMENTS_DIRECTORY", "/opt/configuration/environments"
+)
+
 
 NETBOX_URL = os.getenv("NETBOX_API", os.getenv("NETBOX_URL"))
 NETBOX_TOKEN = str(
