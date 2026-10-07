@@ -491,3 +491,51 @@ def test_unreadable_environment_fails_its_rows_only(world, mocker):
     assert rows[1].failed and rows[1].notes == [
         "render failed: cannot decrypt kolla/secrets.yml (AnsibleError)"
     ]
+
+
+def test_cross_host_plaintext_password_key_is_masked(world):
+    # The key rule applies to every host's names, not only the queried one's.
+    raw = {
+        "bmc": "{{ hostvars['node2']['ipmi_password'] }}",
+        "ep": "{{ hostvars['node2']['endpoint'] }}",
+    }
+    all_raw = {
+        "node1": raw,
+        "node2": {
+            "ipmi_password": "Node2-Plain-Pw",
+            "endpoint": "https://admin:{{ ipmi_password }}@x",
+        },
+    }
+    get = world(
+        raw,
+        {None: {"bmc": "Node2-Plain-Pw", "ep": "https://admin:Node2-Plain-Pw@x"}},
+        all_raw=all_raw,
+    )
+    for name in ("bmc", "ep"):
+        rows = get(name)
+        assert rows[0].value == "***" and rows[0].masked
+        assert rows[0].notes == ["masked: derived from ipmi_password"]
+        assert "Node2-Plain-Pw" not in repr(rows)
+
+
+_VAULT = {"__ansible_vault": "$ANSIBLE_VAULT;1.1;AES256\n61"}
+
+
+def test_nested_vault_value_is_masked(world):
+    raw = {"ldap": {"bind_password": _VAULT, "token": _VAULT}}
+    rows = world(
+        raw,
+        {None: {"ldap": {"bind_password": "ldap-bind-pw-1", "token": "ldap-token-1"}}},
+    )("ldap")
+    assert rows[0].value == "***" and rows[0].masked
+    assert rows[0].notes == ["masked: derived from ldap"]
+
+
+def test_cross_host_nested_vault_value_is_masked(world):
+    raw = {"cfg": "{{ hostvars['node2']['ldap'] }}"}
+    all_raw = {"node1": raw, "node2": {"ldap": {"servers": [{"bind": _VAULT}]}}}
+    rows = world(
+        raw, {None: {"cfg": {"servers": [{"bind": "ldap-bind-pw-1"}]}}}, all_raw=all_raw
+    )("cfg")
+    assert rows[0].value == "***" and rows[0].masked
+    assert rows[0].notes == ["masked: derived from ldap"]

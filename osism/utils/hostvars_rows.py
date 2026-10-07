@@ -66,17 +66,34 @@ def closure_of(closures: dict, name: str) -> dict[str, Any]:
     return {**_UNKNOWN_CLOSURE, **(closures.get(name) or {})}
 
 
+def _contains_vault(value: Any) -> bool:
+    """True if a vault value occurs anywhere inside value."""
+    if is_vault_value(value):
+        return True
+    if isinstance(value, dict):
+        return any(_contains_vault(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_contains_vault(v) for v in value)
+    return False
+
+
+def _is_secret(name: Any, value: Any) -> bool:
+    return is_secret_key(name) or _contains_vault(value)
+
+
 def secret_set(files: list, raw: dict, all_raw_hostvars: dict) -> set:
-    """Step 4: the secret set S of a stack."""
+    """Step 4: the secret set S of a stack.
+
+    The key and vault rules apply to every host's names too: a
+    cross-host read (hostvars[h][name]) reaches another host's
+    definition of name, which the queried host's raw does not show.
+    """
     secrets: set = set()
     for path, loaded in files:
         if os.path.basename(path) == "secrets.yml":
             secrets |= set(loaded)
-    for name, value in raw.items():
-        if is_secret_key(name) or is_vault_value(value):
-            secrets.add(name)
-    for host_vars in all_raw_hostvars.values():
-        secrets |= {n for n, v in host_vars.items() if is_vault_value(v)}
+    for variables in [raw, *all_raw_hostvars.values()]:
+        secrets |= {n for n, v in variables.items() if _is_secret(n, v)}
     return secrets
 
 

@@ -92,7 +92,9 @@ def test_one_run_resolves_chains_and_vaults(setup):
     assert out["closures"]["svc_url"]["secret_hits"] == ["inline_pw"]
     assert out["values"]["svc_url"] == {"value": "https://u:inline-secret-xyz@h"}
     assert out["values"]["db_password"] == {"value": "long-secret-1"}
-    assert "undefined" in out["values"]["zz"]["error"]
+    # hostvars_rows matches this exact shape to drop the row of an absent
+    # variable; a change in ansible-core's wording must fail here.
+    assert out["values"]["zz"]["error"] == "AnsibleUndefinedVariable: 'zz' is undefined"
     assert raw["inline_pw"].keys() == {"__ansible_vault"}
 
 
