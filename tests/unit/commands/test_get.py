@@ -735,3 +735,10 @@ def test_hostvars_value_format_masked_message(mocker, loguru_logs):
     assert [r["message"] for r in loguru_logs if r["level"] == "ERROR"] == [
         "value is masked (derived from p); pass --show-secrets"
     ]
+
+
+def test_hostvars_failed_row_has_empty_value_cell(mocker, capsys):
+    _hv(mocker, [Row("h", "a", None, None, False, ["render failed: x"], True)])
+    _run(["h"])
+    out = capsys.readouterr().out
+    assert "None" not in out and "render failed: x" in out

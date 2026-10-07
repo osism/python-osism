@@ -324,11 +324,12 @@ class Hostvars(Command):
         table = []
         for r in rows:
             label = f"{r.variable} [{r.environment}]" if r.environment else r.variable
-            value = (
-                "***"
-                if r.masked
-                else pprint.pformat(r.value, indent=2, width=60, compact=True)
-            )
+            if r.masked:
+                value = "***"
+            elif r.failed:
+                value = ""
+            else:
+                value = pprint.pformat(r.value, indent=2, width=60, compact=True)
             table.append([r.host, label, value, "\n".join(r.notes)])
         print(
             tabulate(
