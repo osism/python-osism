@@ -158,7 +158,9 @@ def _row(
             cleaned = replace_literals_deep(
                 value, rendered.secret_values, MASK, MIN_SECRET_LENGTH
             )
-            value, masked = cleaned, cleaned != value
+            if cleaned != value:
+                value, masked = cleaned, True
+                notes.append("masked: contains a secret value")
     # A dynamic key resolved to a value can land in `fallback`.
     notes += [
         _clean(

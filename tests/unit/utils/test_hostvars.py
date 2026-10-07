@@ -196,6 +196,7 @@ def test_literal_net_catches_unreached_secret(world):
         secrets_names={"db_password"},
     )("u")
     assert rows[0].value == "pre-***-post"
+    assert rows[0].masked and rows[0].notes == ["masked: contains a secret value"]
 
 
 def test_environment_row_from_dependency_override_only_for_that_env(world):
@@ -427,6 +428,7 @@ def test_literal_net_sets_masked(world):
         secrets_names={"db_password"},
     )("u")
     assert rows[0].value == "***" and rows[0].masked
+    assert rows[0].notes == ["masked: contains a secret value"]
 
 
 def test_fallback_note_is_sanitised(world):

@@ -302,9 +302,12 @@ class Hostvars(Command):
                 return 1
             row = rows[0]
             if row.masked:
-                logger.error(
-                    f"value is masked ({'; '.join(row.notes)}); pass --show-secrets"
+                reasons = "; ".join(
+                    n.removeprefix("masked: ")
+                    for n in row.notes
+                    if n.startswith("masked: ")
                 )
+                logger.error(f"value is masked ({reasons}); pass --show-secrets")
                 return 1
             if row.failed:
                 for note in row.notes:

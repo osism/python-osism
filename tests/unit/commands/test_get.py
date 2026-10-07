@@ -727,3 +727,11 @@ def test_hostvars_variable_must_be_an_identifier(mocker, loguru_logs):
         "not a valid variable name: a ~ db_password" in r["message"]
         for r in loguru_logs
     )
+
+
+def test_hostvars_value_format_masked_message(mocker, loguru_logs):
+    _hv(mocker, [Row("h", "a", None, "***", True, ["masked: derived from p"], False)])
+    assert _run(["h", "a", "--format", "value"]) == 1
+    assert [r["message"] for r in loguru_logs if r["level"] == "ERROR"] == [
+        "value is masked (derived from p); pass --show-secrets"
+    ]
