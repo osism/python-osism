@@ -116,3 +116,84 @@ def test_syntax_error_is_unanalysable():
 def test_non_template_string_has_no_refs():
     r = references("plain")
     assert r.names == frozenset() and not r.dynamic_keys
+
+
+# Final review C1: shapes that reached a secret without being modelled.
+
+
+def test_fqcn_vars_lookup_is_a_reference():
+    for plugin in ("vars", "ansible.builtin.vars", "ansible.legacy.vars"):
+        r = references(f"{{{{ lookup('{plugin}', 'redis_master_password') }}}}")
+        assert r.names == {"redis_master_password"} and not r.unanalysable
+        r = references(f"{{{{ query('{plugin}', n) | first }}}}")
+        assert [k.expression for k in r.dynamic_keys] == ["n"]
+
+
+def test_get_on_vars_and_hostvars_is_a_subscript():
+    r = references(
+        "{{ hostvars[inventory_hostname].get('redis_master_password') | b64encode }}"
+    )
+    assert r.names == {"redis_master_password"} and not r.unanalysable
+    assert references("{{ vars.get('a', 'x') }}").names == {"a"}
+    r = references("{{ hostvars[h].get('endpoint') }}")
+    assert r.cross_host_names == {"endpoint"} and r.names == {"h"}
+    assert references("{{ hostvars.node2.get('endpoint') }}").cross_host_names == {
+        "endpoint"
+    }
+    r = references("{{ vars.get(n) }}")
+    assert [k.expression for k in r.dynamic_keys] == ["n"] and "get" not in r.names
+
+
+def test_mapping_methods_are_unanalysable():
+    for expr in (
+        "{{ vars.get }}",
+        "{{ vars.values() | list }}",
+        "{{ vars.items() | list }}",
+        "{{ hostvars[h].values() | list }}",
+        "{{ hostvars.node2.keys() | list }}",
+        "{{ hostvars.raw_get('node2') }}",
+        "{{ hostvars[h]._vars }}",
+    ):
+        assert references(expr).unanalysable, expr
+
+
+def test_map_extract_vars_is_modelled_by_its_constant_items():
+    r = references(
+        "{{ ['redis_master_password'] | map('extract', vars) | first | b64encode }}"
+    )
+    assert r.names == {"redis_master_password"} and not r.unanalysable
+    assert references("{{ names | map('extract', vars) | list }}").unanalysable
+
+
+def test_map_extract_hostvars_first_key_is_cross_host():
+    r = references(
+        "{{ groups['all'] | map('extract', hostvars, 'ipmi_password') "
+        "| select('defined') | list }}"
+    )
+    assert r.cross_host_names == {"ipmi_password"} and not r.unanalysable
+    r = references(
+        "{{ groups['x'] | map('extract', hostvars, ['ansible_facts', 'hostname']) "
+        "| list }}"
+    )
+    assert r.cross_host_names == {"ansible_facts"} and not r.unanalysable
+    assert references("{{ groups['x'] | map('extract', hostvars, k) }}").unanalysable
+    assert references("{{ groups['x'] | map('extract', hostvars) }}").unanalysable
+
+
+def test_alias_of_vars_is_unanalysable():
+    assert references(
+        "{% set v = vars %}{{ v.redis_master_password | b64encode }}"
+    ).unanalysable
+
+
+def test_bare_vars_and_hostvars_are_unanalysable():
+    assert references("{{ vars }}").unanalysable
+    assert references("{{ hostvars }}").unanalysable
+    assert references("{{ hostvars[inventory_hostname] }}").unanalysable
+    assert references("{{ hostvars | dict2items }}").unanalysable
+    assert references("{{ 'x' | extract(vars) }}").unanalysable
+
+
+def test_star_args_to_a_vars_lookup_are_unanalysable():
+    assert references("{{ lookup('vars', *names) }}").unanalysable
+    assert references("{{ vars.get(*names) }}").unanalysable

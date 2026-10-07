@@ -3,12 +3,16 @@
 
 """render_batch end to end against real Ansible; the plugin imports osism."""
 
+import base64
+import json
 import os
 import shutil
 import subprocess
 
 import pytest
+import yaml
 
+from osism.utils.hostvars import effective_rows
 from osism.utils.render import (
     build_stack,
     environment_local_names,
@@ -104,3 +108,77 @@ def test_environment_local_names_reads_inline_vault(setup):
         "inline_pw",
         "svc_url",
     }
+
+
+def _inventory_hostvars(inv, host):
+    def run(*args):
+        return json.loads(
+            subprocess.run(
+                ["ansible-inventory", "-i", inv, *args],
+                check=True,
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+            ).stdout
+        )
+
+    return run("--host", host), run("--list")["_meta"]["hostvars"]
+
+
+@pytest.fixture
+def two_hosts(tmp_path):
+    """node1 reads a secret through shapes the walker once missed."""
+    inv = tmp_path / "hosts.yml"
+    inv.write_text(
+        yaml.safe_dump(
+            {
+                "all": {
+                    "hosts": {
+                        "node1": {
+                            "ansible_host": "192.0.2.10",
+                            "enc_lookup": "{{ lookup('ansible.builtin.vars', "
+                            "'redis_master_password') | b64encode }}",
+                            "enc_get": "{{ hostvars[inventory_hostname]"
+                            ".get('redis_master_password') | b64encode }}",
+                            "bmc_list": "{{ groups['all'] | map('extract', "
+                            "hostvars, 'ipmi_password') | select('defined') | list }}",
+                            "fb": "{{ nope_undefined | default('fallback-value') }}",
+                        },
+                        "node2": {
+                            "ansible_host": "192.0.2.11",
+                            "ipmi_password": "Node2PlainIpmiPw",
+                        },
+                    }
+                }
+            }
+        )
+    )
+    root = tmp_path / "environments"
+    root.mkdir()
+    (root / "configuration.yml").write_text("plain: 1\n")
+    (root / "secrets.yml").write_text("redis_master_password: Redis-Secret-42\n")
+    raw, all_raw = _inventory_hostvars(str(inv), "node1")
+    return dict(
+        inventory_path=str(inv),
+        vault_password="probe-vault-pw",
+        facts=None,
+        raw_hostvars=raw,
+        all_raw_hostvars=all_raw,
+        root=str(root),
+    )
+
+
+@pytest.mark.parametrize("name", ["enc_lookup", "enc_get", "bmc_list"])
+def test_real_render_masks_unmodelled_secret_shapes(two_hosts, name):
+    rows = effective_rows("node1", name, None, False, **two_hosts)
+    assert len(rows) == 1 and rows[0].masked and rows[0].value == "***"
+    leaked = (
+        "Redis-Secret-42",
+        base64.b64encode(b"Redis-Secret-42").decode(),
+        "Node2PlainIpmiPw",
+    )
+    assert not any(s in repr(rows) for s in leaked)
+    # The same run shows the value with --show-secrets: the mask is not a
+    # render failure in disguise.
+    shown = effective_rows("node1", name, None, True, **two_hosts)
+    assert any(s in repr(shown) for s in leaked)

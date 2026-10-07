@@ -11,8 +11,15 @@ target.
 Names bound inside the template (loop targets, ``{% set %}``) are tracked
 per scope and in statement order. A later binding never hides an earlier
 reference.
+
+``vars`` and ``hostvars`` are modelled only as the base of these accesses:
+a subscript or attribute (``vars['x']``, ``hostvars[h].x``), ``.get(x)``,
+``lookup('vars', x)`` and ``map('extract', hostvars, x)``. Any other use
+(the bare name, an alias, ``vars.items()``, ``hostvars[h]`` on its own)
+can reach every variable, so it makes the value unanalysable.
 """
 
+import collections
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -22,8 +29,6 @@ from jinja2.exceptions import TemplateSyntaxError
 _ENV = Environment()
 _GLOBALS = frozenset(
     {
-        "vars",
-        "hostvars",
         "groups",
         "group_names",
         "inventory_hostname",
@@ -46,6 +51,15 @@ _GLOBALS = frozenset(
     }
 )
 _LOOKUPS = frozenset({"lookup", "query", "q"})
+_VARS_LOOKUPS = frozenset({"vars", "ansible.builtin.vars", "ansible.legacy.vars"})
+_VARIABLE_MAPS = frozenset({"vars", "hostvars"})
+# Jinja's getattr prefers a Python attribute over a key, so vars.items is
+# the method, not a variable named "items". HostVars adds raw_get.
+_MAPPING_ATTRS = frozenset(
+    a
+    for a in dir(dict) + dir(collections.ChainMap) + ["raw_get"]
+    if not a.startswith("_")
+)
 # Statements whose scoping this walker does not model; their presence makes
 # the value unanalysable (masked), which is the safe direction.
 _UNMODELLED = (nodes.Macro, nodes.CallBlock, nodes.With, nodes.FilterBlock)
@@ -125,9 +139,45 @@ def _hostvars_host(base: nodes.Node):
     """For hostvars[H] / hostvars.H return (True, cross_host); else (False, None)."""
     if isinstance(base, nodes.Getitem) and _is_name(base.node, "hostvars"):
         return True, not _is_name(base.arg, "inventory_hostname")
-    if isinstance(base, nodes.Getattr) and _is_name(base.node, "hostvars"):
+    if (
+        isinstance(base, nodes.Getattr)
+        and _is_name(base.node, "hostvars")
+        and not _is_mapping_attr(base.attr)
+    ):
         return True, True
     return False, None
+
+
+def _is_mapping_attr(attr: str) -> bool:
+    return attr.startswith("_") or attr in _MAPPING_ATTRS
+
+
+def _variable_map(base: nodes.Node, acc: _Acc, bound: frozenset):
+    """If base is vars or hostvars[H]/hostvars.H, walk H and return cross_host.
+
+    Returns None when base is not one of them.
+    """
+    if _is_name(base, "vars") and "vars" not in bound:
+        return False
+    is_hostvars, cross = _hostvars_host(base)
+    if not is_hostvars or "hostvars" in bound:
+        return None
+    if isinstance(base, nodes.Getitem):
+        _walk(base.arg, acc, bound)
+    return bool(cross)
+
+
+def _walk_call_rest(node: nodes.Call, args: list, acc: _Acc, bound) -> None:
+    if node.dyn_args is not None or node.dyn_kwargs is not None:
+        # *args/**kwargs may carry further variable names.
+        acc.unanalysable = True
+    for arg in args:
+        _walk(arg, acc, bound)
+    for kwarg in node.kwargs:
+        _walk(kwarg, acc, bound)
+    for dyn in (node.dyn_args, node.dyn_kwargs):
+        if dyn is not None:
+            _walk(dyn, acc, bound)
 
 
 def _is_name(node: nodes.Node, name: str) -> bool:
@@ -154,27 +204,108 @@ def _walk(node: nodes.Node, acc: _Acc, bound: frozenset) -> None:
         _walk_body(node.else_, acc, bound)
         return
     if isinstance(node, (nodes.Getitem, nodes.Getattr)):
-        base = node.node
-        is_hostvars, cross = _hostvars_host(base)
-        if _is_name(base, "vars") or is_hostvars:
-            if is_hostvars and isinstance(base, nodes.Getitem):
-                _walk(base.arg, acc, bound)
+        cross = _variable_map(node.node, acc, bound)
+        if cross is not None:
             if isinstance(node, nodes.Getattr):
-                (acc.cross if cross else acc.names).add(node.attr)
+                if _is_mapping_attr(node.attr):
+                    acc.unanalysable = True
+                else:
+                    (acc.cross if cross else acc.names).add(node.attr)
             else:
-                _target(node.arg, acc, bool(cross), bound)
+                _target(node.arg, acc, cross, bound)
             return
-    if isinstance(node, nodes.Call) and isinstance(node.node, nodes.Name):
-        if node.node.name in _LOOKUPS and node.args and _const(node.args[0]) == "vars":
-            for arg in node.args[1:]:
-                _target(arg, acc, False, bound)
-            return
+    if isinstance(node, nodes.Call) and _walk_call(node, acc, bound):
+        return
+    if isinstance(node, nodes.Filter) and _walk_map_extract(node, acc, bound):
+        return
     if isinstance(node, nodes.Name) and node.ctx == "load":
-        if node.name not in _GLOBALS and node.name not in bound:
+        if node.name in bound:
+            return
+        if node.name in _VARIABLE_MAPS:
+            # Not the base of a modelled access: it can reach anything.
+            acc.unanalysable = True
+        elif node.name not in _GLOBALS:
             acc.names.add(node.name)
         return
     for child in node.iter_child_nodes():
         _walk(child, acc, bound)
+
+
+def _walk_call(node: nodes.Call, acc: _Acc, bound: frozenset) -> bool:
+    """lookup('vars', ...) and <vars or hostvars[H]>.get(key, ...)."""
+    callee = node.node
+    if (
+        isinstance(callee, nodes.Name)
+        and callee.name in _LOOKUPS
+        and callee.name not in bound
+        and node.args
+        and _const(node.args[0]) in _VARS_LOOKUPS
+    ):
+        for arg in node.args[1:]:
+            _target(arg, acc, False, bound)
+        _walk_call_rest(node, [], acc, bound)
+        return True
+    if isinstance(callee, nodes.Getattr) and callee.attr == "get" and node.args:
+        cross = _variable_map(callee.node, acc, bound)
+        if cross is None:
+            return False
+        _target(node.args[0], acc, cross, bound)
+        _walk_call_rest(node, node.args[1:], acc, bound)
+        return True
+    return False
+
+
+def _walk_map_extract(node: nodes.Filter, acc: _Acc, bound: frozenset) -> bool:
+    """seq | map('extract', hostvars, key) and seq | map('extract', vars).
+
+    extract(item, container, morekeys) is container[item][morekeys...]:
+    with hostvars the items are hosts and the first key component is the
+    variable; with vars the items are the variables.
+    """
+    args = node.args
+    if not (
+        node.name == "map"
+        and len(args) >= 2
+        and _const(args[0]) == "extract"
+        and isinstance(args[1], nodes.Name)
+        and args[1].name in _VARIABLE_MAPS
+        and args[1].name not in bound
+    ):
+        return False
+    if args[1].name == "hostvars":
+        if node.node is not None:
+            _walk(node.node, acc, bound)
+        key = _first_key(args[2]) if len(args) >= 3 else None
+        if key is None:
+            acc.unanalysable = True
+        else:
+            acc.cross.add(key)
+    else:
+        items = node.node
+        if isinstance(items, (nodes.List, nodes.Tuple)) and all(
+            isinstance(_const(i), str) for i in items.items
+        ):
+            acc.names.update(_const(i) for i in items.items)
+        else:
+            acc.unanalysable = True
+            if items is not None:
+                _walk(items, acc, bound)
+    for arg in args[2:]:
+        _walk(arg, acc, bound)
+    for kwarg in node.kwargs:
+        _walk(kwarg, acc, bound)
+    if node.dyn_args is not None or node.dyn_kwargs is not None:
+        acc.unanalysable = True
+    return True
+
+
+def _first_key(key: nodes.Node) -> str | None:
+    if isinstance(key, (nodes.List, nodes.Tuple)):
+        if not key.items:
+            return None
+        key = key.items[0]
+    value = _const(key)
+    return value if isinstance(value, str) else None
 
 
 def _const(node: nodes.Node) -> Any:

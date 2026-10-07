@@ -539,3 +539,60 @@ def test_cross_host_nested_vault_value_is_masked(world):
     )("cfg")
     assert rows[0].value == "***" and rows[0].masked
     assert rows[0].notes == ["masked: derived from ldap"]
+
+
+# Final review C1: template shapes that reached a secret unmasked.
+
+_B64 = base64.b64encode(b"s3cr3t-value-123").decode()
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "{{ lookup('ansible.builtin.vars', 'redis_master_password') | b64encode }}",
+        "{{ hostvars[inventory_hostname].get('redis_master_password') | b64encode }}",
+        "{{ ['redis_master_password'] | map('extract', vars) | first | b64encode }}",
+        "{% set v = vars %}{{ v.redis_master_password | b64encode }}",
+    ],
+)
+def test_unmodelled_secret_shapes_are_masked(world, template):
+    rows = world(
+        {"enc": template},
+        {None: {"enc": _B64, "redis_master_password": "s3cr3t-value-123"}},
+        secrets_names={"redis_master_password"},
+    )("enc")
+    assert rows[0].value == "***" and rows[0].masked
+    assert _B64 not in repr(rows)
+
+
+def test_cross_host_map_extract_plaintext_is_masked(world):
+    raw = {
+        "bmc_list": "{{ groups['all'] | map('extract', hostvars, 'ipmi_password') "
+        "| select('defined') | list }}"
+    }
+    all_raw = {"node1": raw, "node2": {"ipmi_password": "Node2PlainIpmiPw"}}
+    rows = world(raw, {None: {"bmc_list": ["Node2PlainIpmiPw"]}}, all_raw=all_raw)(
+        "bmc_list"
+    )
+    assert rows[0].value == "***" and rows[0].notes == [
+        "masked: derived from ipmi_password"
+    ]
+    assert "Node2PlainIpmiPw" not in repr(rows)
+
+
+def test_benign_map_extract_hostvars_is_shown(world):
+    raw = {
+        "names": "{{ groups['all'] | map('extract', hostvars, "
+        "['ansible_facts', 'hostname']) | list }}"
+    }
+    all_raw = {"node1": raw, "node2": {}}
+    rows = world(raw, {None: {"names": ["node1", "node2"]}}, all_raw=all_raw)("names")
+    assert rows[0].value == ["node1", "node2"] and not rows[0].masked
+
+
+@pytest.mark.parametrize("template", ["{{ vars }}", "{{ hostvars }}"])
+def test_bare_variable_maps_are_masked(world, template):
+    rows = world({"all": template}, {None: {"all": {"a": "1"}}})("all")
+    assert rows[0].masked and rows[0].notes == [
+        "masked: could not analyse dependencies"
+    ]
