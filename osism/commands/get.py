@@ -4,15 +4,18 @@ from datetime import datetime
 import pprint
 import re
 import subprocess
+import sys
 import json
 
 from cliff.command import Command
 from loguru import logger
 from tabulate import tabulate
 
-from osism import utils
+from osism import settings, utils
 from osism.utils import fact_cache
+from osism.utils.hostvars import HostvarsError, Row, effective_rows
 from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
+from osism.utils.render import list_environments
 
 
 class VersionsManager(Command):
@@ -124,6 +127,35 @@ class Hostvars(Command):
             type=str,
             help="Name of a variable to show",
         )
+        environments = list_environments()
+        available = (
+            ", ".join(environments)
+            if environments
+            else f"(none found under {settings.ENVIRONMENTS_DIRECTORY})"
+        )
+        parser.add_argument(
+            "--environment",
+            type=str,
+            help="Render with this environment only. Available: " + available,
+        )
+        parser.add_argument(
+            "--raw",
+            default=False,
+            help="Show values as defined, without rendering templates",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--show-secrets",
+            default=False,
+            help="Show values that are secrets or derived from secrets",
+            action="store_true",
+        )
+        parser.add_argument(
+            "--format",
+            choices=["table", "value", "json"],
+            default="table",
+            help="Output format (default: table)",
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -135,15 +167,70 @@ class Hostvars(Command):
         )
         try:
             result = subprocess.check_output(
-                f"ansible-inventory -i {inventory_path} --host {host}",
-                shell=True,
+                ["ansible-inventory", "-i", inventory_path, "--host", host],
                 stderr=subprocess.DEVNULL,
             )
         except subprocess.CalledProcessError:
             logger.error(f"Host {host} not found in inventory.")
             return 1
 
-        data = json.loads(result)
+        raw_hostvars = json.loads(result)
+
+        if parsed_args.raw:
+            return self._take_raw(parsed_args, host, variable, raw_hostvars)
+
+        try:
+            vault_password = utils.get_ansible_vault_password()
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.error(
+                f"Cannot render: vault password unavailable ({type(exc).__name__}); "
+                "use --raw to see values as defined."
+            )
+            return 1
+
+        try:
+            all_raw_hostvars = json.loads(
+                subprocess.check_output(
+                    ["ansible-inventory", "-i", inventory_path, "--list"],
+                    stderr=subprocess.DEVNULL,
+                )
+            )["_meta"]["hostvars"]
+        except (subprocess.CalledProcessError, ValueError, KeyError):
+            logger.error("Cannot render: the inventory could not be listed.")
+            return 1
+
+        facts = fact_cache.get_host_facts(utils.redis, host)
+
+        try:
+            rows = effective_rows(
+                host,
+                variable,
+                parsed_args.environment,
+                parsed_args.show_secrets,
+                inventory_path=inventory_path,
+                vault_password=vault_password,
+                facts=facts,
+                raw_hostvars=raw_hostvars,
+                all_raw_hostvars=all_raw_hostvars,
+            )
+        except HostvarsError as exc:
+            logger.error(str(exc))
+            return 1
+
+        return self._output(parsed_args, host, variable, rows)
+
+    def _take_raw(self, parsed_args, host, variable, data):
+        if parsed_args.format != "table":
+            if variable and variable not in data:
+                rows = []
+            else:
+                names = [variable] if variable else list(data)
+                rows = [
+                    Row(host, name, None, data[name], False, [], False)
+                    for name in names
+                ]
+            return self._output(parsed_args, host, variable, rows)
+
         table = []
 
         if variable:
@@ -163,6 +250,74 @@ class Hostvars(Command):
             )
 
         return
+
+    def _output(self, parsed_args, host, variable, rows):
+        fmt = parsed_args.format
+
+        if fmt == "json":
+            print(
+                json.dumps(
+                    [
+                        {
+                            "host": r.host,
+                            "variable": r.variable,
+                            "environment": r.environment,
+                            "value": r.value,
+                            "masked": r.masked,
+                            "notes": r.notes,
+                        }
+                        for r in rows
+                    ],
+                    default=str,
+                )
+            )
+            return 1 if variable and any(r.failed for r in rows) else None
+
+        if fmt == "value":
+            if not variable:
+                logger.error("--format value requires a variable name.")
+                return 1
+            if not rows:
+                return None
+            if len(rows) > 1:
+                names = ", ".join(r.environment or "default" for r in rows)
+                logger.error(
+                    f"ambiguous: environments differ ({names}); pass --environment"
+                )
+                return 1
+            row = rows[0]
+            if row.masked:
+                logger.error(
+                    f"value is masked ({'; '.join(row.notes)}); pass --show-secrets"
+                )
+                return 1
+            if row.failed:
+                for note in row.notes:
+                    print(note, file=sys.stderr)
+                return 1
+            print(row.value if isinstance(row.value, str) else json.dumps(row.value))
+            return None
+
+        if not rows:
+            if variable:
+                logger.error(f"Variable {variable} not found in inventory for {host}.")
+            return None
+
+        table = []
+        for r in rows:
+            label = f"{r.variable} [{r.environment}]" if r.environment else r.variable
+            value = (
+                "***"
+                if r.masked
+                else pprint.pformat(r.value, indent=2, width=60, compact=True)
+            )
+            table.append([r.host, label, value, "\n".join(r.notes)])
+        print(
+            tabulate(
+                table, headers=["Host", "Variable", "Value", "Notes"], tablefmt="grid"
+            )
+        )
+        return 1 if variable and any(r.failed for r in rows) else None
 
 
 class Facts(Command):

@@ -19,9 +19,11 @@ from datetime import datetime
 from unittest.mock import MagicMock, call, patch
 
 import docker
+from tabulate import tabulate
 
 from osism import utils
 from osism.commands import get
+from osism.utils.hostvars import Row
 
 
 def _make(cls):
@@ -70,7 +72,7 @@ def test_hosts_returns_success_for_empty_inventory():
 
 def test_hostvars_returns_nonzero_when_inventory_query_fails():
     cmd = _make(get.Hostvars)
-    parsed_args = cmd.get_parser("test").parse_args(["somehost"])
+    parsed_args = cmd.get_parser("test").parse_args(["somehost", "--raw"])
 
     with patch(
         "osism.commands.get.get_inventory_path",
@@ -86,7 +88,7 @@ def test_hostvars_returns_nonzero_when_inventory_query_fails():
 
 def test_hostvars_returns_success_when_variable_absent_from_result():
     cmd = _make(get.Hostvars)
-    parsed_args = cmd.get_parser("test").parse_args(["somehost", "missingvar"])
+    parsed_args = cmd.get_parser("test").parse_args(["somehost", "missingvar", "--raw"])
 
     with patch(
         "osism.commands.get.get_inventory_path",
@@ -102,7 +104,7 @@ def test_hostvars_returns_success_when_variable_absent_from_result():
 
 def test_hostvars_prints_requested_variable(capsys):
     cmd = _make(get.Hostvars)
-    parsed_args = cmd.get_parser("test").parse_args(["somehost", "myvar"])
+    parsed_args = cmd.get_parser("test").parse_args(["somehost", "myvar", "--raw"])
 
     with patch(
         "osism.commands.get.get_inventory_path",
@@ -123,7 +125,7 @@ def test_hostvars_prints_requested_variable(capsys):
 
 def test_hostvars_lists_all_variables_without_variable_argument(capsys):
     cmd = _make(get.Hostvars)
-    parsed_args = cmd.get_parser("test").parse_args(["somehost"])
+    parsed_args = cmd.get_parser("test").parse_args(["somehost", "--raw"])
 
     with patch(
         "osism.commands.get.get_inventory_path",
@@ -525,3 +527,191 @@ def test_mariadb_backup_host_fails_on_timeout(loguru_logs):
     assert result == 1
     assert any("Timeout" in r["message"] for r in loguru_logs)
     mock_run.delay.return_value.forget.assert_called_once_with()
+
+
+# --- Hostvars rendered path ---
+
+
+def _hv(mocker, rows=None, inv_ok=True, vault_ok=True):
+    mocker.patch.object(get, "list_environments", return_value=["ceph", "kolla"])
+    mocker.patch.object(get, "get_inventory_path", return_value="/inv/hosts.yml")
+
+    def fake_check_output(cmd, **kw):
+        if not inv_ok:
+            raise subprocess.CalledProcessError(5, cmd)
+        return b'{"_meta": {"hostvars": {}}}' if "--list" in cmd else b"{}"
+
+    mocker.patch.object(get.subprocess, "check_output", side_effect=fake_check_output)
+    if vault_ok:
+        mocker.patch.object(get.utils, "get_ansible_vault_password", return_value="pw")
+    else:
+        mocker.patch.object(
+            get.utils, "get_ansible_vault_password", side_effect=ValueError("k")
+        )
+    mocker.patch.dict(
+        vars(utils), {"redis": mocker.Mock(get=mocker.Mock(return_value=None))}
+    )
+    return mocker.patch.object(get, "effective_rows", return_value=rows or [])
+
+
+def _run(cls_args):
+    cmd = _make(get.Hostvars)
+    parser = cmd.get_parser("dump inventory")
+    return cmd.take_action(parser.parse_args(cls_args))
+
+
+def test_hostvars_rendered_table_has_notes_column(mocker, capsys):
+    note = "fallback: n undefined here, a role may define it"
+    _hv(mocker, [Row("h", "a", None, "x", False, [note], False)])
+    assert not _run(["h", "a"])
+    out = capsys.readouterr().out
+    assert "Notes" in out and "fallback: n undefined" in out and "'x'" in out
+
+
+def test_hostvars_render_reads_facts_in_the_new_cache_schema(mocker):
+    effective_rows = _hv(mocker, [Row("h", "a", None, "x", False, [], False)])
+    entry = json.dumps({"__payload__": json.dumps({"ansible_hostname": "h"})})
+    store = {"ansible_factss1_h": entry}
+    mocker.patch.dict(
+        vars(utils), {"redis": mocker.Mock(get=mocker.Mock(side_effect=store.get))}
+    )
+    assert not _run(["h", "a"])
+    assert effective_rows.call_args.kwargs["facts"] == {"ansible_hostname": "h"}
+
+
+def test_hostvars_environment_row_label(mocker, capsys):
+    _hv(
+        mocker,
+        [
+            Row("h", "a", None, "g", False, [], False),
+            Row("h", "a", "kolla", "k", False, [], False),
+        ],
+    )
+    _run(["h", "a"])
+    assert "a [kolla]" in capsys.readouterr().out
+
+
+def test_hostvars_value_format_ambiguous_exits_1(mocker, capsys):
+    _hv(
+        mocker,
+        [
+            Row("h", "a", None, "g", False, [], False),
+            Row("h", "a", "kolla", "k", False, [], False),
+        ],
+    )
+    assert _run(["h", "a", "--format", "value"]) == 1
+
+
+def test_hostvars_value_format_masked_exits_1(mocker):
+    _hv(mocker, [Row("h", "a", None, "***", True, ["masked: derived from p"], False)])
+    assert _run(["h", "a", "--format", "value"]) == 1
+
+
+def test_hostvars_value_format_prints_bare(mocker, capsys):
+    _hv(mocker, [Row("h", "a", None, "x", False, [], False)])
+    assert not _run(["h", "a", "--format", "value"])
+    assert capsys.readouterr().out == "x\n"
+
+
+def test_hostvars_json_format(mocker, capsys):
+    _hv(mocker, [Row("h", "a", "kolla", "k", False, [], False)])
+    _run(["h", "a", "--format", "json"])
+    assert json.loads(capsys.readouterr().out) == [
+        {
+            "host": "h",
+            "variable": "a",
+            "environment": "kolla",
+            "value": "k",
+            "masked": False,
+            "notes": [],
+        }
+    ]
+
+
+def test_hostvars_absent_variable_exits_0(mocker, capsys):
+    _hv(mocker, [])
+    assert not _run(["h", "nope"])
+    assert not _run(["h", "nope", "--format", "value"])
+    capsys.readouterr()
+    assert not _run(["h", "nope", "--format", "json"])
+    assert json.loads(capsys.readouterr().out) == []
+
+
+def test_hostvars_failed_single_variable_exits_1(mocker):
+    _hv(mocker, [Row("h", "a", None, None, False, ["render failed: x"], True)])
+    assert _run(["h", "a"]) == 1
+
+
+def test_hostvars_failed_row_in_full_dump_exits_0(mocker, capsys):
+    _hv(mocker, [Row("h", "a", None, None, False, ["render failed: x"], True)])
+    assert not _run(["h"])
+    assert "render failed: x" in capsys.readouterr().out
+
+
+def test_hostvars_vault_unavailable_exits_1_without_detail(mocker, capsys):
+    _hv(mocker, vault_ok=False)
+    assert _run(["h", "a"]) == 1
+    out = capsys.readouterr()
+    assert "k)" not in out.out + out.err
+
+
+def test_hostvars_unknown_host_exits_1(mocker):
+    _hv(mocker, inv_ok=False)
+    assert _run(["h", "a"]) == 1
+
+
+def test_hostvars_unknown_environment_exits_1(mocker):
+    m = _hv(mocker)
+    m.side_effect = get.HostvarsError(
+        "unknown environment nope; available: ceph, kolla"
+    )
+    assert _run(["h", "a", "--environment", "nope"]) == 1
+
+
+def test_hostvars_help_lists_environments(mocker):
+    mocker.patch.object(get, "list_environments", return_value=["ceph", "kolla"])
+    parser = _make(get.Hostvars).get_parser("dump inventory")
+    assert "Available: ceph, kolla" in " ".join(parser.format_help().split())
+
+
+def test_hostvars_raw_table_is_unchanged(mocker, capsys):
+    data = {"a": "{{ b }}", "b": "x"}
+    mocker.patch.object(get, "get_inventory_path", return_value="/inv/hosts.yml")
+    mocker.patch.object(
+        get.subprocess, "check_output", return_value=json.dumps(data).encode()
+    )
+    assert not _run(["h", "--raw"])
+    expected = tabulate(
+        [
+            ["h", "a", pprint.pformat("{{ b }}", indent=2, width=60, compact=True)],
+            ["h", "b", pprint.pformat("x", indent=2, width=60, compact=True)],
+        ],
+        headers=["Host", "Variable", "Value"],
+        tablefmt="grid",
+    )
+    assert capsys.readouterr().out == expected + "\n"
+
+
+def test_hostvars_raw_uses_argv_list(mocker):
+    mocker.patch.object(get, "get_inventory_path", return_value="/inv/hosts.yml")
+    spy = mocker.patch.object(get.subprocess, "check_output", return_value=b"{}")
+    _run(["node;x", "--raw"])
+    cmd = spy.call_args[0][0]
+    assert isinstance(cmd, list) and "node;x" in cmd
+    assert spy.call_args.kwargs.get("shell") is not True
+
+
+def test_hostvars_raw_json_format(mocker, capsys):
+    mocker.patch.object(get, "get_inventory_path", return_value="/inv/hosts.yml")
+    mocker.patch.object(get.subprocess, "check_output", return_value=b'{"a": 1}')
+    _run(["h", "a", "--raw", "--format", "json"])
+    assert json.loads(capsys.readouterr().out) == [
+        {
+            "host": "h",
+            "variable": "a",
+            "environment": None,
+            "value": 1,
+            "masked": False,
+            "notes": [],
+        }
+    ]
