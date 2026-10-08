@@ -176,16 +176,26 @@
     default-branch: main
     check:
       jobs:
-        - flake8
-        - hadolint
-        - mypy
-        - python-black
-        - container-image-python-osism-build
-        - container-image-python-osism-frontend-build
-        - python-osism-test-setup
-        - python-osism-unit-tests
-        - python-osism-integration-tests
-        - python-osism-sonic-e2e
+        - flake8:
+            nodeset: debian-trixie
+        - hadolint:
+            nodeset: debian-trixie
+        - mypy:
+            nodeset: debian-trixie
+        - python-black:
+            nodeset: debian-trixie
+        - container-image-python-osism-build:
+            nodeset: debian-trixie
+        - container-image-python-osism-frontend-build:
+            nodeset: debian-trixie
+        - python-osism-test-setup:
+            nodeset: debian-trixie
+        - python-osism-unit-tests:
+            nodeset: debian-trixie
+        - python-osism-integration-tests:
+            nodeset: debian-trixie
+        - python-osism-sonic-e2e:
+            nodeset: debian-trixie
     periodic-daily:
       jobs:
         - flake8
