@@ -151,7 +151,6 @@
 # longer used, so this job no longer detects drift in that data.
 - job:
     name: python-osism-sonic-e2e
-    nodeset: ubuntu-noble
     pre-run: playbooks/pre-sonic-e2e.yml
     run: playbooks/test-sonic-e2e.yml
     required-projects:
