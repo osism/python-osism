@@ -38,7 +38,7 @@ setuptools = "==84.0.0"
 sqlmodel = "==0.0.48"
 sushy = "==5.14.0"
 transitions = "==0.9.3"
-validators = "==0.35.0"
+validators = "==0.36.0"
 watchdog = "==6.0.0"
 
 [dev-packages]
