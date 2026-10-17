@@ -18,9 +18,9 @@ from osism.utils.inventory import (
 # (defaults/manager/000-defaults.yml), including the console_interface
 # fallback: an operator may set console_interface explicitly and leave
 # internal_interface unset, which works in the deployment and must work here.
-# With neither set, defaults/all/099-interfaces.yml resolves console_interface
-# to the undefined "loopback0", so this fails loudly rather than inventing an
-# address.
+# With neither set, console_interface falls back to loopback0
+# (defaults/all/099-interfaces.yml), as in the deployment; a host without that
+# interface fails loudly rather than getting an invented address.
 #
 # Ansible names interface facts with "-" replaced by "_" and dots left alone
 # (PrefixFactNamespace._underscore), so "br-ex" is ansible_br_ex while
