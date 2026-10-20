@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261019.0] - 2026-10-19
+
+### Changed
+- Remove explicit nodeset override from the SONiC E2E Zuul job so it runs on the tenant default nodeset (osism/python-osism#2771)
+- Pass options through to the openstack-simple-stress tool instead of re-declaring each one, so newer tool options (like --profile and --yes) work automatically and the wrapper no longer forces --interval 10 (osism/python-osism#2761)
+- Clarify the rabbitmq console_interface fallback comment to match the quoted loopback0 default (osism/python-osism#2793)
+
+### Dependencies
+- @tanstack/react-query 5.104.1 → 5.104.2 (osism/python-osism#2787)
+- @types/node 24.19.1 → 24.19.2 (osism/python-osism#2801)
+- boto3 1.43.107 → 1.43.114 (osism/python-osism#2802)
+- eslint-config-next 16.4.0 → 16.4.1 (osism/python-osism#2797)
+- fakeredis 2.39.0 → 2.40.0 (osism/python-osism#2796)
+- fastapi 0.142.2 → 0.143.2 (osism/python-osism#2780, osism/python-osism#2803)
+- gitpython 3.2.0 → 3.2.1 (osism/python-osism#2794)
+- hiredis 3.4.2 → 3.5.0 (osism/python-osism#2800)
+- keystoneauth1 5.17.0 → 5.18.1 (osism/python-osism#2776, osism/python-osism#2788)
+- lucide-react 1.52.0 → 1.58.0 (osism/python-osism#2778, osism/python-osism#2782, osism/python-osism#2790, osism/python-osism#2792, osism/python-osism#2804)
+- netbox.netbox 3.23.0 → 3.23.1 (osism/python-osism#2791)
+- next 16.3.8 → 16.4.1 (osism/python-osism#2773, osism/python-osism#2797)
+- openstacksdk 4.20.0 → 4.21.0 (osism/python-osism#2777)
+- postcss 8.5.28 → 8.5.30 (osism/python-osism#2769, osism/python-osism#2789)
+- pynetbox 7.8.0 → 7.9.0 (osism/python-osism#2781)
+- python-openstackclient 10.3.0 → 10.4.0 (osism/python-osism#2783)
+- react 19.3.0 → 19.3.1 (osism/python-osism#2795)
+- react-dom 19.3.0 → 19.3.1 (osism/python-osism#2795)
+- redfish 3.4.0 → 3.4.1 (osism/python-osism#2784)
+- sqlmodel 0.0.47 → 0.0.48 (osism/python-osism#2774)
+- sushy 5.13.0 → 5.14.0 (osism/python-osism#2772)
+- validators 0.35.0 → 0.36.0 (osism/python-osism#2786)
+
 ## [v0.20261007.0] - 2026-10-07
 
 ### Dependencies
