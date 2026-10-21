@@ -1,5 +1,6 @@
-ARG PYTHON_VERSION=3.13.3
-ARG ALPINE_VERSION=3.21
+# Renovate updates these two lines together, see .github/renovate.json
+ARG PYTHON_VERSION=3.13.16
+ARG ALPINE_VERSION=3.24
 ARG IMAGE=registry.osism.tech/dockerhub/python
 
 FROM ${IMAGE}:${PYTHON_VERSION}-alpine${ALPINE_VERSION}

@@ -3,6 +3,46 @@
     "github>osism/renovate-config",
     "github>osism/renovate-config:docker"
   ],
+  "customManagers": [
+    {
+      "description": "Update PYTHON_VERSION and ALPINE_VERSION in the Containerfile together as one python:<version>-alpine<version> tag. The tags are looked up on Docker Hub because the registry.osism.tech proxy cache does not list them.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^Containerfile$/"
+      ],
+      "matchStrings": [
+        "ARG PYTHON_VERSION=(?<pythonVersion>\\S+)\\nARG ALPINE_VERSION=(?<alpineVersion>\\S+)\\n"
+      ],
+      "currentValueTemplate": "{{{pythonVersion}}}-alpine{{{alpineVersion}}}",
+      "autoReplaceStringTemplate": "ARG PYTHON_VERSION={{{replace '-alpine.*$' '' newValue}}}\nARG ALPINE_VERSION={{{replace '^.*-alpine' '' newValue}}}\n",
+      "depNameTemplate": "registry.osism.tech/dockerhub/python",
+      "packageNameTemplate": "python",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-alpine(?<build>\\d+)\\.(?<revision>\\d+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The dockerfile manager detects the same base image, but it cannot list tags through the proxy cache; the custom manager above handles it",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchPackageNames": [
+        "registry.osism.tech/dockerhub/python"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Keep Python patch and Alpine updates separate from Python minor updates so they are not held back by an unmerged minor bump",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "registry.osism.tech/dockerhub/python"
+      ],
+      "separateMinorPatch": true
+    }
+  ],
   "pip_requirements": {
     "managerFilePatterns": [
       "/requirements.ansible.txt/",
