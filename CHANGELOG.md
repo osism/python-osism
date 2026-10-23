@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261023.0] - 2026-10-23
+
+### Changed
+- Update container base image to Alpine 3.24 and add a custom Renovate manager to keep Python and Alpine versions tracked together (osism/python-osism#2810)
+
+### Dependencies
+- next 16.4.1 → 16.4.2 (osism/python-osism#2799)
+- eslint-config-next 16.4.1 → 16.4.2 (osism/python-osism#2799)
+- pytest-mock 3.16.0 → 3.17.0 (osism/python-osism#2808)
+- eslint 10.12.0 → 10.13.0 (osism/python-osism#2806)
+- lucide-react 1.58.0 → 1.60.0 (osism/python-osism#2807, osism/python-osism#2815)
+- @tanstack/react-query 5.104.2 → 5.104.5 (osism/python-osism#2798, osism/python-osism#2813)
+- paramiko 5.0.0 → 5.1.0 (osism/python-osism#2809)
+- postcss 8.5.30 → 8.5.31 (osism/python-osism#2812)
+- jc 1.26.0 → 1.26.1 (osism/python-osism#2811)
+- websockets 17.2 → 17.3 (osism/python-osism#2814)
+
 ## [v0.20261019.0] - 2026-10-19
 
 ### Changed
