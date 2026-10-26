@@ -80,6 +80,49 @@
           docker images
       changed_when: true
 
+    - name: Run image check script
+      ansible.builtin.shell:
+        executable: /bin/bash
+        chdir: "{{ zuul.project.src_dir }}/{{ image }}"
+        cmd: |
+          set -e
+          set -o pipefail
+          set -x
+
+          revision=$(git rev-parse --short HEAD)
+
+          # Report conflicts between the requirements of the installed
+          # packages. The packages are installed by separate resolver runs,
+          # so nothing else checks them together. Report only: conflicts
+          # (exit code 1) do not fail the build, but a check that could not
+          # run (any other non-zero exit code) does.
+          rc=0
+          docker run --rm "$revision" uv pip check --system || rc=$?
+          if (( rc > 1 )); then
+              echo "uv pip check could not run (exit code $rc)" >&2
+              exit "$rc"
+          fi
+
+          # Smoke-test the commands bundled in the image
+          docker run --rm "$revision" osism --help > /dev/null
+          docker run --rm "$revision" netbox-manager --help > /dev/null
+          docker run --rm "$revision" openstack-image-manager --help > /dev/null
+          docker run --rm "$revision" openstack-flavor-manager --help > /dev/null
+          docker run --rm "$revision" openstack --version > /dev/null
+          docker run --rm "$revision" ansible --version > /dev/null
+          docker run --rm \
+              --workdir /openstack-project-manager \
+              --env PYTHONPATH=/openstack-project-manager \
+              "$revision" python3 openstack_project_manager/manage.py --help > /dev/null
+          docker run --rm \
+              --workdir /openstack-project-manager \
+              --env PYTHONPATH=/openstack-project-manager \
+              "$revision" python3 openstack_project_manager/create.py --help > /dev/null
+          docker run --rm \
+              "$revision" python3 /openstack-simple-stress/openstack_simple_stress/main.py --help > /dev/null
+      when: not image
+      changed_when: false
+
     - name: Run push script
       ansible.builtin.shell:
         executable: /bin/bash
