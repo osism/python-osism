@@ -148,7 +148,6 @@
           docker push "$repository:$version"
       when: push_image | default(false) | bool
       changed_when: true
-      no_log: true
 
     - name: Run cosign script
       ansible.builtin.shell:
