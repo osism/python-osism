@@ -27,7 +27,7 @@ pynetbox==7.9.0
 pytest-testinfra==10.2.2
 python-dateutil==2.9.0.post0
 python-openstackclient==10.4.0
-redfish==3.4.1
+redfish==3.4.2
 setuptools==84.2.1
 sqlmodel==0.0.48
 sushy==5.14.0

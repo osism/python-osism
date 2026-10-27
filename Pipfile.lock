@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "cca03885323c2d6adc1349b4eedbb4d414d57ed1d3e613d15a037d6edbfc2fb4"
+            "sha256": "2c6955afd1550c9f2dc6254cec802877a9108b44b0b71f234d3bec86d6581576"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -1288,11 +1288,11 @@
         },
         "jsonpatch": {
             "hashes": [
-                "sha256:04288ef93e60084bcb118101cd9d53424e627b91bb47ec5a95c02ec3795f6d23",
-                "sha256:7905646db52668a89d10945a07ca1c10337094dcf07d172ca384dccfca0b7438"
+                "sha256:46260c5df952abd4734a098f94512dc00bc38539152ac3ef069ed0475e4f5695",
+                "sha256:debc3e7bdc3d446468d64987f51a0e7a9deea42987ff90a6d1005a489b471c19"
             ],
             "markers": "python_version >= '3.10'",
-            "version": "==1.37"
+            "version": "==1.38"
         },
         "jsonpath-ng": {
             "hashes": [
@@ -1304,11 +1304,11 @@
         },
         "jsonpointer": {
             "hashes": [
-                "sha256:81f28618a019cf1b011a6cf757439737972de1ccbeca2e1f86dfb4d661800792",
-                "sha256:8728c42f6bc07b1436af31600267bdbb1495ac5a61f31d9583ff319ecf7da09c"
+                "sha256:82e839a3ba3a9e2b54394fda8b3d276c2459d80408d06ef9a6fbc369d7544ffc",
+                "sha256:a45c858f8a9e171f6b3790ed9446c9382782f6c4cb4589176813c5a553f4cfcd"
             ],
             "markers": "python_version >= '3.10'",
-            "version": "==3.5"
+            "version": "==3.6"
         },
         "keystoneauth1": {
             "hashes": [
@@ -2696,11 +2696,11 @@
         },
         "redfish": {
             "hashes": [
-                "sha256:441edb7ca0d0b6e4252b8a556ed900fcd7db37a799ad42068474e4eaea354bcd",
-                "sha256:a7dbefb126200a9c6d99aea30831f98284c96587cd924804757aa5cf1997321a"
+                "sha256:dbe4677252a767f56ea912c30e171fde505fc1b7022422c8916de971629a3baf",
+                "sha256:ed4488ed0fe5ddd284dcbd182b0642a8876505a17c1e188af5081014b7e0a332"
             ],
             "index": "pypi",
-            "version": "==3.4.1"
+            "version": "==3.4.2"
         },
         "redis": {
             "hashes": [
