@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "be007c81f662dc6d59255f27ad87bdb7e31f37124e553a516d58822d24fe2469"
+            "sha256": "7731f4a57487834d977cdf6c2f98929ffb5ed43da43764f1831b36d2a1807446"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -1288,11 +1288,11 @@
         },
         "jsonpatch": {
             "hashes": [
-                "sha256:0a94e8725b8b53cafdf3eba3112a7ccd31ea420bb04e6374096d9d17bf4563e9",
-                "sha256:8d553ab33cc1e5d3da60b8be5224355fb28cde863cc8935c40f011a8c0d72ad4"
+                "sha256:0dbd831e9853e4ec9a3897a9cca87716533d2c05f8b5ca0f6cde70d83e5758b6",
+                "sha256:18a4a6e439d08a77ca8db4f0596f13511036a38c005fdf7b0c98fba2c148e5c4"
             ],
             "markers": "python_version >= '3.10'",
-            "version": "==1.42"
+            "version": "==1.43"
         },
         "jsonpath-ng": {
             "hashes": [
@@ -1304,11 +1304,11 @@
         },
         "jsonpointer": {
             "hashes": [
-                "sha256:a627a255641390bfb4d51d4cfbb90648078ae855b45804ef7e19ea13a4cca355",
-                "sha256:d69af85adaea202111bbc931067ead68dc16bca4592c74e1a1953152e2a330ab"
+                "sha256:a2768328a37c58749b58a3fffd36843e161eeef4c7064832911c865f80bcaded",
+                "sha256:b4c52dd58837669881f9677c0e83d73fa0b369feb67563ec4a8b1c13eb3c5a23"
             ],
             "markers": "python_version >= '3.10'",
-            "version": "==3.8"
+            "version": "==3.9"
         },
         "keystoneauth1": {
             "hashes": [
@@ -1324,12 +1324,12 @@
                 "redis"
             ],
             "hashes": [
-                "sha256:8060497058066c6f5aed7c26d7cd0d3b574990b09de842a8c5aaed0b92cc5a55",
-                "sha256:efcfc559da324d41d61ca311b0c64965ea35b4c55cc04ee36e55386145dace93"
+                "sha256:31e62fdfd2381caa3422f8e02b84a491d9a2180ddda74507b57f4cb1e1c2c2c9",
+                "sha256:dede73bff4c89175be382c4203d2f167cf7017c384396ec75c36a1b5678f1587"
             ],
             "index": "pypi",
-            "markers": "python_version >= '3.9'",
-            "version": "==5.6.2"
+            "markers": "python_version >= '3.10'",
+            "version": "==5.7.0"
         },
         "kubernetes": {
             "hashes": [
@@ -2707,11 +2707,11 @@
         },
         "redis": {
             "hashes": [
-                "sha256:b01bc7282b8444e28ec36b261df5375183bb47a07eb9c603f284e89cbc5ef010",
-                "sha256:f0544fa9604264e9464cdf4814e7d4830f74b165d52f2a330a760a88dd248b7f"
+                "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25",
+                "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb"
             ],
-            "markers": "python_version >= '3.9'",
-            "version": "==6.4.0"
+            "markers": "python_version >= '3.10'",
+            "version": "==8.1.0"
         },
         "requests": {
             "hashes": [
@@ -2970,14 +2970,6 @@
             ],
             "markers": "python_version >= '3.10'",
             "version": "==0.4.5"
-        },
-        "tzdata": {
-            "hashes": [
-                "sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec",
-                "sha256:85d2cd9c09f81f0bb29db27759fc83af4f1e620efb814f8c5bf8b4cc4feece6d"
-            ],
-            "markers": "python_version >= '2'",
-            "version": "==2026.6"
         },
         "tzlocal": {
             "hashes": [
@@ -3597,11 +3589,11 @@
         },
         "redis": {
             "hashes": [
-                "sha256:b01bc7282b8444e28ec36b261df5375183bb47a07eb9c603f284e89cbc5ef010",
-                "sha256:f0544fa9604264e9464cdf4814e7d4830f74b165d52f2a330a760a88dd248b7f"
+                "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25",
+                "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb"
             ],
-            "markers": "python_version >= '3.9'",
-            "version": "==6.4.0"
+            "markers": "python_version >= '3.10'",
+            "version": "==8.1.0"
         },
         "sortedcontainers": {
             "hashes": [
