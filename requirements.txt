@@ -35,5 +35,5 @@ tabulate==0.10.0
 transitions==0.9.3
 uvicorn[standard]==0.54.0
 validators==0.36.0
-watchdog==7.0.0
+watchdog==7.1.0
 websockets==17.4
