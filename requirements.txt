@@ -5,7 +5,7 @@ Jinja2==3.1.6
 PyMySQL==1.2.3
 PyYAML==6.0.3
 ara==1.8.0
-celery[redis]==5.6.3
+celery[redis]==5.7.0
 cliff==4.17.0
 deepdiff==9.1.0
 docker==7.2.0
