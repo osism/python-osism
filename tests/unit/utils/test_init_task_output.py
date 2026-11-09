@@ -229,9 +229,127 @@ def test_fetch_task_output_quit_closes_redis_and_returns_rc(mocker):
     mock_r.close.assert_called_once_with()
 
 
-def test_fetch_task_output_honours_explicit_timeout_kwarg(mocker):
-    """``timeout=`` propagates into the ``xread`` ``block`` parameter
-    (milliseconds)."""
+class _FakeClock:
+    """A fake clock that a fake ``xread`` advances by its block time."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def read(self):
+        return self.now
+
+
+def _silent_then(clock, silence, payloads):
+    """Fake ``xread``: no data for ``silence`` seconds, then ``payloads``.
+
+    Each empty read advances the clock by its ``block`` time, as a real
+    blocking read on a silent stream would. Every ``block`` value is recorded.
+    """
+    blocks = []
+    pending = list(payloads)
+
+    def xread(streams, count, block):
+        blocks.append(block)
+        if clock.now < silence:
+            clock.now += block / 1000
+            return None
+        return pending.pop(0)
+
+    return xread, blocks
+
+
+def test_fetch_task_output_short_reads_survive_long_silence(mocker, capsys):
+    """Silence longer than the ~60 s at which a single long XREAD failed under
+    redis-py 8 must not end the wait: the loop keeps issuing short reads and
+    prints the output that arrives afterwards."""
+    clock = _FakeClock()
+    mocker.patch("osism.utils.time.time", side_effect=clock.read)
+    xread, blocks = _silent_then(
+        clock,
+        silence=90,
+        payloads=[
+            _xread_payload(b"1-0", b"stdout", b"after the pause\n"),
+            _xread_payload(b"2-0", b"action", b"quit"),
+        ],
+    )
+    mock_r = mocker.MagicMock()
+    mock_r.xread.side_effect = xread
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    result = utils_pkg.fetch_task_output("task-1", timeout=300)
+
+    assert result == 0
+    assert capsys.readouterr().out == "after the pause\n"
+    assert all(0 < b <= utils_pkg.TASK_OUTPUT_XREAD_BLOCK_MS for b in blocks)
+    assert len(blocks) > 60
+
+
+def test_fetch_task_output_inactivity_deadline_still_expires(mocker):
+    """Short reads must not change the inactivity contract: with no output at
+    all, ``TimeoutError`` is raised once ``timeout`` seconds have passed."""
+    clock = _FakeClock()
+    mocker.patch("osism.utils.time.time", side_effect=clock.read)
+    xread, blocks = _silent_then(clock, silence=float("inf"), payloads=[])
+    mock_r = mocker.MagicMock()
+    mock_r.xread.side_effect = xread
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    with pytest.raises(TimeoutError):
+        utils_pkg.fetch_task_output("task-1", timeout=10)
+
+    assert clock.now == pytest.approx(10.0)
+    assert sum(blocks) == 10 * 1000
+    mock_r.close.assert_called_once_with()
+
+
+def test_fetch_task_output_output_resets_inactivity_deadline(mocker, capsys):
+    """Output in the middle of a silence restarts the inactivity window, so
+    the total wait may exceed ``timeout`` while no single gap does."""
+    clock = _FakeClock()
+    mocker.patch("osism.utils.time.time", side_effect=clock.read)
+    script = iter(
+        [None] * 8
+        + [_xread_payload(b"1-0", b"stdout", b"tick\n")]
+        + [None] * 8
+        + [_xread_payload(b"2-0", b"action", b"quit")]
+    )
+
+    def xread(streams, count, block):
+        item = next(script)
+        if item is None:
+            clock.now += block / 1000
+        return item
+
+    mock_r = mocker.MagicMock()
+    mock_r.xread.side_effect = xread
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    result = utils_pkg.fetch_task_output("task-1", timeout=10)
+
+    assert result == 0
+    assert clock.now == pytest.approx(16.0)
+    assert capsys.readouterr().out == "tick\n"
+
+
+def test_fetch_task_output_block_never_rounds_down_to_zero(mocker):
+    """``BLOCK 0`` waits forever, so a remainder below one millisecond must
+    still be passed as a positive block."""
+    times = iter([0.0, 9.9996, 100.0])
+    mocker.patch("osism.utils.time.time", side_effect=lambda: next(times))
+    mock_r = mocker.MagicMock()
+    mock_r.xread.return_value = None
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    with pytest.raises(TimeoutError):
+        utils_pkg.fetch_task_output("task-1", timeout=10)
+
+    _args, kwargs = mock_r.xread.call_args
+    assert kwargs["block"] == 1
+
+
+def test_fetch_task_output_block_is_capped(mocker):
+    """The ``block`` passed to ``xread`` is capped, independent of
+    ``timeout``."""
     mock_r = mocker.MagicMock()
     mock_r.xread.side_effect = [_xread_payload(b"1-0", b"action", b"quit")]
     mocker.patch("osism.utils._init_redis", return_value=mock_r)
@@ -239,7 +357,7 @@ def test_fetch_task_output_honours_explicit_timeout_kwarg(mocker):
     utils_pkg.fetch_task_output("task-1", timeout=42)
 
     _args, kwargs = mock_r.xread.call_args
-    assert kwargs.get("block") == 42 * 1000
+    assert kwargs.get("block") == utils_pkg.TASK_OUTPUT_XREAD_BLOCK_MS
 
 
 def test_fetch_task_output_default_timeout_is_int_when_env_var_set(monkeypatch):
