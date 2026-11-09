@@ -182,6 +182,7 @@ def test_fetch_task_output_timeout_when_xread_returns_none(mocker):
     with pytest.raises(TimeoutError):
         utils_pkg.fetch_task_output("task-1", timeout=10)
 
+    mock_r.xread.assert_called_once()
     mock_r.close.assert_called_once_with()
 
 
