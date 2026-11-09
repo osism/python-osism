@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import atexit
+import math
 import threading
 import time
 import uuid
@@ -399,6 +400,13 @@ def first(iterable, condition=lambda x: True):
     return next(x for x in iterable if condition(x))
 
 
+# Longest single XREAD wait, in milliseconds. A blocking read keeps the
+# socket silent for its whole block time, so it must stay well below the
+# client's socket_timeout (5 s by default since redis-py 8). The inactivity
+# timeout of fetch_task_output is enforced by its own deadline instead.
+TASK_OUTPUT_XREAD_BLOCK_MS = 1000
+
+
 def fetch_task_output(
     task_id,
     timeout=int(os.environ.get("OSISM_TASK_TIMEOUT", 300)),
@@ -408,8 +416,14 @@ def fetch_task_output(
     rc = 0
     stoptime = time.time() + timeout
     last_id = 0
-    while time.time() < stoptime:
-        data = r.xread({str(task_id): last_id}, count=1, block=(timeout * 1000))
+    while True:
+        remaining = stoptime - time.time()
+        if remaining <= 0:
+            break
+        # Round up: BLOCK 0 means wait forever, so a positive remainder must
+        # never become 0.
+        block = min(TASK_OUTPUT_XREAD_BLOCK_MS, math.ceil(remaining * 1000))
+        data = r.xread({str(task_id): last_id}, count=1, block=block)
         if data:
             stoptime = time.time() + timeout
             messages = data[0]
