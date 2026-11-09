@@ -414,10 +414,10 @@ def fetch_task_output(
 ):
     r = _init_redis()
     rc = 0
-    stoptime = time.time() + timeout
+    stoptime = time.monotonic() + timeout
     last_id = 0
     while True:
-        remaining = stoptime - time.time()
+        remaining = stoptime - time.monotonic()
         if remaining <= 0:
             break
         # Round up: BLOCK 0 means wait forever, so a positive remainder must
@@ -425,7 +425,7 @@ def fetch_task_output(
         block = min(TASK_OUTPUT_XREAD_BLOCK_MS, math.ceil(remaining * 1000))
         data = r.xread({str(task_id): last_id}, count=1, block=block)
         if data:
-            stoptime = time.time() + timeout
+            stoptime = time.monotonic() + timeout
             messages = data[0]
             for message_id, message in messages[1]:
                 last_id = message_id.decode()

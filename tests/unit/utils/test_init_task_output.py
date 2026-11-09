@@ -173,11 +173,11 @@ def test_fetch_task_output_timeout_when_xread_returns_none(mocker):
     mock_r = mocker.MagicMock()
     mock_r.xread.return_value = None
     mocker.patch("osism.utils._init_redis", return_value=mock_r)
-    # time.time() is called once to compute ``stoptime`` and once per loop
-    # iteration. Returning a value past the deadline on the second poll exits
-    # the loop and raises ``TimeoutError``.
+    # time.monotonic() is called once to compute ``stoptime`` and once per
+    # loop iteration. Returning a value past the deadline on the second poll
+    # exits the loop and raises ``TimeoutError``.
     time_values = iter([0.0, 0.0, 100.0])
-    mocker.patch("osism.utils.time.time", side_effect=lambda: next(time_values))
+    mocker.patch("osism.utils.time.monotonic", side_effect=lambda: next(time_values))
 
     with pytest.raises(TimeoutError):
         utils_pkg.fetch_task_output("task-1", timeout=10)
@@ -188,11 +188,12 @@ def test_fetch_task_output_timeout_when_xread_returns_none(mocker):
 def test_fetch_task_output_data_resets_deadline(mocker):
     """When ``xread`` returns data the loop must reset its deadline.
 
-    We assert this indirectly: the function reads ``time.time()`` once
+    We assert this indirectly: the function reads ``time.monotonic()`` once
     before the loop (set initial ``stoptime``), once per loop check, and
     once again inside the ``if data:`` branch to reset the deadline.
     Three iterations that all return data therefore consume exactly seven
-    ``time.time()`` calls (1 initial + 3 loop checks + 3 deadline resets).
+    ``time.monotonic()`` calls (1 initial + 3 loop checks + 3 deadline
+    resets).
     """
     mock_r = mocker.MagicMock()
     mock_r.xread.side_effect = [
@@ -207,7 +208,7 @@ def test_fetch_task_output_data_resets_deadline(mocker):
         time_calls.append(len(time_calls))
         return 0.0
 
-    mocker.patch("osism.utils.time.time", side_effect=fake_time)
+    mocker.patch("osism.utils.time.monotonic", side_effect=fake_time)
 
     utils_pkg.fetch_task_output("task-1", timeout=5)
 
@@ -263,7 +264,7 @@ def test_fetch_task_output_short_reads_survive_long_silence(mocker, capsys):
     redis-py 8 must not end the wait: the loop keeps issuing short reads and
     prints the output that arrives afterwards."""
     clock = _FakeClock()
-    mocker.patch("osism.utils.time.time", side_effect=clock.read)
+    mocker.patch("osism.utils.time.monotonic", side_effect=clock.read)
     xread, blocks = _silent_then(
         clock,
         silence=90,
@@ -288,7 +289,7 @@ def test_fetch_task_output_inactivity_deadline_still_expires(mocker):
     """Short reads must not change the inactivity contract: with no output at
     all, ``TimeoutError`` is raised once ``timeout`` seconds have passed."""
     clock = _FakeClock()
-    mocker.patch("osism.utils.time.time", side_effect=clock.read)
+    mocker.patch("osism.utils.time.monotonic", side_effect=clock.read)
     xread, blocks = _silent_then(clock, silence=float("inf"), payloads=[])
     mock_r = mocker.MagicMock()
     mock_r.xread.side_effect = xread
@@ -306,7 +307,7 @@ def test_fetch_task_output_output_resets_inactivity_deadline(mocker, capsys):
     """Output in the middle of a silence restarts the inactivity window, so
     the total wait may exceed ``timeout`` while no single gap does."""
     clock = _FakeClock()
-    mocker.patch("osism.utils.time.time", side_effect=clock.read)
+    mocker.patch("osism.utils.time.monotonic", side_effect=clock.read)
     script = iter(
         [None] * 8
         + [_xread_payload(b"1-0", b"stdout", b"tick\n")]
@@ -335,7 +336,7 @@ def test_fetch_task_output_block_never_rounds_down_to_zero(mocker):
     """``BLOCK 0`` waits forever, so a remainder below one millisecond must
     still be passed as a positive block."""
     times = iter([0.0, 9.9996, 100.0])
-    mocker.patch("osism.utils.time.time", side_effect=lambda: next(times))
+    mocker.patch("osism.utils.time.monotonic", side_effect=lambda: next(times))
     mock_r = mocker.MagicMock()
     mock_r.xread.return_value = None
     mocker.patch("osism.utils._init_redis", return_value=mock_r)
@@ -362,7 +363,8 @@ def test_fetch_task_output_block_is_capped(mocker):
 
 def test_fetch_task_output_default_timeout_is_int_when_env_var_set(monkeypatch):
     """``OSISM_TASK_TIMEOUT`` is read at import time; without an ``int`` cast
-    the default would be a ``str`` and ``time.time() + timeout`` would crash."""
+    the default would be a ``str`` and ``time.monotonic() + timeout`` would
+    crash."""
     monkeypatch.setenv("OSISM_TASK_TIMEOUT", "60")
     try:
         reloaded = importlib.reload(utils_pkg)
