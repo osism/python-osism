@@ -11,7 +11,7 @@ PyMySQL = "==1.2.3"
 PyYAML = "==6.0.3"
 ansible-runner = "==2.4.3"
 ara = "==1.8.0"
-celery = {version = "==5.6.3", extras = ["redis"]}
+celery = {version = "==5.7.0", extras = ["redis"]}
 cliff = "==4.17.0"
 deepdiff = "==9.1.0"
 docker = "==7.2.0"
