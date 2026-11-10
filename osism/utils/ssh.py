@@ -225,6 +225,12 @@ def backup_known_hosts(
             logger.warning(f"SSH known_hosts file is not readable: {known_hosts_path}")
             return None
 
+        if os.path.getsize(known_hosts_path) == 0:
+            logger.debug(
+                f"SSH known_hosts file is empty, no backup needed: {known_hosts_path}"
+            )
+            return None
+
         # Create backup with timestamp
         import datetime
 
@@ -247,7 +253,7 @@ def backup_known_hosts(
         shutil.copy2(known_hosts_path, backup_path)
 
         # Verify backup was created successfully
-        if os.path.exists(backup_path) and os.path.getsize(backup_path) > 0:
+        if os.path.exists(backup_path):
             logger.debug(f"Created SSH known_hosts backup: {backup_path}")
             return backup_path
         else:
