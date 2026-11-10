@@ -2,9 +2,11 @@
 
 """Unit tests for ``osism.utils.ssh`` known_hosts maintenance helpers."""
 
+import os
 import re
 import socket
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -439,6 +441,7 @@ def test_backup_not_readable(mocker, loguru_logs):
 
 def test_backup_directory_missing(mocker, loguru_logs):
     """Backup directory missing -> warning, returns None."""
+    mocker.patch("osism.utils.ssh.os.path.getsize", return_value=128)
     mocker.patch("osism.utils.ssh.os.access", return_value=True)
     mocker.patch(
         "osism.utils.ssh.os.path.exists",
@@ -451,6 +454,7 @@ def test_backup_directory_missing(mocker, loguru_logs):
 
 def test_backup_directory_not_writable(mocker, loguru_logs):
     """Backup directory not writable -> warning, returns None."""
+    mocker.patch("osism.utils.ssh.os.path.getsize", return_value=128)
     mocker.patch("osism.utils.ssh.os.path.exists", return_value=True)
     mocker.patch("osism.utils.ssh.os.access", side_effect=[True, False])
 
@@ -474,30 +478,53 @@ def test_backup_happy_path(mocker, loguru_logs):
 
 def test_backup_verify_missing_after_copy(mocker, loguru_logs):
     """Backup file absent after copy -> warning, returns None."""
+    mocker.patch("osism.utils.ssh.os.path.getsize", return_value=128)
     mocker.patch("osism.utils.ssh.os.access", return_value=True)
-    mocker.patch("shutil.copy2")
+    copy2 = mocker.patch("shutil.copy2")
     mocker.patch(
         "osism.utils.ssh.os.path.exists",
         side_effect=lambda path: not path.startswith(KNOWN_HOSTS_PATH + ".backup_"),
     )
 
     assert backup_known_hosts(KNOWN_HOSTS_PATH) is None
+    copy2.assert_called_once()
+    source, backup = copy2.call_args.args
+    assert source == KNOWN_HOSTS_PATH
+    assert re.fullmatch(re.escape(KNOWN_HOSTS_PATH) + r"\.backup_\d{8}_\d{6}", backup)
     assert _has_log(loguru_logs, "WARNING", "was not created properly")
 
 
-def test_backup_verify_empty_after_copy(mocker, loguru_logs):
-    """Backup file empty (getsize 0) after copy -> warning, returns None."""
-    mocker.patch("osism.utils.ssh.os.path.exists", return_value=True)
-    mocker.patch("osism.utils.ssh.os.access", return_value=True)
-    mocker.patch("osism.utils.ssh.os.path.getsize", return_value=0)
-    mocker.patch("shutil.copy2")
+def test_backup_empty_file_skips_backup(tmp_path, loguru_logs):
+    """An empty known_hosts has nothing to back up: no copy, no warning."""
+    known_hosts = tmp_path / "known_hosts"
+    known_hosts.write_text("")
 
-    assert backup_known_hosts(KNOWN_HOSTS_PATH) is None
-    assert _has_log(loguru_logs, "WARNING", "was not created properly")
+    assert backup_known_hosts(str(known_hosts)) is None
+    assert [p.name for p in tmp_path.iterdir()] == ["known_hosts"]
+    assert _has_log(loguru_logs, "DEBUG", "is empty, no backup needed")
+    assert not any(r["level"] == "WARNING" for r in loguru_logs)
+
+
+def test_backup_copies_file_content(tmp_path, loguru_logs):
+    """A non-empty known_hosts is copied byte for byte, without a warning."""
+    known_hosts = tmp_path / "known_hosts"
+    known_hosts.write_text("node01 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5\n")
+
+    result = backup_known_hosts(str(known_hosts))
+
+    assert result is not None
+    assert result != str(known_hosts)
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "known_hosts",
+        os.path.basename(result),
+    ]
+    assert Path(result).read_text() == known_hosts.read_text()
+    assert not any(r["level"] == "WARNING" for r in loguru_logs)
 
 
 def test_backup_copy_permission_error(mocker, loguru_logs):
     """shutil.copy2 raises PermissionError -> warning, returns None."""
+    mocker.patch("osism.utils.ssh.os.path.getsize", return_value=128)
     mocker.patch("osism.utils.ssh.os.path.exists", return_value=True)
     mocker.patch("osism.utils.ssh.os.access", return_value=True)
     mocker.patch("shutil.copy2", side_effect=PermissionError("denied"))
@@ -508,6 +535,7 @@ def test_backup_copy_permission_error(mocker, loguru_logs):
 
 def test_backup_copy_os_error(mocker, loguru_logs):
     """shutil.copy2 raises OSError -> warning, returns None."""
+    mocker.patch("osism.utils.ssh.os.path.getsize", return_value=128)
     mocker.patch("osism.utils.ssh.os.path.exists", return_value=True)
     mocker.patch("osism.utils.ssh.os.access", return_value=True)
     mocker.patch("shutil.copy2", side_effect=OSError("io error"))
@@ -518,6 +546,7 @@ def test_backup_copy_os_error(mocker, loguru_logs):
 
 def test_backup_copy_generic_exception(mocker, loguru_logs):
     """shutil.copy2 raises a generic Exception -> warning, returns None."""
+    mocker.patch("osism.utils.ssh.os.path.getsize", return_value=128)
     mocker.patch("osism.utils.ssh.os.path.exists", return_value=True)
     mocker.patch("osism.utils.ssh.os.access", return_value=True)
     mocker.patch("shutil.copy2", side_effect=ValueError("weird"))
