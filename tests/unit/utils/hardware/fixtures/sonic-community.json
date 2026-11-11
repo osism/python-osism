@@ -1,0 +1,250 @@
+{
+  "collector": "sonic",
+  "commands": {
+    "show platform firmware status": {
+      "err": "Error: Platform API is not available",
+      "out": "",
+      "rc": 1
+    },
+    "show platform syseeprom": {
+      "err": "",
+      "out": "TlvInfo Header:\n   Id String:    TlvInfo\n   Version:      1\n   Total Length: 597\nTLV Name             Code Len Value\n-------------------- ---- --- -----\nProduct Name         0x21  64 MSN3700C\nPart Number          0x22  20 MSN3700-CS2FO\nSerial Number        0x23  24 MT2012X04321\nBase MAC Address     0x24   6 50:6B:4B:00:C0:00\nManufacturer         0x2B   8 Mellanox\nONIE Version         0x29  21 2019.11-5.2.0020-9600\nCRC-32               0xFE   4 0x1A2B3C4D\n\n(checksum valid)\n",
+      "rc": 0
+    },
+    "show version": {
+      "err": "",
+      "out": "\nSONiC Software Version: SONiC.202311.1-0a1b2c3d4\nSONiC OS Version: 11\nDistribution: Debian 11.9\nKernel: 5.10.0-23-2-amd64\nBuild commit: 0a1b2c3d4\nBuild date: Tue Apr  2 10:11:12 UTC 2024\nBuilt by: build@sonic\n\nPlatform: x86_64-mlnx_msn3700c-r0\nHwSKU: Mellanox-SN3700C\nASIC: mellanox\nASIC Count: 1\nSerial Number: MT2012X04321\nModel Number: MSN3700-CS2FO\nHardware Revision: A4\nUptime: 10:11:12 up 41 days\n",
+      "rc": 0
+    }
+  },
+  "db": {
+    "APPL_DB": {
+      "PORT_TABLE": {
+        "PORT_TABLE:Ethernet0": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "mtu": "9100",
+            "oper_status": "up",
+            "speed": "100000"
+          }
+        },
+        "PORT_TABLE:Ethernet4": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "mtu": "9100",
+            "oper_status": "up",
+            "speed": "100000"
+          }
+        },
+        "PORT_TABLE:Ethernet8": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "mtu": "9100",
+            "oper_status": "down",
+            "speed": "100000"
+          }
+        }
+      }
+    },
+    "CONFIG_DB": {
+      "DEVICE_METADATA": {
+        "DEVICE_METADATA|localhost": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "hostname": "spine-1",
+            "hwsku": "Mellanox-SN3700C",
+            "mac": "50:6b:4b:00:c0:00",
+            "platform": "x86_64-mlnx_msn3700c-r0",
+            "type": "SpineRouter"
+          }
+        }
+      },
+      "PORT": {
+        "PORT|Ethernet0": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "alias": "etp1",
+            "fec": "rs",
+            "index": "1",
+            "lanes": "0,1,2,3",
+            "mtu": "9100",
+            "speed": "100000"
+          }
+        },
+        "PORT|Ethernet4": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "alias": "etp2",
+            "index": "2",
+            "lanes": "4,5,6,7",
+            "mtu": "9100",
+            "speed": "100000"
+          }
+        },
+        "PORT|Ethernet8": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "alias": "etp3",
+            "index": "3",
+            "lanes": "8,9,10,11",
+            "mtu": "9100",
+            "speed": "100000"
+          }
+        }
+      }
+    },
+    "STATE_DB": {
+      "TRANSCEIVER_DOM_SENSOR": {
+        "TRANSCEIVER_DOM_SENSOR|Ethernet0": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "rx1power": "-1.02",
+            "rx2power": "-0.97",
+            "rx3power": "-1.11",
+            "rx4power": "-0.9",
+            "rx5power": "N/A",
+            "temperature": "34.5",
+            "tx1bias": "6.75",
+            "tx1power": "-0.22",
+            "tx2bias": "6.81",
+            "tx2power": "-0.32",
+            "tx3bias": "6.7",
+            "tx3power": "-0.13",
+            "tx4bias": "6.79",
+            "tx4power": "-0.41",
+            "tx5bias": "N/A",
+            "tx5power": "N/A",
+            "voltage": "3.281"
+          }
+        },
+        "TRANSCEIVER_DOM_SENSOR|Ethernet4": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "rx1power": "-2.5",
+            "temperature": "41.0",
+            "tx1bias": "55.0",
+            "tx1power": "0.8",
+            "voltage": "3.31"
+          }
+        }
+      },
+      "TRANSCEIVER_FIRMWARE_INFO": {
+        "TRANSCEIVER_FIRMWARE_INFO|Ethernet0": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "active_firmware": "N/A",
+            "inactive_firmware": "N/A"
+          }
+        },
+        "TRANSCEIVER_FIRMWARE_INFO|Ethernet4": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "active_firmware": "1.3.0",
+            "inactive_firmware": "1.2.9"
+          }
+        }
+      },
+      "TRANSCEIVER_INFO": {
+        "TRANSCEIVER_INFO|Ethernet0": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "application_advertisement": "N/A",
+            "cable_length": "10.0",
+            "cable_type": "Length Cable Assembly(m)",
+            "connector": "No separable connector",
+            "dom_capability": "N/A",
+            "encoding": "64B/66B",
+            "ext_identifier": "Power Class 3 Module (2.5W max.)",
+            "ext_rateselect_compliance": "Unknown",
+            "hardware_rev": "A2",
+            "is_replaceable": "True",
+            "manufacturer": "Mellanox",
+            "model": "MFA1A00-C010",
+            "nominal_bit_rate": "255",
+            "serial": "MT2030FT01234",
+            "specification_compliance": "{'10/40G Ethernet Compliance Code': 'Extended'}",
+            "type": "QSFP28 or later",
+            "type_abbrv_name": "QSFP28",
+            "vendor_date": "2020-07-24",
+            "vendor_oui": "00-02-c9"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet4": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "application_advertisement": "{1: {'host_electrical_interface_id': '100GAUI-2 C2M (Annex 135G)'}}",
+            "cable_length": "0.0",
+            "cable_type": "Length Cable Assembly(m)",
+            "connector": "LC",
+            "hardware_rev": "1.0",
+            "is_replaceable": "True",
+            "manufacturer": "ACME Optics",
+            "model": "QDD-100G-DR",
+            "serial": "AO24070002",
+            "specification_compliance": "sm_media_interface",
+            "type": "QSFP-DD Double Density 8X Pluggable Transceiver",
+            "type_abbrv_name": "QSFP-DD",
+            "vendor_date": "2024-07-02",
+            "vendor_oui": "00-11-22"
+          }
+        }
+      }
+    }
+  },
+  "db_access": "sudo",
+  "errors": {
+    "STATE_DB EEPROM_INFO": "no output"
+  },
+  "files": {
+    "sonic_version": null
+  },
+  "hostname": "spine-1",
+  "mgmt": {
+    "eth0": {
+      "address": "50:6b:4b:00:c0:01",
+      "carrier": "1",
+      "mtu": "1500",
+      "operstate": "up",
+      "speed": "1000"
+    }
+  },
+  "sections": [
+    "ports",
+    "transceiver",
+    "dom",
+    "system"
+  ],
+  "version": 1
+}
