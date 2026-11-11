@@ -470,6 +470,20 @@ def test_inventory_hosts_missing_in_netbox_are_reported(
     )
 
 
+def test_inventory_hosts_missing_in_netbox_are_handed_back(inventory, managed):
+    skipped = []
+    select_targets(_args(), _nb(), skipped)
+
+    assert skipped == [
+        {"name": "manager-1", "device_id": None, "error": "no active NetBox device"}
+    ]
+
+    skipped = []
+    select_targets(_args("compute-*"), _nb(), skipped)
+
+    assert skipped == []
+
+
 def test_missing_hosts_are_not_reported_for_a_narrowed_selection(
     inventory, managed, loguru_logs
 ):

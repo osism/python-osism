@@ -268,13 +268,18 @@ def managed_switch_ids(nb) -> Set[int]:
     return ids
 
 
-def select_targets(parsed_args, nb) -> List[Target]:
+def select_targets(
+    parsed_args, nb, skipped: Optional[List[Dict[str, Any]]] = None
+) -> List[Target]:
     """Evaluate the selection options and return the devices to query.
 
     Args:
         parsed_args: Namespace holding the options of
             ``add_selection_arguments``
         nb: pynetbox API object, or ``None`` when NetBox is not configured
+        skipped: When given, the inventory hosts the selection expected and
+            had to leave out are appended to it, as ``{"name": ...,
+            "device_id": None, "error": ...}``. They are logged either way.
 
     Returns:
         Targets sorted by name, without addresses
@@ -292,7 +297,7 @@ def select_targets(parsed_args, nb) -> List[Target]:
     if nb is None:
         targets = _select_from_inventory(parsed_args)
     else:
-        targets = _select_from_netbox(parsed_args, nb)
+        targets = _select_from_netbox(parsed_args, nb, skipped)
 
     if not targets:
         raise SelectionError("No devices matched the selection.")
@@ -340,7 +345,9 @@ def _select_from_inventory(parsed_args) -> List[Target]:
     ]
 
 
-def _select_from_netbox(parsed_args, nb) -> List[Target]:
+def _select_from_netbox(
+    parsed_args, nb, skipped: Optional[List[Dict[str, Any]]] = None
+) -> List[Target]:
     from osism.tasks.conductor.sonic.constants import DEFAULT_SONIC_ROLES
 
     want_nodes = parsed_args.type in ("all", KIND_NODE)
@@ -425,6 +432,15 @@ def _select_from_netbox(parsed_args, nb) -> List[Target]:
                 f"Skipping {len(unknown)} inventory host(s) without an active "
                 f"NetBox device: {', '.join(unknown)}"
             )
+            if skipped is not None:
+                skipped.extend(
+                    {
+                        "name": host,
+                        "device_id": None,
+                        "error": "no active NetBox device",
+                    }
+                    for host in unknown
+                )
 
     return targets
 
