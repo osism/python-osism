@@ -1,0 +1,189 @@
+{
+  "collector": "linux",
+  "dmi": {
+    "product_name": "SYS-420GP-TNR",
+    "product_serial": "S987654X1B00001",
+    "sys_vendor": "Supermicro"
+  },
+  "hostname": "gpu-001",
+  "ip_link": {
+    "err": "",
+    "out": "[{\"ifindex\": 2, \"ifname\": \"ens3f0np0\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"UP\", \"LOWER_UP\"], \"mtu\": 9000, \"qdisc\": \"mq\", \"operstate\": \"UP\", \"link_type\": \"ether\", \"address\": \"b8:ce:f6:bb:00:10\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\"}, {\"ifindex\": 3, \"ifname\": \"ens3f0v0\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"UP\", \"LOWER_UP\"], \"mtu\": 9000, \"qdisc\": \"mq\", \"operstate\": \"UP\", \"link_type\": \"ether\", \"address\": \"02:00:00:00:00:01\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\"}, {\"ifindex\": 4, \"ifname\": \"ibp129s0\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"UP\", \"LOWER_UP\"], \"mtu\": 2044, \"operstate\": \"UP\", \"link_type\": \"infiniband\", \"address\": \"00:00:10:49:fe:80:00:00:00:00:00:00:b8:ce:f6:03:00:cc:00:10\"}]",
+    "rc": 0
+  },
+  "lldpctl": {
+    "err": "",
+    "out": "{\"lldp\": {}}",
+    "rc": 0
+  },
+  "ports": {
+    "ens3f0np0": {
+      "devlink": {
+        "err": "kernel answers: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for IFACE:\n\tSupported ports: [ FIBRE ]\n\tSupported link modes:   1000baseKX/Full\n\t                        25000baseCR/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: None\t RS\t BASER\n\tAdvertised link modes:  25000baseCR/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: RS\n\tSpeed: 25000Mb/s\n\tDuplex: Full\n\tAuto-negotiation: on\n\tPort: Direct Attach Copper\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n\tLink detected: yes\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: b8:ce:f6:bb:00:10\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for IFACE:\nSupported/Configured FEC encodings: Auto RS BaseR\nActive FEC encoding: RS\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: mlx5_core\nversion: 6.8.0-51-generic\nfirmware-version: 16.35.2000 (MT_0000000080)\nexpansion-rom-version: \nbus-info: 0000:5e:00.0\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "",
+        "out": "\tIdentifier                                : 0x03 (SFP)\n\tExtended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)\n\tConnector                                 : 0x21 (Copper pigtail)\n\tTransceiver codes                         : 0x01 0x00 0x00 0x04 0x00 0x04 0x80 0x00 0x00\n\tTransceiver type                          : Infiniband: 1X Copper Passive\n\tTransceiver type                          : Ethernet: 1000BASE-CX\n\tTransceiver type                          : Passive Cable\n\tTransceiver type                          : FC: Twin Axial Pair (TW)\n\tTransceiver type                          : Extended: 25G Base-CR CA-N\n\tEncoding                                  : 0x00 (unspecified)\n\tBR, Nominal                               : 25500MBd\n\tRate identifier                           : 0x00 (unspecified)\n\tLength (SMF,km)                           : 0km\n\tLength (SMF)                              : 0m\n\tLength (50um)                             : 0m\n\tLength (62.5um)                           : 0m\n\tLength (Copper)                           : 3m\n\tLength (OM3)                              : 0m\n\tPassive Cu cmplnce.                       : 0x01 (SFF-8431 appendix E) [SFF-8472 rev10.4 only]\n\tVendor name                               : Mellanox\n\tVendor OUI                                : 00:02:c9\n\tVendor PN                                 : MCP2M00-A003E30L\n\tVendor rev                                : A3\n\tOption values                             : 0x00 0x00\n\tBR margin, max                            : 0%\n\tBR margin, min                            : 0%\n\tVendor SN                                 : MT2114VS01234\n\tDate code                                 : 210408\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:5e:00.0\nClass:\tEthernet controller [0200]\nVendor:\tMellanox Technologies [15b3]\nDevice:\tMT27800 Family [ConnectX-5] [1017]\nSVendor:\tMellanox Technologies [15b3]\nSDevice:\tConnectX-5 EN network interface card, 25GbE dual-port SFP28 [0080]\nRev:\t00\nNUMANode:\t0\n\n",
+        "rc": 0
+      },
+      "pci": "0000:5e:00.0",
+      "sysfs": {
+        "address": "b8:ce:f6:bb:00:10",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9000",
+        "operstate": "up",
+        "phys_port_name": "p0",
+        "speed": "25000",
+        "type": "1"
+      }
+    },
+    "ens3f0v0": {
+      "devlink": {
+        "err": "kernel answers: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for IFACE:\n\tSupported ports: [ FIBRE ]\n\tSupported link modes:   1000baseKX/Full\n\t                        25000baseCR/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: None\t RS\t BASER\n\tAdvertised link modes:  25000baseCR/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: RS\n\tSpeed: 25000Mb/s\n\tDuplex: Full\n\tAuto-negotiation: off\n\tPort: Other\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n\tLink detected: yes\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 00:00:00:00:00:00\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: mlx5_core\nversion: 6.8.0-51-generic\nfirmware-version: 16.35.2000 (MT_0000000080)\nexpansion-rom-version: \nbus-info: 0000:5e:00.2\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "kind": "vf",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:5e:00.2\nClass:\tEthernet controller [0200]\nVendor:\tMellanox Technologies [15b3]\nDevice:\tMT27800 Family [ConnectX-5 Virtual Function] [1018]\nSVendor:\tMellanox Technologies [15b3]\nSDevice:\tDevice [0080]\nRev:\t00\nNUMANode:\t0\n\n",
+        "rc": 0
+      },
+      "pci": "0000:5e:00.2",
+      "physfn": [
+        "ens3f0np0"
+      ],
+      "sysfs": {
+        "address": "02:00:00:00:00:01",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9000",
+        "operstate": "up",
+        "phys_port_name": null,
+        "speed": "25000",
+        "type": "1"
+      }
+    },
+    "ibp129s0": {
+      "devlink": {
+        "err": "kernel answers: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for IFACE:\n\tSupported ports: [ FIBRE ]\n\tSupported link modes:   1000baseKX/Full\n\t                        25000baseCR/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: None\t RS\t BASER\n\tAdvertised link modes:  25000baseCR/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: RS\n\tSpeed: Unknown!\n\tDuplex: Unknown! (255)\n\tAuto-negotiation: off\n\tPort: Other\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n\tLink detected: yes\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "Cannot read permanent address: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool_fec": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: mlx5_core[ib_ipoib]\nversion: 6.8.0-51-generic\nfirmware-version: 20.35.2000 (MT_0000000224)\nexpansion-rom-version: \nbus-info: 0000:81:00.0\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "",
+        "out": "\tIdentifier                                : 0x11 (QSFP28)\n\tExtended identifier                       : 0xcc\n\tExtended identifier description           : 3.5W max. Power consumption\n\tConnector                                 : 0x0c (MPO Parallel Optic)\n\tTransceiver codes                         : 0x80 0x00 0x00 0x00 0x00 0x00 0x00 0x00\n\tTransceiver type                          : 100G Ethernet: 100G Base-SR4 or 25GBase-SR\n\tEncoding                                  : 0x05 (64B/66B)\n\tBR, Nominal                               : 25500Mbps\n\tRate identifier                           : 0x00\n\tLength (SMF,km)                           : 0km\n\tLength (OM3 50um)                         : 70m\n\tLength (OM2 50um)                         : 0m\n\tLength (OM1 62.5um)                       : 0m\n\tLength (Copper or Active cable)           : 50m\n\tTransmitter technology                    : 0x00 (850 nm VCSEL)\n\tLaser wavelength                          : 850.000nm\n\tLaser wavelength tolerance                : 10.000nm\n\tVendor name                               : Intel Corp\n\tVendor OUI                                : 00:1b:21\n\tVendor PN                                 : SPTSBP2CLCKS\n\tVendor rev                                : 01\n\tVendor SN                                 : INCAL1234567\n\tDate code                                 : 230117\n\tRevision Compliance                       : SFF-8636 Rev 2.5/2.6/2.7\n\tModule temperature                        : 31.00 degrees C / 87.80 degrees F\n\tModule voltage                            : 3.2800 V\n\tAlarm/warning flags implemented           : Yes\n\tLaser tx bias current (Channel 1)         : 6.750 mA\n\tLaser tx bias current (Channel 2)         : 6.812 mA\n\tLaser tx bias current (Channel 3)         : 6.700 mA\n\tLaser tx bias current (Channel 4)         : 6.790 mA\n\tTransmit avg optical power (Channel 1)    : 0.9500 mW / -0.22 dBm\n\tTransmit avg optical power (Channel 2)    : 0.9300 mW / -0.32 dBm\n\tTransmit avg optical power (Channel 3)    : 0.9700 mW / -0.13 dBm\n\tTransmit avg optical power (Channel 4)    : 0.9100 mW / -0.41 dBm\n\tRcvr signal avg optical power(Channel 1)  : 0.8200 mW / -0.86 dBm\n\tRcvr signal avg optical power(Channel 2)  : 0.8000 mW / -0.97 dBm\n\tRcvr signal avg optical power(Channel 3)  : 0.7900 mW / -1.02 dBm\n\tRcvr signal avg optical power(Channel 4)  : 0.8100 mW / -0.92 dBm\n\tLaser bias current high alarm threshold   : 10.000 mA\n\tLaser rx power high alarm threshold       : 2.1878 mW / 3.40 dBm\n",
+        "rc": 0
+      },
+      "infiniband": {
+        "device": "mlx5_2",
+        "port": 1,
+        "rate": "100 Gb/sec (4X EDR)",
+        "state": "4: ACTIVE"
+      },
+      "kind": "infiniband",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:81:00.0\nClass:\tEthernet controller [0200]\nVendor:\tMellanox Technologies [15b3]\nDevice:\tMT28908 Family [ConnectX-6] [101b]\nSVendor:\tMellanox Technologies [15b3]\nSDevice:\tConnectX-6 InfiniBand/Ethernet adapter card, 100Gb/s [0007]\nRev:\t00\nNUMANode:\t0\n\n",
+        "rc": 0
+      },
+      "pci": "0000:81:00.0",
+      "sysfs": {
+        "address": "00:00:10:49:fe:80:00:00:00:00:00:00:b8:ce:f6:03:00:cc:00:10",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": null,
+        "mtu": "2044",
+        "operstate": "up",
+        "phys_port_name": null,
+        "speed": "-1",
+        "type": "32"
+      }
+    }
+  },
+  "sections": [
+    "ports",
+    "lldp",
+    "ethtool",
+    "module",
+    "nic",
+    "system"
+  ],
+  "version": 1
+}

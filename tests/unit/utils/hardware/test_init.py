@@ -4,7 +4,12 @@
 
 import pytest
 
-from osism.utils.hardware import natural_key, normalize_mac
+from osism.utils.hardware import (
+    is_cable_assembly,
+    natural_key,
+    normalize_date_code,
+    normalize_mac,
+)
 
 
 @pytest.mark.parametrize(
@@ -38,3 +43,42 @@ def test_natural_key_orders_numbers_by_value():
 
 def test_natural_key_handles_none_and_mixed_values():
     assert sorted([None, "b", "1", "a"], key=natural_key) == [None, "1", "a", "b"]
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        # ethtool -m: the EEPROM field, with and without a lot code
+        ("220907", "2022-09-07"),
+        ("220907  ", "2022-09-07"),
+        ("220907A1", "2022-09-07"),
+        # Enterprise SONiC and community SONiC
+        ("2022-09-07T00:00:00+00:00", "2022-09-07"),
+        ("2020-07-24 A1", "2020-07-24"),
+        ("2020-07-24", "2020-07-24"),
+        # Not a date: left alone
+        ("991332", "991332"),
+        ("week 12", "week 12"),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_normalize_date_code(value, expected):
+    assert normalize_date_code(value) == expected
+
+
+@pytest.mark.parametrize(
+    "connector,compliance,expected",
+    [
+        ("Copper pigtail", "Passive Cable; Extended: 25G Base-CR CA-S", True),
+        ("No separable connector", "100GBASE-CR4", True),
+        ("MPOx12", "100G AOC (Active Optical Cable) or 25GAUI C2M AOC", True),
+        ("LC", "Active Cable", True),
+        ("LC", "Extended: 100G Base-SR4 or 25GBase-SR", False),
+        ("MPO 1x16", None, False),
+        ("LC", "Inactive cable", False),
+        (None, None, False),
+    ],
+)
+def test_is_cable_assembly(connector, compliance, expected):
+    assert is_cable_assembly(connector, compliance) is expected
