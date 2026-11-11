@@ -1,0 +1,101 @@
+{
+  "collector": "linux",
+  "hostname": "compute-042",
+  "ip_link": {
+    "err": "",
+    "out": "[{\"ifindex\": 1, \"ifname\": \"lo\", \"flags\": [\"LOOPBACK\", \"UP\", \"LOWER_UP\"], \"mtu\": 65536, \"operstate\": \"UNKNOWN\", \"link_type\": \"loopback\", \"address\": \"00:00:00:00:00:00\"}, {\"ifindex\": 2, \"ifname\": \"eno1\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"UP\", \"LOWER_UP\"], \"mtu\": 1500, \"qdisc\": \"mq\", \"operstate\": \"UP\", \"linkmode\": \"DEFAULT\", \"group\": \"default\", \"txqlen\": 1000, \"link_type\": \"ether\", \"address\": \"3c:ec:ef:10:20:30\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\", \"altnames\": [\"enp3s0f0\"]}, {\"ifindex\": 3, \"ifname\": \"eno2\", \"flags\": [\"BROADCAST\", \"MULTICAST\"], \"mtu\": 1500, \"qdisc\": \"mq\", \"operstate\": \"DOWN\", \"linkmode\": \"DEFAULT\", \"group\": \"default\", \"txqlen\": 1000, \"link_type\": \"ether\", \"address\": \"3c:ec:ef:10:20:31\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\", \"altnames\": [\"enp3s0f1\"]}, {\"ifindex\": 4, \"ifname\": \"ens1f0np0\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"SLAVE\", \"UP\", \"LOWER_UP\"], \"mtu\": 9000, \"qdisc\": \"mq\", \"operstate\": \"UP\", \"linkmode\": \"DEFAULT\", \"group\": \"default\", \"txqlen\": 1000, \"link_type\": \"ether\", \"address\": \"b8:ce:f6:aa:00:10\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\", \"master\": \"bond0\", \"linkinfo\": {\"info_slave_kind\": \"bond\"}, \"altnames\": [\"enp59s0f0np0\"]}, {\"ifindex\": 5, \"ifname\": \"ens1f1np1\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"SLAVE\", \"UP\", \"LOWER_UP\"], \"mtu\": 9000, \"qdisc\": \"mq\", \"operstate\": \"UP\", \"linkmode\": \"DEFAULT\", \"group\": \"default\", \"txqlen\": 1000, \"link_type\": \"ether\", \"address\": \"b8:ce:f6:aa:00:10\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\", \"master\": \"bond0\", \"permaddr\": \"b8:ce:f6:aa:00:11\", \"linkinfo\": {\"info_slave_kind\": \"bond\"}, \"altnames\": [\"enp59s0f1np1\"]}, {\"ifindex\": 6, \"ifname\": \"bond0\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"MASTER\", \"UP\", \"LOWER_UP\"], \"mtu\": 9000, \"qdisc\": \"mq\", \"operstate\": \"UP\", \"linkmode\": \"DEFAULT\", \"group\": \"default\", \"txqlen\": 1000, \"link_type\": \"ether\", \"address\": \"b8:ce:f6:aa:00:10\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\", \"linkinfo\": {\"info_kind\": \"bond\"}}]",
+    "rc": 0
+  },
+  "lldpctl": {
+    "err": "",
+    "out": "{\"lldp\": {\"interface\": [{\"ens1f0np0\": {\"via\": \"LLDP\", \"rid\": \"1\", \"age\": \"3 days, 04:12:55\", \"chassis\": {\"leaf-1a\": {\"id\": {\"type\": \"mac\", \"value\": \"0c:29:ef:d1:a0:00\"}, \"descr\": \"SONiC Software Version: SONiC.4.5.0-Enterprise_Base\", \"mgmt-ip\": \"10.10.0.11\", \"capability\": [{\"type\": \"Bridge\", \"enabled\": true}, {\"type\": \"Router\", \"enabled\": true}]}}, \"port\": {\"id\": {\"type\": \"local\", \"value\": \"Eth1/12\"}, \"descr\": \"Ethernet11\", \"ttl\": \"120\"}}}, {\"ens1f1np1\": {\"via\": \"LLDP\", \"rid\": \"1\", \"age\": \"3 days, 04:12:51\", \"chassis\": {\"leaf-1b\": {\"id\": {\"type\": \"mac\", \"value\": \"0c:29:ef:d1:b0:00\"}, \"descr\": \"SONiC Software Version: SONiC.4.5.0-Enterprise_Base\", \"mgmt-ip\": \"10.10.0.12\", \"capability\": [{\"type\": \"Bridge\", \"enabled\": true}, {\"type\": \"Router\", \"enabled\": true}]}}, \"port\": {\"id\": {\"type\": \"local\", \"value\": \"Eth1/12\"}, \"descr\": \"Ethernet11\", \"ttl\": \"120\"}}}, {\"eno1\": {\"via\": \"LLDP\", \"rid\": \"1\", \"age\": \"12 days, 01:00:09\", \"chassis\": {\"mgmt-1\": {\"id\": {\"type\": \"mac\", \"value\": \"0c:29:ef:d1:c0:00\"}, \"descr\": \"SONiC Software Version: SONiC.4.5.0-Enterprise_Base\", \"mgmt-ip\": \"10.10.0.5\", \"capability\": [{\"type\": \"Bridge\", \"enabled\": true}, {\"type\": \"Router\", \"enabled\": true}]}}, \"port\": {\"id\": {\"type\": \"local\", \"value\": \"Eth1/42\"}, \"descr\": \"Ethernet41\", \"ttl\": \"120\"}}}]}}",
+    "rc": 0
+  },
+  "ports": {
+    "eno1": {
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 3c:ec:ef:10:20:30\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "pci": "0000:03:00.0",
+      "sysfs": {
+        "address": "3c:ec:ef:10:20:30",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "1500",
+        "operstate": "up",
+        "phys_port_name": null,
+        "speed": "1000",
+        "type": "1"
+      }
+    },
+    "eno2": {
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 3c:ec:ef:10:20:31\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "pci": "0000:03:00.1",
+      "sysfs": {
+        "address": "3c:ec:ef:10:20:31",
+        "carrier": null,
+        "dev_port": "0",
+        "duplex": null,
+        "mtu": "1500",
+        "operstate": "down",
+        "phys_port_name": null,
+        "speed": null,
+        "type": "1"
+      }
+    },
+    "ens1f0np0": {
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: b8:ce:f6:aa:00:10\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "pci": "0000:3b:00.0",
+      "sysfs": {
+        "address": "b8:ce:f6:aa:00:10",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9000",
+        "operstate": "up",
+        "phys_port_name": "p0",
+        "speed": "25000",
+        "type": "1"
+      }
+    },
+    "ens1f1np1": {
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: b8:ce:f6:aa:00:11\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "pci": "0000:3b:00.1",
+      "sysfs": {
+        "address": "b8:ce:f6:aa:00:10",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9000",
+        "operstate": "up",
+        "phys_port_name": "p1",
+        "speed": "25000",
+        "type": "1"
+      }
+    }
+  },
+  "sections": [
+    "ports",
+    "lldp"
+  ],
+  "version": 1
+}
