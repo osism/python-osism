@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.20261111.0] - 2026-11-11
+
+### Added
+- Check the built image for requirement conflicts and smoke-test bundled commands before pushing it (osism/python-osism#2828)
+
+### Fixed
+- Show the output of the image push task so push failures can be diagnosed from the job log (osism/python-osism#2832)
+- Prevent premature timeouts and clock-step issues when streaming task output by keeping reads below the Redis socket timeout and measuring the inactivity deadline with a monotonic clock (osism/python-osism#2869)
+- Skip creating an SSH known_hosts backup when the file is empty, avoiding a false "backup was not created properly" warning (osism/python-osism#2871)
+
+### Dependencies
+- @tanstack/react-query 5.104.5 → 5.107.1 (osism/python-osism#2835, osism/python-osism#2851, osism/python-osism#2854, osism/python-osism#2856, osism/python-osism#2861, osism/python-osism#2870)
+- autoprefixer 10.6.1 → 10.6.2 (osism/python-osism#2836)
+- axios 1.20.0 → 1.21.0 (osism/python-osism#2838)
+- boto3 1.43.114 → 1.43.125 (osism/python-osism#2825, osism/python-osism#2843, osism/python-osism#2865)
+- celery 5.6.3 → 5.7.0 (osism/python-osism#2864)
+- cliff 4.16.0 → 4.17.0 (osism/python-osism#2821)
+- eslint 10.13.0 → 10.14.0 (osism/python-osism#2847)
+- fastapi 0.143.2 → 0.162.0 (osism/python-osism#2826, osism/python-osism#2845)
+- huey 3.4.0 → 3.5.4 (osism/python-osism#2830, osism/python-osism#2852)
+- jc 1.26.1 → 1.26.2 (osism/python-osism#2844)
+- kombu 5.6.2 → 5.7.0 (osism/python-osism#2857)
+- kubernetes 36.0.3 → 37.0.1 (osism/python-osism#2775)
+- lucide-react 1.60.0 → 1.70.0 (osism/python-osism#2819, osism/python-osism#2839, osism/python-osism#2841, osism/python-osism#2842, osism/python-osism#2846, osism/python-osism#2858, osism/python-osism#2860, osism/python-osism#2862, osism/python-osism#2868)
+- next 16.4.2 → 16.4.5 (osism/python-osism#2829, osism/python-osism#2855, osism/python-osism#2859)
+- openstacksdk 4.21.0 → 4.22.0 (osism/python-osism#2822)
+- postcss 8.5.31 → 8.5.32 (osism/python-osism#2837)
+- pytest 9.1.1 → 9.2.0 (osism/python-osism#2840)
+- pytest-asyncio 1.4.0 → 1.4.1.post1 (osism/python-osism#2834, osism/python-osism#2853)
+- python 3.13.16 → 3.13.17-alpine3.24 (osism/python-osism#2824)
+- python 3.13.17 → 3.13.18 (osism/python-osism#2867)
+- python-openstackclient 10.4.0 → 10.5.0 (osism/python-osism#2823)
+- redfish 3.4.1 → 3.4.2 (osism/python-osism#2831)
+- setuptools 84.0.0 → 84.2.1 (osism/python-osism#2818, osism/python-osism#2827)
+- watchdog 6.0.0 → 7.1.0 (osism/python-osism#2849, osism/python-osism#2863)
+- websockets 17.3 → 17.4 (osism/python-osism#2848)
+
 ## [v0.20261023.0] - 2026-10-23
 
 ### Changed
