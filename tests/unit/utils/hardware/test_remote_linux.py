@@ -171,3 +171,103 @@ def test_run_reports_missing_commands_and_output():
 
     ok = remote_linux.run(["python3", "-c", "print('hello')"])
     assert ok == {"rc": 0, "out": "hello\n", "err": ""}
+
+
+# ---------------------------------------------------------------------------
+# Hardware sections
+# ---------------------------------------------------------------------------
+
+
+def test_hardware_sections_query_every_port(sys_net):
+    calls = []
+
+    document = remote_linux.collect(
+        ["ports", "ethtool", "module", "nic"],
+        ["physical", "vf"],
+        sys_net,
+        _runner(calls),
+    )
+
+    port = document["ports"]["ens1f0"]
+    assert port["ethtool"]["out"] == "output of ethtool ens1f0"
+    assert port["ethtool_i"]["out"] == "output of ethtool -i ens1f0"
+    assert port["ethtool_fec"]["out"] == "output of ethtool --show-fec ens1f0"
+    assert port["ethtool_m"]["out"] == "output of ethtool -m ens1f0"
+    assert port["lspci"]["out"].startswith("output of lspci -D -vmm -nn -s ")
+    assert port["devlink"]["out"].startswith("output of devlink -j dev info pci/")
+    assert ["ethtool", "-m", "ens1f0v0"] in calls
+
+
+def test_module_section_keeps_the_exit_code_of_a_port_without_module(sys_net):
+    def runner(argv, timeout=20):
+        if argv[:2] == ["ethtool", "-m"]:
+            return {"rc": 75, "out": "", "err": "Operation not supported"}
+        return {"rc": 0, "out": "", "err": ""}
+
+    document = remote_linux.collect(["ports", "module"], ["physical"], sys_net, runner)
+
+    assert document["ports"]["ens1f0"]["ethtool_m"] == {
+        "rc": 75,
+        "out": "",
+        "err": "Operation not supported",
+    }
+
+
+def test_nic_section_queries_a_shared_pci_function_once(tmp_path):
+    root = tmp_path / "net"
+    function = tmp_path / "devices" / "0000:3b:00.0"
+    function.mkdir(parents=True)
+    for name in ("p0", "p1"):
+        base = root / name
+        base.mkdir(parents=True)
+        (base / "type").write_text("1\n")
+        (base / "device").symlink_to(function)
+    calls = []
+
+    document = remote_linux.collect(
+        ["ports", "nic"], ["physical"], str(root), _runner(calls)
+    )
+
+    assert document["ports"]["p0"]["pci"] == "0000:3b:00.0"
+    assert document["ports"]["p1"]["lspci"] == document["ports"]["p0"]["lspci"]
+    assert calls.count(["lspci", "-D", "-vmm", "-nn", "-s", "0000:3b:00.0"]) == 1
+    assert calls.count(["devlink", "-j", "dev", "info", "pci/0000:3b:00.0"]) == 1
+
+
+def test_system_section_reads_dmi(sys_net, tmp_path, monkeypatch):
+    dmi = tmp_path / "dmi"
+    dmi.mkdir()
+    (dmi / "sys_vendor").write_text("Supermicro\n")
+    (dmi / "product_name").write_text("SYS-120C\n")
+    monkeypatch.setattr(remote_linux, "SYS_DMI", str(dmi))
+
+    document = remote_linux.collect(["system"], ["physical"], sys_net, _runner())
+
+    assert document["dmi"] == {
+        "sys_vendor": "Supermicro",
+        "product_name": "SYS-120C",
+        "product_serial": None,
+    }
+
+
+def test_infiniband_port_reports_state_and_rate(sys_net, tmp_path):
+    port = tmp_path / "net" / "ib0" / "device" / "infiniband" / "mlx5_2" / "ports" / "2"
+    port.mkdir(parents=True)
+    (port / "state").write_text("4: ACTIVE\n")
+    (port / "rate").write_text("100 Gb/sec (4X EDR)\n")
+    (tmp_path / "net" / "ib0" / "dev_port").write_text("1\n")
+
+    document = remote_linux.collect(["ports"], ["infiniband"], sys_net, _runner())
+
+    assert document["ports"]["ib0"]["infiniband"] == {
+        "device": "mlx5_2",
+        "port": 2,
+        "state": "4: ACTIVE",
+        "rate": "100 Gb/sec (4X EDR)",
+    }
+
+
+def test_infiniband_port_without_ib_device(sys_net):
+    document = remote_linux.collect(["ports"], ["infiniband"], sys_net, _runner())
+
+    assert document["ports"]["ib0"]["infiniband"] == {}
