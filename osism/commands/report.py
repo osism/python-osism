@@ -12,7 +12,7 @@ from tabulate import tabulate
 
 from osism import settings, utils
 from osism.commands.console import resolve_host_with_fallback
-from osism.utils.hardware import parse_linux, parse_sonic
+from osism.utils.hardware import cabling, parse_linux, parse_sonic
 from osism.utils.hardware.collect import (
     Request,
     add_collection_arguments,
@@ -20,13 +20,21 @@ from osism.utils.hardware.collect import (
     dump_raw,
 )
 from osism.utils.hardware.mapping import (
+    fetch_devices,
     fetch_interfaces,
+    find_devices,
     map_node_ports,
     map_switch_ports,
     physical_interfaces,
+    sonic_alias_index,
     sonic_name_index,
 )
-from osism.utils.hardware.parse_lldp import LldpError, linux_neighbours
+from osism.utils.hardware.parse_lldp import (
+    LldpError,
+    linux_neighbours,
+    sonic_neighbours,
+    sonic_unread_ports,
+)
 from osism.utils.hardware.render import (
     Column,
     RenderError,
@@ -36,6 +44,7 @@ from osism.utils.hardware.render import (
     render_csv,
     render_json,
     render_table,
+    select_columns,
     sort_rows,
     write_output,
 )
@@ -181,158 +190,6 @@ class Memory(Command):
             print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             print(f"Hosts: {len(table)}")
             print(f"Memory: {total_memory_gb} GB")
-
-        if failed_hosts:
-            print()
-            logger.warning(
-                f"Failed to query {len(failed_hosts)} host(s): {', '.join(failed_hosts)}"
-            )
-
-
-class Lldp(Command):
-    def get_parser(self, prog_name):
-        parser = super(Lldp, self).get_parser(prog_name)
-        parser.add_argument(
-            "-l",
-            "--limit",
-            type=str,
-            help="Limit selected hosts to an additional pattern",
-        )
-        return parser
-
-    def take_action(self, parsed_args):
-        if not ensure_known_hosts_file():
-            logger.warning(
-                f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
-            )
-
-        try:
-            command = [
-                "ansible-inventory",
-                "-i",
-                get_inventory_path("/ansible/inventory/hosts.yml"),
-                "--list",
-            ]
-            if parsed_args.limit:
-                command.extend(["--limit", parsed_args.limit])
-
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-
-            if result.returncode != 0:
-                logger.error("Error loading inventory.")
-                return 1
-        except subprocess.TimeoutExpired:
-            logger.error("Timeout loading inventory.")
-            return 1
-
-        data = json.loads(result.stdout)
-        hosts = get_hosts_from_inventory(data)
-
-        if not hosts:
-            logger.error("No hosts found in inventory.")
-            return
-
-        ssh_base = [
-            "/usr/bin/ssh",
-            "-i",
-            "/ansible/secrets/id_rsa.operator",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "LogLevel=ERROR",
-            "-o",
-            f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
-            "-o",
-            "ConnectTimeout=10",
-        ]
-        lldp_command = "lldpctl -f json"
-
-        table = []
-        failed_hosts = []
-
-        for host in hosts:
-            resolved_host = resolve_host_with_fallback(host)
-
-            try:
-                lldp_result = subprocess.run(
-                    [
-                        *ssh_base,
-                        f"{settings.OPERATOR_USER}@{resolved_host}",
-                        lldp_command,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-
-                if lldp_result.returncode != 0:
-                    logger.warning(
-                        f"Failed to get LLDP info from {host}: {lldp_result.stderr.strip()}"
-                    )
-                    failed_hosts.append(host)
-                    continue
-
-                lldp_data = json.loads(lldp_result.stdout)
-                interfaces = lldp_data.get("lldp", {}).get("interface", {})
-
-                # lldpctl returns a list of dicts for multiple interfaces,
-                # but a single dict for one interface. Normalize to list.
-                if isinstance(interfaces, dict):
-                    interfaces = [{k: v} for k, v in interfaces.items()]
-
-                for iface_entry in interfaces:
-                    for local_iface, iface_data in iface_entry.items():
-                        chassis = iface_data.get("chassis", {})
-                        remote_switch = next(iter(chassis), "n/a")
-
-                        port = iface_data.get("port", {})
-                        remote_port = port.get("id", {}).get("value", "n/a")
-                        port_descr = port.get("descr", "")
-
-                        age = iface_data.get("age", "n/a")
-
-                        table.append(
-                            [
-                                host,
-                                local_iface,
-                                remote_switch,
-                                remote_port,
-                                port_descr,
-                                age,
-                            ]
-                        )
-
-            except subprocess.TimeoutExpired:
-                logger.warning(f"Timeout connecting to {host}.")
-                failed_hosts.append(host)
-            except (ValueError, json.JSONDecodeError):
-                logger.warning(f"Could not parse LLDP info from {host}.")
-                failed_hosts.append(host)
-
-        if table:
-            print(
-                tabulate(
-                    table,
-                    headers=[
-                        "Host",
-                        "Local Interface",
-                        "Remote Switch",
-                        "Remote Port",
-                        "Port Description",
-                        "Age",
-                    ],
-                    tablefmt="psql",
-                )
-            )
-            print()
-            print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"Hosts: {len(set(row[0] for row in table))}")
-            print(f"Neighbors: {len(table)}")
 
         if failed_hosts:
             print()
@@ -661,8 +518,12 @@ class Status(Command):
             )
 
 
-def _collect_hardware(parsed_args, requests):
+def _collect_hardware(parsed_args, requests, skipped=None):
     """Select the devices of a hardware report and query them.
+
+    Args:
+        skipped: When given, collects the inventory hosts the selection had
+            to leave out, see ``select_targets``
 
     Returns:
         ``(targets, collection)``
@@ -675,7 +536,7 @@ def _collect_hardware(parsed_args, requests):
             f"Could not initialize {KNOWN_HOSTS_PATH}, SSH may show warnings"
         )
 
-    targets = select_targets(parsed_args, utils.nb)
+    targets = select_targets(parsed_args, utils.nb, skipped)
     resolve_addresses(targets, resolve_host_with_fallback)
 
     collection = collect(
@@ -1102,4 +963,416 @@ class Transceiver(Command):
 
         _warn_failed(failed)
         if parsed_args.strict and (failed or unknown):
+            return 1
+
+
+LLDP_COMPARE_COLUMNS = [
+    Column("device", "Device"),
+    Column("interface", "Interface"),
+    Column("netbox_interface", "NetBox Interface", default=False),
+    Column("mapping", "Mapping", default=False),
+    Column("oper_status", "Link", default=False),
+    Column("expected", "Expected"),
+    Column("seen", "Seen"),
+    Column("result", "Result"),
+    Column("hint", "Hint"),
+    Column("remote_system", "Remote Switch", default=False),
+    Column("remote_port", "Remote Port", default=False),
+    Column("port_description", "Port Description", default=False),
+    Column("chassis_id", "Chassis ID", default=False),
+    Column("management_addresses", "Management Address", default=False),
+    Column("age", "Age", default=False),
+]
+
+# Without the comparison the report is the neighbour listing it used to be,
+# with the two checks that need no NetBox data appended.
+LLDP_LISTING_COLUMNS = [
+    Column("device", "Host"),
+    Column("interface", "Local Interface"),
+    Column("remote_system", "Remote Switch"),
+    Column("remote_port", "Remote Port"),
+    Column("port_description", "Port Description"),
+    Column("age", "Age"),
+    Column("result", "Result"),
+    Column("hint", "Hint"),
+    Column("oper_status", "Link", default=False),
+    Column("chassis_id", "Chassis ID", default=False),
+    Column("management_addresses", "Management Address", default=False),
+]
+
+
+def _lldp_device(target, document, netbox_interfaces, compare, no_mgmt):
+    """Build the live view of one device from its collector document.
+
+    Raises:
+        LldpError: The device has no usable LLDP data
+    """
+    unchecked = {}
+    if target.kind == KIND_SWITCH:
+        ports = parse_sonic.parse_ports(document)
+        neighbours = sonic_neighbours(document)
+        mgmt_port = parse_sonic.parse_mgmt_port(document)
+        if no_mgmt:
+            neighbours.pop(parse_sonic.MGMT_PORT, None)
+        elif mgmt_port is not None:
+            ports.append(mgmt_port)
+            unchecked = sonic_unread_ports(document)
+    else:
+        ports = parse_linux.parse_ports(document)
+        neighbours = linux_neighbours(document)
+
+    device = cabling.LiveDevice(
+        name=target.name,
+        kind=target.kind,
+        hostname=target.hostname,
+        device_id=target.device_id,
+        ports=ports,
+        neighbours=neighbours,
+        unchecked=unchecked,
+    )
+    if not compare:
+        return device
+
+    # LLDP runs on the member ports, and NetBox cables are attached to them.
+    # Management interfaces take part in the mapping also with --no-mgmt,
+    # so that a live port documented as one is recognised and left out.
+    documented = physical_interfaces(netbox_interfaces)
+    if target.kind == KIND_SWITCH:
+        hwsku = target.hwsku or parse_sonic.device_metadata(document).get("hwsku")
+        index = sonic_name_index(hwsku, netbox_interfaces)
+        device.matches, device.unmatched = map_switch_ports(ports, documented, index)
+    else:
+        # Not matched by LLDP neighbour here: a port that is only identified
+        # by what it is plugged into can never be found in the wrong place.
+        device.matches, device.unmatched = map_node_ports(ports, documented)
+    if no_mgmt:
+        _drop_management(device)
+    return device
+
+
+def _drop_management(device):
+    """Leave the management interfaces of a device out of the check.
+
+    These are the live ports matched to a ``mgmt_only`` interface, with
+    their neighbours, and the ``mgmt_only`` interfaces without live port.
+    """
+    names = {
+        name
+        for name, match in device.matches.items()
+        if match.interface is not None and match.interface.mgmt_only
+    }
+    device.ports = [port for port in device.ports if port["name"] not in names]
+    for name in names:
+        device.neighbours.pop(name, None)
+        device.matches.pop(name, None)
+        device.unchecked.pop(name, None)
+    device.unmatched = [i for i in device.unmatched if not i.mgmt_only]
+
+
+def _lldp_directory(targets, devices, netbox_interfaces):
+    """Load what is needed to resolve LLDP identities and build the resolver.
+
+    Besides the selected devices, NetBox data is loaded for the documented
+    peers of their interfaces and for neighbours that announce a name NetBox
+    knows. None of those devices is logged in to.
+    """
+    nb = utils.nb
+    netbox_devices = {t.device_id: t.device for t in targets if t.device_id}
+    interfaces = dict(netbox_interfaces)
+
+    peer_ids = {
+        endpoint.device_id
+        for device_interfaces in interfaces.values()
+        for interface in device_interfaces
+        for endpoint in interface.endpoints
+        if endpoint.device_id is not None
+    } - set(netbox_devices)
+    if peer_ids:
+        for device in fetch_devices(nb, peer_ids):
+            netbox_devices[device["id"]] = device
+        interfaces.update(fetch_interfaces(nb, peer_ids))
+
+    known = cabling.Directory(
+        [cabling.netbox_device(device) for device in netbox_devices.values()],
+        interfaces,
+    )
+    unknown = sorted(
+        {
+            neighbour["system_name"]
+            for device in devices
+            for neighbours in device.neighbours.values()
+            for neighbour in neighbours
+            if neighbour.get("system_name") and known.resolve_device(neighbour) is None
+        }
+    )
+    if unknown:
+        found = [
+            device
+            for device in find_devices(nb, unknown)
+            if device.get("id") not in netbox_devices
+        ]
+        if found:
+            for device in found:
+                netbox_devices[device["id"]] = device
+            interfaces.update(fetch_interfaces(nb, [d["id"] for d in found]))
+
+    sonic_names = {}
+    sonic_aliases = {}
+    for device_id, device in netbox_devices.items():
+        custom_fields = device.get("custom_fields") or {}
+        hwsku = (custom_fields.get("sonic_parameters") or {}).get("hwsku")
+        if not hwsku:
+            continue
+        sonic_names[device_id] = sonic_name_index(
+            hwsku, interfaces.get(device_id) or []
+        )
+        sonic_aliases[device_id] = sonic_alias_index(hwsku)
+
+    return cabling.Directory(
+        [cabling.netbox_device(device) for device in netbox_devices.values()],
+        interfaces,
+        devices,
+        sonic_names,
+        sonic_aliases,
+    )
+
+
+def _lldp_flat(row, listing):
+    """Flatten a result row for the table and CSV."""
+    seen = row["seen"]
+    # A neighbour that announces no name or port shows as n/a in the
+    # listing, as it always did
+    missing = "n/a" if listing and seen else ""
+
+    def join(key, default=""):
+        values = [str(item[key]) for item in seen if item.get(key)]
+        return ", ".join(values) or default
+
+    return {
+        "device": row["device"],
+        "interface": row["interface"],
+        "netbox_interface": row["netbox_name"],
+        "mapping": row["mapping"],
+        "oper_status": row["oper_status"],
+        "expected": ", ".join(
+            f"{item['device']}:{item['interface']}" for item in row["expected"]
+        ),
+        "seen": ", ".join(f"{item['device']}:{item['interface']}" for item in seen),
+        "result": row["result"],
+        "hint": row["hint"],
+        "remote_system": join("system_name", missing),
+        "remote_port": join("port_id", missing),
+        "port_description": join("port_description"),
+        "chassis_id": join("chassis_id"),
+        "management_addresses": ", ".join(
+            address
+            for item in seen
+            for address in item.get("management_addresses") or []
+        ),
+        "age": join("age", missing),
+    }
+
+
+def _lldp_json(rows, devices, failed, compare, counts):
+    """Build the JSON document, nested per device."""
+    interfaces = {}
+    for row in rows:
+        interfaces.setdefault(row["device"], []).append(
+            {
+                "name": row["interface"],
+                "netbox_name": row["netbox_name"],
+                "mapping": row["mapping"],
+                "oper_status": row["oper_status"],
+                # Always a list: one endpoint is the rule, a breakout cable
+                # modelled on one interface has several, and none is empty
+                "expected": row["expected"],
+                "seen": row["seen"],
+                "result": row["result"] or None,
+                "hint": row["hint"] or None,
+            }
+        )
+    return {
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "compared_with_netbox": compare,
+        "summary": counts,
+        "devices": [
+            {
+                "name": device.name,
+                "kind": device.kind,
+                "interfaces": interfaces.get(device.name, []),
+            }
+            for device in devices
+        ],
+        "failed": failed,
+    }
+
+
+class Lldp(Command):
+    """Check the cabling: compare live LLDP neighbours with NetBox."""
+
+    def get_parser(self, prog_name):
+        parser = super(Lldp, self).get_parser(prog_name)
+        add_selection_arguments(parser)
+        parser.add_argument(
+            "--no-compare",
+            action="store_true",
+            help="List the neighbours without comparing them with the cabling in NetBox",
+        )
+        parser.add_argument(
+            "--no-mgmt",
+            action="store_true",
+            help="Leave management interfaces out of the check",
+        )
+        parser.add_argument(
+            "--interface",
+            action="append",
+            metavar="PATTERN",
+            help="Only show ports whose name on the device or in NetBox matches the pattern (can be used multiple times)",
+        )
+        parser.add_argument(
+            "--result",
+            action="append",
+            choices=cabling.RESULTS,
+            metavar="RESULT",
+            help=f"Only show ports with this result (can be used multiple times): {', '.join(cabling.RESULTS)}",
+        )
+        parser.add_argument(
+            "--problems",
+            action="store_true",
+            help="Only show ports with a finding",
+        )
+        add_output_arguments(parser)
+        add_collection_arguments(parser)
+        parser.add_argument(
+            "--strict",
+            action="store_true",
+            help="Exit with 1 when a device could not be queried, an inventory host had to be left out of the selection, or a port has a result other than ok",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        # Without NetBox there is nothing to compare with
+        compare = not parsed_args.no_compare and bool(utils.nb)
+        try:
+            columns = select_columns(
+                LLDP_COMPARE_COLUMNS if compare else LLDP_LISTING_COLUMNS,
+                parsed_args.column,
+                parsed_args.long,
+            )
+        except RenderError as exc:
+            logger.error(str(exc))
+            return 1
+
+        # Reading neighbours and link state needs no root
+        requests = {
+            KIND_NODE: Request(sections=["ports", "lldp"]),
+            KIND_SWITCH: Request(sections=["ports", "lldp"]),
+        }
+        # Inventory hosts the selection left out were not checked. They are
+        # logged by the selection, and reported and counted like failed ones.
+        skipped = []
+        try:
+            targets, collection = _collect_hardware(parsed_args, requests, skipped)
+        except SelectionError as exc:
+            logger.error(str(exc))
+            return 1
+
+        netbox_interfaces = {}
+        if compare:
+            try:
+                netbox_interfaces = fetch_interfaces(
+                    utils.nb, [t.device_id for t in targets if t.device_id]
+                )
+            except Exception as exc:
+                logger.error(f"Could not load the cabling from NetBox: {exc}")
+                return 1
+
+        failed = list(collection.failed)
+        devices = []
+        for target in targets:
+            document = collection.documents.get(target.key)
+            if document is None:
+                continue
+            try:
+                devices.append(
+                    _lldp_device(
+                        target,
+                        document,
+                        netbox_interfaces.get(target.device_id) or [],
+                        compare,
+                        parsed_args.no_mgmt,
+                    )
+                )
+            except LldpError as exc:
+                failed.append(
+                    {
+                        "name": target.name,
+                        "device_id": target.device_id,
+                        "error": str(exc),
+                    }
+                )
+            except Exception as exc:
+                failed.append(
+                    {
+                        "name": target.name,
+                        "device_id": target.device_id,
+                        "error": f"unparsable output: {type(exc).__name__}: {exc}",
+                    }
+                )
+
+        if compare:
+            try:
+                directory = _lldp_directory(targets, devices, netbox_interfaces)
+            except Exception as exc:
+                logger.error(f"Could not load the cabling from NetBox: {exc}")
+                return 1
+            rows = cabling.compare(devices, directory, include_idle=parsed_args.long)
+        else:
+            rows = cabling.neighbour_listing(devices)
+
+        counts = cabling.summary(rows)
+        findings = sum(
+            count for result, count in counts.items() if result != cabling.RESULT_OK
+        )
+
+        shown = [
+            row
+            for row in rows
+            if _matches_interface(
+                parsed_args.interface, row["interface"], row["netbox_name"]
+            )
+            and (not parsed_args.result or row["result"] in parsed_args.result)
+            and (
+                not parsed_args.problems or row["result"] not in ("", cabling.RESULT_OK)
+            )
+        ]
+        shown = sort_rows(shown, "device", "interface")
+
+        if parsed_args.format == "json":
+            document = _lldp_json(shown, devices, skipped + failed, compare, counts)
+            write_output(render_json(document), parsed_args.output)
+        else:
+            flat = [_lldp_flat(row, not compare) for row in shown]
+            if parsed_args.format == "csv":
+                write_output(render_csv(flat, columns), parsed_args.output)
+            elif devices:
+                footer = [f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"]
+                if compare:
+                    footer.append(f"Devices: {len(devices)}   Ports: {len(rows)}")
+                else:
+                    footer.append(f"Devices: {len(devices)}")
+                    neighbors = sum(1 for row in rows if row["seen"])
+                    footer.append(f"Neighbors: {neighbors}")
+                if counts:
+                    footer.append(
+                        "   ".join(f"{name}: {count}" for name, count in counts.items())
+                    )
+                if flat:
+                    text = render_table(flat, columns, footer)
+                else:
+                    text = "\n".join(footer)
+                write_output(text, parsed_args.output)
+
+        _warn_failed(failed)
+        if parsed_args.strict and (skipped or failed or findings):
             return 1
