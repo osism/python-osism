@@ -137,3 +137,94 @@ def test_main_rejects_unknown_sections(tmp_path, capsys):
 
     assert code == 2
     assert "unknown section(s): bogus" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Hardware sections
+# ---------------------------------------------------------------------------
+
+INFO_DUMP = {"TRANSCEIVER_INFO|Ethernet0": {"value": {"manufacturer": "ACME"}}}
+DOM_DUMP = {"TRANSCEIVER_DOM_SENSOR|Ethernet0": {"value": {"temperature": "30"}}}
+EEPROM_DUMP = {"EEPROM_INFO|0x21": {"value": {"Name": "Product Name", "Value": "X"}}}
+
+
+def _show_runner(responses, calls):
+    """Answer ``sonic-db-dump`` from ``responses`` and record ``show`` calls."""
+    dump = _runner(responses)
+
+    def run(argv, timeout=30):
+        if argv[0] == "show":
+            calls.append(" ".join(argv))
+            return {"rc": 0, "out": "output of " + " ".join(argv), "err": ""}
+        return dump(argv, timeout)
+
+    return run
+
+
+def test_transceiver_and_dom_sections_dump_state_db(tmp_path):
+    runner = _runner(
+        {
+            (False, "STATE_DB", "TRANSCEIVER_INFO|*"): INFO_DUMP,
+            (False, "STATE_DB", "TRANSCEIVER_DOM_SENSOR|*"): DOM_DUMP,
+        }
+    )
+
+    document = remote_sonic.collect(["transceiver", "dom"], str(tmp_path), runner)
+
+    assert document["db"]["STATE_DB"]["TRANSCEIVER_INFO"] == INFO_DUMP
+    assert document["db"]["STATE_DB"]["TRANSCEIVER_DOM_SENSOR"] == DOM_DUMP
+    # The firmware table only exists on newer releases
+    assert document["errors"] == {"STATE_DB TRANSCEIVER_FIRMWARE_INFO": "no such table"}
+
+
+def test_system_section_prefers_files_and_tables_over_show_commands(
+    tmp_path, monkeypatch
+):
+    version = tmp_path / "sonic_version.yml"
+    version.write_text("build_version: '4.5.0'\n")
+    monkeypatch.setattr(remote_sonic, "VERSION_FILE", str(version))
+    calls = []
+    runner = _show_runner({(False, "STATE_DB", "EEPROM_INFO|*"): EEPROM_DUMP}, calls)
+
+    document = remote_sonic.collect(["system"], str(tmp_path), runner)
+
+    assert document["files"]["sonic_version"] == "build_version: '4.5.0'"
+    assert calls == ["show platform firmware status"]
+    assert sorted(document["commands"]) == ["show platform firmware status"]
+
+
+def test_system_section_falls_back_to_show_commands(tmp_path, monkeypatch):
+    monkeypatch.setattr(remote_sonic, "VERSION_FILE", str(tmp_path / "missing.yml"))
+    calls = []
+
+    document = remote_sonic.collect(["system"], str(tmp_path), _show_runner({}, calls))
+
+    assert document["files"]["sonic_version"] is None
+    assert calls == [
+        "show version",
+        "show platform syseeprom",
+        "show platform firmware status",
+    ]
+    assert document["commands"]["show version"]["out"] == "output of show version"
+
+
+def test_main_accepts_the_hardware_sections(tmp_path):
+    stream = io.StringIO()
+    runner = _runner({(False, "CONFIG_DB", "PORT|*"): PORT_DUMP})
+
+    code = remote_sonic.main(
+        ["--sections", "ports,transceiver,dom,system"],
+        sys_net=str(tmp_path),
+        runner=lambda argv, timeout=30: (
+            {"rc": 1, "out": "", "err": "n/a"} if argv[0] == "show" else runner(argv)
+        ),
+        stream=stream,
+    )
+
+    assert code == 0
+    assert json.loads(stream.getvalue())["sections"] == [
+        "ports",
+        "transceiver",
+        "dom",
+        "system",
+    ]
