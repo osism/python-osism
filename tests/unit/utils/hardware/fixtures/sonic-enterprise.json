@@ -9,6 +9,218 @@
   },
   "db": {
     "APPL_DB": {
+      "LLDP_ENTRY_TABLE": {
+        "LLDP_ENTRY_TABLE:Ethernet0:02:00:00:00:00:01": {
+          "expireat": 1794564783.0885222,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:19",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "37",
+            "lldp_rem_man_addr": "192.0.2.4,2001:db8::1",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "ens4f0np0",
+            "lldp_rem_port_id": "02:00:00:00:00:01",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "28 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "Ubuntu 24.04.5 LTS Linux 6.8.0-136-generic #136-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 21:53:05 UTC 2026 x86_64",
+            "lldp_rem_sys_name": "node-1",
+            "lldp_rem_time_mark": "2959518",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet120:02:00:00:00:00:09": {
+          "expireat": 1794564783.0883687,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:1e",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "4",
+            "lldp_rem_man_addr": "192.0.2.3",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "Ethernet120",
+            "lldp_rem_port_id": "Eth1/31",
+            "lldp_rem_port_id_subtype": "7",
+            "lldp_rem_sys_cap_enabled": "08 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "SONiC Software Version: SONiC.4.4.1-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-21-amd64",
+            "lldp_rem_sys_name": "leaf-2",
+            "lldp_rem_time_mark": "3024560",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet124:02:00:00:00:00:09": {
+          "expireat": 1794564783.0884378,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:1e",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "4",
+            "lldp_rem_man_addr": "192.0.2.3",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "Ethernet124",
+            "lldp_rem_port_id": "Eth1/32",
+            "lldp_rem_port_id_subtype": "7",
+            "lldp_rem_sys_cap_enabled": "08 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "SONiC Software Version: SONiC.4.4.1-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-21-amd64",
+            "lldp_rem_sys_name": "leaf-2",
+            "lldp_rem_time_mark": "3024560",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet12:02:00:00:00:00:0a": {
+          "expireat": 1794564783.0884604,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:1f",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "35",
+            "lldp_rem_man_addr": "172.17.0.1,2001:db8::2",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "data2",
+            "lldp_rem_port_id": "02:00:00:00:00:0a",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "",
+            "lldp_rem_sys_cap_supported": "",
+            "lldp_rem_sys_desc": "Ubuntu 24.04.4 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64",
+            "lldp_rem_sys_name": "node-2",
+            "lldp_rem_time_mark": "2941043",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet13:02:00:00:00:00:0b": {
+          "expireat": 1794564783.0883977,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:1f",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "35",
+            "lldp_rem_man_addr": "172.17.0.1,2001:db8::3",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "data2",
+            "lldp_rem_port_id": "02:00:00:00:00:0b",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "",
+            "lldp_rem_sys_cap_supported": "",
+            "lldp_rem_sys_desc": "Ubuntu 24.04.4 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64",
+            "lldp_rem_sys_name": "node-3",
+            "lldp_rem_time_mark": "2963270",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet1:02:00:00:00:00:10": {
+          "expireat": 1794564783.0884452,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:21",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "41",
+            "lldp_rem_man_addr": "192.0.2.5,2001:db8::4",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "ens4f0np0",
+            "lldp_rem_port_id": "02:00:00:00:00:10",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "28 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "Ubuntu 24.04.5 LTS Linux 6.8.0-149-generic #149-Ubuntu SMP PREEMPT_DYNAMIC Fri Oct 23 13:21:10 UTC 2026 x86_64",
+            "lldp_rem_sys_name": "node-4",
+            "lldp_rem_time_mark": "2961814",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet22:02:00:00:00:00:08": {
+          "expireat": 1794564783.0884254,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:07",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "68",
+            "lldp_rem_man_addr": "172.17.0.1,2001:db8::5",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "data2",
+            "lldp_rem_port_id": "02:00:00:00:00:08",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "28 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "Ubuntu 24.04.4 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64",
+            "lldp_rem_sys_name": "node-5",
+            "lldp_rem_time_mark": "3030325",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet6:02:00:00:00:00:03": {
+          "expireat": 1794564783.0884082,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:03",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "8",
+            "lldp_rem_man_addr": "172.17.0.1,2001:db8::6",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "data1",
+            "lldp_rem_port_id": "02:00:00:00:00:03",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "28 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "Ubuntu 24.04.5 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64",
+            "lldp_rem_sys_name": "deploy-1",
+            "lldp_rem_time_mark": "3448113",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet9:02:00:00:00:00:16": {
+          "expireat": 1794564783.0884726,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:16",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "10",
+            "lldp_rem_man_addr": "",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "NIC 1/10/25Gb ",
+            "lldp_rem_port_id": "02:00:00:00:00:16",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "00 00",
+            "lldp_rem_sys_cap_supported": "00 00",
+            "lldp_rem_sys_desc": "216.0.333.11 fw_version:AFW_214.4.42.1",
+            "lldp_rem_sys_name": "Broadcom P225p NetXtreme-E Dual-port 10Gb/25Gb Ethernet PCIe AdaBroadcom fw_version:AFW_214.4.42.1",
+            "lldp_rem_time_mark": "3448121",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:eth0:02:00:00:00:00:17": {
+          "expireat": 1794564783.0884533,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:1c",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "16",
+            "lldp_rem_man_addr": "192.0.2.1",
+            "lldp_rem_man_addr_type": "ipv4",
+            "lldp_rem_port_desc": "",
+            "lldp_rem_port_id": "bridge/ether9",
+            "lldp_rem_port_id_subtype": "5",
+            "lldp_rem_sys_cap_enabled": "28 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "MikroTik RouterOS 6.49.1 (stable) CRS354-48G-4S+2Q+",
+            "lldp_rem_sys_name": "oob-1",
+            "lldp_rem_time_mark": "101",
+            "lldp_rem_ttl": "120"
+          }
+        }
+      },
       "PORT_TABLE": {
         "PORT_TABLE:Ethernet0": {
           "expireat": 1794564779.5969937,
@@ -1607,6 +1819,11 @@
     "sonic_version": "build_version: '4.5.2-Enterprise_Base'\ndebian_version: '11.11'\nkernel_version: '5.10.0-39-amd64'\nasic_type: broadcom\ncommit_id: '3cd846de9f'\nbuild_date: Sat Apr 25 01:30:35 UTC 2026\nbuild_number: 0\nbuilt_by: sonicbld@bld-lvn-csg-10\nconfig_db_version: version_4_5_4"
   },
   "hostname": "leaf-1",
+  "lldpctl": {
+    "err": "",
+    "out": "{\n  \"lldp\": {\n    \"interface\": [\n      {\n        \"eth0\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"16\",\n          \"age\": \"39 days, 21:47:02\",\n          \"lastupdate\": \"0 day, 00:00:38\",\n          \"chassis\": {\n            \"oob-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1c\"\n              },\n              \"descr\": \"MikroTik RouterOS 6.49.1 (stable) CRS354-48G-4S+2Q+\",\n              \"mgmt-ip\": \"192.0.2.1\",\n              \"src-mac\": \"02:00:00:00:00:17\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"ifname\",\n              \"value\": \"bridge/ether9\"\n            },\n            \"srcmac\": \"02:00:00:00:00:17\",\n            \"ttl\": \"120\"\n          },\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              }\n            ]\n          }\n        }\n      },\n      {\n        \"Ethernet0\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"37\",\n          \"age\": \"5 days, 15:43:25\",\n          \"lastupdate\": \"0 day, 00:00:18\",\n          \"chassis\": {\n            \"node-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:19\"\n              },\n              \"descr\": \"Ubuntu 24.04.5 LTS Linux 6.8.0-136-generic #136-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 21:53:05 UTC 2026 x86_64\",\n              \"mgmt-ip\": [\n                \"192.0.2.4\",\n                \"2001:db8::1\"\n              ],\n              \"src-mac\": \"02:00:00:00:00:01\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"mac\",\n              \"value\": \"02:00:00:00:00:01\"\n            },\n            \"srcmac\": \"02:00:00:00:00:01\",\n            \"descr\": \"ens4f0np0\",\n            \"ttl\": \"120\",\n            \"auto-negotiation\": {\n              \"supported\": true,\n              \"enabled\": true,\n              \"advertised\": {\n                \"type\": \"1000Base-X\",\n                \"hd\": false,\n                \"fd\": true\n              },\n              \"current\": \"unknown\"\n            }\n          },\n          \"vlan\": [\n            {\n              \"vlan-id\": \"103\",\n              \"value\": \"Vlan_103\"\n            },\n            {\n              \"vlan-id\": \"106\",\n              \"value\": \"Vlan_106\"\n            },\n            {\n              \"vlan-id\": \"101\",\n              \"value\": \"Vlan_101\"\n            }\n          ]\n        }\n      },\n      {\n        \"Ethernet1\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"41\",\n          \"age\": \"5 days, 15:05:08\",\n          \"lastupdate\": \"0 day, 00:00:29\",\n          \"chassis\": {\n            \"node-4\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:21\"\n              },\n              \"descr\": \"Ubuntu 24.04.5 LTS Linux 6.8.0-149-generic #149-Ubuntu SMP PREEMPT_DYNAMIC Fri Oct 23 13:21:10 UTC 2026 x86_64\",\n              \"mgmt-ip\": [\n                \"192.0.2.5\",\n                \"2001:db8::4\"\n              ],\n              \"src-mac\": \"02:00:00:00:00:10\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"mac\",\n              \"value\": \"02:00:00:00:00:10\"\n            },\n            \"srcmac\": \"02:00:00:00:00:10\",\n            \"descr\": \"ens4f0np0\",\n            \"ttl\": \"120\",\n            \"auto-negotiation\": {\n              \"supported\": true,\n              \"enabled\": true,\n              \"advertised\": {\n                \"type\": \"1000Base-X\",\n                \"hd\": false,\n                \"fd\": true\n              },\n              \"current\": \"unknown\"\n            }\n          },\n          \"vlan\": [\n            {\n              \"vlan-id\": \"103\",\n              \"value\": \"Vlan_103\"\n            },\n            {\n              \"vlan-id\": \"101\",\n              \"value\": \"Vlan_101\"\n            },\n            {\n              \"vlan-id\": \"106\",\n              \"value\": \"Vlan_106\"\n            }\n          ]\n        }\n      },\n      {\n        \"Ethernet6\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"8\",\n          \"age\": \"0 day, 00:00:09\",\n          \"lastupdate\": \"0 day, 00:00:09\",\n          \"chassis\": {\n            \"deploy-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:03\"\n              },\n              \"descr\": \"Ubuntu 24.04.5 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64\",\n              \"mgmt-ip\": [\n                \"172.17.0.1\",\n                \"2001:db8::6\"\n              ],\n              \"src-mac\": \"02:00:00:00:00:03\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"mac\",\n              \"value\": \"02:00:00:00:00:03\"\n            },\n            \"srcmac\": \"02:00:00:00:00:03\",\n            \"descr\": \"data1\",\n            \"ttl\": \"120\",\n            \"auto-negotiation\": {\n              \"supported\": true,\n              \"enabled\": true,\n              \"current\": \"unknown\"\n            }\n          }\n        }\n      },\n      {\n        \"Ethernet9\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"10\",\n          \"age\": \"0 day, 00:00:02\",\n          \"lastupdate\": \"0 day, 00:00:02\",\n          \"chassis\": {\n            \"Broadcom P225p NetXtreme-E Dual-port 10Gb/25Gb Ethernet PCIe AdaBroadcom fw_version:AFW_214.4.42.1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:16\"\n              },\n              \"descr\": \"216.0.333.11 fw_version:AFW_214.4.42.1\",\n              \"capability\": {\n                \"type\": \"Station\",\n                \"enabled\": true\n              }\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"mac\",\n              \"value\": \"02:00:00:00:00:16\"\n            },\n            \"srcmac\": \"02:00:00:00:00:16\",\n            \"descr\": \"NIC 1/10/25Gb \",\n            \"ttl\": \"120\"\n          }\n        }\n      },\n      {\n        \"Ethernet12\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"35\",\n          \"age\": \"5 days, 20:51:20\",\n          \"lastupdate\": \"0 day, 00:00:27\",\n          \"chassis\": {\n            \"node-2\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1f\"\n              },\n              \"descr\": \"Ubuntu 24.04.4 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64\",\n              \"mgmt-ip\": [\n                \"172.17.0.1\",\n                \"2001:db8::2\"\n              ],\n              \"src-mac\": \"02:00:00:00:00:0a\"\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"mac\",\n              \"value\": \"02:00:00:00:00:0a\"\n            },\n            \"srcmac\": \"02:00:00:00:00:0a\",\n            \"descr\": \"data2\",\n            \"ttl\": \"120\",\n            \"auto-negotiation\": {\n              \"supported\": false,\n              \"enabled\": false,\n              \"current\": \"10GigBaseCX4 - X copper over 8 pair 100-Ohm balanced cable\"\n            }\n          }\n        }\n      },\n      {\n        \"Ethernet13\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"35\",\n          \"age\": \"5 days, 14:40:53\",\n          \"lastupdate\": \"0 day, 00:00:23\",\n          \"chassis\": {\n            \"node-3\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1f\"\n              },\n              \"descr\": \"Ubuntu 24.04.4 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64\",\n              \"mgmt-ip\": [\n                \"172.17.0.1\",\n                \"2001:db8::3\"\n              ],\n              \"src-mac\": \"02:00:00:00:00:0b\"\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"mac\",\n              \"value\": \"02:00:00:00:00:0b\"\n            },\n            \"srcmac\": \"02:00:00:00:00:0b\",\n            \"descr\": \"data2\",\n            \"ttl\": \"120\",\n            \"auto-negotiation\": {\n              \"supported\": false,\n              \"enabled\": false,\n              \"current\": \"10GigBaseCX4 - X copper over 8 pair 100-Ohm balanced cable\"\n            }\n          }\n        }\n      },\n      {\n        \"Ethernet22\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"68\",\n          \"age\": \"4 days, 20:03:18\",\n          \"lastupdate\": \"0 day, 00:00:10\",\n          \"chassis\": {\n            \"node-5\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:07\"\n              },\n              \"descr\": \"Ubuntu 24.04.4 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64\",\n              \"mgmt-ip\": [\n                \"172.17.0.1\",\n                \"2001:db8::5\"\n              ],\n              \"src-mac\": \"02:00:00:00:00:08\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"mac\",\n              \"value\": \"02:00:00:00:00:08\"\n            },\n            \"srcmac\": \"02:00:00:00:00:08\",\n            \"descr\": \"data2\",\n            \"ttl\": \"120\",\n            \"auto-negotiation\": {\n              \"supported\": false,\n              \"enabled\": false,\n              \"current\": \"10GigBaseCX4 - X copper over 8 pair 100-Ohm balanced cable\"\n            }\n          }\n        }\n      },\n      {\n        \"Ethernet120\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"4\",\n          \"age\": \"4 days, 21:39:23\",\n          \"lastupdate\": \"0 day, 00:00:10\",\n          \"chassis\": {\n            \"leaf-2\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1e\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.4.1-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-21-amd64\",\n              \"mgmt-ip\": \"192.0.2.3\",\n              \"src-mac\": \"02:00:00:00:00:09\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/31\"\n            },\n            \"srcmac\": \"02:00:00:00:00:09\",\n            \"descr\": \"Ethernet120\",\n            \"ttl\": \"120\",\n            \"aggregation\": \"1\",\n            \"mfs\": \"9100\",\n            \"auto-negotiation\": {\n              \"supported\": false,\n              \"enabled\": false,\n              \"current\": \"100GbaseCR10 - 100GBASE-R PCS/PMA over 10 lane shielded copper balanced cable\"\n            }\n          },\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-21-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000002\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          }\n        }\n      },\n      {\n        \"Ethernet124\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"4\",\n          \"age\": \"4 days, 21:39:23\",\n          \"lastupdate\": \"0 day, 00:00:10\",\n          \"chassis\": {\n            \"leaf-2\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1e\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.4.1-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-21-amd64\",\n              \"mgmt-ip\": \"192.0.2.3\",\n              \"src-mac\": \"02:00:00:00:00:09\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/32\"\n            },\n            \"srcmac\": \"02:00:00:00:00:09\",\n            \"descr\": \"Ethernet124\",\n            \"ttl\": \"120\",\n            \"aggregation\": \"1\",\n            \"mfs\": \"9100\",\n            \"auto-negotiation\": {\n              \"supported\": false,\n              \"enabled\": false,\n              \"current\": \"100GbaseCR10 - 100GBASE-R PCS/PMA over 10 lane shielded copper balanced cable\"\n            }\n          },\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-21-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000002\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          }\n        }\n      }\n    ]\n  }\n}\n",
+    "rc": 0
+  },
   "mgmt": {
     "eth0": {
       "address": "02:00:00:00:00:1d",
@@ -1620,7 +1837,8 @@
     "ports",
     "transceiver",
     "dom",
-    "system"
+    "system",
+    "lldp"
   ],
   "version": 1
 }

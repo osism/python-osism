@@ -10,9 +10,36 @@ local interface.
 """
 
 import json
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple
+
+from osism.utils.hardware.parse_sonic import MGMT_PORT, table, was_read
 
 Neighbours = Dict[str, List[Dict[str, Any]]]
+
+# LLDP-MIB subtypes as stored in LLDP_ENTRY_TABLE, named as lldpctl does
+CHASSIS_ID_SUBTYPES = {
+    "1": "chassis-component",
+    "2": "ifalias",
+    "3": "port-component",
+    "4": "mac",
+    "5": "ip",
+    "6": "ifname",
+    "7": "local",
+}
+PORT_ID_SUBTYPES = {
+    "1": "ifalias",
+    "2": "port-component",
+    "3": "mac",
+    "4": "ip",
+    "5": "ifname",
+    "6": "agent-circuit-id",
+    "7": "local",
+}
+
+
+# Key of an LLDP_ENTRY_TABLE entry that names the neighbour after the port
+_ENTRY_KEY = re.compile(r"^(.+):((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})$")
 
 
 class LldpError(Exception):
@@ -122,6 +149,15 @@ def parse_lldpctl(data: Any) -> Neighbours:
     return neighbours
 
 
+def _lldpctl_failure(result: Dict[str, Any]) -> Optional[str]:
+    """Say why an ``lldpctl`` run gave no neighbours, None when it succeeded."""
+    if result.get("rc") == 0:
+        return None
+    detail = (result.get("err") or "").strip().splitlines()
+    reason = detail[-1] if detail else f"exit code {result.get('rc')}"
+    return f"lldpctl failed: {reason}"
+
+
 def linux_neighbours(document: Dict[str, Any]) -> Neighbours:
     """Return the neighbours found in a Linux collector document.
 
@@ -134,11 +170,129 @@ def linux_neighbours(document: Dict[str, Any]) -> Neighbours:
         raise LldpError("LLDP data was not collected")
     if result.get("rc") == 127:
         raise LldpError("lldpctl not found")
-    if result.get("rc") != 0:
-        detail = (result.get("err") or "").strip().splitlines()
-        reason = detail[-1] if detail else f"exit code {result.get('rc')}"
-        raise LldpError(f"lldpctl failed: {reason}")
+    failure = _lldpctl_failure(result)
+    if failure:
+        raise LldpError(failure)
     try:
         return parse_lldpctl(result.get("out") or "")
     except ValueError:
         raise LldpError("unparsable lldpctl output")
+
+
+def entry_port(key: str) -> str:
+    """Return the local port an ``LLDP_ENTRY_TABLE`` key belongs to.
+
+    The key is the port name (``Ethernet0``). Enterprise SONiC 4.5 appends
+    the source MAC address of the neighbour (``Ethernet0:aa:bb:cc:dd:ee:ff``)
+    and so keeps several neighbours per port.
+    """
+    match = _ENTRY_KEY.match(key)
+    return match.group(1) if match else key
+
+
+def parse_lldp_entry_table(entries: Dict[str, Dict[str, Any]]) -> Neighbours:
+    """Parse the entries of ``LLDP_ENTRY_TABLE`` (APPL_DB) of a SONiC switch.
+
+    The records have no ``age``. ``lldp_rem_time_mark`` is not one on every
+    release: Enterprise SONiC stores the uptime of ``lldpd`` at which the
+    neighbour was learned, so it is large for a neighbour that just came
+    up and small for one that has been there since boot.
+
+    Args:
+        entries: Fields per key without the table prefix, as
+            ``parse_sonic.table`` returns them
+    """
+    neighbours: Neighbours = {}
+    for key, fields in entries.items():
+        addresses = [
+            address.strip()
+            for address in str(fields.get("lldp_rem_man_addr") or "").split(",")
+            if address.strip()
+        ]
+        neighbours.setdefault(entry_port(key), []).append(
+            neighbour(
+                system_name=fields.get("lldp_rem_sys_name"),
+                chassis_id=fields.get("lldp_rem_chassis_id"),
+                chassis_id_type=CHASSIS_ID_SUBTYPES.get(
+                    str(fields.get("lldp_rem_chassis_id_subtype"))
+                ),
+                port_id=fields.get("lldp_rem_port_id"),
+                port_id_type=PORT_ID_SUBTYPES.get(
+                    str(fields.get("lldp_rem_port_id_subtype"))
+                ),
+                port_description=fields.get("lldp_rem_port_desc"),
+                management_addresses=addresses,
+            )
+        )
+    return neighbours
+
+
+def _sonic_lldpctl(document: Dict[str, Any]) -> Tuple[Neighbours, Optional[str]]:
+    """Return the neighbours ``lldpctl`` gave on a SONiC switch.
+
+    Returns:
+        ``(neighbours, failure)``: ``failure`` says why the run gave no
+        neighbours, and is None when it succeeded or did not run
+    """
+    result = document.get("lldpctl")
+    if not isinstance(result, dict):
+        return {}, None
+    failure = _lldpctl_failure(result)
+    if failure:
+        return {}, failure
+    try:
+        return parse_lldpctl(result.get("out") or ""), None
+    except ValueError:
+        return {}, "unparsable lldpctl output"
+
+
+def sonic_neighbours(document: Dict[str, Any]) -> Neighbours:
+    """Return the neighbours found in a SONiC collector document.
+
+    ``LLDP_ENTRY_TABLE`` is the primary source. Ports it does not list are
+    filled in from ``lldpctl``, when the collector ran it.
+
+    An empty table is only an answer when ``lldpctl`` did not fail as
+    well: without access to the ``lldp`` container, or with the container
+    stopped, the table is empty and nothing at all was checked.
+
+    Raises:
+        LldpError: Neither source could be read, or the table is empty and
+            ``lldpctl`` failed
+    """
+    entries = table(document, "APPL_DB", "LLDP_ENTRY_TABLE")
+    neighbours = parse_lldp_entry_table(entries)
+    ran = isinstance(document.get("lldpctl"), dict)
+    from_lldpctl, failure = _sonic_lldpctl(document)
+    for name, found in from_lldpctl.items():
+        neighbours.setdefault(name, found)
+
+    if entries or (ran and not failure):
+        return neighbours
+    if not ran:
+        if was_read(document, "APPL_DB", "LLDP_ENTRY_TABLE"):
+            return neighbours
+        errors = document.get("errors") or {}
+        failure = errors.get("APPL_DB LLDP_ENTRY_TABLE") or "no LLDP data"
+    raise LldpError(f"LLDP neighbours not readable: {failure}")
+
+
+def sonic_unread_ports(document: Dict[str, Any]) -> Dict[str, str]:
+    """Return the ports of a SONiC switch whose neighbours could not be read.
+
+    ``LLDP_ENTRY_TABLE`` can list the front-panel ports only. The neighbour
+    of the management port then has to come from ``lldpctl``, and when that
+    fails, the management port was not checked. That is not the same as a
+    port without neighbour.
+
+    Returns:
+        Why the neighbours could not be read, per port name. Empty when the
+        table lists the management port, or ``lldpctl`` succeeded or did
+        not run. A switch whose neighbours cannot be read at all is left
+        to ``sonic_neighbours``.
+    """
+    entries = table(document, "APPL_DB", "LLDP_ENTRY_TABLE")
+    if not entries or any(entry_port(key) == MGMT_PORT for key in entries):
+        return {}
+    _, failure = _sonic_lldpctl(document)
+    return {MGMT_PORT: failure} if failure else {}
