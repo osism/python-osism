@@ -15,6 +15,7 @@ from osism.utils.hardware.render import (
     add_output_arguments,
     cell,
     flatten,
+    output_columns,
     render_csv,
     render_json,
     render_table,
@@ -105,6 +106,31 @@ def test_unknown_column_is_reported(loguru_logs):
 def test_no_valid_column_is_an_error():
     with pytest.raises(RenderError, match="Available columns: device_name"):
         select_columns(COLUMNS, ["bogus"])
+
+
+def _output_args(*argv):
+    parser = argparse.ArgumentParser()
+    add_output_arguments(parser)
+    return parser.parse_args(list(argv))
+
+
+def test_output_columns_of_table_and_csv():
+    assert output_columns(COLUMNS, _output_args()) == COLUMNS[:3]
+    assert output_columns(COLUMNS, _output_args("--format", "csv", "--long")) == COLUMNS
+    assert output_columns(COLUMNS, _output_args("--column", "Vendor")) == [COLUMNS[2]]
+
+
+def test_json_has_no_columns():
+    assert output_columns(COLUMNS, _output_args("--format", "json")) is None
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--column", "Vendor"], ["--column", "bogus"], ["--long"]],
+)
+def test_json_rejects_column_selection(argv):
+    with pytest.raises(RenderError, match="only apply to the table and CSV"):
+        output_columns(COLUMNS, _output_args("--format", "json", *argv))
 
 
 def test_flatten_joins_nested_keys():
@@ -203,6 +229,12 @@ def test_render_json_round_trips():
     document = {"devices": [{"name": "leaf-1a", "interfaces": []}], "failed": []}
 
     assert json.loads(render_json(document)) == document
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_render_json_refuses_what_json_cannot_express(value):
+    with pytest.raises(RenderError, match="Cannot render the report as JSON"):
+        render_json({"rx_power": value})
 
 
 def test_write_output_prints_to_stdout(capsys):

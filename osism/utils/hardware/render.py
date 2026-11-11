@@ -55,12 +55,12 @@ def add_output_arguments(parser) -> None:
         "--column",
         action="append",
         metavar="NAME",
-        help="Column to include in output (can be used multiple times)",
+        help="Column to include in table or CSV output (can be used multiple times)",
     )
     parser.add_argument(
         "--long",
         action="store_true",
-        help="Show all columns",
+        help="Show all columns in table or CSV output",
     )
     parser.add_argument(
         "--output",
@@ -107,6 +107,29 @@ def select_columns(
         names = ", ".join(column.key for column in columns)
         raise RenderError(f"No valid columns specified. Available columns: {names}")
     return result
+
+
+def output_columns(
+    columns: Sequence[Column], parsed_args: Any
+) -> Optional[List[Column]]:
+    """Return the columns to show for the options of ``add_output_arguments``.
+
+    JSON holds every field, so it has no columns.
+
+    Returns:
+        The columns of a table or CSV report, None for JSON
+
+    Raises:
+        RenderError: ``--column`` or ``--long`` was given with ``--format
+            json``, or none of the selected names is a column
+    """
+    if parsed_args.format == "json":
+        if parsed_args.column or parsed_args.long:
+            raise RenderError(
+                "--column and --long only apply to the table and CSV formats"
+            )
+        return None
+    return select_columns(columns, parsed_args.column, parsed_args.long)
 
 
 def flatten(record: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
@@ -172,8 +195,19 @@ def render_csv(rows: Sequence[Dict[str, Any]], columns: Sequence[Column]) -> str
 
 
 def render_json(document: Any) -> str:
-    """Render a document as indented JSON."""
-    return json.dumps(document, indent=2)
+    """Render a document as indented JSON.
+
+    Python writes NaN and infinite floats as ``NaN`` and ``Infinity``, which
+    is no JSON: ``jq`` and JavaScript reject the whole document. They are
+    refused instead.
+
+    Raises:
+        RenderError: The document holds a NaN or infinite float
+    """
+    try:
+        return json.dumps(document, indent=2, allow_nan=False)
+    except ValueError as exc:
+        raise RenderError(f"Cannot render the report as JSON: {exc}") from exc
 
 
 def write_output(text: str, path: Optional[str] = None) -> None:
