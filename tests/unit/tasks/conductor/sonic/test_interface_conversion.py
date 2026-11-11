@@ -20,7 +20,6 @@ from osism.tasks.conductor.sonic.interface import (
     _find_sonic_name_by_alias_mapping,
     _handle_breakout_interface,
     _handle_standard_interface,
-    _map_interface_name_to_sonic,
     clear_port_config_cache,
     convert_netbox_interface_to_sonic,
     convert_sonic_interface_to_alias,
@@ -28,6 +27,7 @@ from osism.tasks.conductor.sonic.interface import (
     get_interface_speed,
     get_port_config,
     get_speed_from_port_type,
+    map_interface_name_to_sonic,
 )
 
 # ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ def test_convert_netbox_interface_breakout_form_resolves(mocker):
 
 
 # ---------------------------------------------------------------------------
-# _map_interface_name_to_sonic
+# map_interface_name_to_sonic
 # ---------------------------------------------------------------------------
 
 
@@ -261,7 +261,7 @@ def test_map_interface_name_routes_breakout_form(mocker):
     )
     port_config = {"Ethernet48": {"alias": "hundredGigE49"}}
 
-    result = _map_interface_name_to_sonic(
+    result = map_interface_name_to_sonic(
         "Eth1/49/1", ["Eth1/49/1"], port_config, "hwsku"
     )
 
@@ -276,7 +276,7 @@ def test_map_interface_name_routes_standard_form(mocker):
     )
     port_config = {"Ethernet0": {"alias": "tenGigE1"}}
 
-    result = _map_interface_name_to_sonic("Eth1/1", ["Eth1/1"], port_config, "hwsku")
+    result = map_interface_name_to_sonic("Eth1/1", ["Eth1/1"], port_config, "hwsku")
 
     spy.assert_called_once()
     assert result == "Ethernet0"
@@ -287,7 +287,7 @@ def test_map_interface_name_finds_match_via_alias_scan():
     port_config = {"Ethernet0": {"alias": "Eth1(Port1)"}}
 
     assert (
-        _map_interface_name_to_sonic("Eth1(Port1)", [], port_config, "hwsku")
+        map_interface_name_to_sonic("Eth1(Port1)", [], port_config, "hwsku")
         == "Ethernet0"
     )
 
@@ -296,7 +296,7 @@ def test_map_interface_name_unknown_format_returns_input():
     port_config = {"Ethernet0": {"alias": "tenGigE1"}}
 
     assert (
-        _map_interface_name_to_sonic("strange-name", [], port_config, "hwsku")
+        map_interface_name_to_sonic("strange-name", [], port_config, "hwsku")
         == "strange-name"
     )
 

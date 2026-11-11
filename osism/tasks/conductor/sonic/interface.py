@@ -176,12 +176,12 @@ def convert_netbox_interface_to_sonic(device_interface, device=None):
         return interface_name
 
     # Handle different interface naming patterns
-    return _map_interface_name_to_sonic(
+    return map_interface_name_to_sonic(
         interface_name, interface_names, port_config, device_hwsku
     )
 
 
-def _map_interface_name_to_sonic(
+def map_interface_name_to_sonic(
     interface_name, all_interface_names, port_config, device_hwsku
 ):
     """Map interface name to SONiC format based on port config and breakout detection.
@@ -809,7 +809,7 @@ def detect_breakout_ports(device):
                 elif re.fullmatch(r"Ethernet\d+", key):
                     master = key
                 elif re.fullmatch(r"Eth1/\d+", key):
-                    resolved = _map_interface_name_to_sonic(
+                    resolved = map_interface_name_to_sonic(
                         key, interface_names, port_config, device_hwsku
                     )
                     master = (
