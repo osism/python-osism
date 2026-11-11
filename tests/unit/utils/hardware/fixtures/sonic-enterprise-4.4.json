@@ -1,0 +1,1196 @@
+{
+  "collector": "sonic",
+  "commands": {
+    "show platform firmware status": {
+      "err": "",
+      "out": "Chassis          Module    Component    Version       Description\n---------------  --------  -----------  ------------  -------------------------\n7726-32X-O-AC-B  N/A       CPLD1        14            CPLD 1\n                           CPLD2        142           CPLD 2\n                           CPLD3        142           CPLD 3\n                           BIOS         v40.01.01.01  Basic Input/Output System\n                           PCIE         D102_08       ASIC PCIe Firmware\n",
+      "rc": 0
+    }
+  },
+  "db": {
+    "APPL_DB": {
+      "LLDP_ENTRY_TABLE": {
+        "LLDP_ENTRY_TABLE:Ethernet0": {
+          "expireat": 1794564831.836356,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:19",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "41",
+            "lldp_rem_man_addr": "192.0.2.4,2001:db8::1",
+            "lldp_rem_port_desc": "ens4f1np1",
+            "lldp_rem_port_id": "02:00:00:00:00:02",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "28 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "Ubuntu 24.04.5 LTS Linux 6.8.0-136-generic #136-Ubuntu SMP PREEMPT_DYNAMIC Wed Jul  1 21:53:05 UTC 2026 x86_64",
+            "lldp_rem_sys_name": "node-1",
+            "lldp_rem_time_mark": "2961214",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet120": {
+          "expireat": 1794564831.8363047,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:1d",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "21",
+            "lldp_rem_man_addr": "192.0.2.2",
+            "lldp_rem_port_desc": "Ethernet120",
+            "lldp_rem_port_id": "Eth1/31",
+            "lldp_rem_port_id_subtype": "7",
+            "lldp_rem_sys_cap_enabled": "08 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "SONiC Software Version: SONiC.4.5.2-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-39-amd64",
+            "lldp_rem_sys_name": "leaf-1",
+            "lldp_rem_time_mark": "1771",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet124": {
+          "expireat": 1794564831.8363721,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:1d",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "21",
+            "lldp_rem_man_addr": "192.0.2.2",
+            "lldp_rem_port_desc": "Ethernet124",
+            "lldp_rem_port_id": "Eth1/32",
+            "lldp_rem_port_id_subtype": "7",
+            "lldp_rem_sys_cap_enabled": "08 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "SONiC Software Version: SONiC.4.5.2-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-39-amd64",
+            "lldp_rem_sys_name": "leaf-1",
+            "lldp_rem_time_mark": "1782",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet22": {
+          "expireat": 1794564831.8363206,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:07",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "74",
+            "lldp_rem_man_addr": "172.17.0.1,2001:db8::5",
+            "lldp_rem_port_desc": "data1",
+            "lldp_rem_port_id": "02:00:00:00:00:07",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "28 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "Ubuntu 24.04.4 LTS Linux 7.0.0-31-generic #31~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon Aug 10 09:38:02 UTC 2 x86_64",
+            "lldp_rem_sys_name": "node-5",
+            "lldp_rem_time_mark": "3032022",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:Ethernet6": {
+          "expireat": 1794564831.836441,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:04",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "19",
+            "lldp_rem_man_addr": "",
+            "lldp_rem_port_desc": "NIC 1/10/25Gb ",
+            "lldp_rem_port_id": "02:00:00:00:00:04",
+            "lldp_rem_port_id_subtype": "3",
+            "lldp_rem_sys_cap_enabled": "00 00",
+            "lldp_rem_sys_cap_supported": "00 00",
+            "lldp_rem_sys_desc": "216.0.333.11 fw_version:AFW_214.4.42.1",
+            "lldp_rem_sys_name": "Broadcom P225p NetXtreme-E Dual-port 10Gb/25Gb Ethernet PCIe AdaBroadcom fw_version:AFW_214.4.42.1",
+            "lldp_rem_time_mark": "91",
+            "lldp_rem_ttl": "120"
+          }
+        },
+        "LLDP_ENTRY_TABLE:eth0": {
+          "expireat": 1794564831.8364508,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lldp_rem_chassis_id": "02:00:00:00:00:1c",
+            "lldp_rem_chassis_id_subtype": "4",
+            "lldp_rem_index": "16",
+            "lldp_rem_man_addr": "192.0.2.1",
+            "lldp_rem_port_desc": "",
+            "lldp_rem_port_id": "bridge/ether8",
+            "lldp_rem_port_id_subtype": "5",
+            "lldp_rem_sys_cap_enabled": "28 00",
+            "lldp_rem_sys_cap_supported": "28 00",
+            "lldp_rem_sys_desc": "MikroTik RouterOS 6.49.1 (stable) CRS354-48G-4S+2Q+",
+            "lldp_rem_sys_name": "oob-1",
+            "lldp_rem_time_mark": "68",
+            "lldp_rem_ttl": "120"
+          }
+        }
+      },
+      "PORT_TABLE": {
+        "PORT_TABLE:Ethernet0": {
+          "expireat": 1794564828.6708624,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/1/1",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "1",
+            "lanes": "1",
+            "last_change": "1794075220",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "25000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "2960258",
+            "port_load_interval": "10",
+            "preemphasis": "0x1a4a00",
+            "reason": "OPER_UP",
+            "speed": "25000",
+            "tagged_vlans": "105,107,104",
+            "unreliable_los": "auto",
+            "valid_speeds": "25000"
+          }
+        },
+        "PORT_TABLE:Ethernet120": {
+          "expireat": 1794564828.6707838,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/31",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "31",
+            "lanes": "121,122,123,124",
+            "last_change": "1791116715",
+            "link_training": "off",
+            "medium": "backplane",
+            "mtu": "9100",
+            "oper_speed": "100000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "1753",
+            "port_load_interval": "10",
+            "preemphasis": "0x184804,0x184804,0x184804,0x184804",
+            "reason": "OPER_UP",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT_TABLE:Ethernet124": {
+          "expireat": 1794564828.670838,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/32",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "32",
+            "lanes": "125,126,127,128",
+            "last_change": "1791116715",
+            "link_training": "off",
+            "medium": "backplane",
+            "mtu": "9100",
+            "oper_speed": "100000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "1753",
+            "port_load_interval": "10",
+            "preemphasis": "0x184804,0x184804,0x184804,0x184804",
+            "reason": "OPER_UP",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT_TABLE:Ethernet22": {
+          "expireat": 1794564828.6709437,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/6/3",
+            "auto_fec": "none",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "6",
+            "lanes": "23",
+            "last_change": "1794146532",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "10000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "3031570",
+            "port_load_interval": "10",
+            "preemphasis": "0x0e4104",
+            "reason": "OPER_UP",
+            "speed": "10000",
+            "unreliable_los": "auto",
+            "valid_speeds": "10000"
+          }
+        },
+        "PORT_TABLE:Ethernet24": {
+          "expireat": 1794564828.671084,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "adv_speeds": "all",
+            "alias": "Eth1/7",
+            "autoneg": "off",
+            "description": "",
+            "index": "7",
+            "lanes": "25,26,27,28",
+            "link_training": "off",
+            "mtu": "9100",
+            "oper_status": "down",
+            "oper_status_change_uptime": "0",
+            "port_load_interval": "10",
+            "reason": "ADMIN_DOWN",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT_TABLE:Ethernet4": {
+          "expireat": 1794564828.6711886,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/2/1",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "2",
+            "lanes": "5",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_status": "down",
+            "oper_status_change_uptime": "0",
+            "port_load_interval": "10",
+            "preemphasis": "0x1a4a00",
+            "reason": "PHY_LINK_DOWN",
+            "speed": "25000",
+            "unreliable_los": "auto",
+            "valid_speeds": "25000"
+          }
+        },
+        "PORT_TABLE:Ethernet6": {
+          "expireat": 1794564828.6711352,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/2/3",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "2",
+            "lanes": "7",
+            "last_change": "1791115021",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "25000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "59",
+            "port_load_interval": "10",
+            "preemphasis": "0x1a4a00",
+            "reason": "OPER_UP",
+            "speed": "25000",
+            "unreliable_los": "auto",
+            "valid_speeds": "25000"
+          }
+        },
+        "PORT_TABLE:PortConfigDone": {
+          "expireat": 1794564828.6707094,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "count": "7"
+          }
+        },
+        "PORT_TABLE:PortInitDone": {
+          "expireat": 1794564828.6707067,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lanes": "0"
+          }
+        }
+      }
+    },
+    "CONFIG_DB": {
+      "DEVICE_METADATA": {
+        "DEVICE_METADATA|localhost": {
+          "expireat": 1794564828.3888955,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "default_config_profile": "l3",
+            "frr_mgmt_framework_config": "true",
+            "hostname": "leaf-2",
+            "hwsku": "Accton-AS7726-32X",
+            "intf_naming_mode": "standard",
+            "mac": "02:00:00:00:00:22",
+            "platform": "x86_64-accton_as7726_32x-r0",
+            "type": "LeafRouter"
+          }
+        }
+      },
+      "PORT": {
+        "PORT|Ethernet0": {
+          "expireat": 1794564828.1048253,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/1/1",
+            "autoneg": "off",
+            "index": "1",
+            "lanes": "1",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "25000",
+            "tagged_vlans@": "105,107,104",
+            "unreliable_los": "auto",
+            "valid_speeds": "25000"
+          }
+        },
+        "PORT|Ethernet120": {
+          "expireat": 1794564828.1045732,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/31",
+            "autoneg": "off",
+            "index": "31",
+            "lanes": "121,122,123,124",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT|Ethernet124": {
+          "expireat": 1794564828.1046479,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/32",
+            "autoneg": "off",
+            "index": "32",
+            "lanes": "125,126,127,128",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT|Ethernet22": {
+          "expireat": 1794564828.1046937,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/6/3",
+            "autoneg": "off",
+            "index": "6",
+            "lanes": "23",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "10000",
+            "unreliable_los": "auto",
+            "valid_speeds": "10000"
+          }
+        },
+        "PORT|Ethernet24": {
+          "expireat": 1794564828.104536,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "adv_speeds": "all",
+            "alias": "Eth1/7",
+            "autoneg": "off",
+            "index": "7",
+            "lanes": "25,26,27,28",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT|Ethernet4": {
+          "expireat": 1794564828.104876,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/2/1",
+            "autoneg": "off",
+            "index": "2",
+            "lanes": "5",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "25000",
+            "unreliable_los": "auto",
+            "valid_speeds": "25000"
+          }
+        },
+        "PORT|Ethernet6": {
+          "expireat": 1794564828.1048117,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/2/3",
+            "autoneg": "off",
+            "index": "2",
+            "lanes": "7",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "25000",
+            "unreliable_los": "auto",
+            "valid_speeds": "25000"
+          }
+        }
+      }
+    },
+    "STATE_DB": {
+      "EEPROM_INFO": {
+        "EEPROM_INFO|0x21": {
+          "expireat": 1794564829.7741764,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "15",
+            "Name": "Product Name",
+            "Value": "7726-32X-O-AC-B"
+          }
+        },
+        "EEPROM_INFO|0x22": {
+          "expireat": 1794564829.7741728,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "13",
+            "Name": "Part Number",
+            "Value": "FP3ZZ7632076A"
+          }
+        },
+        "EEPROM_INFO|0x23": {
+          "expireat": 1794564829.7741656,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "14",
+            "Name": "Serial Number",
+            "Value": "SN00000002"
+          }
+        },
+        "EEPROM_INFO|0x24": {
+          "expireat": 1794564829.7741814,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "6",
+            "Name": "Base MAC Address",
+            "Value": "02:00:00:00:00:1E"
+          }
+        },
+        "EEPROM_INFO|0x25": {
+          "expireat": 1794564829.7741556,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "19",
+            "Name": "Manufacture Date",
+            "Value": "01/01/2023 00:00:00"
+          }
+        },
+        "EEPROM_INFO|0x27": {
+          "expireat": 1794564829.774159,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "4",
+            "Name": "Label Revision",
+            "Value": "R01H"
+          }
+        },
+        "EEPROM_INFO|0x28": {
+          "expireat": 1794564829.7741623,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "27",
+            "Name": "Platform Name",
+            "Value": "x86_64-accton_as7726_32x-r0"
+          }
+        },
+        "EEPROM_INFO|0x29": {
+          "expireat": 1794564829.7741356,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "13",
+            "Name": "ONIE Version",
+            "Value": "2017.11.00.05"
+          }
+        },
+        "EEPROM_INFO|0x2a": {
+          "expireat": 1794564829.7741492,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "2",
+            "Name": "MAC Addresses",
+            "Value": "256"
+          }
+        },
+        "EEPROM_INFO|0x2b": {
+          "expireat": 1794564829.7741692,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "6",
+            "Name": "Manufacturer",
+            "Value": "Accton"
+          }
+        },
+        "EEPROM_INFO|0x2c": {
+          "expireat": 1794564829.774191,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "2",
+            "Name": "Manufacture Country",
+            "Value": "TW"
+          }
+        },
+        "EEPROM_INFO|0x2d": {
+          "expireat": 1794564829.7741847,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "8",
+            "Name": "Vendor Name",
+            "Value": "Edgecore"
+          }
+        },
+        "EEPROM_INFO|0x2e": {
+          "expireat": 1794564829.7741878,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "11",
+            "Name": "Diag Version",
+            "Value": "01.01.01.09"
+          }
+        },
+        "EEPROM_INFO|0xfe": {
+          "expireat": 1794564829.7741318,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "4",
+            "Name": "CRC-32",
+            "Value": "0x00000000"
+          }
+        },
+        "EEPROM_INFO|Checksum": {
+          "expireat": 1794564829.7741518,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Valid": "1"
+          }
+        },
+        "EEPROM_INFO|State": {
+          "expireat": 1794564829.7741935,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Initialized": "1"
+          }
+        },
+        "EEPROM_INFO|TlvHeader": {
+          "expireat": 1794564829.7741234,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Id String": "TlvInfo",
+            "Total Length": "172",
+            "Version": "1"
+          }
+        }
+      },
+      "TRANSCEIVER_DOM_SENSOR": {
+        "TRANSCEIVER_DOM_SENSOR|Ethernet0": {
+          "expireat": 1794564829.4989445,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "rx1power": "N/A",
+            "rx2power": "N/A",
+            "rx3power": "N/A",
+            "rx4power": "N/A",
+            "temperature": "N/A",
+            "tx1bias": "N/A",
+            "tx1power": "N/A",
+            "tx2bias": "N/A",
+            "tx2power": "N/A",
+            "tx3bias": "N/A",
+            "tx3power": "N/A",
+            "tx4bias": "N/A",
+            "tx4power": "N/A",
+            "voltage": "N/A"
+          }
+        },
+        "TRANSCEIVER_DOM_SENSOR|Ethernet120": {
+          "expireat": 1794564829.4990568,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "rx1power": "0.1641",
+            "rx2power": "0.1991",
+            "rx3power": "0.4618",
+            "rx4power": "0.2338",
+            "rxpowerhighalarm": "3.4001",
+            "rxpowerhighwarning": "2.4000",
+            "rxpowerlowalarm": "-11.9997",
+            "rxpowerlowwarning": "-8.9997",
+            "temperature": "38.6719",
+            "temphighalarm": "75.0000",
+            "temphighwarning": "70.0000",
+            "templowalarm": "-5.0000",
+            "templowwarning": "0.0000",
+            "tx1bias": "6.4940",
+            "tx1power": "0.1982",
+            "tx2bias": "6.4860",
+            "tx2power": "0.2111",
+            "tx3bias": "6.4800",
+            "tx3power": "0.2991",
+            "tx4bias": "6.4060",
+            "tx4power": "0.1862",
+            "txbiashighalarm": "11.0000",
+            "txbiashighwarning": "10.0000",
+            "txbiaslowalarm": "2.0000",
+            "txbiaslowwarning": "3.0000",
+            "txpowerhighalarm": "4.4000",
+            "txpowerhighwarning": "3.4001",
+            "txpowerlowalarm": "-10.4001",
+            "txpowerlowwarning": "-8.4013",
+            "vcchighalarm": "3.6300",
+            "vcchighwarning": "3.4650",
+            "vcclowalarm": "2.9700",
+            "vcclowwarning": "3.1350",
+            "voltage": "3.3040"
+          }
+        },
+        "TRANSCEIVER_DOM_SENSOR|Ethernet124": {
+          "expireat": 1794564829.4989264,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "rx1power": "0.2942",
+            "rx2power": "0.4454",
+            "rx3power": "0.4945",
+            "rx4power": "0.2686",
+            "rxpowerhighalarm": "3.4001",
+            "rxpowerhighwarning": "2.4000",
+            "rxpowerlowalarm": "-11.9997",
+            "rxpowerlowwarning": "-8.9997",
+            "temperature": "40.2188",
+            "temphighalarm": "75.0000",
+            "temphighwarning": "70.0000",
+            "templowalarm": "-5.0000",
+            "templowwarning": "0.0000",
+            "tx1bias": "6.9860",
+            "tx1power": "0.3519",
+            "tx2bias": "6.9800",
+            "tx2power": "0.4442",
+            "tx3bias": "7.0060",
+            "tx3power": "0.4497",
+            "tx4bias": "6.6000",
+            "tx4power": "0.3902",
+            "txbiashighalarm": "11.0000",
+            "txbiashighwarning": "10.0000",
+            "txbiaslowalarm": "2.0000",
+            "txbiaslowwarning": "3.0000",
+            "txpowerhighalarm": "4.4000",
+            "txpowerhighwarning": "3.4001",
+            "txpowerlowalarm": "-10.4001",
+            "txpowerlowwarning": "-8.4013",
+            "vcchighalarm": "3.6300",
+            "vcchighwarning": "3.4650",
+            "vcclowalarm": "2.9700",
+            "vcclowwarning": "3.1350",
+            "voltage": "3.3130"
+          }
+        },
+        "TRANSCEIVER_DOM_SENSOR|Ethernet22": {
+          "expireat": 1794564829.498898,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "rx1power": "N/A",
+            "rx2power": "N/A",
+            "rx3power": "N/A",
+            "rx4power": "N/A",
+            "temperature": "N/A",
+            "tx1bias": "N/A",
+            "tx1power": "N/A",
+            "tx2bias": "N/A",
+            "tx2power": "N/A",
+            "tx3bias": "N/A",
+            "tx3power": "N/A",
+            "tx4bias": "N/A",
+            "tx4power": "N/A",
+            "voltage": "N/A"
+          }
+        },
+        "TRANSCEIVER_DOM_SENSOR|Ethernet4": {
+          "expireat": 1794564829.4990919,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "rx1power": "N/A",
+            "rx2power": "N/A",
+            "rx3power": "N/A",
+            "rx4power": "N/A",
+            "temperature": "N/A",
+            "tx1bias": "N/A",
+            "tx1power": "N/A",
+            "tx2bias": "N/A",
+            "tx2power": "N/A",
+            "tx3bias": "N/A",
+            "tx3power": "N/A",
+            "tx4bias": "N/A",
+            "tx4power": "N/A",
+            "voltage": "N/A"
+          }
+        },
+        "TRANSCEIVER_DOM_SENSOR|Ethernet6": {
+          "expireat": 1794564829.4990027,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "rx1power": "N/A",
+            "rx2power": "N/A",
+            "rx3power": "N/A",
+            "rx4power": "N/A",
+            "temperature": "N/A",
+            "tx1bias": "N/A",
+            "tx1power": "N/A",
+            "tx2bias": "N/A",
+            "tx2power": "N/A",
+            "tx3bias": "N/A",
+            "tx3power": "N/A",
+            "tx4bias": "N/A",
+            "tx4power": "N/A",
+            "voltage": "N/A"
+          }
+        }
+      },
+      "TRANSCEIVER_FIRMWARE_INFO": {},
+      "TRANSCEIVER_INFO": {
+        "TRANSCEIVER_INFO|Ethernet0": {
+          "expireat": 1794564828.9515586,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "application_advertisement": "N/A",
+            "cable_breakout": "1x1",
+            "cable_class": "DAC",
+            "cable_length": "2.0",
+            "cable_length_detailed": "2.0",
+            "cable_type": "Length Cable Assembly(m)",
+            "connector": "No separable connector",
+            "connector_type": "No separable connector",
+            "display_name": "QSFP28 100GBASE-CR4-DAC-2.0M",
+            "encoding": "Unspecified",
+            "ext_identifier": "Power Class 1(1.5W max)",
+            "ext_rateselect_compliance": "QSFP+ Rate Select Version 1",
+            "firmware_revision": "N/A",
+            "form_factor": "QSFP28",
+            "hardware_rev": "A",
+            "host_electrical_lane_count": "N/A",
+            "host_lane_count": "4",
+            "is_qualified": "False",
+            "is_replaceable": "False",
+            "lane_count": "4",
+            "laser_capabilities": "N/A",
+            "link_length": "N/A",
+            "manufacturer": "FS",
+            "max_port_power": "5.0",
+            "media_interface": "CR",
+            "media_lane_count": "4",
+            "memory_type": "Flat",
+            "model": "Q-4S28PC02",
+            "module_lane_count": "N/A",
+            "nominal_bit_rate": "255",
+            "power_rating_max": "1.5",
+            "qsa_adapter": "N/A",
+            "serial": "SN00000005",
+            "special_fields": "N/A",
+            "specification_compliance": "{'10/40G Ethernet Compliance Code': '100GBASE-CR4'}",
+            "supported_ctrls": "N/A",
+            "type": "QSFP28",
+            "type_abbrv_name": "QSFP28",
+            "vendor_date": "2022-09-07T00:00:00+00:00",
+            "vendor_date_code": "2022-09-07T00:00:00+00:00",
+            "vendor_name": "FS",
+            "vendor_oui": "64-9D-99",
+            "vendor_part_number": "Q-4S28PC02",
+            "vendor_revision": "A",
+            "vendor_serial_number": "SN00000005",
+            "vendorrev": "A",
+            "xcvr_speed_max": "100000"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet120": {
+          "expireat": 1794564828.952059,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "application_advertisement": "N/A",
+            "cable_breakout": "1x1",
+            "cable_class": "FIBER",
+            "cable_length": "0.0",
+            "cable_length_detailed": "0.0",
+            "cable_type": "Length OM3(2m)",
+            "connector": "MPOx12",
+            "connector_type": "MPOx12",
+            "display_name": "QSFP28 100GBASE-SR4",
+            "encoding": "NRZ",
+            "ext_identifier": "Power Class 4(3.5W max), CDR present in Rx Tx",
+            "ext_rateselect_compliance": "Unknown",
+            "firmware_revision": "N/A",
+            "form_factor": "QSFP28",
+            "hardware_rev": "1A",
+            "host_electrical_lane_count": "N/A",
+            "host_lane_count": "4",
+            "is_qualified": "False",
+            "is_replaceable": "False",
+            "lane_count": "4",
+            "laser_capabilities": "N/A",
+            "link_length": "N/A",
+            "manufacturer": "FS",
+            "max_port_power": "5.0",
+            "media_interface": "SR",
+            "media_lane_count": "4",
+            "memory_type": "Paged",
+            "model": "QSFP28-SR4-100G",
+            "module_lane_count": "N/A",
+            "nominal_bit_rate": "255",
+            "power_rating_max": "3.5",
+            "qsa_adapter": "N/A",
+            "serial": "SN00000020",
+            "special_fields": "N/A",
+            "specification_compliance": "{'10/40G Ethernet Compliance Code': '100GBASE-SR4', 'Gigabit Ethernet Compliant codes': '1000BASE-SX', 'SAS/SATA compliance codes': 'SAS 3.0G'}",
+            "supported_ctrls": "N/A",
+            "type": "QSFP28",
+            "type_abbrv_name": "QSFP28",
+            "vendor_date": "2022-03-10T00:00:00+00:00",
+            "vendor_date_code": "2022-03-10T00:00:00+00:00",
+            "vendor_name": "FS",
+            "vendor_oui": "64-9D-99",
+            "vendor_part_number": "QSFP28-SR4-100G",
+            "vendor_revision": "1A",
+            "vendor_serial_number": "SN00000020",
+            "vendorrev": "1A",
+            "wavelength": "850.00000000",
+            "xcvr_speed_max": "100000"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet124": {
+          "expireat": 1794564828.951938,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "application_advertisement": "N/A",
+            "cable_breakout": "1x1",
+            "cable_class": "FIBER",
+            "cable_length": "0.0",
+            "cable_length_detailed": "0.0",
+            "cable_type": "Length OM3(2m)",
+            "connector": "MPOx12",
+            "connector_type": "MPOx12",
+            "display_name": "QSFP28 100GBASE-SR4",
+            "encoding": "NRZ",
+            "ext_identifier": "Power Class 4(3.5W max), CDR present in Rx Tx",
+            "ext_rateselect_compliance": "Unknown",
+            "firmware_revision": "N/A",
+            "form_factor": "QSFP28",
+            "hardware_rev": "1A",
+            "host_electrical_lane_count": "N/A",
+            "host_lane_count": "4",
+            "is_qualified": "False",
+            "is_replaceable": "False",
+            "lane_count": "4",
+            "laser_capabilities": "N/A",
+            "link_length": "N/A",
+            "manufacturer": "FS",
+            "max_port_power": "5.0",
+            "media_interface": "SR",
+            "media_lane_count": "4",
+            "memory_type": "Paged",
+            "model": "QSFP28-SR4-100G",
+            "module_lane_count": "N/A",
+            "nominal_bit_rate": "255",
+            "power_rating_max": "3.5",
+            "qsa_adapter": "N/A",
+            "serial": "SN00000021",
+            "special_fields": "N/A",
+            "specification_compliance": "{'10/40G Ethernet Compliance Code': '100GBASE-SR4', 'Gigabit Ethernet Compliant codes': '1000BASE-SX', 'SAS/SATA compliance codes': 'SAS 3.0G'}",
+            "supported_ctrls": "N/A",
+            "type": "QSFP28",
+            "type_abbrv_name": "QSFP28",
+            "vendor_date": "2022-03-10T00:00:00+00:00",
+            "vendor_date_code": "2022-03-10T00:00:00+00:00",
+            "vendor_name": "FS",
+            "vendor_oui": "64-9D-99",
+            "vendor_part_number": "QSFP28-SR4-100G",
+            "vendor_revision": "1A",
+            "vendor_serial_number": "SN00000021",
+            "vendorrev": "1A",
+            "wavelength": "850.00000000",
+            "xcvr_speed_max": "100000"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet22": {
+          "expireat": 1794564828.9521332,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "application_advertisement": "N/A",
+            "cable_breakout": "1x1",
+            "cable_class": "DAC",
+            "cable_length": "2.0",
+            "cable_length_detailed": "2.0",
+            "cable_type": "Length Cable Assembly(m)",
+            "connector": "No separable connector",
+            "connector_type": "No separable connector",
+            "display_name": "QSFP28 100GBASE-CR4-DAC-2.0M",
+            "encoding": "Unspecified",
+            "ext_identifier": "Power Class 1(1.5W max)",
+            "ext_rateselect_compliance": "QSFP+ Rate Select Version 1",
+            "firmware_revision": "N/A",
+            "form_factor": "QSFP28",
+            "hardware_rev": "A",
+            "host_electrical_lane_count": "N/A",
+            "host_lane_count": "4",
+            "is_qualified": "False",
+            "is_replaceable": "False",
+            "lane_count": "4",
+            "laser_capabilities": "N/A",
+            "link_length": "N/A",
+            "manufacturer": "FS",
+            "max_port_power": "5.0",
+            "media_interface": "CR",
+            "media_lane_count": "4",
+            "memory_type": "Flat",
+            "model": "Q-4S28PC02",
+            "module_lane_count": "N/A",
+            "nominal_bit_rate": "255",
+            "power_rating_max": "1.5",
+            "qsa_adapter": "N/A",
+            "serial": "SN00000013",
+            "special_fields": "N/A",
+            "specification_compliance": "{'10/40G Ethernet Compliance Code': '100GBASE-CR4'}",
+            "supported_ctrls": "N/A",
+            "type": "QSFP28",
+            "type_abbrv_name": "QSFP28",
+            "vendor_date": "2024-07-04T00:00:00+00:00",
+            "vendor_date_code": "2024-07-04T00:00:00+00:00",
+            "vendor_name": "FS",
+            "vendor_oui": "64-9D-99",
+            "vendor_part_number": "Q-4S28PC02",
+            "vendor_revision": "A",
+            "vendor_serial_number": "SN00000013",
+            "vendorrev": "A",
+            "xcvr_speed_max": "100000"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet4": {
+          "expireat": 1794564828.9520352,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "application_advertisement": "N/A",
+            "cable_breakout": "1x1",
+            "cable_class": "DAC",
+            "cable_length": "3.0",
+            "cable_length_detailed": "3.0",
+            "cable_type": "Length Cable Assembly(m)",
+            "connector": "No separable connector",
+            "connector_type": "No separable connector",
+            "display_name": "QSFP28 100GBASE-CR4-DAC-3.0M",
+            "encoding": "Unspecified",
+            "ext_identifier": "Power Class 1(1.5W max)",
+            "ext_rateselect_compliance": "QSFP+ Rate Select Version 1",
+            "firmware_revision": "N/A",
+            "form_factor": "QSFP28",
+            "hardware_rev": "A",
+            "host_electrical_lane_count": "N/A",
+            "host_lane_count": "4",
+            "is_qualified": "False",
+            "is_replaceable": "False",
+            "lane_count": "4",
+            "laser_capabilities": "N/A",
+            "link_length": "N/A",
+            "manufacturer": "FS",
+            "max_port_power": "5.0",
+            "media_interface": "CR",
+            "media_lane_count": "4",
+            "memory_type": "Flat",
+            "model": "Q-4S28PC03",
+            "module_lane_count": "N/A",
+            "nominal_bit_rate": "255",
+            "power_rating_max": "1.5",
+            "qsa_adapter": "N/A",
+            "serial": "SN00000010",
+            "special_fields": "N/A",
+            "specification_compliance": "{'10/40G Ethernet Compliance Code': '100GBASE-CR4'}",
+            "supported_ctrls": "N/A",
+            "type": "QSFP28",
+            "type_abbrv_name": "QSFP28",
+            "vendor_date": "2022-03-10T00:00:00+00:00",
+            "vendor_date_code": "2022-03-10T00:00:00+00:00",
+            "vendor_name": "FS",
+            "vendor_oui": "64-9D-99",
+            "vendor_part_number": "Q-4S28PC03",
+            "vendor_revision": "A",
+            "vendor_serial_number": "SN00000010",
+            "vendorrev": "A",
+            "xcvr_speed_max": "100000"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet6": {
+          "expireat": 1794564828.9518116,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "application_advertisement": "N/A",
+            "cable_breakout": "1x1",
+            "cable_class": "DAC",
+            "cable_length": "3.0",
+            "cable_length_detailed": "3.0",
+            "cable_type": "Length Cable Assembly(m)",
+            "connector": "No separable connector",
+            "connector_type": "No separable connector",
+            "display_name": "QSFP28 100GBASE-CR4-DAC-3.0M",
+            "encoding": "Unspecified",
+            "ext_identifier": "Power Class 1(1.5W max)",
+            "ext_rateselect_compliance": "QSFP+ Rate Select Version 1",
+            "firmware_revision": "N/A",
+            "form_factor": "QSFP28",
+            "hardware_rev": "A",
+            "host_electrical_lane_count": "N/A",
+            "host_lane_count": "4",
+            "is_qualified": "False",
+            "is_replaceable": "False",
+            "lane_count": "4",
+            "laser_capabilities": "N/A",
+            "link_length": "N/A",
+            "manufacturer": "FS",
+            "max_port_power": "5.0",
+            "media_interface": "CR",
+            "media_lane_count": "4",
+            "memory_type": "Flat",
+            "model": "Q-4S28PC03",
+            "module_lane_count": "N/A",
+            "nominal_bit_rate": "255",
+            "power_rating_max": "1.5",
+            "qsa_adapter": "N/A",
+            "serial": "SN00000010",
+            "special_fields": "N/A",
+            "specification_compliance": "{'10/40G Ethernet Compliance Code': '100GBASE-CR4'}",
+            "supported_ctrls": "N/A",
+            "type": "QSFP28",
+            "type_abbrv_name": "QSFP28",
+            "vendor_date": "2022-03-10T00:00:00+00:00",
+            "vendor_date_code": "2022-03-10T00:00:00+00:00",
+            "vendor_name": "FS",
+            "vendor_oui": "64-9D-99",
+            "vendor_part_number": "Q-4S28PC03",
+            "vendor_revision": "A",
+            "vendor_serial_number": "SN00000010",
+            "vendorrev": "A",
+            "xcvr_speed_max": "100000"
+          }
+        },
+        "TRANSCEIVER_INFO|XcvrInitDone": {
+          "expireat": 1794564828.9519646,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "status": "yes"
+          }
+        }
+      }
+    }
+  },
+  "db_access": "user",
+  "errors": {},
+  "files": {
+    "sonic_version": "build_version: '4.4.1-Enterprise_Base'\ndebian_version: '11.11'\nkernel_version: '5.10.0-21-amd64'\nasic_type: broadcom\ncommit_id: '2ef8ceaf10'\nbuild_date: Thu Nov 21 00:37:57 UTC 2024\nbuild_number: 0\nbuilt_by: sonicbld@bld-lvn-csg-08\nconfig_db_version: version_4_4_1"
+  },
+  "hostname": "leaf-2",
+  "mgmt": {
+    "eth0": {
+      "address": "02:00:00:00:00:1e",
+      "carrier": "1",
+      "mtu": "1500",
+      "operstate": "up",
+      "speed": "1000"
+    }
+  },
+  "sections": [
+    "ports",
+    "transceiver",
+    "dom",
+    "system",
+    "lldp"
+  ],
+  "version": 1
+}
