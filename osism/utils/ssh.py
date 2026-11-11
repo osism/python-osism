@@ -10,6 +10,74 @@ from osism import utils
 # Default path for SSH known_hosts file
 KNOWN_HOSTS_PATH = "/share/known_hosts"
 
+# Private key of the operator user, deployed to nodes and SONiC switches
+OPERATOR_KEY_PATH = "/ansible/secrets/id_rsa.operator"
+
+
+def run_remote(
+    host: str,
+    user: str,
+    command: str,
+    stdin: Optional[str] = None,
+    timeout: float = 60,
+    known_hosts_path: str = KNOWN_HOSTS_PATH,
+) -> subprocess.CompletedProcess:
+    """Run a command on a remote host through the ssh binary.
+
+    Authentication uses the operator key only. ``BatchMode=yes`` makes a
+    missing or rejected key fail right away instead of waiting for a
+    password on a terminal that is not there.
+
+    User and host can come from NetBox. ssh reads a destination that
+    starts with ``-`` as an option, and ``-oProxyCommand=...`` would run
+    a command on this host, so such values are rejected and ``--`` ends
+    the options before the destination.
+
+    Args:
+        host: Address or name of the remote host
+        user: Remote user name
+        command: Command line executed by the remote login shell
+        stdin: Text piped to the remote command, e.g. a script for
+            ``python3 -``
+        timeout: Seconds after which the whole call is aborted
+        known_hosts_path: Path to the known_hosts file
+
+    Returns:
+        The completed process with ``returncode``, ``stdout`` and ``stderr``
+
+    Raises:
+        ValueError: ``user`` or ``host`` is empty or starts with ``-``
+        subprocess.TimeoutExpired: The call did not finish within ``timeout``
+    """
+    for label, value in (("user", user), ("host", host)):
+        if not value or value.startswith("-"):
+            raise ValueError(f"Invalid SSH {label} {value!r}")
+
+    return subprocess.run(
+        [
+            "/usr/bin/ssh",
+            "-i",
+            OPERATOR_KEY_PATH,
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "LogLevel=ERROR",
+            "-o",
+            f"UserKnownHostsFile={known_hosts_path}",
+            "-o",
+            "ConnectTimeout=10",
+            "--",
+            f"{user}@{host}",
+            command,
+        ],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+
 
 def ensure_known_hosts_file(known_hosts_path: str = KNOWN_HOSTS_PATH) -> bool:
     """
