@@ -21,6 +21,7 @@ import sys
 
 VERSION = 1
 SYS_NET = "/sys/class/net"
+SYS_DMI = "/sys/class/dmi/id"
 
 ARPHRD_ETHER = "1"
 ARPHRD_INFINIBAND = "32"
@@ -129,7 +130,36 @@ def collect_port(name, kind, sys_net=SYS_NET, runner=run):
             )
         except OSError:
             port["physfn"] = []
+    if kind == "infiniband":
+        port["infiniband"] = collect_infiniband(base, port["sysfs"].get("dev_port"))
     return port
+
+
+def collect_infiniband(base, dev_port):
+    """Collect link state and rate of an InfiniBand port.
+
+    The netdev of an IPoIB port only knows its IB device. State and rate
+    are kept per port of that device, numbered from 1, while ``dev_port``
+    counts from 0.
+    """
+    directory = os.path.join(base, "device", "infiniband")
+    try:
+        devices = sorted(os.listdir(directory))
+    except OSError:
+        return {}
+    if not devices:
+        return {}
+    try:
+        number = int(dev_port) + 1
+    except (TypeError, ValueError):
+        number = 1
+    port = os.path.join(directory, devices[0], "ports", str(number))
+    return {
+        "device": devices[0],
+        "port": number,
+        "state": read(os.path.join(port, "state")),
+        "rate": read(os.path.join(port, "rate")),
+    }
 
 
 def section_ports(document, ports, sys_net, runner):
@@ -142,9 +172,54 @@ def section_lldp(document, ports, sys_net, runner):
     document["lldpctl"] = runner(["lldpctl", "-f", "json"])
 
 
+def section_ethtool(document, ports, sys_net, runner):
+    for name in ports:
+        document["ports"][name].update(
+            {
+                "ethtool": runner(["ethtool", name]),
+                "ethtool_i": runner(["ethtool", "-i", name]),
+                "ethtool_fec": runner(["ethtool", "--show-fec", name]),
+            }
+        )
+
+
+def section_module(document, ports, sys_net, runner):
+    # Fails for a port without a cage and for an empty cage. That is a
+    # result, not an error, and is kept with its exit code.
+    for name in ports:
+        document["ports"][name]["ethtool_m"] = runner(["ethtool", "-m", name])
+
+
+def section_nic(document, ports, sys_net, runner):
+    # Several ports can share one PCI function, and devlink reports per
+    # function, so each address is queried once.
+    cache = {}
+    for name in ports:
+        address = os.path.basename(
+            os.path.realpath(os.path.join(sys_net, name, "device"))
+        )
+        if address not in cache:
+            cache[address] = {
+                "lspci": runner(["lspci", "-D", "-vmm", "-nn", "-s", address]),
+                "devlink": runner(["devlink", "-j", "dev", "info", "pci/" + address]),
+            }
+        document["ports"][name].update(cache[address])
+
+
+def section_system(document, ports, sys_net, runner):
+    document["dmi"] = dict(
+        (attribute, read(os.path.join(SYS_DMI, attribute)))
+        for attribute in ("sys_vendor", "product_name", "product_serial")
+    )
+
+
 SECTIONS = {
     "ports": section_ports,
     "lldp": section_lldp,
+    "ethtool": section_ethtool,
+    "module": section_module,
+    "nic": section_nic,
+    "system": section_system,
 }
 
 
