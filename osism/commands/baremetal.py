@@ -6,10 +6,12 @@ from argparse import (
     BooleanOptionalAction,
     RawDescriptionHelpFormatter,
 )
+from datetime import datetime, timezone
 from textwrap import dedent
 
 import tempfile
 import os
+import re
 import subprocess
 import threading
 from loguru import logger
@@ -126,6 +128,59 @@ def _apply_metalbox_vars(play_vars, device):
         play_vars["docker_insecure_registries"] = ["metalbox:5001"]
 
 
+LIST_LAST_ERROR_WIDTH = 80
+
+# NOTE: C0 and C1 control characters, DEL included. ESC (0x1b) and CSI
+#       (0x9b) start terminal escape sequences, BEL (0x07) ends OSC ones.
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def _single_line_text(value):
+    """Make a free-text Ironic field safe to print as one table cell.
+
+    Fields such as last_error can carry text from BMCs or the deploy agent.
+    Control characters become spaces, so an escape sequence prints as
+    plain text instead of reaching the terminal, and line breaks do not
+    break the table.
+    """
+    if not value:
+        return ""
+    text = _CONTROL_CHARACTERS.sub(" ", value)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _format_state_since(value):
+    """Render Ironic's provision_updated_at as "YYYY-MM-DD HH:MM" in UTC."""
+    if not value:
+        return ""
+    try:
+        timestamp = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
+
+
+def _format_automated_clean(value):
+    # NOTE: None is not False: the node follows the conductor's
+    #       [conductor]automated_clean setting.
+    return "default" if value is None else value
+
+
+def _format_maintenance_reason(node):
+    # NOTE: Ironic sets fault (e.g. "power failure") when it put the node
+    #       into maintenance itself; an operator's reason takes precedence.
+    return _single_line_text(node["maintenance_reason"] or node["fault"])
+
+
+def _shorten_last_error(value, width=LIST_LAST_ERROR_WIDTH):
+    text = _single_line_text(value)
+    if len(text) <= width:
+        return text
+    return text[: width - 3] + "..."
+
+
 class BaremetalList(Command):
     def get_parser(self, prog_name):
         parser = super(BaremetalList, self).get_parser(prog_name)
@@ -154,6 +209,16 @@ class BaremetalList(Command):
             action="store_true",
             help="Include device role from NetBox (slower)",
         )
+        parser.add_argument(
+            "--details",
+            default=False,
+            action="store_true",
+            help=(
+                "Also show when each node entered its provision state (UTC), "
+                "the target state, automated clean, the maintenance reason "
+                "and the last error"
+            ),
+        )
         return parser
 
     def take_action(self, parsed_args):
@@ -161,6 +226,7 @@ class BaremetalList(Command):
         provision_state = parsed_args.provision_state
         maintenance = parsed_args.maintenance
         include_netbox = parsed_args.netbox
+        details = parsed_args.details
 
         from osism.tasks.openstack import get_cloud_helpers
 
@@ -181,7 +247,12 @@ class BaremetalList(Command):
             if maintenance:
                 query.update(dict(maintenance=maintenance))
 
-            baremetal = conn.baremetal.nodes(**query)
+            if details:
+                from osism.utils.ironic import list_detailed_nodes
+
+                baremetal = list_detailed_nodes(conn, **query)
+            else:
+                baremetal = conn.baremetal.nodes(**query)
 
             result = []
             for b in baremetal:
@@ -192,6 +263,14 @@ class BaremetalList(Command):
                     b["provision_state"],
                     b["maintenance"],
                 ]
+                if details:
+                    row += [
+                        _format_state_since(b["provision_updated_at"]),
+                        b["target_provision_state"] or "",
+                        _format_automated_clean(b["automated_clean"]),
+                        _format_maintenance_reason(b),
+                        _shorten_last_error(b["last_error"]),
+                    ]
                 result.append(row)
 
             result.sort(key=lambda x: x[0])
@@ -203,6 +282,14 @@ class BaremetalList(Command):
                 "Provision State",
                 "Maintenance",
             ]
+            if details:
+                headers += [
+                    "State Since (UTC)",
+                    "Target State",
+                    "Automated Clean",
+                    "Maintenance Reason",
+                    "Last Error",
+                ]
 
             if include_netbox and utils.nb:
                 from osism.tasks.openstack import get_baremetal_node_netbox_info
