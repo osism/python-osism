@@ -518,6 +518,200 @@ def test_list_netbox_without_connection_skips_extra_column(capsys):
     assert "Device Role" not in capsys.readouterr().out
 
 
+def _detailed_node(name, **fields):
+    from osism.utils.ironic import DetailedNode
+
+    body = {
+        "uuid": f"uuid-{name}",
+        "name": name,
+        "power_state": "power on",
+        "provision_state": "active",
+        "maintenance": False,
+    }
+    body.update(fields)
+    return DetailedNode.existing(**body)
+
+
+def _run_list_details(args, nodes):
+    conn = MagicMock()
+    with patch(
+        "osism.utils.ironic.list_detailed_nodes", return_value=nodes
+    ) as list_detailed:
+        rc, _ = _run_list(["--details"] + args, conn)
+    return rc, conn, list_detailed
+
+
+def test_list_without_details_keeps_standard_columns(capsys):
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = [_list_node("node-a")]
+
+    _run_list([], conn)
+
+    out = capsys.readouterr().out
+    for header in (
+        "State Since",
+        "Target State",
+        "Automated Clean",
+        "Maintenance Reason",
+        "Last Error",
+    ):
+        assert header not in out
+
+
+def test_list_details_queries_detailed_nodes_with_filters():
+    rc, conn, list_detailed = _run_list_details(
+        ["--provision-state", "active", "--maintenance"], []
+    )
+
+    list_detailed.assert_called_once_with(
+        conn, provision_state="active", maintenance=True
+    )
+    conn.baremetal.nodes.assert_not_called()
+
+
+def test_list_details_shows_extra_columns(capsys):
+    node = _detailed_node(
+        "node-a",
+        provision_state="clean failed",
+        target_provision_state="available",
+        provision_updated_at="2026-11-10T08:15:42.123456+00:00",
+        automated_clean=True,
+        maintenance=True,
+        maintenance_reason="disk swap",
+        last_error="Agent did not come back",
+    )
+
+    _run_list_details([], [node])
+
+    out = capsys.readouterr().out
+    for header in (
+        "State Since (UTC)",
+        "Target State",
+        "Automated Clean",
+        "Maintenance Reason",
+        "Last Error",
+    ):
+        assert header in out
+    assert "uuid-node-a" in out
+    assert "2026-11-10 08:15" in out
+    assert "clean failed" in out
+    assert "available" in out
+    assert "disk swap" in out
+    assert "Agent did not come back" in out
+
+
+def test_list_details_state_since_is_converted_to_utc(capsys):
+    node = _detailed_node("node-a", provision_updated_at="2026-11-10T10:15:00+02:00")
+
+    _run_list_details([], [node])
+
+    assert "2026-11-10 08:15" in capsys.readouterr().out
+
+
+def test_list_details_unset_automated_clean_shows_default(capsys):
+    # Ironic's null means "follow the conductor's [conductor]automated_clean".
+    node = _detailed_node("node-a", automated_clean=None)
+
+    _run_list_details([], [node])
+
+    assert "default" in capsys.readouterr().out
+
+
+def test_list_details_maintenance_reason_falls_back_to_fault(capsys):
+    node = _detailed_node("node-a", maintenance=True, fault="power failure")
+
+    _run_list_details([], [node])
+
+    assert "power failure" in capsys.readouterr().out
+
+
+def test_list_details_last_error_flattened_and_shortened(capsys):
+    error = "first line\nsecond line " + "x" * 200
+    node = _detailed_node("node-a", last_error=error)
+
+    _run_list_details([], [node])
+
+    shortened = "first line second line " + "x" * 54 + "..."
+    assert len(shortened) == 80
+    out = capsys.readouterr().out
+    assert f" {shortened} " in out
+    assert "x" * 55 not in out
+
+
+def test_list_details_free_text_control_characters_neutralised(capsys):
+    # Free-text node fields must not carry terminal escape sequences (ESC,
+    # OSC's BEL, C1 CSI) through to the operator's terminal.
+    node = _detailed_node(
+        "node-a",
+        maintenance=True,
+        maintenance_reason="swap\x1b]0;owned\x07disk",
+        last_error="boom\x1b[2J\x9b31mred",
+    )
+
+    _run_list_details([], [node])
+
+    out = capsys.readouterr().out
+    for char in ("\x1b", "\x07", "\x9b"):
+        assert char not in out
+    assert "swap ]0;owned disk" in out
+    assert "boom [2J 31mred" in out
+
+
+def test_detailed_node_keeps_provision_updated_at_and_uuid():
+    from osism.utils.ironic import DetailedNode
+
+    node = DetailedNode.existing(
+        uuid="11111111-2222-3333-4444-555555555555",
+        provision_updated_at="2026-11-10T08:15:42+00:00",
+    )
+
+    assert node["id"] == "11111111-2222-3333-4444-555555555555"
+    assert node["provision_updated_at"] == "2026-11-10T08:15:42+00:00"
+
+
+def test_list_detailed_nodes_requests_node_detail_endpoint():
+    # Runs openstacksdk's real list code against a mocked baremetal proxy:
+    # the request must go to /nodes/detail (not the summary /nodes), keep
+    # the filter, negotiate the microversion, and keep both the uuid and
+    # provision_updated_at of the response.
+    from openstack.baremetal.v1 import _proxy
+
+    from osism.utils.ironic import list_detailed_nodes
+
+    response = MagicMock(status_code=200, headers={}, links={})
+    response.json.return_value = {
+        "nodes": [
+            {
+                "uuid": "11111111-2222-3333-4444-555555555555",
+                "name": "node-a",
+                "provision_updated_at": "2026-11-10T08:15:42+00:00",
+            }
+        ]
+    }
+    proxy = MagicMock(spec=_proxy.Proxy)
+    proxy.default_microversion = None
+    proxy.get_endpoint_data.return_value = MagicMock(
+        min_microversion="1.1", max_microversion="1.109"
+    )
+    proxy.get.return_value = response
+    conn = MagicMock()
+    conn.baremetal = proxy
+
+    nodes = list(list_detailed_nodes(conn, provision_state="active"))
+
+    proxy.get.assert_called_once()
+    args, kwargs = proxy.get.call_args
+    assert args == ("/nodes/detail",)
+    assert kwargs["params"] == {"provision_state": "active"}
+    assert kwargs["microversion"] == "1.109"
+    assert [(n["id"], n["provision_updated_at"]) for n in nodes] == [
+        (
+            "11111111-2222-3333-4444-555555555555",
+            "2026-11-10T08:15:42+00:00",
+        )
+    ]
+
+
 def test_list_cleanup_called_when_listing_fails():
     cmd = baremetal.BaremetalList(MagicMock(), MagicMock())
     parsed_args = cmd.get_parser("test").parse_args([])
