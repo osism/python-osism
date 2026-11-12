@@ -138,7 +138,7 @@ class BaremetalList(Command):
         parser.add_argument(
             "--provision-state",
             default=None,
-            choices=["enroll", "managable", "available", "active", "error"],
+            choices=["enroll", "manageable", "available", "active", "error"],
             type=str,
             help="Only list nodes with the given provision state",
         )

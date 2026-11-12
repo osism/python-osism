@@ -470,6 +470,15 @@ def test_list_query_flags_forwarded():
     )
 
 
+def test_list_accepts_manageable_provision_state():
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = []
+
+    _run_list(["--provision-state", "manageable"], conn)
+
+    conn.baremetal.nodes.assert_called_once_with(provision_state="manageable")
+
+
 def test_list_without_flags_queries_without_kwargs():
     conn = MagicMock()
     conn.baremetal.nodes.return_value = []
