@@ -1,0 +1,180 @@
+{
+  "collector": "linux",
+  "dmi": {
+    "product_name": "PowerEdge R750",
+    "product_serial": "7ABCDE3",
+    "sys_vendor": "Dell Inc."
+  },
+  "hostname": "storage-001",
+  "ip_link": {
+    "err": "",
+    "out": "[{\"ifindex\": 2, \"ifname\": \"enp65s0f0\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"UP\", \"LOWER_UP\"], \"mtu\": 9000, \"qdisc\": \"mq\", \"operstate\": \"UP\", \"link_type\": \"ether\", \"address\": \"40:a6:b7:00:10:00\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\"}, {\"ifindex\": 3, \"ifname\": \"enp65s0f1\", \"flags\": [\"NO-CARRIER\", \"BROADCAST\", \"MULTICAST\", \"UP\"], \"mtu\": 9000, \"qdisc\": \"mq\", \"operstate\": \"DOWN\", \"link_type\": \"ether\", \"address\": \"40:a6:b7:00:10:01\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\"}, {\"ifindex\": 4, \"ifname\": \"enp66s0\", \"flags\": [\"BROADCAST\", \"MULTICAST\", \"UP\", \"LOWER_UP\"], \"mtu\": 9000, \"qdisc\": \"mq\", \"operstate\": \"UP\", \"link_type\": \"ether\", \"address\": \"40:a6:b7:00:20:00\", \"broadcast\": \"ff:ff:ff:ff:ff:ff\"}]",
+    "rc": 0
+  },
+  "lldpctl": {
+    "err": "",
+    "out": "{\"lldp\": {}}",
+    "rc": 0
+  },
+  "ports": {
+    "enp65s0f0": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\": {\"pci/0000:41:00.0\": {\"driver\": \"ice\", \"versions\": {\"fixed\": {\"board.id\": \"K91258-006\"}, \"running\": {\"fw.mgmt\": \"7.4.13\", \"fw.undi\": \"1.3534.0\", \"fw.psid.api\": \"4.40\", \"fw.bundle_id\": \"0x8001c7d4\"}, \"stored\": {\"fw.undi\": \"1.3534.0\", \"fw.bundle_id\": \"0x8001c7d4\"}}, \"serial_number\": \"00-01-00-ff-ff-00-00-00\"}}}",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for IFACE:\n\tSupported ports: [ FIBRE ]\n\tSupported link modes:   1000baseKX/Full\n\t                        100000baseSR4/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: None\t RS\t BASER\n\tAdvertised link modes:  100000baseSR4/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: RS\n\tSpeed: 100000Mb/s\n\tDuplex: Full\n\tAuto-negotiation: off\n\tPort: FIBRE\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n\tLink detected: yes\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 40:a6:b7:00:10:00\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for IFACE:\nSupported/Configured FEC encodings: Auto RS BaseR\nActive FEC encoding: RS\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: ice\nversion: 6.8.0-51-generic\nfirmware-version: 4.40 0x8001c7d4 1.3534.0\nexpansion-rom-version: \nbus-info: 0000:41:00.0\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "",
+        "out": "\tIdentifier                                : 0x11 (QSFP28)\n\tExtended identifier                       : 0xcc\n\tExtended identifier description           : 3.5W max. Power consumption\n\tConnector                                 : 0x0c (MPO Parallel Optic)\n\tTransceiver codes                         : 0x80 0x00 0x00 0x00 0x00 0x00 0x00 0x00\n\tTransceiver type                          : 100G Ethernet: 100G Base-SR4 or 25GBase-SR\n\tEncoding                                  : 0x05 (64B/66B)\n\tBR, Nominal                               : 25500Mbps\n\tRate identifier                           : 0x00\n\tLength (SMF,km)                           : 0km\n\tLength (OM3 50um)                         : 70m\n\tLength (OM2 50um)                         : 0m\n\tLength (OM1 62.5um)                       : 0m\n\tLength (Copper or Active cable)           : 50m\n\tTransmitter technology                    : 0x00 (850 nm VCSEL)\n\tLaser wavelength                          : 850.000nm\n\tLaser wavelength tolerance                : 10.000nm\n\tVendor name                               : Intel Corp\n\tVendor OUI                                : 00:1b:21\n\tVendor PN                                 : SPTSBP2CLCKS\n\tVendor rev                                : 01\n\tVendor SN                                 : INCAL1234567\n\tDate code                                 : 230117\n\tRevision Compliance                       : SFF-8636 Rev 2.5/2.6/2.7\n\tModule temperature                        : 31.00 degrees C / 87.80 degrees F\n\tModule voltage                            : 3.2800 V\n\tAlarm/warning flags implemented           : Yes\n\tLaser tx bias current (Channel 1)         : 6.750 mA\n\tLaser tx bias current (Channel 2)         : 6.812 mA\n\tLaser tx bias current (Channel 3)         : 6.700 mA\n\tLaser tx bias current (Channel 4)         : 6.790 mA\n\tTransmit avg optical power (Channel 1)    : 0.9500 mW / -0.22 dBm\n\tTransmit avg optical power (Channel 2)    : 0.9300 mW / -0.32 dBm\n\tTransmit avg optical power (Channel 3)    : 0.9700 mW / -0.13 dBm\n\tTransmit avg optical power (Channel 4)    : 0.9100 mW / -0.41 dBm\n\tRcvr signal avg optical power(Channel 1)  : 0.8200 mW / -0.86 dBm\n\tRcvr signal avg optical power(Channel 2)  : 0.8000 mW / -0.97 dBm\n\tRcvr signal avg optical power(Channel 3)  : 0.7900 mW / -1.02 dBm\n\tRcvr signal avg optical power(Channel 4)  : 0.8100 mW / -0.92 dBm\n\tLaser bias current high alarm threshold   : 10.000 mA\n\tLaser rx power high alarm threshold       : 2.1878 mW / 3.40 dBm\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:41:00.0\nClass:\tEthernet controller [0200]\nVendor:\tIntel Corporation [8086]\nDevice:\tEthernet Controller E810-C for QSFP [1592]\nSVendor:\tIntel Corporation [8086]\nSDevice:\tEthernet Network Adapter E810-C-Q2 [0002]\nRev:\t02\nNUMANode:\t0\n\n",
+        "rc": 0
+      },
+      "pci": "0000:41:00.0",
+      "sysfs": {
+        "address": "40:a6:b7:00:10:00",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9000",
+        "operstate": "up",
+        "phys_port_name": "p0",
+        "speed": "100000",
+        "type": "1"
+      }
+    },
+    "enp65s0f1": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\": {\"pci/0000:41:00.1\": {\"driver\": \"ice\", \"versions\": {\"fixed\": {\"board.id\": \"K91258-006\"}, \"running\": {\"fw.mgmt\": \"7.4.13\", \"fw.undi\": \"1.3534.0\", \"fw.psid.api\": \"4.40\", \"fw.bundle_id\": \"0x8001c7d4\"}, \"stored\": {\"fw.undi\": \"1.3534.0\", \"fw.bundle_id\": \"0x8001c7d4\"}}, \"serial_number\": \"00-01-00-ff-ff-00-00-00\"}}}",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for IFACE:\n\tSupported ports: [ FIBRE ]\n\tSupported link modes:   1000baseKX/Full\n\t                        100000baseSR4/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: None\t RS\t BASER\n\tAdvertised link modes:  100000baseSR4/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: RS\n\tSpeed: Unknown!\n\tDuplex: Unknown! (255)\n\tAuto-negotiation: off\n\tPort: Other\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n\tLink detected: no\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 40:a6:b7:00:10:01\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for IFACE:\nSupported/Configured FEC encodings: Auto RS BaseR\nActive FEC encoding: None\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: ice\nversion: 6.8.0-51-generic\nfirmware-version: 4.40 0x8001c7d4 1.3534.0\nexpansion-rom-version: \nbus-info: 0000:41:00.1\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "Cannot get module EEPROM information: Input/output error",
+        "out": "",
+        "rc": 1
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:41:00.1\nClass:\tEthernet controller [0200]\nVendor:\tIntel Corporation [8086]\nDevice:\tEthernet Controller E810-C for QSFP [1592]\nSVendor:\tIntel Corporation [8086]\nSDevice:\tEthernet Network Adapter E810-C-Q2 [0002]\nRev:\t02\nNUMANode:\t0\n\n",
+        "rc": 0
+      },
+      "pci": "0000:41:00.1",
+      "sysfs": {
+        "address": "40:a6:b7:00:10:01",
+        "carrier": "0",
+        "dev_port": "0",
+        "duplex": null,
+        "mtu": "9000",
+        "operstate": "down",
+        "phys_port_name": "p1",
+        "speed": "-1",
+        "type": "1"
+      }
+    },
+    "enp66s0": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\": {\"pci/0000:42:00.0\": {\"driver\": \"ice\", \"versions\": {\"fixed\": {\"board.id\": \"K91258-006\"}, \"running\": {\"fw.mgmt\": \"7.4.13\", \"fw.undi\": \"1.3534.0\", \"fw.psid.api\": \"4.40\", \"fw.bundle_id\": \"0x8001c7d4\"}, \"stored\": {\"fw.undi\": \"1.3534.0\", \"fw.bundle_id\": \"0x8001c7d4\"}}, \"serial_number\": \"00-01-00-ff-ff-00-00-00\"}}}",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for IFACE:\n\tSupported ports: [ FIBRE ]\n\tSupported link modes:   1000baseKX/Full\n\t                        400000baseSR8/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: None\t RS\t BASER\n\tAdvertised link modes:  400000baseSR8/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: RS\n\tSpeed: 400000Mb/s\n\tDuplex: Full\n\tAuto-negotiation: off\n\tPort: FIBRE\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n\tLink detected: yes\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 40:a6:b7:00:20:00\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for IFACE:\nSupported/Configured FEC encodings: Auto RS BaseR\nActive FEC encoding: RS\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: ice\nversion: 6.8.0-51-generic\nfirmware-version: 4.40 0x8001c7d4 1.3534.0\nexpansion-rom-version: \nbus-info: 0000:42:00.0\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "",
+        "out": "\tIdentifier                                : 0x18 (QSFP-DD Double Density 8X Pluggable Transceiver (INF-8628))\n\tPower class                               : 5\n\tMax power                                 : 10.00W\n\tConnector                                 : 0x28 (MPO 1x16)\n\tCable assembly length                     : 0.00m\n\tTx CDR bypass control                     : No\n\tRx CDR bypass control                     : No\n\tTx CDR                                    : No\n\tRx CDR                                    : No\n\tTransmitter technology                    : 0x00 (850 nm VCSEL)\n\tLaser wavelength                          : 850.000nm\n\tLaser wavelength tolerance                : 0.000nm\n\tLength (SMF)                              : 0.00km\n\tLength (OM5)                              : 0m\n\tLength (OM4)                              : 100m\n\tLength (OM3 50/125um)                     : 70m\n\tLength (OM2 50/125um)                     : 0m\n\tVendor name                               : ACME Optics\n\tVendor OUI                                : 00:11:22\n\tVendor PN                                 : QDD-400G-SR8\n\tVendor rev                                : 1A\n\tVendor SN                                 : AO24070001\n\tDate code                                 : 240702\n\tRevision compliance                       : Rev. 4.0\n\tModule State                              : 0x03 (ModuleReady)\n\tActive firmware version                   : 2.9\n\tInactive firmware version                 : 2.8\n\tModule temperature                        : 41.50 degrees C / 106.70 degrees F\n\tModule voltage                            : 3.3100 V\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:42:00.0\nClass:\tEthernet controller [0200]\nVendor:\tIntel Corporation [8086]\nDevice:\tEthernet Controller E810-C for QSFP [1592]\nSVendor:\tIntel Corporation [8086]\nSDevice:\tEthernet Network Adapter E810-C-Q2 [0002]\nRev:\t02\nNUMANode:\t0\n\n",
+        "rc": 0
+      },
+      "pci": "0000:42:00.0",
+      "sysfs": {
+        "address": "40:a6:b7:00:20:00",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9000",
+        "operstate": "up",
+        "phys_port_name": null,
+        "speed": "400000",
+        "type": "1"
+      }
+    }
+  },
+  "sections": [
+    "ports",
+    "lldp",
+    "ethtool",
+    "module",
+    "nic",
+    "system"
+  ],
+  "version": 1
+}

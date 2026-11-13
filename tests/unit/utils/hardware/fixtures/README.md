@@ -9,9 +9,15 @@ the `parse_*` modules.
 | File | Origin | Device |
 | --- | --- | --- |
 | `linux-connectx4.json` | captured | Node with an Intel I350 (`igb`) and a Mellanox ConnectX-4 Lx (`mlx5_core`) on 25G passive copper cables, Ubuntu 24.04 |
-| `sonic-enterprise.json` | captured | Accton AS7726-32X with Enterprise SONiC 4.5.2, QSFP28 cages broken out into 4x25G and 4x10G |
-| `linux-mellanox.json` | synthetic | Node with a bond, an optical module and an empty cage |
+| `linux-bcm57414.json` | captured | Node with a Broadcom BCM57414 (`bnxt_en`) on 25G passive copper cables, an Intel X710 10GBASE-T (`i40e`) and the USB host interface of its BMC |
+| `linux-82599.json` | captured | Node with an Intel 82599ES (`ixgbe`) on 10G, cabled with 25G passive copper cables, and the USB host interface of its BMC |
+| `sonic-enterprise.json` | captured | Accton AS7726-32X with Enterprise SONiC 4.5.2: QSFP28 cages broken out into 4x25G and 4x10G with passive copper cables, 100G SR4 optics with diagnostics, empty cages |
+| `linux-mellanox.json` | synthetic | Node with a bond, an optical module with diagnostics and an empty cage |
 | `sonic-synthetic.json` | synthetic | Switch `leaf-1a`, the cable peer of `linux-mellanox.json` in the tests of the report commands |
+| `linux-intel.json` | synthetic | Node with a multi-lane optical module and a CMIS module |
+| `linux-broadcom.json` | synthetic | Node without `lspci`, `devlink` and `lldpctl` |
+| `linux-mellanox-vf-ib.json` | synthetic | Node with SR-IOV virtual functions and an InfiniBand port |
+| `sonic-community.json` | synthetic | Switch with the field names of community SONiC, a CMIS module, and without version file, EEPROM table and firmware status |
 
 ### Captured files
 

@@ -22,6 +22,7 @@ import sys
 VERSION = 1
 SYS_NET = "/sys/class/net"
 MGMT_PORT = "eth0"
+VERSION_FILE = "/etc/sonic/sonic_version.yml"
 
 # Tables dumped per section: (database, table, key pattern, mandatory)
 TABLES = {
@@ -29,6 +30,23 @@ TABLES = {
         ("CONFIG_DB", "PORT", "PORT|*", True),
         ("CONFIG_DB", "DEVICE_METADATA", "DEVICE_METADATA|localhost", False),
         ("APPL_DB", "PORT_TABLE", "PORT_TABLE:*", False),
+    ],
+    "transceiver": [
+        ("STATE_DB", "TRANSCEIVER_INFO", "TRANSCEIVER_INFO|*", False),
+        # Newer releases keep the CMIS firmware versions in a table of
+        # their own instead of in TRANSCEIVER_INFO.
+        (
+            "STATE_DB",
+            "TRANSCEIVER_FIRMWARE_INFO",
+            "TRANSCEIVER_FIRMWARE_INFO|*",
+            False,
+        ),
+    ],
+    "dom": [
+        ("STATE_DB", "TRANSCEIVER_DOM_SENSOR", "TRANSCEIVER_DOM_SENSOR|*", False),
+    ],
+    "system": [
+        ("STATE_DB", "EEPROM_INFO", "EEPROM_INFO|*", False),
     ],
 }
 
@@ -101,8 +119,24 @@ def extra_ports(document, sys_net, runner):
         }
 
 
+def extra_system(document, sys_net, runner):
+    document["files"] = {"sonic_version": read(VERSION_FILE)}
+    commands = {}
+    # The show commands are fallbacks for what the files and tables above
+    # did not deliver, and the only source for the firmware versions.
+    if not document["files"]["sonic_version"]:
+        commands["show version"] = runner(["show", "version"])
+    if not (document["db"].get("STATE_DB") or {}).get("EEPROM_INFO"):
+        commands["show platform syseeprom"] = runner(["show", "platform", "syseeprom"])
+    commands["show platform firmware status"] = runner(
+        ["show", "platform", "firmware", "status"]
+    )
+    document["commands"] = commands
+
+
 EXTRAS = {
     "ports": extra_ports,
+    "system": extra_system,
 }
 
 

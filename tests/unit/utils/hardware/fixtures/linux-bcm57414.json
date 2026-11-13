@@ -1,0 +1,280 @@
+{
+  "collector": "linux",
+  "dmi": {
+    "product_name": "SYS-620TP-HTTR",
+    "product_serial": "SN00000006",
+    "sys_vendor": "Supermicro"
+  },
+  "hostname": "deploy-1",
+  "ip_link": {
+    "err": "",
+    "out": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"02:00:00:00:00:18\",\"broadcast\":\"02:00:00:00:00:18\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":0,\"max_mtu\":0,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":2,\"ifname\":\"data1\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":9100,\"qdisc\":\"mq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:03\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":60,\"max_mtu\":9600,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1184,\"num_rx_queues\":148,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"phys_port_name\":\"p0\",\"phys_switch_id\":\"020000ffff000003\",\"parentbus\":\"pci\",\"parentdev\":\"0000:98:00.0\",\"vfinfo_list\":[],\"altnames\":[\"enp152s0f0np0\"]},{\"ifindex\":3,\"ifname\":\"data2\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":9100,\"qdisc\":\"mq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:04\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":60,\"max_mtu\":9600,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1184,\"num_rx_queues\":148,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"phys_port_name\":\"p1\",\"phys_switch_id\":\"020000ffff000004\",\"parentbus\":\"pci\",\"parentdev\":\"0000:98:00.1\",\"vfinfo_list\":[],\"altnames\":[\"enp152s0f1np1\"]},{\"ifindex\":4,\"ifname\":\"mgmt1\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":9100,\"qdisc\":\"mq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:05\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":9702,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":80,\"num_rx_queues\":80,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"phys_port_name\":\"p0\",\"phys_port_id\":\"020000000005\",\"phys_switch_id\":\"020000ffff000005\",\"parentbus\":\"pci\",\"parentdev\":\"0000:65:00.0\",\"vfinfo_list\":[],\"altnames\":[\"enp101s0f0np0\"]},{\"ifindex\":5,\"ifname\":\"enx02000000001f\",\"flags\":[\"BROADCAST\",\"MULTICAST\"],\"mtu\":1500,\"qdisc\":\"noop\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:1f\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":0,\"max_mtu\":1500,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"parentbus\":\"usb\",\"parentdev\":\"1-7.2:2.0\"},{\"ifindex\":6,\"ifname\":\"eno2np1\",\"flags\":[\"BROADCAST\",\"MULTICAST\"],\"mtu\":1500,\"qdisc\":\"noop\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:06\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":9702,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":80,\"num_rx_queues\":80,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"phys_port_name\":\"p1\",\"phys_port_id\":\"020000000006\",\"phys_switch_id\":\"020000ffff000006\",\"parentbus\":\"pci\",\"parentdev\":\"0000:65:00.1\",\"vfinfo_list\":[],\"altnames\":[\"enp101s0f1np1\"]}]\n",
+    "rc": 0
+  },
+  "lldpctl": {
+    "err": "",
+    "out": "{\n  \"lldp\": {\n    \"interface\": [\n      {\n        \"data1\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"9\",\n          \"age\": \"39 days, 22:54:05\",\n          \"chassis\": {\n            \"leaf-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1d\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.5.2-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-39-amd64\",\n              \"mgmt-ip\": \"192.0.2.2\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/2/3\"\n            },\n            \"descr\": \"Ethernet6\",\n            \"ttl\": \"120\",\n            \"mfs\": \"9100\"\n          },\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-39-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000001\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          },\n          \"unknown-tlvs\": {\n            \"unknown-tlv\": {\n              \"oui\": \"00,80,C2\",\n              \"subtype\": \"7\",\n              \"len\": \"5\",\n              \"value\": \"01,00,00,00,00\"\n            }\n          }\n        }\n      },\n      {\n        \"data2\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"8\",\n          \"age\": \"39 days, 23:22:25\",\n          \"chassis\": {\n            \"leaf-2\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1e\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.4.1-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-21-amd64\",\n              \"mgmt-ip\": \"192.0.2.3\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/2/3\"\n            },\n            \"descr\": \"Ethernet6\",\n            \"ttl\": \"120\",\n            \"mfs\": \"9100\"\n          },\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-21-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000002\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          },\n          \"unknown-tlvs\": {\n            \"unknown-tlv\": {\n              \"oui\": \"00,80,C2\",\n              \"subtype\": \"7\",\n              \"len\": \"5\",\n              \"value\": \"01,00,00,00,00\"\n            }\n          }\n        }\n      },\n      {\n        \"mgmt1\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"2\",\n          \"age\": \"61 days, 15:45:39\",\n          \"chassis\": {\n            \"oob-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1c\"\n              },\n              \"descr\": \"MikroTik RouterOS 6.49.1 (stable) CRS354-48G-4S+2Q+\",\n              \"mgmt-ip\": \"192.0.2.1\",\n              \"mgmt-iface\": \"31\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"ifname\",\n              \"value\": \"bridge/ether18\"\n            },\n            \"ttl\": \"120\"\n          }\n        }\n      }\n    ]\n  }\n}\n",
+    "rc": 0
+  },
+  "ports": {
+    "data1": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\":{\"pci/0000:98:00.0\":{\"driver\":\"bnxt_en\",\"serial_number\":\"02-00-00-FF-FE-00-00-03\",\"board.serial_number\":\"SN00000009\",\"versions\":{\"fixed\":{\"board.id\":\"BCM957414A4142CC\",\"asic.id\":\"16D7\",\"asic.rev\":\"B1\"},\"running\":{\"fw.psid\":\"216.0.0\",\"fw\":\"216.0.333.11\",\"fw.mgmt\":\"214.4.91.1\",\"fw.mgmt.api\":\"1.10.1\",\"fw.ncsi\":\"214.4.42.0\",\"fw.roce\":\"214.0.194.0\"},\"stored\":{\"fw.psid\":\"216.0.0\",\"fw\":\"216.0.333.11\"}}}}}\n",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for data1:\n\tSupported ports: [ FIBRE ]\n\tSupported link modes:   25000baseCR/Full\n\t                        1000baseX/Full\n\tSupported pause frame use: Symmetric Receive-only\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: RS\t BASER\n\tAdvertised link modes:  25000baseCR/Full\n\t                        1000baseX/Full\n\tAdvertised pause frame use: No\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: Not reported\n\tSpeed: 25000Mb/s\n\tLanes: 1\n\tDuplex: Full\n\tAuto-negotiation: on\n\tPort: Direct Attach Copper\n\tPHYAD: 1\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n        Current message level: 0x00002081 (8321)\n                               drv tx_err hw\n\tLink detected: yes\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:03\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for data1:\nSupported/Configured FEC encodings: None\nActive FEC encoding: Off\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: bnxt_en\nversion: 7.0.0-31-generic\nfirmware-version: 214.4.91.1/pkg 216.0.333.11\nexpansion-rom-version: \nbus-info: 0000:98:00.0\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: yes\nsupports-register-dump: yes\nsupports-priv-flags: no\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "",
+        "out": "\tIdentifier                                : 0x03 (SFP)\n\tExtended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)\n\tConnector                                 : 0x21 (Copper pigtail)\n\tTransceiver codes                         : 0x00 0x00 0x00 0x00 0x00 0x04 0x00 0x00 0x0c\n\tTransceiver type                          : Passive Cable\n\tTransceiver type                          : Extended: 25G Base-CR CA-S\n\tEncoding                                  : 0x00 (unspecified)\n\tBR, Nominal                               : 25750MBd\n\tRate identifier                           : 0x00 (unspecified)\n\tLength (SMF,km)                           : 0km\n\tLength (SMF)                              : 0m\n\tLength (50um)                             : 0m\n\tLength (62.5um)                           : 0m\n\tLength (Copper)                           : 3m\n\tLength (OM3)                              : 0m\n\tPassive Cu cmplnce.                       : 0x00 (unspecified) [SFF-8472 rev10.4 only]\n\tVendor name                               : FS\n\tVendor OUI                                : 64:9d:99\n\tVendor PN                                 : Q-4S28PC03\n\tVendor rev                                : 01\n\tOption values                             : 0x08 0x00\n\tOption                                    : Retimer or CDR implemented\n\tBR margin, max                            : 0%\n\tBR margin, min                            : 0%\n\tVendor SN                                 : SN00000007-3\n\tDate code                                 : 220310\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:98:00.0\nClass:\tEthernet controller [0200]\nVendor:\tBroadcom Inc. and subsidiaries [14e4]\nDevice:\tBCM57414 NetXtreme-E 10Gb/25Gb RDMA Ethernet Controller [16d7]\nSVendor:\tBroadcom Inc. and subsidiaries [14e4]\nSDevice:\tBCM957414A4142CC 10Gb/25Gb Ethernet PCIe [1402]\nPhySlot:\t1\nRev:\t01\nProgIf:\t00\nNUMANode:\t1\nIOMMUGroup:\t8\n\n",
+        "rc": 0
+      },
+      "pci": "0000:98:00.0",
+      "sysfs": {
+        "address": "02:00:00:00:00:03",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9100",
+        "operstate": "up",
+        "phys_port_name": "p0",
+        "speed": "25000",
+        "type": "1"
+      }
+    },
+    "data2": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\":{\"pci/0000:98:00.1\":{\"driver\":\"bnxt_en\",\"serial_number\":\"02-00-00-FF-FE-00-00-03\",\"board.serial_number\":\"SN00000009\",\"versions\":{\"fixed\":{\"board.id\":\"BCM957414A4142CC\",\"asic.id\":\"16D7\",\"asic.rev\":\"B1\"},\"running\":{\"fw.psid\":\"216.0.0\",\"fw\":\"216.0.333.11\",\"fw.mgmt\":\"214.4.91.1\",\"fw.mgmt.api\":\"1.10.1\",\"fw.ncsi\":\"214.4.42.0\",\"fw.roce\":\"214.0.194.0\"},\"stored\":{\"fw.psid\":\"216.0.0\",\"fw\":\"216.0.333.11\"}}}}}\n",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for data2:\n\tSupported ports: [ FIBRE ]\n\tSupported link modes:   25000baseCR/Full\n\t                        1000baseX/Full\n\tSupported pause frame use: Symmetric Receive-only\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: RS\t BASER\n\tAdvertised link modes:  25000baseCR/Full\n\t                        1000baseX/Full\n\tAdvertised pause frame use: No\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: Not reported\n\tSpeed: 25000Mb/s\n\tLanes: 1\n\tDuplex: Full\n\tAuto-negotiation: on\n\tPort: Direct Attach Copper\n\tPHYAD: 1\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n        Current message level: 0x00002081 (8321)\n                               drv tx_err hw\n\tLink detected: yes\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:04\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for data2:\nSupported/Configured FEC encodings: None\nActive FEC encoding: Off\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: bnxt_en\nversion: 7.0.0-31-generic\nfirmware-version: 214.4.91.1/pkg 216.0.333.11\nexpansion-rom-version: \nbus-info: 0000:98:00.1\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: yes\nsupports-register-dump: yes\nsupports-priv-flags: no\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "",
+        "out": "\tIdentifier                                : 0x03 (SFP)\n\tExtended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)\n\tConnector                                 : 0x21 (Copper pigtail)\n\tTransceiver codes                         : 0x00 0x00 0x00 0x00 0x00 0x04 0x00 0x00 0x0c\n\tTransceiver type                          : Passive Cable\n\tTransceiver type                          : Extended: 25G Base-CR CA-S\n\tEncoding                                  : 0x00 (unspecified)\n\tBR, Nominal                               : 25750MBd\n\tRate identifier                           : 0x00 (unspecified)\n\tLength (SMF,km)                           : 0km\n\tLength (SMF)                              : 0m\n\tLength (50um)                             : 0m\n\tLength (62.5um)                           : 0m\n\tLength (Copper)                           : 3m\n\tLength (OM3)                              : 0m\n\tPassive Cu cmplnce.                       : 0x00 (unspecified) [SFF-8472 rev10.4 only]\n\tVendor name                               : FS\n\tVendor OUI                                : 64:9d:99\n\tVendor PN                                 : Q-4S28PC03\n\tVendor rev                                : 01\n\tOption values                             : 0x08 0x00\n\tOption                                    : Retimer or CDR implemented\n\tBR margin, max                            : 0%\n\tBR margin, min                            : 0%\n\tVendor SN                                 : SN00000010-2\n\tDate code                                 : 220310\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:98:00.1\nClass:\tEthernet controller [0200]\nVendor:\tBroadcom Inc. and subsidiaries [14e4]\nDevice:\tBCM57414 NetXtreme-E 10Gb/25Gb RDMA Ethernet Controller [16d7]\nSVendor:\tBroadcom Inc. and subsidiaries [14e4]\nSDevice:\tBCM957414A4142CC 10Gb/25Gb Ethernet PCIe [1402]\nPhySlot:\t1\nRev:\t01\nProgIf:\t00\nNUMANode:\t1\nIOMMUGroup:\t9\n\n",
+        "rc": 0
+      },
+      "pci": "0000:98:00.1",
+      "sysfs": {
+        "address": "02:00:00:00:00:04",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9100",
+        "operstate": "up",
+        "phys_port_name": "p1",
+        "speed": "25000",
+        "type": "1"
+      }
+    },
+    "eno2np1": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\":{\"pci/0000:65:00.1\":{\"driver\":\"i40e\",\"serial_number\":\"02-00-00-ff-ff-00-00-06\",\"versions\":{\"running\":{\"fw.mgmt\":\"8.1\",\"fw.mgmt.build\":\"63299\",\"fw.mgmt.api\":\"1.12\",\"fw.psid.api\":\"8.10\",\"fw.bundle_id\":\"0x8000a7b1\",\"fw.undi\":\"1.2926.0\"}}}}}\n",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for eno2np1:\n\tSupported ports: [  ]\n\tSupported link modes:   100baseT/Full\n\t                        1000baseT/Full\n\t                        10000baseT/Full\n\t                        2500baseT/Full\n\t                        5000baseT/Full\n\tSupported pause frame use: Symmetric Receive-only\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: Not reported\n\tAdvertised link modes:  100baseT/Full\n\t                        1000baseT/Full\n\t                        10000baseT/Full\n\t                        2500baseT/Full\n\t                        5000baseT/Full\n\tAdvertised pause frame use: No\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: Not reported\n\tSpeed: Unknown!\n\tDuplex: Unknown! (255)\n\tAuto-negotiation: off\n\tPort: Other\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: g\n\tWake-on: g\n        Current message level: 0x00000007 (7)\n                               drv probe link\n\tLink detected: no\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:06\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for eno2np1:\nSupported/Configured FEC encodings: Off\nActive FEC encoding: BaseR\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: i40e\nversion: 7.0.0-31-generic\nfirmware-version: 8.10 0x8000a7b1 1.2926.0\nexpansion-rom-version: \nbus-info: 0000:65:00.1\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: yes\nsupports-register-dump: yes\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:65:00.1\nClass:\tEthernet controller [0200]\nVendor:\tIntel Corporation [8086]\nDevice:\tEthernet Controller X710 for 10GBASE-T [15ff]\nSVendor:\tSuper Micro Computer Inc [15d9]\nSDevice:\tEthernet Controller X710 for 10GBASE-T [0000]\nPhySlot:\t0-2\nRev:\t02\nProgIf:\t00\nNUMANode:\t0\nIOMMUGroup:\t2\n\n",
+        "rc": 0
+      },
+      "pci": "0000:65:00.1",
+      "sysfs": {
+        "address": "02:00:00:00:00:06",
+        "carrier": null,
+        "dev_port": "0",
+        "duplex": null,
+        "mtu": "1500",
+        "operstate": "down",
+        "phys_port_name": "p1",
+        "speed": null,
+        "type": "1"
+      }
+    },
+    "enx02000000001f": {
+      "devlink": {
+        "err": "kernel answers: No such device",
+        "out": "{\"info\":{}}\n",
+        "rc": 1
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for enx02000000001f:\n\tSupported ports: [  ]\n\tSupported link modes:   Not reported\n\tSupported pause frame use: No\n\tSupports auto-negotiation: No\n\tSupported FEC modes: Not reported\n\tAdvertised link modes:  Not reported\n\tAdvertised pause frame use: No\n\tAdvertised auto-negotiation: No\n\tAdvertised FEC modes: Not reported\n\tSpeed: Unknown!\n\tDuplex: Unknown! (255)\n\tAuto-negotiation: off\n\tPort: Twisted Pair\n\tPHYAD: 0\n\tTransceiver: internal\n\tMDI-X: Unknown\n        Current message level: 0x00000007 (7)\n                               drv probe link\n\tLink detected: no\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:1f\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: rndis_host\nversion: 7.0.0-31-generic\nfirmware-version: RNDIS device\nexpansion-rom-version: \nbus-info: usb-0000:00:14.0-7.2\nsupports-statistics: no\nsupports-test: no\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: no\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "lspci: -s: Invalid bus number",
+        "out": "",
+        "rc": 1
+      },
+      "pci": "1-7.2:2.0",
+      "sysfs": {
+        "address": "02:00:00:00:00:1f",
+        "carrier": null,
+        "dev_port": "0",
+        "duplex": null,
+        "mtu": "1500",
+        "operstate": "down",
+        "phys_port_name": null,
+        "speed": null,
+        "type": "1"
+      }
+    },
+    "mgmt1": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\":{\"pci/0000:65:00.0\":{\"driver\":\"i40e\",\"serial_number\":\"02-00-00-ff-ff-00-00-06\",\"versions\":{\"running\":{\"fw.mgmt\":\"8.1\",\"fw.mgmt.build\":\"63299\",\"fw.mgmt.api\":\"1.12\",\"fw.psid.api\":\"8.10\",\"fw.bundle_id\":\"0x8000a7b1\",\"fw.undi\":\"1.2926.0\"}}}}}\n",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for mgmt1:\n\tSupported ports: [ TP ]\n\tSupported link modes:   100baseT/Full\n\t                        1000baseT/Full\n\t                        10000baseT/Full\n\t                        2500baseT/Full\n\t                        5000baseT/Full\n\tSupported pause frame use: Symmetric Receive-only\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: Not reported\n\tAdvertised link modes:  100baseT/Full\n\t                        1000baseT/Full\n\t                        10000baseT/Full\n\t                        2500baseT/Full\n\t                        5000baseT/Full\n\tAdvertised pause frame use: No\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: Not reported\n\tSpeed: 1000Mb/s\n\tDuplex: Full\n\tAuto-negotiation: on\n\tPort: Twisted Pair\n\tPHYAD: 0\n\tTransceiver: internal\n\tMDI-X: Unknown\n\tSupports Wake-on: g\n\tWake-on: d\n        Current message level: 0x00000007 (7)\n                               drv probe link\n\tLink detected: yes\n",
+        "rc": 0
+      },
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:05\n",
+        "rc": 0
+      },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for mgmt1:\nSupported/Configured FEC encodings: Off\nActive FEC encoding: BaseR\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: i40e\nversion: 7.0.0-31-generic\nfirmware-version: 8.10 0x8000a7b1 1.2926.0\nexpansion-rom-version: \nbus-info: 0000:65:00.0\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: yes\nsupports-register-dump: yes\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:65:00.0\nClass:\tEthernet controller [0200]\nVendor:\tIntel Corporation [8086]\nDevice:\tEthernet Controller X710 for 10GBASE-T [15ff]\nSVendor:\tSuper Micro Computer Inc [15d9]\nSDevice:\tEthernet Controller X710 for 10GBASE-T [15ff]\nPhySlot:\t0-2\nRev:\t02\nProgIf:\t00\nNUMANode:\t0\nIOMMUGroup:\t1\n\n",
+        "rc": 0
+      },
+      "pci": "0000:65:00.0",
+      "sysfs": {
+        "address": "02:00:00:00:00:05",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9100",
+        "operstate": "up",
+        "phys_port_name": "p0",
+        "speed": "1000",
+        "type": "1"
+      }
+    }
+  },
+  "sections": [
+    "ports",
+    "lldp",
+    "ethtool",
+    "module",
+    "nic",
+    "system"
+  ],
+  "version": 1
+}
