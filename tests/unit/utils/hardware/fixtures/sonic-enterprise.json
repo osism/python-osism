@@ -1,0 +1,608 @@
+{
+  "collector": "sonic",
+  "db": {
+    "APPL_DB": {
+      "PORT_TABLE": {
+        "PORT_TABLE:Ethernet0": {
+          "expireat": 1794564779.5969937,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/1/1",
+            "app_admin_status": "up",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "1",
+            "lanes": "1",
+            "last_change": "1794075220",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "25000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "2958561",
+            "port_load_interval": "10",
+            "preemphasis": "0x1a4a00",
+            "reason": "OPER_UP",
+            "speed": "25000",
+            "tagged_vlans": "103,102,101,106",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:Ethernet1": {
+          "expireat": 1794564779.5964913,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/1/2",
+            "app_admin_status": "up",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "1",
+            "lanes": "2",
+            "last_change": "1794078218",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "25000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "2961559",
+            "port_load_interval": "10",
+            "preemphasis": "0x1a4a00",
+            "reason": "OPER_UP",
+            "speed": "25000",
+            "tagged_vlans": "103,102,101,106",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:Ethernet12": {
+          "expireat": 1794564779.5966353,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/4/1",
+            "app_admin_status": "up",
+            "auto_fec": "none",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "4",
+            "lanes": "13",
+            "last_change": "1794057220",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "10000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "2940561",
+            "port_load_interval": "10",
+            "preemphasis": "0x144c04",
+            "reason": "OPER_UP",
+            "speed": "10000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:Ethernet120": {
+          "expireat": 1794564779.5966928,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/31",
+            "app_admin_status": "up",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "31",
+            "lanes": "121,122,123,124",
+            "last_change": "1791116717",
+            "link_training": "off",
+            "medium": "backplane",
+            "mtu": "9100",
+            "oper_speed": "100000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "58",
+            "port_load_interval": "10",
+            "preemphasis": "0x184804,0x184804,0x184804,0x184804",
+            "reason": "OPER_UP",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT_TABLE:Ethernet124": {
+          "expireat": 1794564779.5967875,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/32",
+            "app_admin_status": "up",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "32",
+            "lanes": "125,126,127,128",
+            "last_change": "1791116717",
+            "link_training": "off",
+            "medium": "backplane",
+            "mtu": "9100",
+            "oper_speed": "100000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "58",
+            "port_load_interval": "10",
+            "preemphasis": "0x184804,0x184804,0x184804,0x184804",
+            "reason": "OPER_UP",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT_TABLE:Ethernet125": {
+          "expireat": 1794564779.5969734,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "adv_speeds": "all",
+            "alias": "Eth1/33",
+            "autoneg": "off",
+            "description": "",
+            "index": "33",
+            "lanes": "129",
+            "link_training": "off",
+            "mtu": "9100",
+            "oper_status": "down",
+            "oper_status_change_uptime": "0",
+            "port_load_interval": "10",
+            "reason": "ADMIN_DOWN",
+            "speed": "10000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:Ethernet13": {
+          "expireat": 1794564779.5970259,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/4/2",
+            "app_admin_status": "up",
+            "auto_fec": "none",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "4",
+            "lanes": "14",
+            "last_change": "1794079447",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "10000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "2962788",
+            "port_load_interval": "10",
+            "preemphasis": "0x164c02",
+            "reason": "OPER_UP",
+            "speed": "10000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:Ethernet22": {
+          "expireat": 1794564779.596839,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/6/3",
+            "app_admin_status": "up",
+            "auto_fec": "none",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "6",
+            "lanes": "23",
+            "last_change": "1794146532",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "10000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "3029873",
+            "port_load_interval": "10",
+            "preemphasis": "0x0e4104",
+            "reason": "OPER_UP",
+            "speed": "10000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:Ethernet24": {
+          "expireat": 1794564779.5970433,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "adv_speeds": "all",
+            "alias": "Eth1/7",
+            "autoneg": "off",
+            "description": "",
+            "index": "7",
+            "lanes": "25,26,27,28",
+            "link_training": "off",
+            "mtu": "9100",
+            "oper_status": "down",
+            "oper_status_change_uptime": "0",
+            "port_load_interval": "10",
+            "reason": "ADMIN_DOWN",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT_TABLE:Ethernet4": {
+          "expireat": 1794564779.5965965,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "adv_speeds": "all",
+            "alias": "Eth1/2/1",
+            "app_admin_status": "up",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "2",
+            "lanes": "5",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_status": "down",
+            "oper_status_change_uptime": "0",
+            "port_load_interval": "10",
+            "preemphasis": "0x1a4a00",
+            "reason": "ADMIN_DOWN",
+            "speed": "25000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:Ethernet6": {
+          "expireat": 1794564779.5965073,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/2/3",
+            "app_admin_status": "up",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "2",
+            "lanes": "7",
+            "last_change": "1791116719",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "25000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "60",
+            "port_load_interval": "10",
+            "preemphasis": "0x1a4a00",
+            "reason": "OPER_UP",
+            "speed": "25000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:Ethernet9": {
+          "expireat": 1794564779.5968866,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/3/2",
+            "app_admin_status": "up",
+            "auto_fec": "rs",
+            "auto_unreliable_los": "off",
+            "autoneg": "off",
+            "description": "",
+            "index": "3",
+            "lanes": "10",
+            "last_change": "1791116719",
+            "link_training": "off",
+            "medium": "copper",
+            "mtu": "9100",
+            "oper_speed": "25000",
+            "oper_status": "up",
+            "oper_status_change_uptime": "60",
+            "port_load_interval": "10",
+            "preemphasis": "0x144c04",
+            "reason": "OPER_UP",
+            "speed": "25000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT_TABLE:PortConfigDone": {
+          "expireat": 1794564779.596601,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "count": "12"
+          }
+        },
+        "PORT_TABLE:PortInitDone": {
+          "expireat": 1794564779.5968077,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lanes": "0"
+          }
+        }
+      }
+    },
+    "CONFIG_DB": {
+      "DEVICE_METADATA": {
+        "DEVICE_METADATA|localhost": {
+          "expireat": 1794564779.2995586,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "default_config_profile": "l3",
+            "frr_mgmt_framework_config": "true",
+            "hostname": "leaf-1",
+            "hwsku": "Accton-AS7726-32X",
+            "intf_naming_mode": "standard",
+            "mac": "02:00:00:00:00:20",
+            "platform": "x86_64-accton_as7726_32x-r0",
+            "type": "LeafRouter"
+          }
+        }
+      },
+      "PORT": {
+        "PORT|Ethernet0": {
+          "expireat": 1794564779.0154903,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/1/1",
+            "autoneg": "off",
+            "index": "1",
+            "lanes": "1",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "25000",
+            "tagged_vlans@": "103,102,101,106",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT|Ethernet1": {
+          "expireat": 1794564779.01553,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/1/2",
+            "autoneg": "off",
+            "index": "1",
+            "lanes": "2",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "25000",
+            "tagged_vlans@": "103,102,101,106",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT|Ethernet12": {
+          "expireat": 1794564779.0156577,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/4/1",
+            "autoneg": "off",
+            "index": "4",
+            "lanes": "13",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "10000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT|Ethernet120": {
+          "expireat": 1794564779.0153978,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/31",
+            "autoneg": "off",
+            "index": "31",
+            "lanes": "121,122,123,124",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT|Ethernet124": {
+          "expireat": 1794564779.0153232,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/32",
+            "autoneg": "off",
+            "index": "32",
+            "lanes": "125,126,127,128",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT|Ethernet125": {
+          "expireat": 1794564779.015463,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "adv_speeds": "all",
+            "alias": "Eth1/33",
+            "autoneg": "off",
+            "index": "33",
+            "lanes": "129",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "10000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT|Ethernet13": {
+          "expireat": 1794564779.0156224,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/4/2",
+            "autoneg": "off",
+            "index": "4",
+            "lanes": "14",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "10000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT|Ethernet22": {
+          "expireat": 1794564779.0154417,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/6/3",
+            "autoneg": "off",
+            "index": "6",
+            "lanes": "23",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "10000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT|Ethernet24": {
+          "expireat": 1794564779.0153353,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "adv_speeds": "all",
+            "alias": "Eth1/7",
+            "autoneg": "off",
+            "index": "7",
+            "lanes": "25,26,27,28",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "100000",
+            "unreliable_los": "auto",
+            "valid_speeds": "100000, 40000"
+          }
+        },
+        "PORT|Ethernet4": {
+          "expireat": 1794564779.0154836,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "adv_speeds": "all",
+            "alias": "Eth1/2/1",
+            "autoneg": "off",
+            "index": "2",
+            "lanes": "5",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "25000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT|Ethernet6": {
+          "expireat": 1794564779.0154977,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/2/3",
+            "autoneg": "off",
+            "index": "2",
+            "lanes": "7",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "25000",
+            "unreliable_los": "auto"
+          }
+        },
+        "PORT|Ethernet9": {
+          "expireat": 1794564779.0155737,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "adv_speeds": "all",
+            "alias": "Eth1/3/2",
+            "autoneg": "off",
+            "index": "3",
+            "lanes": "10",
+            "link_training": "off",
+            "mtu": "9100",
+            "speed": "25000",
+            "unreliable_los": "auto"
+          }
+        }
+      }
+    }
+  },
+  "db_access": "user",
+  "errors": {},
+  "hostname": "leaf-1",
+  "mgmt": {
+    "eth0": {
+      "address": "02:00:00:00:00:1d",
+      "carrier": "1",
+      "mtu": "1500",
+      "operstate": "up",
+      "speed": "1000"
+    }
+  },
+  "sections": [
+    "ports"
+  ],
+  "version": 1
+}

@@ -1,0 +1,101 @@
+{
+  "collector": "linux",
+  "hostname": "node-1",
+  "ip_link": {
+    "err": "info: Using default fan map value (33)",
+    "out": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"loopback\",\"address\":\"02:00:00:00:00:18\",\"broadcast\":\"02:00:00:00:00:18\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":0,\"max_mtu\":0,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":1,\"num_rx_queues\":1,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536},{\"ifindex\":2,\"ifname\":\"enp4s0f0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"mq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:19\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":9216,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":8,\"num_rx_queues\":8,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"parentbus\":\"pci\",\"parentdev\":\"0000:04:00.0\",\"vfinfo_list\":[]},{\"ifindex\":3,\"ifname\":\"enp4s0f1\",\"flags\":[\"BROADCAST\",\"MULTICAST\"],\"mtu\":1500,\"qdisc\":\"noop\",\"operstate\":\"DOWN\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:1b\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":9216,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":8,\"num_rx_queues\":8,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":65536,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"parentbus\":\"pci\",\"parentdev\":\"0000:04:00.1\",\"vfinfo_list\":[]},{\"ifindex\":4,\"ifname\":\"ens4f0np0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":9100,\"qdisc\":\"mq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:01\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":9978,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":256,\"num_rx_queues\":32,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"phys_port_name\":\"p0\",\"phys_switch_id\":\"020000ffff000001\",\"parentbus\":\"pci\",\"parentdev\":\"0000:82:00.0\",\"vfinfo_list\":[],\"altnames\":[\"enp130s0f0np0\"]},{\"ifindex\":5,\"ifname\":\"ens4f1np1\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":9100,\"qdisc\":\"mq\",\"operstate\":\"UP\",\"linkmode\":\"DEFAULT\",\"group\":\"default\",\"txqlen\":1000,\"link_type\":\"ether\",\"address\":\"02:00:00:00:00:02\",\"broadcast\":\"02:00:00:00:00:1a\",\"promiscuity\":0,\"allmulti\":0,\"min_mtu\":68,\"max_mtu\":9978,\"inet6_addr_gen_mode\":\"eui64\",\"num_tx_queues\":256,\"num_rx_queues\":32,\"gso_max_size\":65536,\"gso_max_segs\":65535,\"tso_max_size\":524280,\"tso_max_segs\":65535,\"gro_max_size\":65536,\"phys_port_name\":\"p1\",\"phys_switch_id\":\"020000ffff000002\",\"parentbus\":\"pci\",\"parentdev\":\"0000:82:00.1\",\"vfinfo_list\":[],\"altnames\":[\"enp130s0f1np1\"]}]\n",
+    "rc": 0
+  },
+  "lldpctl": {
+    "err": "",
+    "out": "{\n  \"lldp\": {\n    \"interface\": [\n      {\n        \"enp4s0f0\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"3\",\n          \"age\": \"5 days, 15:27:45\",\n          \"chassis\": {\n            \"oob-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1c\"\n              },\n              \"descr\": \"MikroTik RouterOS 6.49.1 (stable) CRS354-48G-4S+2Q+\",\n              \"mgmt-ip\": \"192.0.2.1\",\n              \"mgmt-iface\": \"27\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"ifname\",\n              \"value\": \"bridge/ether14\"\n            },\n            \"ttl\": \"120\"\n          }\n        }\n      },\n      {\n        \"ens4f0np0\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"2\",\n          \"age\": \"5 days, 15:28:25\",\n          \"chassis\": {\n            \"leaf-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1d\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.5.2-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-39-amd64\",\n              \"mgmt-ip\": \"192.0.2.2\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/1/1\"\n            },\n            \"descr\": \"Ethernet0\",\n            \"ttl\": \"120\",\n            \"mfs\": \"9100\"\n          },\n          \"vlan\": [\n            {\n              \"vlan-id\": \"101\",\n              \"pvid\": false,\n              \"value\": \"Vlan_101\"\n            },\n            {\n              \"vlan-id\": \"102\",\n              \"pvid\": false,\n              \"value\": \"Vlan_102\"\n            },\n            {\n              \"vlan-id\": \"103\",\n              \"pvid\": false,\n              \"value\": \"Vlan_103\"\n            }\n          ],\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-39-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000001\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          },\n          \"unknown-tlvs\": {\n            \"unknown-tlv\": {\n              \"oui\": \"00,80,C2\",\n              \"subtype\": \"7\",\n              \"len\": \"5\",\n              \"value\": \"01,00,00,00,00\"\n            }\n          }\n        }\n      },\n      {\n        \"ens4f1np1\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"1\",\n          \"age\": \"5 days, 15:28:25\",\n          \"chassis\": {\n            \"leaf-2\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1e\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.4.1-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-21-amd64\",\n              \"mgmt-ip\": \"192.0.2.3\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/1/1\"\n            },\n            \"descr\": \"Ethernet0\",\n            \"ttl\": \"120\",\n            \"mfs\": \"9100\"\n          },\n          \"vlan\": [\n            {\n              \"vlan-id\": \"104\",\n              \"pvid\": false,\n              \"value\": \"Vlan_104\"\n            },\n            {\n              \"vlan-id\": \"105\",\n              \"pvid\": false,\n              \"value\": \"Vlan_105\"\n            }\n          ],\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-21-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000002\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          },\n          \"unknown-tlvs\": {\n            \"unknown-tlv\": {\n              \"oui\": \"00,80,C2\",\n              \"subtype\": \"7\",\n              \"len\": \"5\",\n              \"value\": \"01,00,00,00,00\"\n            }\n          }\n        }\n      }\n    ]\n  }\n}\n",
+    "rc": 0
+  },
+  "ports": {
+    "enp4s0f0": {
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:19\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "pci": "0000:04:00.0",
+      "sysfs": {
+        "address": "02:00:00:00:00:19",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "1500",
+        "operstate": "up",
+        "phys_port_name": null,
+        "speed": "1000",
+        "type": "1"
+      }
+    },
+    "enp4s0f1": {
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:1b\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "pci": "0000:04:00.1",
+      "sysfs": {
+        "address": "02:00:00:00:00:1b",
+        "carrier": null,
+        "dev_port": "0",
+        "duplex": null,
+        "mtu": "1500",
+        "operstate": "down",
+        "phys_port_name": null,
+        "speed": null,
+        "type": "1"
+      }
+    },
+    "ens4f0np0": {
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:01\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "pci": "0000:82:00.0",
+      "sysfs": {
+        "address": "02:00:00:00:00:01",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9100",
+        "operstate": "up",
+        "phys_port_name": "p0",
+        "speed": "25000",
+        "type": "1"
+      }
+    },
+    "ens4f1np1": {
+      "ethtool_P": {
+        "err": "",
+        "out": "Permanent address: 02:00:00:00:00:02\n",
+        "rc": 0
+      },
+      "kind": "physical",
+      "pci": "0000:82:00.1",
+      "sysfs": {
+        "address": "02:00:00:00:00:02",
+        "carrier": "1",
+        "dev_port": "0",
+        "duplex": "full",
+        "mtu": "9100",
+        "operstate": "up",
+        "phys_port_name": "p1",
+        "speed": "25000",
+        "type": "1"
+      }
+    }
+  },
+  "sections": [
+    "ports",
+    "lldp"
+  ],
+  "version": 1
+}

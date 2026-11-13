@@ -1,0 +1,235 @@
+{
+  "collector": "sonic",
+  "db": {
+    "APPL_DB": {
+      "PORT_TABLE": {
+        "PORT_TABLE:Ethernet0": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "mtu": "9100",
+            "oper_status": "up",
+            "speed": "25000"
+          }
+        },
+        "PORT_TABLE:Ethernet1": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "mtu": "9100",
+            "oper_status": "up",
+            "speed": "10000"
+          }
+        },
+        "PORT_TABLE:Ethernet10": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "mtu": "9100",
+            "oper_status": "down",
+            "speed": "25000"
+          }
+        },
+        "PORT_TABLE:Ethernet11": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "mtu": "9100",
+            "oper_status": "up",
+            "speed": "25000"
+          }
+        },
+        "PORT_TABLE:Ethernet2": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "mtu": "9100",
+            "oper_status": "down",
+            "speed": "25000"
+          }
+        },
+        "PORT_TABLE:Ethernet48": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "mtu": "9100",
+            "oper_status": "up",
+            "speed": "100000"
+          }
+        },
+        "PORT_TABLE:Ethernet52": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "mtu": "9100",
+            "oper_status": "down",
+            "speed": "100000"
+          }
+        },
+        "PORT_TABLE:PortConfigDone": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "count": "58"
+          }
+        },
+        "PORT_TABLE:PortInitDone": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "lanes": "0"
+          }
+        }
+      }
+    },
+    "CONFIG_DB": {
+      "DEVICE_METADATA": {
+        "DEVICE_METADATA|localhost": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "hostname": "leaf-1a",
+            "hwsku": "Accton-AS7326-56X",
+            "intf_naming_mode": "standard",
+            "mac": "0c:29:ef:d1:a0:00",
+            "platform": "x86_64-accton_as7326_56x-r0",
+            "type": "LeafRouter"
+          }
+        }
+      },
+      "PORT": {
+        "PORT|Ethernet0": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "alias": "Eth1/1",
+            "fec": "rs",
+            "index": "0",
+            "lanes": "1",
+            "mtu": "9100",
+            "speed": "25000"
+          }
+        },
+        "PORT|Ethernet1": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "alias": "Eth1/2",
+            "fec": "rs",
+            "index": "1",
+            "lanes": "2",
+            "mtu": "9100",
+            "speed": "25000"
+          }
+        },
+        "PORT|Ethernet10": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "alias": "Eth1/11",
+            "fec": "rs",
+            "index": "10",
+            "lanes": "11",
+            "mtu": "9100",
+            "speed": "25000"
+          }
+        },
+        "PORT|Ethernet11": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "alias": "Eth1/12",
+            "description": "compute-042",
+            "fec": "rs",
+            "index": "11",
+            "lanes": "12",
+            "mtu": "9100",
+            "speed": "25000"
+          }
+        },
+        "PORT|Ethernet2": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "down",
+            "alias": "Eth1/3",
+            "index": "2",
+            "lanes": "3",
+            "mtu": "9100",
+            "speed": "25000"
+          }
+        },
+        "PORT|Ethernet48": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "alias": "Eth1/49",
+            "fec": "rs",
+            "index": "48",
+            "lanes": "49",
+            "mtu": "9100",
+            "speed": "100000"
+          }
+        },
+        "PORT|Ethernet52": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "admin_status": "up",
+            "alias": "Eth1/50",
+            "fec": "rs",
+            "index": "52",
+            "lanes": "53",
+            "mtu": "9100",
+            "speed": "100000"
+          }
+        }
+      }
+    }
+  },
+  "db_access": "user",
+  "errors": {},
+  "hostname": "leaf-1a",
+  "mgmt": {
+    "eth0": {
+      "address": "0c:29:ef:d1:a0:01",
+      "carrier": "1",
+      "mtu": "1500",
+      "operstate": "up",
+      "speed": "1000"
+    }
+  },
+  "sections": [
+    "ports"
+  ],
+  "version": 1
+}

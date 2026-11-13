@@ -46,6 +46,20 @@ class InterfaceCache:
 
             return self._cache[device_id]
 
+    def set_device_interfaces(self, device_id: int, interfaces: List) -> None:
+        """Store interfaces of a device that were fetched elsewhere.
+
+        A caller that already loaded the interfaces of many devices in bulk
+        can hand them over, so that later lookups do not fetch them again
+        device by device.
+
+        Args:
+            device_id: NetBox device ID
+            interfaces: Interface objects of the device
+        """
+        with self._lock:
+            self._cache[device_id] = list(interfaces)
+
     def clear(self):
         """Clear the cache."""
         with self._lock:
