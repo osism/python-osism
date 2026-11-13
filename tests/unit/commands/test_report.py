@@ -21,6 +21,7 @@ also used as parser fixtures.
 
 import csv
 import io
+import itertools
 import json
 import subprocess
 from contextlib import contextmanager
@@ -35,7 +36,9 @@ from osism.utils.hardware.collect import Collection
 from osism.utils.hardware.mapping import Endpoint, NetboxInterface
 from osism.utils.hardware.selection import Target
 
-COMMANDS = [report.Memory, report.Lldp, report.Bgp, report.Status]
+# Lldp is not part of this list: it selects its devices through
+# osism.utils.hardware.selection and has tests of its own further down.
+COMMANDS = [report.Memory, report.Bgp, report.Status]
 
 # Status requires a positional "type"; the others take no required args.
 ARGS = {report.Status: ["bootstrap"]}
@@ -243,11 +246,31 @@ def _lldp_json(interface):
     return json.dumps({"lldp": {"interface": interface}})
 
 
-def test_lldp_normalizes_single_interface_dict(capsys):
-    cmd, parsed_args = _make(report.Lldp)
+def _listing_document(lldpctl_stdout, ports=("eth0",)):
+    """Document of the Linux collector for a node with the given lldpctl output."""
+    return {
+        "collector": "linux",
+        "ports": {
+            name: {"kind": "physical", "sysfs": {"operstate": "up"}} for name in ports
+        },
+        "ip_link": {"rc": 0, "out": "[]", "err": ""},
+        "lldpctl": {"rc": 0, "out": lldpctl_stdout, "err": ""},
+    }
 
-    with _ssh_env(["host-a"], [_proc(stdout=_lldp_json({"eth0": IFACE_ETH0}))]):
-        result = cmd.take_action(parsed_args)
+
+def _run_listing(lldpctl_stdout, ports=("eth0",)):
+    """Run ``report lldp`` for one node without NetBox, as a plain listing."""
+    return _run(
+        report.Lldp,
+        [],
+        [_target("host-a", "node")],
+        {"host-a": _listing_document(lldpctl_stdout, ports)},
+        netbox=False,
+    )
+
+
+def test_lldp_normalizes_single_interface_dict(capsys):
+    result, _ = _run_listing(_lldp_json({"eth0": IFACE_ETH0}))
 
     assert not result
     out = capsys.readouterr().out
@@ -258,11 +281,9 @@ def test_lldp_normalizes_single_interface_dict(capsys):
 
 
 def test_lldp_handles_interface_list(capsys):
-    cmd, parsed_args = _make(report.Lldp)
     interfaces = [{"eth0": IFACE_ETH0}, {"eth1": IFACE_ETH1}]
 
-    with _ssh_env(["host-a"], [_proc(stdout=_lldp_json(interfaces))]):
-        result = cmd.take_action(parsed_args)
+    result, _ = _run_listing(_lldp_json(interfaces), ports=("eth0", "eth1"))
 
     assert not result
     out = capsys.readouterr().out
@@ -274,10 +295,7 @@ def test_lldp_handles_interface_list(capsys):
 
 
 def test_lldp_defaults_missing_neighbor_details(capsys):
-    cmd, parsed_args = _make(report.Lldp)
-
-    with _ssh_env(["host-a"], [_proc(stdout=_lldp_json({"eth0": {}}))]):
-        result = cmd.take_action(parsed_args)
+    result, _ = _run_listing(_lldp_json({"eth0": {}}))
 
     assert not result
     out = capsys.readouterr().out
@@ -286,16 +304,77 @@ def test_lldp_defaults_missing_neighbor_details(capsys):
     assert out.count("n/a") >= 3
 
 
-def test_lldp_marks_host_failed_on_invalid_json(loguru_logs):
-    cmd, parsed_args = _make(report.Lldp)
-
-    with _ssh_env(["host-a"], [_proc(stdout="not json")]):
-        result = cmd.take_action(parsed_args)
+def test_lldp_marks_host_failed_on_invalid_json(capsys, loguru_logs):
+    result, _ = _run_listing("not json")
 
     assert not result
+    assert "eth0" not in capsys.readouterr().out
     messages = [record["message"] for record in loguru_logs]
-    assert any("Could not parse LLDP info from host-a." in m for m in messages)
-    assert any("Failed to query 1 host(s): host-a" in m for m in messages)
+    assert any(
+        "Failed to query 1 device(s): host-a (unparsable lldpctl output)" in m
+        for m in messages
+    )
+
+
+@contextmanager
+def _lldp_inventory_env(inventory_result):
+    """Let ``report lldp`` select from an inventory, without NetBox."""
+    with patch(
+        "osism.commands.report.ensure_known_hosts_file", return_value=True
+    ), patch("osism.utils.nb", new=None, create=True), patch(
+        "osism.utils.hardware.selection.get_inventory_path",
+        return_value="/ansible/inventory/hosts.yml",
+    ), patch(
+        "osism.utils.hardware.selection.subprocess.run",
+        side_effect=[inventory_result],
+    ) as run, patch(
+        "osism.commands.report.collect", return_value=Collection()
+    ) as collect:
+        yield SimpleNamespace(collect=collect, run=run)
+
+
+@pytest.mark.parametrize(
+    "inventory_result,message",
+    [
+        (_proc(returncode=1), "Error loading inventory."),
+        (
+            subprocess.TimeoutExpired(cmd="ansible-inventory", timeout=30),
+            "Timeout loading inventory.",
+        ),
+        # Nothing to check is a failed selection for the cabling check
+        (_proc(stdout="{}"), "No devices matched the selection."),
+    ],
+)
+def test_lldp_returns_nonzero_when_nothing_can_be_selected(
+    inventory_result, message, loguru_logs
+):
+    cmd, parsed_args = _make(report.Lldp)
+
+    with _lldp_inventory_env(inventory_result) as mocks:
+        result = cmd.take_action(parsed_args)
+
+    assert result == 1
+    mocks.collect.assert_not_called()
+    assert _logged(loguru_logs, "ERROR", message)
+
+
+def test_lldp_limit_keeps_selecting_nodes_from_the_inventory():
+    cmd = report.Lldp(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args(["-l", "compute"])
+    inventory = _proc(stdout=json.dumps({"compute": {"hosts": ["host-a", "host-b"]}}))
+
+    with _lldp_inventory_env(inventory) as mocks, patch(
+        "osism.commands.report.resolve_host_with_fallback",
+        side_effect=lambda host: host,
+    ):
+        cmd.take_action(parsed_args)
+
+    assert mocks.run.call_args.args[0][-2:] == ["--limit", "compute"]
+    targets = mocks.collect.call_args.args[0]
+    assert [(t.name, t.kind, t.address) for t in targets] == [
+        ("host-a", "node", "host-a"),
+        ("host-b", "node", "host-b"),
+    ]
 
 
 # --- Bgp ---
@@ -471,12 +550,35 @@ def _netbox_interface(interface_id, device, name, peer=None, **kwargs):
 
 
 @contextmanager
-def _hardware_env(targets, documents, failed=(), interfaces=None, netbox=True):
+def _hardware_env(
+    targets,
+    documents,
+    failed=(),
+    interfaces=None,
+    netbox=True,
+    netbox_devices=(),
+    found_devices=(),
+):
     """Replace selection, collection and NetBox for a hardware report.
+
+    Args:
+        interfaces: NetBox interfaces per device ID
+        netbox_devices: Devices NetBox returns when asked by ID
+        found_devices: Devices NetBox returns when asked by name
 
     Yields the mocks, so that a test can look at what was requested.
     """
     collection = Collection(documents=dict(documents), failed=list(failed))
+    interfaces = interfaces or {}
+
+    def fetch_interfaces(nb, device_ids):
+        return {
+            device_id: list(interfaces.get(device_id, [])) for device_id in device_ids
+        }
+
+    def fetch_devices(nb, device_ids):
+        return [dict(d) for d in netbox_devices if d["id"] in set(device_ids)]
+
     with patch(
         "osism.commands.report.ensure_known_hosts_file", return_value=True
     ), patch(
@@ -486,14 +588,26 @@ def _hardware_env(targets, documents, failed=(), interfaces=None, netbox=True):
     ) as resolve, patch(
         "osism.commands.report.collect", return_value=collection
     ) as collect, patch(
-        "osism.commands.report.fetch_interfaces", return_value=interfaces or {}
+        "osism.commands.report.fetch_interfaces", side_effect=fetch_interfaces
     ) as fetch, patch(
+        "osism.commands.report.fetch_devices", side_effect=fetch_devices
+    ) as devices, patch(
+        "osism.commands.report.find_devices",
+        return_value=[dict(d) for d in found_devices],
+    ) as find, patch(
         "osism.commands.report.sonic_name_index", return_value={}
+    ), patch(
+        "osism.commands.report.sonic_alias_index", return_value={}
     ), patch(
         "osism.utils.nb", new=MagicMock() if netbox else None, create=True
     ):
         yield SimpleNamespace(
-            select=select, resolve=resolve, collect=collect, fetch=fetch
+            select=select,
+            resolve=resolve,
+            collect=collect,
+            fetch=fetch,
+            devices=devices,
+            find=find,
         )
 
 
@@ -1012,3 +1126,764 @@ def test_transceiver_is_registered_as_a_command():
         "report transceiver = osism.commands.report:Transceiver"
         in config["options.entry_points"]["osism.commands"]
     )
+
+
+# ---------------------------------------------------------------------------
+# report lldp: comparison with NetBox
+# ---------------------------------------------------------------------------
+
+RACK_IDS = {
+    "leaf-1a": 1,
+    "leaf-1b": 2,
+    "mgmt-1": 3,
+    "leaf-1c": 4,
+    "compute-041": 10,
+    "compute-042": 11,
+}
+RACK_DEVICES = [{"id": device_id, "name": name} for name, device_id in RACK_IDS.items()]
+
+
+def _rack():
+    """NetBox interfaces of a small rack, per device ID.
+
+    Two compute nodes with one port on each of two leaf switches, the BMC of
+    compute-041 and the management port of leaf-1a on an OOB switch, and a
+    port of leaf-1c that is documented for a node outside the rack.
+    """
+    counter = itertools.count(1000)
+    interfaces = {device_id: {} for device_id in RACK_IDS.values()}
+
+    def get(device, name, **kwargs):
+        found = interfaces[RACK_IDS[device]]
+        if name not in found:
+            found[name] = NetboxInterface(
+                id=next(counter),
+                device_id=RACK_IDS[device],
+                device=device,
+                name=name,
+                **kwargs,
+            )
+        return found[name]
+
+    def cable(left, right, **kwargs):
+        (left_device, left_name), (right_device, right_name) = (
+            left.split(":"),
+            right.split(":"),
+        )
+        a = get(left_device, left_name, **kwargs)
+        b = get(right_device, right_name)
+        a.has_cable = b.has_cable = True
+        a.endpoints.append(
+            Endpoint(right_device, right_name, RACK_IDS[right_device], b.id)
+        )
+        b.endpoints.append(
+            Endpoint(left_device, left_name, RACK_IDS[left_device], a.id)
+        )
+
+    cable("compute-041:ens1f0", "leaf-1a:Eth1/11")
+    cable("compute-041:ens1f1", "leaf-1b:Eth1/11")
+    cable("compute-042:ens1f0", "leaf-1a:Eth1/12")
+    cable("compute-042:ens1f1", "leaf-1b:Eth1/12")
+    cable("compute-041:bmc", "mgmt-1:Eth1/5", mgmt_only=True)
+    cable("leaf-1a:eth0", "mgmt-1:Eth1/1", mgmt_only=True)
+    get("compute-041", "bond0", type="lag")
+    get("leaf-1c", "Eth1/11")
+    return {device_id: list(found.values()) for device_id, found in interfaces.items()}
+
+
+def _ok(text):
+    return {"rc": 0, "out": text, "err": ""}
+
+
+def _node_document(ports):
+    """Linux collector document.
+
+    Args:
+        ports: ``{name: (link state, "device:port" seen or None)}``
+    """
+    links = []
+    lldp = []
+    for name, (link, seen) in ports.items():
+        links.append(
+            {
+                "ifname": name,
+                "flags": ["UP"],
+                "operstate": link.upper(),
+                "address": "02:00:00:00:00:01",
+            }
+        )
+        if seen:
+            system, _, port = seen.partition(":")
+            lldp.append(
+                {
+                    name: {
+                        "chassis": {system: {"id": {"type": "mac", "value": "x"}}},
+                        "port": {"id": {"type": "local", "value": port}},
+                        "age": "1 day",
+                    }
+                }
+            )
+    return {
+        "collector": "linux",
+        "ports": {name: {"kind": "physical", "sysfs": {}} for name in ports},
+        "ip_link": _ok(json.dumps(links)),
+        "lldpctl": _ok(json.dumps({"lldp": {"interface": lldp}})),
+    }
+
+
+def _switch_document(ports, mgmt=None):
+    """SONiC collector document.
+
+    Args:
+        ports: ``{SONiC name: (alias, link state, "device:port" seen or None)}``
+        mgmt: ``(link state, "device:port" seen or None)`` of ``eth0``
+    """
+    config, state, entries = {}, {}, {}
+
+    def entry(seen):
+        system, _, port = seen.partition(":")
+        return {
+            "value": {
+                "lldp_rem_sys_name": system,
+                "lldp_rem_port_id": port,
+                "lldp_rem_port_id_subtype": "5",
+            }
+        }
+
+    for name, (alias, link, seen) in ports.items():
+        config[f"PORT|{name}"] = {"value": {"alias": alias, "admin_status": "up"}}
+        state[f"PORT_TABLE:{name}"] = {"value": {"oper_status": link}}
+        if seen:
+            entries[f"LLDP_ENTRY_TABLE:{name}"] = entry(seen)
+    document = {
+        "collector": "sonic",
+        "db": {
+            "CONFIG_DB": {"PORT": config},
+            "APPL_DB": {"PORT_TABLE": state, "LLDP_ENTRY_TABLE": entries},
+        },
+    }
+    if mgmt:
+        link, seen = mgmt
+        document["mgmt"] = {"eth0": {"operstate": link, "address": "0c:00:00:00:00:01"}}
+        if seen:
+            entries["LLDP_ENTRY_TABLE:eth0"] = entry(seen)
+    return document
+
+
+def _rack_target(name):
+    kind = "node" if name.startswith("compute") else "switch"
+    return _target(name, kind, device_id=RACK_IDS[name])
+
+
+HEALTHY_041 = _node_document(
+    {"ens1f0": ("up", "leaf-1a:Eth1/11"), "ens1f1": ("up", "leaf-1b:Eth1/11")}
+)
+SWAPPED_042 = _node_document(
+    {"ens1f0": ("up", "leaf-1b:Eth1/12"), "ens1f1": ("up", "leaf-1a:Eth1/12")}
+)
+HEALTHY_LEAF_1A = _switch_document(
+    {
+        "Ethernet10": ("Eth1/11", "up", "compute-041:ens1f0"),
+        "Ethernet11": ("Eth1/12", "up", "compute-042:ens1f0"),
+    },
+    mgmt=("up", "mgmt-1:Eth1/1"),
+)
+
+
+def _lldp(argv, documents, **kwargs):
+    """Run ``report lldp`` against the rack; return ``(result, mocks)``."""
+    kwargs.setdefault("interfaces", _rack())
+    kwargs.setdefault("netbox_devices", RACK_DEVICES)
+    targets = kwargs.pop("targets", None) or [_rack_target(name) for name in documents]
+    return _run(report.Lldp, list(argv), targets, documents, **kwargs)
+
+
+def _lldp_json_report(argv, documents, **kwargs):
+    stdout = io.StringIO()
+    with patch("sys.stdout", stdout):
+        result, mocks = _lldp(["--format", "json", *argv], documents, **kwargs)
+    return result, json.loads(stdout.getvalue()), mocks
+
+
+def _results(document):
+    """``{(device, interface): result}`` of a JSON report."""
+    return {
+        (device["name"], interface["name"]): interface["result"]
+        for device in document["devices"]
+        for interface in device["interfaces"]
+    }
+
+
+def test_lldp_compares_neighbours_with_netbox(capsys):
+    documents = {"compute-041": HEALTHY_041, "compute-042": SWAPPED_042}
+
+    result, _ = _lldp([], documents)
+
+    assert not result
+    lines = capsys.readouterr().out.splitlines()
+    header = [cell.strip() for cell in lines[1].strip("|").split("|")]
+    assert header == ["Device", "Interface", "Expected", "Seen", "Result", "Hint"]
+    rows = [
+        [cell.strip() for cell in line.strip("|").split("|")] for line in lines[3:7]
+    ]
+    assert rows == [
+        ["compute-041", "ens1f0", "leaf-1a:Eth1/11", "leaf-1a:Eth1/11", "ok", ""],
+        ["compute-041", "ens1f1", "leaf-1b:Eth1/11", "leaf-1b:Eth1/11", "ok", ""],
+        [
+            "compute-042",
+            "ens1f0",
+            "leaf-1a:Eth1/12",
+            "leaf-1b:Eth1/12",
+            "swapped",
+            "swapped with ens1f1",
+        ],
+        [
+            "compute-042",
+            "ens1f1",
+            "leaf-1b:Eth1/12",
+            "leaf-1a:Eth1/12",
+            "swapped",
+            "swapped with ens1f0",
+        ],
+    ]
+    assert "Devices: 2   Ports: 4" in lines
+    assert "ok: 2   swapped: 2" in lines
+
+
+def test_lldp_collects_without_root_from_the_selected_devices_only():
+    documents = {"compute-041": HEALTHY_041, "leaf-1a": HEALTHY_LEAF_1A}
+
+    _, mocks = _lldp([], documents)
+
+    targets, requests = mocks.collect.call_args.args
+    # leaf-1b, mgmt-1 and compute-042 are documented peers, but they were
+    # not selected
+    assert [target.name for target in targets] == ["compute-041", "leaf-1a"]
+    for kind in ("node", "switch"):
+        assert requests[kind].sections == ["ports", "lldp"]
+        assert requests[kind].sudo is False
+    # Their cabling is read from NetBox instead
+    assert sorted(mocks.devices.call_args.args[1]) == [2, 3, 11]
+    assert sorted(mocks.fetch.call_args_list[1].args[1]) == [2, 3, 11]
+
+
+def test_lldp_reports_the_findings_of_a_miscabled_rack():
+    documents = {
+        "compute-041": _node_document(
+            {"ens1f0": ("down", None), "ens1f1": ("up", "leaf-1b:Eth1/14")}
+        ),
+        "compute-042": _node_document(
+            {
+                "ens1f0": ("up", "leaf-1c:Eth1/11"),
+                "ens1f1": ("up", None),
+                "ens2f0": ("up", "leaf-1a:Eth1/20"),
+            }
+        ),
+    }
+    interfaces = _rack()
+    interfaces[11].append(
+        NetboxInterface(id=5000, device_id=11, device="compute-042", name="ens2f0")
+    )
+
+    _, document, _ = _lldp_json_report([], documents, interfaces=interfaces)
+
+    assert _results(document) == {
+        ("compute-041", "ens1f0"): "missing",
+        ("compute-041", "ens1f1"): "wrong-port",
+        ("compute-042", "ens1f0"): "wrong-device",
+        ("compute-042", "ens1f1"): "no-lldp",
+        ("compute-042", "ens2f0"): "unexpected",
+    }
+    assert document["summary"] == {
+        "missing": 1,
+        "no-lldp": 1,
+        "wrong-port": 1,
+        "wrong-device": 1,
+        "unexpected": 1,
+    }
+
+
+def test_lldp_finds_cables_swapped_between_two_nodes():
+    documents = {
+        "compute-041": _node_document({"ens1f0": ("up", "leaf-1a:Eth1/12")}),
+        "compute-042": _node_document({"ens1f0": ("up", "leaf-1a:Eth1/11")}),
+    }
+
+    _, document, _ = _lldp_json_report(["--result", "swapped"], documents)
+
+    hints = {
+        device["name"]: device["interfaces"][0]["hint"]
+        for device in document["devices"]
+    }
+    assert hints == {
+        "compute-041": "swapped with compute-042:ens1f0",
+        "compute-042": "swapped with compute-041:ens1f0",
+    }
+
+
+def test_lldp_json_is_nested_per_device():
+    documents = {"compute-041": HEALTHY_041, "compute-042": SWAPPED_042}
+
+    _, document, _ = _lldp_json_report([], documents)
+
+    assert sorted(document) == [
+        "compared_with_netbox",
+        "devices",
+        "failed",
+        "generated_at",
+        "summary",
+    ]
+    assert document["compared_with_netbox"] is True
+    assert document["summary"] == {"ok": 2, "swapped": 2}
+    assert [(d["name"], d["kind"]) for d in document["devices"]] == [
+        ("compute-041", "node"),
+        ("compute-042", "node"),
+    ]
+    interface = document["devices"][1]["interfaces"][0]
+    assert interface["name"] == "ens1f0"
+    assert interface["netbox_name"] == "ens1f0"
+    assert interface["mapping"] == "name"
+    assert interface["oper_status"] == "up"
+    assert interface["expected"] == {"device": "leaf-1a", "interface": "Eth1/12"}
+    assert interface["result"] == "swapped"
+    assert interface["hint"] == "swapped with ens1f1"
+    (seen,) = interface["seen"]
+    assert (seen["device"], seen["interface"]) == ("leaf-1b", "Eth1/12")
+    assert (seen["system_name"], seen["port_id"], seen["age"]) == (
+        "leaf-1b",
+        "Eth1/12",
+        "1 day",
+    )
+    assert document["devices"][0]["interfaces"][0]["hint"] is None
+
+
+def test_lldp_checks_the_management_port_of_a_switch_by_default():
+    documents = {"leaf-1a": HEALTHY_LEAF_1A}
+
+    _, document, _ = _lldp_json_report([], documents)
+
+    assert _results(document) == {
+        ("leaf-1a", "Ethernet10"): "ok",
+        ("leaf-1a", "Ethernet11"): "ok",
+        ("leaf-1a", "eth0"): "ok",
+    }
+    by_name = {i["name"]: i for i in document["devices"][0]["interfaces"]}
+    assert by_name["eth0"]["netbox_name"] == "eth0"
+    assert by_name["eth0"]["expected"] == {"device": "mgmt-1", "interface": "Eth1/1"}
+    assert by_name["Ethernet10"]["netbox_name"] == "Eth1/11"
+    assert by_name["Ethernet10"]["mapping"] == "alias"
+
+
+def test_lldp_reports_an_unplugged_management_port():
+    documents = {
+        "leaf-1a": _switch_document(
+            {"Ethernet10": ("Eth1/11", "up", "compute-041:ens1f0")},
+            mgmt=("down", None),
+        )
+    }
+
+    _, document, _ = _lldp_json_report(["--interface", "eth0"], documents)
+
+    assert _results(document) == {("leaf-1a", "eth0"): "missing"}
+
+
+def test_lldp_no_mgmt_leaves_management_interfaces_out():
+    documents = {"leaf-1a": HEALTHY_LEAF_1A, "compute-041": HEALTHY_041}
+
+    _, document, _ = _lldp_json_report(["--no-mgmt", "--long"], documents)
+
+    assert ("leaf-1a", "eth0") not in _results(document)
+    assert ("compute-041", "bmc") not in _results(document)
+
+
+def test_lldp_bmc_port_produces_no_finding_on_the_node():
+    """The BMC port is documented, cabled, and absent in the operating system."""
+    documents = {"compute-041": HEALTHY_041}
+
+    result, document, _ = _lldp_json_report(["--long", "--strict"], documents)
+
+    assert _results(document) == {
+        ("compute-041", "ens1f0"): "ok",
+        ("compute-041", "ens1f1"): "ok",
+    }
+    assert not result
+
+
+def test_lldp_one_sided_when_the_queried_peer_does_not_see_the_node():
+    documents = {
+        "compute-041": HEALTHY_041,
+        "leaf-1a": _switch_document(
+            {
+                "Ethernet10": ("Eth1/11", "up", None),
+                "Ethernet11": ("Eth1/12", "up", "compute-042:ens1f0"),
+            },
+            mgmt=("up", "mgmt-1:Eth1/1"),
+        ),
+    }
+
+    _, document, _ = _lldp_json_report([], documents)
+
+    results = _results(document)
+    assert results[("compute-041", "ens1f0")] == "one-sided"
+    assert results[("compute-041", "ens1f1")] == "ok"
+    assert results[("leaf-1a", "Ethernet10")] == "no-lldp"
+
+
+def test_lldp_looks_up_unknown_neighbours_by_name():
+    documents = {
+        "compute-041": _node_document(
+            {
+                "ens1f0": ("up", "leaf-1c.example.com:Eth1/11"),
+                "ens1f1": ("up", "leaf-1b:Eth1/11"),
+            }
+        )
+    }
+
+    _, document, mocks = _lldp_json_report(
+        [], documents, found_devices=[{"id": 4, "name": "leaf-1c"}]
+    )
+
+    assert mocks.find.call_args.args[1] == ["leaf-1c.example.com"]
+    interface = document["devices"][0]["interfaces"][0]
+    assert interface["result"] == "wrong-device"
+    assert interface["hint"] == "seen port has no cable in NetBox"
+    assert interface["seen"][0]["device"] == "leaf-1c"
+
+
+def test_lldp_neighbour_unknown_to_netbox_is_reported_as_announced():
+    documents = {
+        "compute-041": _node_document(
+            {"ens1f0": ("up", "tor-9:xe-0/0/1"), "ens1f1": ("up", "leaf-1b:Eth1/11")}
+        )
+    }
+
+    _, document, _ = _lldp_json_report([], documents)
+
+    interface = document["devices"][0]["interfaces"][0]
+    assert interface["result"] == "wrong-device"
+    assert interface["hint"] == "neighbour unknown to NetBox"
+    assert (interface["seen"][0]["device"], interface["seen"][0]["interface"]) == (
+        "tor-9",
+        "xe-0/0/1",
+    )
+
+
+@pytest.mark.parametrize(
+    "argv,expected",
+    [
+        (["--problems"], [("compute-042", "ens1f0"), ("compute-042", "ens1f1")]),
+        (["--result", "ok"], [("compute-041", "ens1f0"), ("compute-041", "ens1f1")]),
+        (
+            ["--result", "ok", "--result", "swapped", "--interface", "ens1f0"],
+            [("compute-041", "ens1f0"), ("compute-042", "ens1f0")],
+        ),
+        (
+            ["--interface", "*f1"],
+            [("compute-041", "ens1f1"), ("compute-042", "ens1f1")],
+        ),
+        (["--result", "missing"], []),
+    ],
+)
+def test_lldp_row_filters(argv, expected):
+    documents = {"compute-041": HEALTHY_041, "compute-042": SWAPPED_042}
+
+    _, document, _ = _lldp_json_report(argv, documents)
+
+    assert sorted(_results(document)) == expected
+    # The summary keeps counting everything that was checked
+    assert document["summary"] == {"ok": 2, "swapped": 2}
+
+
+def test_lldp_problems_with_nothing_wrong_still_prints_the_summary(capsys):
+    result, _ = _lldp(["--problems"], {"compute-041": HEALTHY_041})
+
+    assert not result
+    out = capsys.readouterr().out
+    assert "ens1f0" not in out
+    assert "Devices: 1   Ports: 2" in out
+    assert "ok: 2" in out
+
+
+def test_lldp_long_lists_ports_with_nothing_to_report():
+    documents = {
+        "compute-041": _node_document(
+            {
+                "ens1f0": ("up", "leaf-1a:Eth1/11"),
+                "ens1f1": ("up", "leaf-1b:Eth1/11"),
+                "usb0": ("up", None),
+            }
+        )
+    }
+
+    _, default, _ = _lldp_json_report([], documents)
+    _, long, _ = _lldp_json_report(["--long"], documents)
+
+    assert ("compute-041", "usb0") not in _results(default)
+    assert _results(long)[("compute-041", "usb0")] is None
+
+
+def test_lldp_csv_and_columns(capsys, tmp_path):
+    documents = {"compute-041": HEALTHY_041, "compute-042": SWAPPED_042}
+
+    _lldp(["--format", "csv"], documents)
+    rows = list(csv.reader(io.StringIO(capsys.readouterr().out)))
+    assert rows[0] == ["device", "interface", "expected", "seen", "result", "hint"]
+    assert rows[3] == [
+        "compute-042",
+        "ens1f0",
+        "leaf-1a:Eth1/12",
+        "leaf-1b:Eth1/12",
+        "swapped",
+        "swapped with ens1f1",
+    ]
+    assert len(rows) == 5
+
+    _lldp(["--format", "csv", "--column", "result", "--column", "Device"], documents)
+    rows = list(csv.reader(io.StringIO(capsys.readouterr().out)))
+    assert rows[0] == ["result", "device"]
+
+    _lldp(["--format", "csv", "--long"], documents)
+    header = list(csv.reader(io.StringIO(capsys.readouterr().out)))[0]
+    assert header == [column.key for column in report.LLDP_COMPARE_COLUMNS]
+
+    path = tmp_path / "cabling.csv"
+    _lldp(["--format", "csv", "--output", str(path)], documents)
+    assert capsys.readouterr().out == ""
+    assert path.read_text().startswith("device,interface,expected,seen,result,hint\n")
+
+
+def test_lldp_json_on_stdout_is_one_document(capsys, loguru_logs):
+    documents = {"compute-041": HEALTHY_041}
+    failed = [{"name": "compute-042", "error": "timeout"}]
+    targets = [_rack_target("compute-041"), _rack_target("compute-042")]
+
+    _lldp(["--format", "json"], documents, failed=failed, targets=targets)
+
+    document = json.loads(capsys.readouterr().out)
+    assert document["failed"] == failed
+    assert _logged(loguru_logs, "WARNING", "Failed to query 1 device(s)")
+
+
+@pytest.mark.parametrize(
+    "documents,failed,expected",
+    [
+        ({"compute-041": HEALTHY_041}, [], None),
+        ({"compute-042": SWAPPED_042}, [], 1),
+        (
+            {"compute-041": HEALTHY_041},
+            [{"name": "compute-042", "error": "timeout"}],
+            1,
+        ),
+    ],
+)
+def test_lldp_strict_fails_on_findings_and_failed_devices(documents, failed, expected):
+    targets = [_rack_target("compute-041"), _rack_target("compute-042")]
+
+    result, _ = _lldp(["--strict"], documents, failed=failed, targets=targets)
+    assert result == expected
+
+    result, _ = _lldp([], documents, failed=failed, targets=targets)
+    assert result is None
+
+
+def test_lldp_strict_ignores_the_row_filters():
+    """Hiding a finding must not turn a failed check into a passed one."""
+    result, _ = _lldp(["--strict", "--result", "ok"], {"compute-042": SWAPPED_042})
+
+    assert result == 1
+
+
+def test_lldp_unreachable_device_is_seen_from_the_other_side(loguru_logs):
+    documents = {"leaf-1a": HEALTHY_LEAF_1A}
+    failed = [{"name": "compute-041", "error": "timeout"}]
+    targets = [_rack_target("compute-041"), _rack_target("leaf-1a")]
+
+    result, document, _ = _lldp_json_report(
+        [], documents, failed=failed, targets=targets
+    )
+
+    assert not result
+    assert document["failed"] == failed
+    assert [device["name"] for device in document["devices"]] == ["leaf-1a"]
+    assert _results(document)[("leaf-1a", "Ethernet10")] == "ok"
+
+
+def test_lldp_missing_lldpd_is_a_failed_device_with_a_clear_message(loguru_logs):
+    broken = dict(HEALTHY_041)
+    broken["lldpctl"] = {"rc": 1, "out": "", "err": "unable to connect to socket"}
+    documents = {"compute-041": broken, "compute-042": SWAPPED_042}
+
+    result, document, _ = _lldp_json_report([], documents)
+
+    assert not result
+    assert document["failed"] == [
+        {
+            "name": "compute-041",
+            "error": "lldpctl failed: unable to connect to socket",
+        }
+    ]
+    assert [device["name"] for device in document["devices"]] == ["compute-042"]
+    assert _logged(
+        loguru_logs,
+        "WARNING",
+        "compute-041 (lldpctl failed: unable to connect to socket)",
+    )
+
+
+def test_lldp_fails_when_the_cabling_cannot_be_loaded(capsys, loguru_logs):
+    cmd = report.Lldp(MagicMock(), MagicMock())
+    parsed_args = cmd.get_parser("test").parse_args([])
+
+    with _hardware_env(
+        [_rack_target("compute-041")], {"compute-041": HEALTHY_041}
+    ), patch("osism.commands.report.fetch_interfaces", side_effect=RuntimeError("503")):
+        result = cmd.take_action(parsed_args)
+
+    assert result == 1
+    assert capsys.readouterr().out == ""
+    assert _logged(loguru_logs, "ERROR", "Could not load the cabling from NetBox: 503")
+
+
+def test_lldp_no_compare_lists_neighbours_without_cabling_data(capsys):
+    documents = {"compute-041": HEALTHY_041, "compute-042": SWAPPED_042}
+
+    result, mocks = _lldp(["--no-compare"], documents)
+
+    assert not result
+    mocks.fetch.assert_not_called()
+    mocks.devices.assert_not_called()
+    lines = capsys.readouterr().out.splitlines()
+    header = [cell.strip() for cell in lines[1].strip("|").split("|")]
+    assert header == [
+        "Host",
+        "Local Interface",
+        "Remote Switch",
+        "Remote Port",
+        "Port Description",
+        "Age",
+        "Result",
+        "Hint",
+    ]
+    first = [cell.strip() for cell in lines[3].strip("|").split("|")]
+    assert first == ["compute-041", "ens1f0", "leaf-1a", "Eth1/11", "", "1 day", "", ""]
+    assert "Devices: 2" in lines
+    assert "Neighbors: 4" in lines
+    # Swapped cables are not a finding without the documentation
+    assert not any("swapped" in line for line in lines)
+
+
+def test_lldp_no_compare_keeps_the_checks_that_need_no_netbox():
+    documents = {
+        "compute-041": _node_document(
+            {"ens1f0": ("up", "leaf-1a:Ethernet10"), "ens1f1": ("up", None)}
+        ),
+        "leaf-1a": _switch_document({"Ethernet10": ("Eth1/11", "up", None)}),
+    }
+
+    result, document, _ = _lldp_json_report(["--no-compare", "--strict"], documents)
+
+    assert document["compared_with_netbox"] is False
+    assert _results(document) == {
+        ("compute-041", "ens1f0"): "one-sided",
+        ("compute-041", "ens1f1"): "no-lldp",
+        ("leaf-1a", "Ethernet10"): "no-lldp",
+    }
+    assert document["devices"][0]["interfaces"][0]["expected"] is None
+    assert result == 1
+
+
+def test_lldp_without_netbox_is_a_listing_automatically():
+    target = _target("compute-041", "node")
+    stdout = io.StringIO()
+
+    with patch("sys.stdout", stdout):
+        result, mocks = _run(
+            report.Lldp,
+            ["--format", "json"],
+            [target],
+            {"compute-041": HEALTHY_041},
+            netbox=False,
+        )
+
+    document = json.loads(stdout.getvalue())
+    assert not result
+    assert document["compared_with_netbox"] is False
+    assert _results(document) == {
+        ("compute-041", "ens1f0"): None,
+        ("compute-041", "ens1f1"): None,
+    }
+    mocks.fetch.assert_not_called()
+
+
+def test_lldp_selection_options_are_those_of_report_transceiver():
+    argv = [
+        "leaf-*",
+        "--type",
+        "switch",
+        "--include-unmanaged",
+        "--site",
+        "fra1",
+        "--role",
+        "leaf",
+        "--rack",
+        "R12",
+        "--location",
+        "Hall 1",
+        "--region",
+        "eu",
+        "--site-group",
+        "prod",
+        "--tenant",
+        "t",
+        "--tag",
+        "x",
+        "--manufacturer",
+        "dell",
+        "--device-type",
+        "s5248f-on",
+        "--platform",
+        "sonic",
+        "--status",
+        "planned",
+        "--filter",
+        "cf_x=1",
+        "-l",
+        "compute",
+    ]
+    selection = [
+        "names",
+        "type",
+        "include_unmanaged",
+        "limit",
+        "site",
+        "role",
+        "rack",
+        "location",
+        "region",
+        "site_group",
+        "tenant",
+        "tag",
+        "manufacturer",
+        "device_type",
+        "platform",
+        "status",
+        "netbox_filter",
+    ]
+
+    parsed = [
+        cls(MagicMock(), MagicMock()).get_parser("test").parse_args(argv)
+        for cls in (report.Lldp, report.Transceiver)
+    ]
+
+    assert [getattr(parsed[0], name) for name in selection] == [
+        getattr(parsed[1], name) for name in selection
+    ]
+    assert parsed[0].site == ["fra1"] and parsed[0].limit == "compute"
+
+
+def test_lldp_passes_the_selection_to_select_targets():
+    _, mocks = _lldp(["leaf-*", "--site", "fra1"], {"compute-041": HEALTHY_041})
+
+    parsed_args = mocks.select.call_args.args[0]
+    assert parsed_args.names == ["leaf-*"]
+    assert parsed_args.site == ["fra1"]

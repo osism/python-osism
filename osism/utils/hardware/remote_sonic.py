@@ -48,6 +48,9 @@ TABLES = {
     "system": [
         ("STATE_DB", "EEPROM_INFO", "EEPROM_INFO|*", False),
     ],
+    "lldp": [
+        ("APPL_DB", "LLDP_ENTRY_TABLE", "LLDP_ENTRY_TABLE:*", False),
+    ],
 }
 
 
@@ -134,9 +137,27 @@ def extra_system(document, sys_net, runner):
     document["commands"] = commands
 
 
+def extra_lldp(document, sys_net, runner):
+    # lldpctl is the fallback for a switch without LLDP_ENTRY_TABLE, and the
+    # second source for the management port in case the table only lists
+    # front-panel ports. lldpd runs in the lldp container.
+    entries = (document["db"].get("APPL_DB") or {}).get("LLDP_ENTRY_TABLE") or {}
+    # Enterprise SONiC 4.5 appends the source MAC address of the neighbour
+    # to the key: LLDP_ENTRY_TABLE:eth0:aa:bb:cc:dd:ee:ff
+    key = "LLDP_ENTRY_TABLE:" + MGMT_PORT
+    if any(name == key or name.startswith(key + ":") for name in entries):
+        return
+    command = ["docker", "exec", "lldp", "lldpctl", "-f", "json"]
+    result = runner(command)
+    if result["rc"] != 0:
+        result = runner(["sudo", "-n"] + command)
+    document["lldpctl"] = result
+
+
 EXTRAS = {
     "ports": extra_ports,
     "system": extra_system,
+    "lldp": extra_lldp,
 }
 
 

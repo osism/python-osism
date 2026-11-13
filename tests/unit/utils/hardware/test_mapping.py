@@ -15,7 +15,9 @@ from osism.utils.hardware.mapping import (
     Endpoint,
     Match,
     NetboxInterface,
+    fetch_devices,
     fetch_interfaces,
+    find_devices,
     interface_from_netbox,
     map_node_ports,
     map_switch_ports,
@@ -23,6 +25,7 @@ from osism.utils.hardware.mapping import (
     neighbour_port_names,
     physical_interfaces,
     same_system,
+    sonic_alias_index,
     sonic_name_index,
 )
 from osism.utils.hardware.parse_lldp import neighbour
@@ -319,6 +322,54 @@ def test_sonic_name_index_needs_hwsku_and_port_config(port_config, loguru_logs):
     assert sonic_name_index(1, "leaf-1a", "No-Such-HWSKU", interfaces) == {}
     # No per-interface warning for a switch that cannot be translated
     assert not any("No HWSKU found" in r["message"] for r in loguru_logs)
+
+
+def test_sonic_alias_index_maps_vendor_aliases_to_port_names(port_config):
+    index = sonic_alias_index("Accton-AS7326-56X")
+
+    assert index["twentyFiveGigE1"] == "Ethernet0"
+    assert index["twentyFiveGigE12"] == "Ethernet11"
+    assert sonic_alias_index(None) == {}
+    assert sonic_alias_index("No-Such-HWSKU") == {}
+
+
+# ---------------------------------------------------------------------------
+# NetBox devices
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_devices_queries_by_id_in_chunks():
+    nb = MagicMock()
+    nb.dcim.devices.filter.side_effect = [
+        [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}],
+        [{"id": 3, "name": "c"}],
+    ]
+
+    devices = fetch_devices(nb, [3, 1, 2, 1], chunk_size=2)
+
+    assert [c.kwargs for c in nb.dcim.devices.filter.call_args_list] == [
+        {"id": [1, 2]},
+        {"id": [3]},
+    ]
+    assert [device["name"] for device in devices] == ["a", "b", "c"]
+    assert fetch_devices(nb, []) == []
+
+
+def test_find_devices_ignores_case_and_tries_the_short_name():
+    nb = MagicMock()
+    nb.dcim.devices.filter.return_value = [
+        {"id": 1, "name": "leaf-1c"},
+        {"id": 1, "name": "leaf-1c"},
+        {"id": 2, "name": "tor-9"},
+    ]
+
+    devices = find_devices(nb, ["Leaf-1C.example.com", "tor-9", "tor-9"])
+
+    nb.dcim.devices.filter.assert_called_once_with(
+        name__ie=["Leaf-1C.example.com", "Leaf-1C", "tor-9"]
+    )
+    assert [device["id"] for device in devices] == [1, 2]
+    assert find_devices(MagicMock(), []) == []
 
 
 # ---------------------------------------------------------------------------
