@@ -16,7 +16,7 @@ import json
 import pprint
 import subprocess
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import docker
 
@@ -335,7 +335,10 @@ def test_facts_prints_single_requested_fact(monkeypatch, capsys):
 
     cmd.take_action(parsed_args)
 
-    fake.get.assert_called_once_with("ansible_factstesthost")
+    assert fake.get.call_args_list == [
+        call("ansible_factss1_testhost"),
+        call("ansible_factstesthost"),
+    ]
     out = capsys.readouterr().out
     assert "ansible_hostname" in out
     assert "'testhost'" in out

@@ -11,6 +11,7 @@ from loguru import logger
 from tabulate import tabulate
 
 from osism import utils
+from osism.utils import fact_cache
 from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 
 
@@ -192,9 +193,8 @@ class Facts(Command):
         fact = parsed_args.fact
         cache = not parsed_args.no_cache
 
-        data = utils.redis.get(f"ansible_facts{host}")
+        data = fact_cache.get_host_facts(utils.redis, host)
         if data:
-            data = json.loads(data)
             table = []
 
             if fact:
@@ -355,9 +355,8 @@ class States(Command):
     def take_action(self, parsed_args):
         host = parsed_args.host[0]
 
-        data = utils.redis.get(f"ansible_facts{host}")
+        data = fact_cache.get_host_facts(utils.redis, host)
         if data:
-            data = json.loads(data)
             table = []
 
             if "ansible_local" in data and "osism" in data["ansible_local"]:

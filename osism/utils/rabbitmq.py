@@ -60,6 +60,7 @@ def get_rabbitmq_node_addresses():
         logger.debug(f"RabbitMQ hosts: {rabbitmq_hosts}")
 
         from osism import utils
+        from osism.utils import fact_cache
 
         node_addresses = []
         for host in rabbitmq_hosts:
@@ -67,12 +68,10 @@ def get_rabbitmq_node_addresses():
             # collected for the other nodes.
             try:
                 # Get ansible facts from Redis cache
-                facts_data = utils.redis.get(f"ansible_facts{host}")
-                if not facts_data:
+                facts = fact_cache.get_host_facts(utils.redis, host)
+                if not facts:
                     logger.error(f"No ansible facts found in cache for {host}")
                     continue
-
-                facts = json.loads(facts_data)
 
                 # Resolve internal_interface and the address it carries in one
                 # templated lookup, so that any Jinja2 shape works -- not just
