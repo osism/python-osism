@@ -8,6 +8,7 @@ from loguru import logger
 from redis.exceptions import RedisError
 
 from osism import utils
+from osism.utils import fact_cache
 from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 
 
@@ -39,23 +40,17 @@ class Facts(Command):
         return self._reset_all()
 
     def _reset_all(self):
-        removed = 0
         try:
-            cursor = 0
-            while True:
-                cursor, batch = utils.redis.scan(
-                    cursor, match="ansible_facts*", count=100
-                )
-                if batch:
-                    utils.redis.delete(*batch)
-                    removed += len(batch)
-                if cursor == 0:
-                    break
+            hosts = fact_cache.scan_host_keys(utils.redis)
+            keys = [key for host_keys in hosts.values() for key in host_keys]
+            if keys:
+                utils.redis.delete(*keys)
+                utils.redis.delete(fact_cache.CACHE_KEYS)
         except RedisError as exc:
             logger.error(f"Failed to reset Ansible fact cache: {exc}")
             return 1
 
-        logger.info(f"Removed cached facts for {removed} host(s)")
+        logger.info(f"Removed cached facts for {len(hosts)} host(s)")
         return 0
 
     def _reset_limited(self, limit):
@@ -96,9 +91,8 @@ class Facts(Command):
             logger.warning("No hosts matched the given limit.")
             return 0
 
-        keys = [f"ansible_facts{host}" for host in hosts]
         try:
-            deleted = utils.redis.delete(*keys)
+            deleted = fact_cache.delete_host_facts(utils.redis, hosts)
         except RedisError as exc:
             logger.error(f"Failed to reset Ansible fact cache: {exc}")
             return 1

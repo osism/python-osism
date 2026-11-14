@@ -9,7 +9,7 @@ for a failed inventory load and an unreachable Redis.
 """
 
 import subprocess
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 from redis.exceptions import RedisError
@@ -53,9 +53,10 @@ def test_facts_flushes_all_keys_when_no_limit(mock_redis, loguru_logs):
 
     assert rc == 0
     mock_redis.scan.assert_called_once_with(0, match="ansible_facts*", count=100)
-    mock_redis.delete.assert_called_once_with(
-        b"ansible_factsnode1", b"ansible_factsnode2"
-    )
+    assert mock_redis.delete.call_args_list == [
+        call(b"ansible_factsnode1", b"ansible_factsnode2"),
+        call("ansible_cache_keys"),
+    ]
     assert any("2 host(s)" in r["message"] for r in loguru_logs)
 
 
@@ -115,7 +116,13 @@ def test_facts_limit_deletes_only_selected_hosts(mock_redis):
     assert rc == 0
     mock_redis.scan.assert_not_called()
     mock_redis.delete.assert_called_once_with(
-        "ansible_factsnode1", "ansible_factsnode2"
+        "ansible_factss1_node1",
+        "ansible_factsnode1",
+        "ansible_factss1_node2",
+        "ansible_factsnode2",
+    )
+    mock_redis.zrem.assert_called_once_with(
+        "ansible_cache_keys", "s1_node1", "node1", "s1_node2", "node2"
     )
 
 
