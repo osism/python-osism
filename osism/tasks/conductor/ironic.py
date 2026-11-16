@@ -24,6 +24,7 @@ from osism.tasks.conductor.utils import (
     deep_merge,
     get_vault,
     mask_secrets,
+    VaultDecryptError,
 )
 
 SUPPORTED_IPA_TYPES = {
@@ -197,7 +198,7 @@ def _prepare_node_attributes(
         and "ironic_parameters" in device.config_context
     ):
         config_context_ironic = device.config_context["ironic_parameters"]
-        deep_decrypt(config_context_ironic, vault)
+        deep_decrypt(config_context_ironic, vault, "config_context.ironic_parameters")
         deep_merge(node_attributes, config_context_ironic)
 
     # Decrypt and merge ironic_parameters Custom Field if present
@@ -206,14 +207,14 @@ def _prepare_node_attributes(
         and device.custom_fields["ironic_parameters"]
     ):
         ironic_parameters_cf = device.custom_fields["ironic_parameters"]
-        deep_decrypt(ironic_parameters_cf, vault)
+        deep_decrypt(ironic_parameters_cf, vault, "ironic_parameters")
         deep_merge(node_attributes, ironic_parameters_cf)
 
     # Decrypt secrets Custom Field
     node_secrets = device.custom_fields.get("secrets", {})
     if node_secrets is None:
         node_secrets = {}
-    deep_decrypt(node_secrets, vault)
+    deep_decrypt(node_secrets, vault, "secrets")
 
     if (
         "driver" in node_attributes
@@ -262,7 +263,7 @@ def _prepare_node_attributes(
             if match and match.group(1) in SUPPORTED_IPA_TYPES:
                 ipa_type = match.group(1)
                 frr = device.custom_fields.get("frr_parameters") or {}
-                deep_decrypt(frr, vault)
+                deep_decrypt(frr, vault, "frr_parameters")
                 derived_as = (
                     _derive_as_from_hostname_yrzn(device.name)
                     if ipa_type == "yrzn001"
@@ -326,7 +327,7 @@ def _prepare_node_attributes(
         and device.custom_fields["frr_parameters"]
     ):
         frr_params = device.custom_fields["frr_parameters"]
-        deep_decrypt(frr_params, vault)
+        deep_decrypt(frr_params, vault, "frr_parameters")
         node_attributes["extra"].update({"frr_parameters": json.dumps(frr_params)})
 
     return node_attributes, template_vars
@@ -764,6 +765,29 @@ def sync_ironic(
             osism_utils.finish_task_output(request_id, rc=1)
             return
 
+    # NOTE: Prepare all nodes before changing anything. A secret that cannot
+    # be decrypted would otherwise be replaced by defaults and written to
+    # ironic, so abort the whole sync instead.
+    prepared = []
+    for device in devices:
+        try:
+            node_attributes, template_vars = _prepare_node_attributes(
+                device,
+                get_ironic_parameters,
+                skip_kernel_params=skip_kernel_params,
+                extra_kernel_params=extra_kernel_params,
+            )
+        except VaultDecryptError as exc:
+            osism_utils.push_task_output(
+                request_id,
+                f"ERROR: Device {device.name}: {exc}\n"
+                "Aborting, no changes were made. Check the Ansible Vault "
+                "password ('osism set vault password').\n",
+            )
+            osism_utils.finish_task_output(request_id, rc=1)
+            return
+        prepared.append((device, node_attributes, template_vars))
+
     # NOTE: Find nodes in Ironic which are no longer present in NetBox and remove them
     device_names = {dev.name for dev in devices}
     nodes = openstack.baremetal_node_list()
@@ -813,19 +837,12 @@ def sync_ironic(
                 )
 
     # NOTE: Find nodes in NetBox which are not present in Ironic and add them
-    for device in devices:
+    for device, node_attributes, template_vars in prepared:
         osism_utils.push_task_output(
             request_id, f"Looking for {device.name} in ironic\n"
         )
 
         node_interfaces = list(netbox.get_interfaces_by_device(device.name))
-
-        node_attributes, template_vars = _prepare_node_attributes(
-            device,
-            get_ironic_parameters,
-            skip_kernel_params=skip_kernel_params,
-            extra_kernel_params=extra_kernel_params,
-        )
         ports_attributes = [
             dict(address=interface.mac_address)
             for interface in node_interfaces

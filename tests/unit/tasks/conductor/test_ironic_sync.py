@@ -766,6 +766,45 @@ def test_sync_ironic_stale_node_not_eligible(sync_env):
     sync_env.openstack.baremetal_node_delete.assert_not_called()
 
 
+def _fail_on_second_device(sync_env, error):
+    """Two devices; preparing the first succeeds, the second raises."""
+    sync_env.netbox.get_devices.return_value = [
+        _make_device(name="node1"),
+        _make_device(name="node2"),
+    ]
+    sync_env.prepare.side_effect = [({"driver": "redfish"}, {}), error]
+
+
+def test_sync_ironic_aborts_before_any_change_on_vault_error(sync_env):
+    _fail_on_second_device(
+        sync_env,
+        ironic.VaultDecryptError(
+            "Unable to decrypt 'secrets.remote_board_password': no vault secrets"
+        ),
+    )
+    sync_env.openstack.baremetal_node_list.return_value = [
+        _make_node(name="stale", uuid="u-stale", provision_state="available")
+    ]
+
+    ironic.sync_ironic("req", MagicMock())
+
+    assert sync_env.prepare.call_count == 2
+    assert _pushed(sync_env.utils, "secrets.remote_board_password")
+    assert _pushed(sync_env.utils, "no changes were made")
+    sync_env.utils.finish_task_output.assert_called_once_with("req", rc=1)
+    sync_env.openstack.baremetal_node_delete.assert_not_called()
+    sync_env.sync_device.assert_not_called()
+
+
+def test_sync_ironic_dry_run_aborts_on_vault_error(sync_env):
+    _fail_on_second_device(sync_env, ironic.VaultDecryptError("boom"))
+
+    ironic.sync_ironic("req", MagicMock(), dry_run=True)
+
+    sync_env.utils.finish_task_output.assert_called_once_with("req", rc=1)
+    sync_env.sync_dry.assert_not_called()
+
+
 def test_sync_ironic_kernel_params_propagated(sync_env):
     sync_env.netbox.get_devices.return_value = [_make_device()]
 
