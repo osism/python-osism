@@ -46,27 +46,43 @@ def deep_merge(a, b):
             deep_merge(a[key], value)
 
 
-def deep_decrypt(a, vault):
-    if a is None:
-        return
+class VaultDecryptError(Exception):
+    """A vault-encrypted value could not be decrypted."""
+
+
+def deep_decrypt(a, vault, path=""):
+    """Decrypt all vault-encrypted strings in ``a`` in place.
+
+    Every value that can be decrypted is decrypted. If any value fails,
+    VaultDecryptError names all failing keys afterwards, so that a caller
+    never continues with a secret silently missing or still encrypted.
+    """
+    failed = []
+    _deep_decrypt(a, vault, path, failed)
+    if failed:
+        paths = ", ".join(f"'{key_path}'" for key_path, _ in failed)
+        first_exc = failed[0][1]
+        raise VaultDecryptError(
+            f"Unable to decrypt {paths}: {first_exc}"
+        ) from first_exc
+
+
+def _deep_decrypt(a, vault, path, failed):
     if isinstance(a, dict):
-        for key, value in list(a.items()):
-            if isinstance(value, (dict, list)):
-                deep_decrypt(a[key], vault)
-            elif vault.is_encrypted(value):
-                try:
-                    a[key] = vault.decrypt(value).decode().strip()
-                except Exception:
-                    a.pop(key, None)
+        items = list(a.items())
     elif isinstance(a, list):
-        for i, item in enumerate(a):
-            if isinstance(item, (dict, list)):
-                deep_decrypt(item, vault)
-            elif vault.is_encrypted(item):
-                try:
-                    a[i] = vault.decrypt(item).decode().strip()
-                except Exception:
-                    pass
+        items = list(enumerate(a))
+    else:
+        return
+    for key, value in items:
+        key_path = f"{path}.{key}" if path else str(key)
+        if isinstance(value, (dict, list)):
+            _deep_decrypt(value, vault, key_path, failed)
+        elif vault.is_encrypted(value):
+            try:
+                a[key] = vault.decrypt(value).decode().strip()
+            except Exception as exc:
+                failed.append((key_path, exc))
 
 
 def get_vault():
@@ -89,7 +105,6 @@ def get_vault():
     except Exception as exc:
         # Handle other errors (file access, decryption, etc.)
         logger.error(f"Unable to get vault secret: {exc}")
-        logger.error("Dropping encrypted entries")
         vault = VaultLib()
     return vault
 

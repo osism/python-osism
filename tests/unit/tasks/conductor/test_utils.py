@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,6 +11,7 @@ from osism.tasks.conductor.utils import (
     DELETE_SENTINEL,
     _get_conductor_redfish_address,
     _get_conductor_redfish_credentials,
+    VaultDecryptError,
     _is_secret_key,
     deep_compare,
     deep_decrypt,
@@ -301,30 +303,43 @@ def test_deep_decrypt_top_level_list_replaces_encrypted_strings():
     assert data == ["plain-1", "literal", "plain-2"]
 
 
-def test_deep_decrypt_dict_value_decrypt_failure_drops_key():
+def test_deep_decrypt_dict_value_decrypt_failure_raises_with_path():
     vault = _make_vault(
-        encrypted_values=["broken", "ok"],
-        decrypt_map={"ok": b"clear"},
+        encrypted_values=["broken"],
         decrypt_errors={"broken": AnsibleError("bad signature")},
     )
-    data = {"a": "broken", "b": "ok"}
+    data = {"outer": {"a": "broken"}}
 
-    deep_decrypt(data, vault)
+    with pytest.raises(VaultDecryptError, match=re.escape("'secrets.outer.a'")):
+        deep_decrypt(data, vault, "secrets")
 
-    assert data == {"b": "clear"}
 
-
-def test_deep_decrypt_list_element_decrypt_failure_left_in_place():
+def test_deep_decrypt_list_element_decrypt_failure_raises_with_index():
     vault = _make_vault(
-        encrypted_values=["broken", "ok"],
-        decrypt_map={"ok": b"clear"},
+        encrypted_values=["broken"],
         decrypt_errors={"broken": AnsibleError("bad signature")},
     )
-    data = ["broken", "ok"]
+    data = ["ok", "broken"]
 
-    deep_decrypt(data, vault)
+    with pytest.raises(VaultDecryptError, match="'1'.*bad signature"):
+        deep_decrypt(data, vault)
 
-    assert data == ["broken", "clear"]
+
+def test_deep_decrypt_decrypts_the_rest_before_raising():
+    vault = _make_vault(
+        encrypted_values=["broken", "ok", "also-broken"],
+        decrypt_map={"ok": b"clear"},
+        decrypt_errors={
+            "broken": AnsibleError("bad signature"),
+            "also-broken": AnsibleError("bad signature"),
+        },
+    )
+    data = {"a": "broken", "b": "ok", "c": ["also-broken"]}
+
+    with pytest.raises(VaultDecryptError, match=re.escape("'a', 'c.0': bad signature")):
+        deep_decrypt(data, vault)
+
+    assert data == {"a": "broken", "b": "clear", "c": ["also-broken"]}
 
 
 def test_deep_decrypt_strips_whitespace_after_decode():

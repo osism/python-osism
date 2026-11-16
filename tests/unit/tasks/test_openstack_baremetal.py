@@ -29,6 +29,7 @@ from unittest.mock import call
 import pytest
 
 from osism.tasks import openstack as openstack_tasks
+from osism.tasks.conductor.utils import VaultDecryptError
 
 
 def _has_log(records, level, substring):
@@ -514,17 +515,32 @@ def test_mask_masks_secret_values(node_params_env):
 def test_mask_ironic_osism_param_by_name(node_params_env):
     """The ``ironic_osism_aa`` param name is collected before decryption, so
     the ``osism-aa=...`` argument is masked by the name-based regex even when
-    vault decryption drops the key and its value cannot be collected."""
-    node_params_env.device.custom_fields["secrets"] = {"ironic_osism_aa": "topsecret"}
-    node_params_env.deep_decrypt.side_effect = lambda secrets, vault: secrets.pop(
-        "ironic_osism_aa", None
-    )
+    vault decryption fails and its value cannot be collected."""
+    node_params_env.device.custom_fields["secrets"] = {"ironic_osism_aa": "$ANSIBLE"}
+    node_params_env.deep_decrypt.side_effect = VaultDecryptError("no vault secrets")
 
     kernel, _, _ = openstack_tasks._mask_node_secret_parameters(
         "node-1", "osism-aa=topsecret other=x", {}, {}
     )
 
     assert kernel == "osism-aa=*** other=x"
+
+
+def test_mask_uses_values_decrypted_before_the_error(node_params_env):
+    """Values decrypted in place stay collected when another one fails."""
+    node_params_env.device.custom_fields["secrets"] = {"os_password": "$ANSIBLE"}
+
+    def decrypt_partially(secrets, vault):
+        secrets["os_password"] = "hunter2"
+        raise VaultDecryptError("Unable to decrypt 'other'")
+
+    node_params_env.deep_decrypt.side_effect = decrypt_partially
+
+    kernel, _, _ = openstack_tasks._mask_node_secret_parameters(
+        "node-1", "pw=hunter2", {}, {}
+    )
+
+    assert kernel == "pw=***"
 
 
 def test_mask_ignores_non_string_secret_values(node_params_env):

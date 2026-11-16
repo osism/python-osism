@@ -226,7 +226,12 @@ def _mask_node_secret_parameters(
         The ``(kernel_append_params, netplan_parameters, frr_parameters)``
         triple with secret values replaced by ``***``.
     """
-    from osism.tasks.conductor.utils import deep_decrypt, get_vault, mask_secrets
+    from osism.tasks.conductor.utils import (
+        VaultDecryptError,
+        deep_decrypt,
+        get_vault,
+        mask_secrets,
+    )
 
     secret_values = set()
     if utils.nb and node_name:
@@ -243,7 +248,7 @@ def _mask_node_secret_parameters(
                     node_secrets = {}
 
                 # Collect ironic_osism_* parameter names BEFORE decryption
-                # so they're available even if vault decryption removes them.
+                # so they're available even if vault decryption fails.
                 # Convention: ironic_osism_aa -> osism-aa in kernel_append_params
                 secret_param_names = set()
                 for key in node_secrets:
@@ -253,8 +258,11 @@ def _mask_node_secret_parameters(
                         )
                         secret_param_names.add(param_name)
 
-                vault = get_vault()
-                deep_decrypt(node_secrets, vault)
+                try:
+                    deep_decrypt(node_secrets, get_vault())
+                except VaultDecryptError as exc:
+                    # The name-based masking below still applies
+                    logger.warning(f"Could not decrypt secrets of {node_name}: {exc}")
 
                 # Collect secret values using the same logic as dry-run
                 # (matches _is_secret_key + dry-run secret collection)
