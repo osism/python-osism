@@ -129,6 +129,13 @@ def test_validate_playbooks_osism_ansible_entries_have_environment():
         assert value["environment"], key
 
 
+def test_validate_playbooks_has_ceph_keys():
+    assert VALIDATE_PLAYBOOKS["ceph-keys"] == {
+        "environment": "ceph",
+        "runtime": "osism-ansible",
+    }
+
+
 def test_validate_playbooks_ceph_config_is_rewritten_to_validate():
     entry = VALIDATE_PLAYBOOKS["ceph-config"]
 
