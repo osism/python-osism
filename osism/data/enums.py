@@ -71,6 +71,7 @@ VALIDATE_PLAYBOOKS = {
     # in osism/ansible-playbooks. Therefore, they are not executed in
     # ceph-ansible but in osism-ansible.
     "ceph-connectivity": {"environment": "ceph", "runtime": "osism-ansible"},
+    "ceph-keys": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-mgrs": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-mons": {"environment": "ceph", "runtime": "osism-ansible"},
     "ceph-osds": {"environment": "ceph", "runtime": "osism-ansible"},
