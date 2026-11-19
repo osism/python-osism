@@ -207,6 +207,50 @@ def test_target_raid_config_failure_raises(osism_utils, openstack, deep_compare)
         )
 
 
+def test_create_path_updates_node_with_driver_without_params(osism_utils, openstack):
+    # A driver with no driver_params entry (fake-hardware has no BMC
+    # credentials) has no password key to drop from the driver_info diff.
+    # The real deep_compare is used: the stub node carries no driver_info,
+    # so the create path always produces a driver_info delta.
+    openstack.baremetal_node_show.return_value = None
+    openstack.baremetal_node_create.return_value = _make_node(provision_state="enroll")
+    openstack.baremetal_node_validate.return_value = _validation(management=False)
+    node_attributes = {
+        "driver": "fake-hardware",
+        "driver_info": {
+            "deploy_kernel": "http://metalbox/osism-ipa.kernel",
+            "deploy_ramdisk": "http://metalbox/osism-ipa.initramfs",
+        },
+        "instance_info": {"image_source": "http://metalbox/osism-image.qcow2"},
+    }
+
+    ironic._sync_ironic_device(
+        "req", _make_device(), node_attributes, [], adopt=False, force=False
+    )
+
+    openstack.baremetal_node_update.assert_called_once_with("uuid-1", node_attributes)
+
+
+def test_create_path_masks_password_of_driver_without_params(osism_utils, openstack):
+    # Without a driver_params entry the password key is not dropped from the
+    # driver_info diff, so it reaches the update message and must be masked.
+    openstack.baremetal_node_show.return_value = None
+    openstack.baremetal_node_create.return_value = _make_node(provision_state="enroll")
+    openstack.baremetal_node_validate.return_value = _validation(management=False)
+    node_attributes = {
+        "driver": "ilo",
+        "driver_info": {"ilo_address": "192.0.2.10", "ilo_password": "ariadne-pw"},
+    }
+
+    ironic._sync_ironic_device(
+        "req", _make_device(), node_attributes, [], adopt=False, force=False
+    )
+
+    assert _pushed(osism_utils, "Updating baremetal node for node1")
+    assert not _pushed(osism_utils, "ariadne-pw")
+    openstack.baremetal_node_update.assert_called_once_with("uuid-1", node_attributes)
+
+
 # ===========================================================================
 # _sync_ironic_device -- node update path
 # ===========================================================================
@@ -636,6 +680,28 @@ def test_dry_run_update_branch_no_update_needed(
     )
 
     assert _pushed(osism_utils, "no update needed")
+
+
+def test_dry_run_update_branch_driver_without_params(
+    osism_utils, openstack, mask_secrets
+):
+    # Same driver_info handling as the real sync, on the dry-run side: a
+    # driver without a driver_params entry reports its driver_info change.
+    node = _make_node()
+    node["driver"] = "fake-hardware"
+    node["driver_info"] = {"deploy_kernel": "http://metalbox/old.kernel"}
+    openstack.baremetal_node_show.return_value = node
+    node_attributes = {
+        "driver": "fake-hardware",
+        "driver_info": {"deploy_kernel": "http://metalbox/osism-ipa.kernel"},
+    }
+
+    ironic._sync_ironic_device_dry_run(
+        "req", _make_device(), node_attributes, [], False, False, {}
+    )
+
+    assert _pushed(osism_utils, "Would UPDATE baremetal node")
+    assert _pushed(osism_utils, "http://metalbox/osism-ipa.kernel")
 
 
 def test_dry_run_update_branch_port_reconciliation(
