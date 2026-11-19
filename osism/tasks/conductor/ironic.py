@@ -395,8 +395,8 @@ def _sync_ironic_device(
     deep_compare(node_attributes, node, node_updates)
     if "driver_info" in node_updates:
         # NOTE: The password is not returned by ironic, so we cannot make a comparision and it would always be updated. Therefore we pop it from the dictionary
-        password_key = driver_params[node_attributes["driver"]]["password"]
-        if password_key in node_updates["driver_info"]:
+        password_key = driver_params.get(node_attributes["driver"], {}).get("password")
+        if password_key and password_key in node_updates["driver_info"]:
             node_updates["driver_info"].pop(password_key, None)
             if not node_updates["driver_info"]:
                 node_updates.pop("driver_info", None)
@@ -638,8 +638,10 @@ def _sync_ironic_device_dry_run(
         node_updates = {}
         deep_compare(node_attributes, node, node_updates)
         if "driver_info" in node_updates:
-            password_key = driver_params[node_attributes["driver"]]["password"]
-            if password_key in node_updates["driver_info"]:
+            password_key = driver_params.get(node_attributes["driver"], {}).get(
+                "password"
+            )
+            if password_key and password_key in node_updates["driver_info"]:
                 node_updates["driver_info"].pop(password_key, None)
                 if not node_updates["driver_info"]:
                     node_updates.pop("driver_info", None)
