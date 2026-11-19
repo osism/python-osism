@@ -352,8 +352,27 @@ def _prettify_for_display(obj):
     return result
 
 
+def _collect_secret_values(template_vars):
+    """Return the secret template values, for masking them inside strings."""
+    secret_values = set()
+    for key, value in (template_vars or {}).items():
+        if isinstance(value, str) and (
+            "password" in key.lower()
+            or "secret" in key.lower()
+            or key.lower().startswith("ironic_osism_")
+        ):
+            secret_values.add(value)
+    return secret_values
+
+
 def _sync_ironic_device(
-    request_id, device, node_attributes, ports_attributes, adopt, force
+    request_id,
+    device,
+    node_attributes,
+    ports_attributes,
+    adopt,
+    force,
+    template_vars=None,
 ):
     osism_utils.push_task_output(request_id, f"Processing device {device.name}\n")
     node = openstack.baremetal_node_show(device.name, ignore_missing=True)
@@ -382,9 +401,11 @@ def _sync_ironic_device(
             if not node_updates["driver_info"]:
                 node_updates.pop("driver_info", None)
     if node_updates or force:
+        secret_values = _collect_secret_values(template_vars)
         osism_utils.push_task_output(
             request_id,
-            f"Updating baremetal node for {device.name} with {node_updates}\n",
+            f"Updating baremetal node for {device.name} with "
+            f"{mask_secrets(node_updates, secret_values=secret_values)}\n",
         )
         # NOTE: Pop target_raid_config from node_attributes since they cannot be set using node updates
         target_raid_config = node_attributes.pop("target_raid_config", None)
@@ -572,14 +593,7 @@ def _sync_ironic_device_dry_run(
     request_id, device, node_attributes, ports_attributes, adopt, force, template_vars
 ):
     # Collect actual secret values for string-level masking
-    secret_values = set()
-    for key, value in template_vars.items():
-        if isinstance(value, str) and (
-            "password" in key.lower()
-            or "secret" in key.lower()
-            or key.lower().startswith("ironic_osism_")
-        ):
-            secret_values.add(value)
+    secret_values = _collect_secret_values(template_vars)
 
     masked_attributes = _prettify_for_display(
         mask_secrets(node_attributes, secret_values=secret_values)
@@ -874,6 +888,7 @@ def sync_ironic(
                         ports_attributes,
                         adopt,
                         force,
+                        template_vars=template_vars,
                     )
                 except Exception as exc:
                     osism_utils.push_task_output(

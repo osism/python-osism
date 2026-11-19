@@ -225,6 +225,53 @@ def test_update_called_with_full_node_attributes(osism_utils, openstack, deep_co
     openstack.baremetal_node_update.assert_called_once_with("uuid-1", node_attributes)
 
 
+def test_update_message_masks_secret_keys(osism_utils, openstack):
+    # The real deep_compare is used, so the extra delta comes from the
+    # attributes themselves. The message is masked; the payload is not.
+    openstack.baremetal_node_show.return_value = _make_node()
+    openstack.baremetal_node_validate.return_value = _validation(management=False)
+    node_attributes = {
+        "driver": "redfish",
+        "extra": {"ironic_osism_token": "hermes-token"},
+    }
+
+    ironic._sync_ironic_device(
+        "req", _make_device(), node_attributes, [], adopt=False, force=False
+    )
+
+    assert _pushed(osism_utils, "Updating baremetal node for node1")
+    assert not _pushed(osism_utils, "hermes-token")
+    openstack.baremetal_node_update.assert_called_once_with(
+        "uuid-1",
+        {"driver": "redfish", "extra": {"ironic_osism_token": "hermes-token"}},
+    )
+
+
+def test_update_message_masks_secret_template_values(osism_utils, openstack):
+    # A secret rendered into a value under a non-secret key is only found
+    # through the template variables it came from.
+    openstack.baremetal_node_show.return_value = _make_node()
+    openstack.baremetal_node_validate.return_value = _validation(management=False)
+    node_attributes = {
+        "driver": "redfish",
+        "instance_info": {"kernel_append_params": "console=ttyS0 pw=persephone-pw"},
+    }
+
+    ironic._sync_ironic_device(
+        "req",
+        _make_device(),
+        node_attributes,
+        [],
+        adopt=False,
+        force=False,
+        template_vars={"remote_board_password": "persephone-pw"},
+    )
+
+    assert _pushed(osism_utils, "Updating baremetal node for node1")
+    assert not _pushed(osism_utils, "persephone-pw")
+    openstack.baremetal_node_update.assert_called_once_with("uuid-1", node_attributes)
+
+
 def test_driver_password_only_change_skips_update(osism_utils, openstack, deep_compare):
     # The password key is resolved via driver_params[driver]["password"] and
     # popped before evaluating the change. When it was the only driver_info
@@ -702,6 +749,20 @@ def test_sync_ironic_lock_acquired_calls_device_and_releases(sync_env):
     sync_env.sync_device.assert_called_once()
     sync_env.lock.release.assert_called_once()
     assert _pushed(sync_env.utils, "Could not fully synchronize device")
+
+
+def test_sync_ironic_passes_template_vars_to_device_sync(sync_env):
+    sync_env.netbox.get_devices.return_value = [_make_device()]
+    sync_env.prepare.return_value = (
+        {"driver": "redfish"},
+        {"remote_board_password": "persephone-pw"},
+    )
+
+    ironic.sync_ironic("req", MagicMock())
+
+    assert sync_env.sync_device.call_args.kwargs["template_vars"] == {
+        "remote_board_password": "persephone-pw"
+    }
 
 
 def test_sync_ironic_lock_not_acquired(sync_env):
