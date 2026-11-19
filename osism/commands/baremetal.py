@@ -216,7 +216,11 @@ class BaremetalList(Command):
             help=(
                 "Also show when each node entered its provision state (UTC), "
                 "the target state, automated clean, the maintenance reason "
-                "and the last error"
+                "and the last error. The last error is cut to "
+                f"{LIST_LAST_ERROR_WIDTH} characters; for the full text use "
+                "'openstack baremetal node show NODE -c last_error', for "
+                "earlier errors 'openstack baremetal node history list NODE "
+                "--long'"
             ),
         )
         return parser
