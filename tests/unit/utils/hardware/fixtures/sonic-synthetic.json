@@ -1,5 +1,12 @@
 {
   "collector": "sonic",
+  "commands": {
+    "show platform firmware status": {
+      "err": "",
+      "out": "Chassis    Module    Component    Version    Description\n---------  --------  -----------  ---------  ----------------------------------\n7326-56X   N/A       BIOS         v41.01.00  BIOS - Basic Input/Output System\n                     ONIE         2018.05    ONIE - Open Network Install Environment\n                     CPLD1        0x12       CPLD - Complex Programmable Logic Device\n                     CPLD2        0x0a       CPLD - Complex Programmable Logic Device\n",
+      "rc": 0
+    }
+  },
   "db": {
     "APPL_DB": {
       "PORT_TABLE": {
@@ -214,10 +221,178 @@
           }
         }
       }
+    },
+    "STATE_DB": {
+      "EEPROM_INFO": {
+        "EEPROM_INFO|0x21": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "9",
+            "Name": "Product Name",
+            "Value": "7326-56X"
+          }
+        },
+        "EEPROM_INFO|0x22": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "13",
+            "Name": "Part Number",
+            "Value": "FP1ZZ5654002A"
+          }
+        },
+        "EEPROM_INFO|0x23": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "14",
+            "Name": "Serial Number",
+            "Value": "732656X2012345"
+          }
+        },
+        "EEPROM_INFO|0x24": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "6",
+            "Name": "Base MAC Address",
+            "Value": "0C:29:EF:D1:A0:00"
+          }
+        },
+        "EEPROM_INFO|0x29": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "13",
+            "Name": "ONIE Version",
+            "Value": "2018.05.00.05"
+          }
+        },
+        "EEPROM_INFO|0x2b": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "6",
+            "Name": "Manufacturer",
+            "Value": "Accton"
+          }
+        },
+        "EEPROM_INFO|0x2d": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Len": "8",
+            "Name": "Vendor Name",
+            "Value": "Edgecore"
+          }
+        },
+        "EEPROM_INFO|State": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Initialized": "1"
+          }
+        },
+        "EEPROM_INFO|TlvHeader": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "Id String": "TlvInfo",
+            "Total Length": "169",
+            "Version": "1"
+          }
+        }
+      },
+      "TRANSCEIVER_INFO": {
+        "TRANSCEIVER_INFO|Ethernet0": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "cable_length": "3",
+            "connector_type": "No separable connector",
+            "display_name": "SFP28 25GBASE-CR-DAC-3.0M",
+            "form_factor": "SFP28",
+            "spec_compliance": "25GBASE-CR CA-N",
+            "vendor_date_code": "2021-03-14",
+            "vendor_name": "DELL EMC",
+            "vendor_oui": "3c-18-a0",
+            "vendor_pn": "0VXFJY",
+            "vendor_rev": "A0",
+            "vendor_sn": "CN0APX0098765AB"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet1": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "cable_length": "N/A",
+            "connector_type": "LC",
+            "form_factor": "SFP+",
+            "nominal_wavelength": "850",
+            "spec_compliance": "10GBASE-SR",
+            "vendor_date_code": "2019-03-12",
+            "vendor_name": "FINISAR CORP.",
+            "vendor_oui": "00-90-65",
+            "vendor_pn": "FTLX8574D3BCL",
+            "vendor_rev": "A",
+            "vendor_sn": "AQF0ABC1234"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet11": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "cable_length": "3",
+            "connector_type": "No separable connector",
+            "form_factor": "SFP28",
+            "spec_compliance": "25GBASE-CR CA-N",
+            "vendor_date_code": "2021-04-08",
+            "vendor_name": "Mellanox",
+            "vendor_oui": "00-02-c9",
+            "vendor_pn": "MCP2M00-A003E30L",
+            "vendor_rev": "A3",
+            "vendor_sn": "MT2114VS01234"
+          }
+        },
+        "TRANSCEIVER_INFO|Ethernet48": {
+          "expireat": 1767225600.0,
+          "ttl": -0.001,
+          "type": "hash",
+          "value": {
+            "cable_length": "N/A",
+            "connector_type": "MPO 1x12",
+            "form_factor": "QSFP28",
+            "nominal_wavelength": "850",
+            "spec_compliance": "100GBASE-SR4",
+            "vendor_date_code": "2022-01-20",
+            "vendor_name": "DELL EMC",
+            "vendor_oui": "3c-18-a0",
+            "vendor_pn": "0W8H6T",
+            "vendor_rev": "A1",
+            "vendor_sn": "CN0W8H6T0012345"
+          }
+        }
+      }
     }
   },
   "db_access": "user",
   "errors": {},
+  "files": {
+    "sonic_version": "---\nbuild_version: '4.5.0-Enterprise_Base'\ndebian_version: '10.13'\nkernel_version: '5.10.0-21-amd64'\nasic_type: broadcom\ncommit_id: '1a2b3c4d5'\nbuild_date: Fri Mar 14 09:12:44 UTC 2025\nbuilt_by: sonicbld@sonic-lvn-csg-006\n"
+  },
   "hostname": "leaf-1a",
   "mgmt": {
     "eth0": {
@@ -229,7 +404,9 @@
     }
   },
   "sections": [
-    "ports"
+    "ports",
+    "transceiver",
+    "system"
   ],
   "version": 1
 }

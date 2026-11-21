@@ -1,5 +1,10 @@
 {
   "collector": "linux",
+  "dmi": {
+    "product_name": "X10DRi",
+    "product_serial": "SN00000003",
+    "sys_vendor": "Supermicro"
+  },
   "hostname": "node-1",
   "ip_link": {
     "err": "info: Using default fan map value (33)",
@@ -8,17 +13,47 @@
   },
   "lldpctl": {
     "err": "",
-    "out": "{\n  \"lldp\": {\n    \"interface\": [\n      {\n        \"enp4s0f0\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"3\",\n          \"age\": \"5 days, 15:27:45\",\n          \"chassis\": {\n            \"oob-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1c\"\n              },\n              \"descr\": \"MikroTik RouterOS 6.49.1 (stable) CRS354-48G-4S+2Q+\",\n              \"mgmt-ip\": \"192.0.2.1\",\n              \"mgmt-iface\": \"27\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"ifname\",\n              \"value\": \"bridge/ether14\"\n            },\n            \"ttl\": \"120\"\n          }\n        }\n      },\n      {\n        \"ens4f0np0\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"2\",\n          \"age\": \"5 days, 15:28:25\",\n          \"chassis\": {\n            \"leaf-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1d\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.5.2-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-39-amd64\",\n              \"mgmt-ip\": \"192.0.2.2\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/1/1\"\n            },\n            \"descr\": \"Ethernet0\",\n            \"ttl\": \"120\",\n            \"mfs\": \"9100\"\n          },\n          \"vlan\": [\n            {\n              \"vlan-id\": \"101\",\n              \"pvid\": false,\n              \"value\": \"Vlan_101\"\n            },\n            {\n              \"vlan-id\": \"102\",\n              \"pvid\": false,\n              \"value\": \"Vlan_102\"\n            },\n            {\n              \"vlan-id\": \"103\",\n              \"pvid\": false,\n              \"value\": \"Vlan_103\"\n            }\n          ],\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-39-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000001\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          },\n          \"unknown-tlvs\": {\n            \"unknown-tlv\": {\n              \"oui\": \"00,80,C2\",\n              \"subtype\": \"7\",\n              \"len\": \"5\",\n              \"value\": \"01,00,00,00,00\"\n            }\n          }\n        }\n      },\n      {\n        \"ens4f1np1\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"1\",\n          \"age\": \"5 days, 15:28:25\",\n          \"chassis\": {\n            \"leaf-2\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1e\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.4.1-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-21-amd64\",\n              \"mgmt-ip\": \"192.0.2.3\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/1/1\"\n            },\n            \"descr\": \"Ethernet0\",\n            \"ttl\": \"120\",\n            \"mfs\": \"9100\"\n          },\n          \"vlan\": [\n            {\n              \"vlan-id\": \"104\",\n              \"pvid\": false,\n              \"value\": \"Vlan_104\"\n            },\n            {\n              \"vlan-id\": \"105\",\n              \"pvid\": false,\n              \"value\": \"Vlan_105\"\n            }\n          ],\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-21-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000002\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          },\n          \"unknown-tlvs\": {\n            \"unknown-tlv\": {\n              \"oui\": \"00,80,C2\",\n              \"subtype\": \"7\",\n              \"len\": \"5\",\n              \"value\": \"01,00,00,00,00\"\n            }\n          }\n        }\n      }\n    ]\n  }\n}\n",
+    "out": "{\n  \"lldp\": {\n    \"interface\": [\n      {\n        \"enp4s0f0\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"3\",\n          \"age\": \"5 days, 15:16:28\",\n          \"chassis\": {\n            \"oob-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1c\"\n              },\n              \"descr\": \"MikroTik RouterOS 6.49.1 (stable) CRS354-48G-4S+2Q+\",\n              \"mgmt-ip\": \"192.0.2.1\",\n              \"mgmt-iface\": \"27\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"ifname\",\n              \"value\": \"bridge/ether14\"\n            },\n            \"ttl\": \"120\"\n          }\n        }\n      },\n      {\n        \"ens4f0np0\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"2\",\n          \"age\": \"5 days, 15:17:08\",\n          \"chassis\": {\n            \"leaf-1\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1d\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.5.2-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-39-amd64\",\n              \"mgmt-ip\": \"192.0.2.2\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/1/1\"\n            },\n            \"descr\": \"Ethernet0\",\n            \"ttl\": \"120\",\n            \"mfs\": \"9100\"\n          },\n          \"vlan\": [\n            {\n              \"vlan-id\": \"101\",\n              \"pvid\": false,\n              \"value\": \"Vlan_101\"\n            },\n            {\n              \"vlan-id\": \"102\",\n              \"pvid\": false,\n              \"value\": \"Vlan_102\"\n            },\n            {\n              \"vlan-id\": \"103\",\n              \"pvid\": false,\n              \"value\": \"Vlan_103\"\n            }\n          ],\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-39-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000001\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          },\n          \"unknown-tlvs\": {\n            \"unknown-tlv\": {\n              \"oui\": \"00,80,C2\",\n              \"subtype\": \"7\",\n              \"len\": \"5\",\n              \"value\": \"01,00,00,00,00\"\n            }\n          }\n        }\n      },\n      {\n        \"ens4f1np1\": {\n          \"via\": \"LLDP\",\n          \"rid\": \"1\",\n          \"age\": \"5 days, 15:17:08\",\n          \"chassis\": {\n            \"leaf-2\": {\n              \"id\": {\n                \"type\": \"mac\",\n                \"value\": \"02:00:00:00:00:1e\"\n              },\n              \"descr\": \"SONiC Software Version: SONiC.4.4.1-Enterprise_Base - HwSku: Accton-AS7726-32X - Distribution: Debian 11.11 - Kernel: 5.10.0-21-amd64\",\n              \"mgmt-ip\": \"192.0.2.3\",\n              \"capability\": [\n                {\n                  \"type\": \"Bridge\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Router\",\n                  \"enabled\": true\n                },\n                {\n                  \"type\": \"Wlan\",\n                  \"enabled\": false\n                },\n                {\n                  \"type\": \"Station\",\n                  \"enabled\": false\n                }\n              ]\n            }\n          },\n          \"port\": {\n            \"id\": {\n              \"type\": \"local\",\n              \"value\": \"Eth1/1/1\"\n            },\n            \"descr\": \"Ethernet0\",\n            \"ttl\": \"120\",\n            \"mfs\": \"9100\"\n          },\n          \"vlan\": [\n            {\n              \"vlan-id\": \"104\",\n              \"pvid\": false,\n              \"value\": \"Vlan_104\"\n            },\n            {\n              \"vlan-id\": \"105\",\n              \"pvid\": false,\n              \"value\": \"Vlan_105\"\n            }\n          ],\n          \"lldp-med\": {\n            \"device-type\": \"Network Connectivity Device\",\n            \"capability\": [\n              {\n                \"type\": \"Capabilities\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Policy\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Location\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PSE\",\n                \"available\": true\n              },\n              {\n                \"type\": \"MDI/PD\",\n                \"available\": true\n              },\n              {\n                \"type\": \"Inventory\",\n                \"available\": true\n              }\n            ],\n            \"inventory\": {\n              \"hardware\": \"R01H\",\n              \"software\": \"5.10.0-21-amd64\",\n              \"firmware\": \"v40.01.01.01\",\n              \"serial\": \"SN00000002\",\n              \"manufacturer\": \"Accton\",\n              \"model\": \"AS7726-32X\",\n              \"asset\": \"None\"\n            }\n          },\n          \"unknown-tlvs\": {\n            \"unknown-tlv\": {\n              \"oui\": \"00,80,C2\",\n              \"subtype\": \"7\",\n              \"len\": \"5\",\n              \"value\": \"01,00,00,00,00\"\n            }\n          }\n        }\n      }\n    ]\n  }\n}\n",
     "rc": 0
   },
   "ports": {
     "enp4s0f0": {
+      "devlink": {
+        "err": "kernel answers: No such device",
+        "out": "{\"info\":{}}\n",
+        "rc": 1
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for enp4s0f0:\n\tSupported ports: [ TP ]\n\tSupported link modes:   10baseT/Half 10baseT/Full\n\t                        100baseT/Half 100baseT/Full\n\t                        1000baseT/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: Not reported\n\tAdvertised link modes:  10baseT/Half 10baseT/Full\n\t                        100baseT/Half 100baseT/Full\n\t                        1000baseT/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: Not reported\n\tSpeed: 1000Mb/s\n\tDuplex: Full\n\tAuto-negotiation: on\n\tPort: Twisted Pair\n\tPHYAD: 1\n\tTransceiver: internal\n\tMDI-X: off (auto)\n\tSupports Wake-on: pumbg\n\tWake-on: g\n        Current message level: 0x00000007 (7)\n                               drv probe link\n\tLink detected: yes\n",
+        "rc": 0
+      },
       "ethtool_P": {
         "err": "",
         "out": "Permanent address: 02:00:00:00:00:19\n",
         "rc": 0
       },
+      "ethtool_fec": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: igb\nversion: 6.8.0-136-generic\nfirmware-version: 1.63, 0x80000a05\nexpansion-rom-version: \nbus-info: 0000:04:00.0\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: yes\nsupports-register-dump: yes\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
       "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:04:00.0\nClass:\tEthernet controller [0200]\nVendor:\tIntel Corporation [8086]\nDevice:\tI350 Gigabit Network Connection [1521]\nSVendor:\tSuper Micro Computer Inc [15d9]\nSDevice:\tI350 Gigabit Network Connection [1521]\nPhySlot:\t0\nRev:\t01\nProgIf:\t00\nNUMANode:\t0\nIOMMUGroup:\t69\n\n",
+        "rc": 0
+      },
       "pci": "0000:04:00.0",
       "sysfs": {
         "address": "02:00:00:00:00:19",
@@ -33,12 +68,42 @@
       }
     },
     "enp4s0f1": {
+      "devlink": {
+        "err": "kernel answers: No such device",
+        "out": "{\"info\":{}}\n",
+        "rc": 1
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for enp4s0f1:\n\tSupported ports: [ TP ]\n\tSupported link modes:   10baseT/Half 10baseT/Full\n\t                        100baseT/Half 100baseT/Full\n\t                        1000baseT/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: Not reported\n\tAdvertised link modes:  10baseT/Half 10baseT/Full\n\t                        100baseT/Half 100baseT/Full\n\t                        1000baseT/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: Not reported\n\tSpeed: Unknown!\n\tDuplex: Unknown! (255)\n\tAuto-negotiation: on\n\tPort: Twisted Pair\n\tPHYAD: 1\n\tTransceiver: internal\n\tMDI-X: off (auto)\n\tSupports Wake-on: d\n\tWake-on: d\n        Current message level: 0x00000007 (7)\n                               drv probe link\n\tLink detected: no\n",
+        "rc": 0
+      },
       "ethtool_P": {
         "err": "",
         "out": "Permanent address: 02:00:00:00:00:1b\n",
         "rc": 0
       },
+      "ethtool_fec": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: igb\nversion: 6.8.0-136-generic\nfirmware-version: 1.63, 0x80000a05\nexpansion-rom-version: \nbus-info: 0000:04:00.1\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: yes\nsupports-register-dump: yes\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "netlink error: Operation not supported",
+        "out": "",
+        "rc": 1
+      },
       "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:04:00.1\nClass:\tEthernet controller [0200]\nVendor:\tIntel Corporation [8086]\nDevice:\tI350 Gigabit Network Connection [1521]\nSVendor:\tSuper Micro Computer Inc [15d9]\nSDevice:\tI350 Gigabit Network Connection [1521]\nPhySlot:\t0\nRev:\t01\nProgIf:\t00\nNUMANode:\t0\nIOMMUGroup:\t70\n\n",
+        "rc": 0
+      },
       "pci": "0000:04:00.1",
       "sysfs": {
         "address": "02:00:00:00:00:1b",
@@ -53,12 +118,42 @@
       }
     },
     "ens4f0np0": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\":{\"pci/0000:82:00.0\":{\"driver\":\"mlx5_core\",\"versions\":{\"fixed\":{\"fw.psid\":\"MT_2420110034\"},\"running\":{\"fw.version\":\"14.32.1010\",\"fw\":\"14.32.1010\"},\"stored\":{\"fw.version\":\"14.32.1010\",\"fw\":\"14.32.1010\"}}}}}\n",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for ens4f0np0:\n\tSupported ports: [ Backplane ]\n\tSupported link modes:   1000baseKX/Full\n\t                        10000baseKR/Full\n\t                        25000baseCR/Full\n\t                        25000baseKR/Full\n\t                        25000baseSR/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: None\t RS\t BASER\n\tAdvertised link modes:  1000baseKX/Full\n\t                        10000baseKR/Full\n\t                        25000baseCR/Full\n\t                        25000baseKR/Full\n\t                        25000baseSR/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: None\n\tSpeed: 25000Mb/s\n\tDuplex: Full\n\tAuto-negotiation: on\n\tPort: Direct Attach Copper\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n\tLink detected: yes\n",
+        "rc": 0
+      },
       "ethtool_P": {
         "err": "",
         "out": "Permanent address: 02:00:00:00:00:01\n",
         "rc": 0
       },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for ens4f0np0:\nSupported/Configured FEC encodings: Auto\nActive FEC encoding: Off\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: mlx5_core\nversion: 6.8.0-136-generic\nfirmware-version: 14.32.1010 (MT_2420110034)\nexpansion-rom-version: \nbus-info: 0000:82:00.0\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "",
+        "out": "\tIdentifier                                : 0x03 (SFP)\n\tExtended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)\n\tConnector                                 : 0x21 (Copper pigtail)\n\tTransceiver codes                         : 0x00 0x00 0x00 0x00 0x00 0x04 0x00 0x00 0x0c\n\tTransceiver type                          : Passive Cable\n\tTransceiver type                          : Extended: 25G Base-CR CA-S\n\tEncoding                                  : 0x00 (unspecified)\n\tBR, Nominal                               : 25750MBd\n\tRate identifier                           : 0x00 (unspecified)\n\tLength (SMF,km)                           : 0km\n\tLength (SMF)                              : 0m\n\tLength (50um)                             : 0m\n\tLength (62.5um)                           : 0m\n\tLength (Copper)                           : 2m\n\tLength (OM3)                              : 0m\n\tPassive Cu cmplnce.                       : 0x00 (unspecified) [SFF-8472 rev10.4 only]\n\tVendor name                               : FS\n\tVendor OUI                                : 64:9d:99\n\tVendor PN                                 : Q-4S28PC02\n\tVendor rev                                : 01\n\tOption values                             : 0x08 0x00\n\tOption                                    : Retimer or CDR implemented\n\tBR margin, max                            : 0%\n\tBR margin, min                            : 0%\n\tVendor SN                                 : SN00000004-1\n\tDate code                                 : 220907\n",
+        "rc": 0
+      },
       "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:82:00.0\nClass:\tEthernet controller [0200]\nVendor:\tMellanox Technologies [15b3]\nDevice:\tMT27710 Family [ConnectX-4 Lx] [1015]\nSVendor:\tMellanox Technologies [15b3]\nSDevice:\tStand-up ConnectX-4 Lx EN, 25GbE dual-port SFP28, PCIe3.0 x8, MCX4121A-ACAT [0003]\nPhySlot:\t4\nProgIf:\t00\nNUMANode:\t1\nIOMMUGroup:\t11\n\n",
+        "rc": 0
+      },
       "pci": "0000:82:00.0",
       "sysfs": {
         "address": "02:00:00:00:00:01",
@@ -73,12 +168,42 @@
       }
     },
     "ens4f1np1": {
+      "devlink": {
+        "err": "",
+        "out": "{\"info\":{\"pci/0000:82:00.1\":{\"driver\":\"mlx5_core\",\"versions\":{\"fixed\":{\"fw.psid\":\"MT_2420110034\"},\"running\":{\"fw.version\":\"14.32.1010\",\"fw\":\"14.32.1010\"},\"stored\":{\"fw.version\":\"14.32.1010\",\"fw\":\"14.32.1010\"}}}}}\n",
+        "rc": 0
+      },
+      "ethtool": {
+        "err": "",
+        "out": "Settings for ens4f1np1:\n\tSupported ports: [ Backplane ]\n\tSupported link modes:   1000baseKX/Full\n\t                        10000baseKR/Full\n\t                        25000baseCR/Full\n\t                        25000baseKR/Full\n\t                        25000baseSR/Full\n\tSupported pause frame use: Symmetric\n\tSupports auto-negotiation: Yes\n\tSupported FEC modes: None\t RS\t BASER\n\tAdvertised link modes:  1000baseKX/Full\n\t                        10000baseKR/Full\n\t                        25000baseCR/Full\n\t                        25000baseKR/Full\n\t                        25000baseSR/Full\n\tAdvertised pause frame use: Symmetric\n\tAdvertised auto-negotiation: Yes\n\tAdvertised FEC modes: None\n\tSpeed: 25000Mb/s\n\tDuplex: Full\n\tAuto-negotiation: on\n\tPort: Direct Attach Copper\n\tPHYAD: 0\n\tTransceiver: internal\n\tSupports Wake-on: d\n\tWake-on: d\n\tLink detected: yes\n",
+        "rc": 0
+      },
       "ethtool_P": {
         "err": "",
         "out": "Permanent address: 02:00:00:00:00:02\n",
         "rc": 0
       },
+      "ethtool_fec": {
+        "err": "",
+        "out": "FEC parameters for ens4f1np1:\nSupported/Configured FEC encodings: Auto\nActive FEC encoding: Off\n",
+        "rc": 0
+      },
+      "ethtool_i": {
+        "err": "",
+        "out": "driver: mlx5_core\nversion: 6.8.0-136-generic\nfirmware-version: 14.32.1010 (MT_2420110034)\nexpansion-rom-version: \nbus-info: 0000:82:00.1\nsupports-statistics: yes\nsupports-test: yes\nsupports-eeprom-access: no\nsupports-register-dump: no\nsupports-priv-flags: yes\n",
+        "rc": 0
+      },
+      "ethtool_m": {
+        "err": "",
+        "out": "\tIdentifier                                : 0x03 (SFP)\n\tExtended identifier                       : 0x04 (GBIC/SFP defined by 2-wire interface ID)\n\tConnector                                 : 0x21 (Copper pigtail)\n\tTransceiver codes                         : 0x00 0x00 0x00 0x00 0x00 0x04 0x00 0x00 0x0c\n\tTransceiver type                          : Passive Cable\n\tTransceiver type                          : Extended: 25G Base-CR CA-S\n\tEncoding                                  : 0x00 (unspecified)\n\tBR, Nominal                               : 25750MBd\n\tRate identifier                           : 0x00 (unspecified)\n\tLength (SMF,km)                           : 0km\n\tLength (SMF)                              : 0m\n\tLength (50um)                             : 0m\n\tLength (62.5um)                           : 0m\n\tLength (Copper)                           : 2m\n\tLength (OM3)                              : 0m\n\tPassive Cu cmplnce.                       : 0x00 (unspecified) [SFF-8472 rev10.4 only]\n\tVendor name                               : FS\n\tVendor OUI                                : 64:9d:99\n\tVendor PN                                 : Q-4S28PC02\n\tVendor rev                                : 01\n\tOption values                             : 0x08 0x00\n\tOption                                    : Retimer or CDR implemented\n\tBR margin, max                            : 0%\n\tBR margin, min                            : 0%\n\tVendor SN                                 : SN00000005-1\n\tDate code                                 : 220907\n",
+        "rc": 0
+      },
       "kind": "physical",
+      "lspci": {
+        "err": "",
+        "out": "Slot:\t0000:82:00.1\nClass:\tEthernet controller [0200]\nVendor:\tMellanox Technologies [15b3]\nDevice:\tMT27710 Family [ConnectX-4 Lx] [1015]\nSVendor:\tMellanox Technologies [15b3]\nSDevice:\tStand-up ConnectX-4 Lx EN, 25GbE dual-port SFP28, PCIe3.0 x8, MCX4121A-ACAT [0003]\nPhySlot:\t4\nProgIf:\t00\nNUMANode:\t1\nIOMMUGroup:\t12\n\n",
+        "rc": 0
+      },
       "pci": "0000:82:00.1",
       "sysfs": {
         "address": "02:00:00:00:00:02",
@@ -95,7 +220,11 @@
   },
   "sections": [
     "ports",
-    "lldp"
+    "lldp",
+    "ethtool",
+    "module",
+    "nic",
+    "system"
   ],
   "version": 1
 }
