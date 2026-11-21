@@ -151,6 +151,41 @@ def fetch_interfaces(
     return interfaces
 
 
+def fetch_devices(
+    nb, device_ids: Iterable[int], chunk_size: int = 50
+) -> List[Dict[str, Any]]:
+    """Fetch devices by ID with few requests and return them as plain data."""
+    ids = sorted(set(device_ids))
+    devices: List[Dict[str, Any]] = []
+    for start in range(0, len(ids), chunk_size):
+        chunk = ids[start : start + chunk_size]
+        devices.extend(dict(record) for record in nb.dcim.devices.filter(id=chunk))
+    return devices
+
+
+def find_devices(
+    nb, names: Iterable[str], chunk_size: int = 50
+) -> List[Dict[str, Any]]:
+    """Find devices by name, ignoring case, and return them as plain data.
+
+    Each name is also tried without its domain, because a device can
+    announce itself fully qualified while NetBox holds the short name.
+    """
+    wanted: List[str] = []
+    for name in names:
+        for candidate in (name, name.split(".")[0]):
+            if candidate and candidate not in wanted:
+                wanted.append(candidate)
+
+    devices: Dict[Any, Dict[str, Any]] = {}
+    for start in range(0, len(wanted), chunk_size):
+        chunk = wanted[start : start + chunk_size]
+        for record in nb.dcim.devices.filter(name__ie=chunk):
+            device = dict(record)
+            devices.setdefault(device.get("id"), device)
+    return list(devices.values())
+
+
 def physical_interfaces(
     interfaces: Iterable[NetboxInterface], include_mgmt: bool = True
 ) -> List[NetboxInterface]:
@@ -215,6 +250,25 @@ def sonic_name_index(
         if _SONIC_NAME.match(sonic_name or ""):
             index.setdefault(sonic_name, interface)
     return index
+
+
+def sonic_alias_index(hwsku: Optional[str]) -> Dict[str, str]:
+    """Return ``{vendor alias: SONiC port name}`` of a HWSKU port config.
+
+    A switch that was not configured by OSISM advertises the vendor alias
+    of the port config file (``twentyFiveGigE1``) instead of the NetBox
+    name. Empty without a HWSKU or without its port config file.
+    """
+    if not hwsku:
+        return {}
+
+    from osism.tasks.conductor.sonic.interface import get_port_config
+
+    return {
+        fields["alias"]: name
+        for name, fields in get_port_config(hwsku).items()
+        if fields.get("alias")
+    }
 
 
 class _Matcher:

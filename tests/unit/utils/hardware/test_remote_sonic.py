@@ -228,3 +228,110 @@ def test_main_accepts_the_hardware_sections(tmp_path):
         "dom",
         "system",
     ]
+
+
+# ---------------------------------------------------------------------------
+# LLDP section
+# ---------------------------------------------------------------------------
+
+
+def _lldp_runner(entries, calls, lldpctl_rc=0):
+    """Serve LLDP_ENTRY_TABLE and record the lldpctl calls."""
+    dump = _runner({(False, "APPL_DB", "LLDP_ENTRY_TABLE:*"): entries})
+
+    def run(argv, timeout=30):
+        if "lldpctl" in argv:
+            calls.append(argv)
+            if argv[0] != "sudo" and lldpctl_rc:
+                return {"rc": lldpctl_rc, "out": "", "err": "permission denied"}
+            return {"rc": 0, "out": '{"lldp": {}}', "err": ""}
+        return dump(argv, timeout)
+
+    return run
+
+
+def test_lldp_section_dumps_the_entry_table(tmp_path):
+    entries = {
+        "LLDP_ENTRY_TABLE:Ethernet0": {"value": {"lldp_rem_sys_name": "a"}},
+        "LLDP_ENTRY_TABLE:eth0": {"value": {"lldp_rem_sys_name": "mgmt-1"}},
+    }
+    calls = []
+
+    document = remote_sonic.collect(
+        ["lldp"], str(tmp_path), _lldp_runner(entries, calls)
+    )
+
+    assert document["db"]["APPL_DB"]["LLDP_ENTRY_TABLE"] == entries
+    # The table lists the management port, so lldpctl is not needed
+    assert calls == []
+    assert "lldpctl" not in document
+
+
+def test_lldp_section_finds_the_management_port_under_a_key_with_mac(tmp_path):
+    """Enterprise SONiC 4.5 appends the MAC address of the neighbour."""
+    entries = {
+        "LLDP_ENTRY_TABLE:Ethernet0:02:00:00:00:00:01": {"value": {}},
+        "LLDP_ENTRY_TABLE:eth0:02:00:00:00:00:17": {"value": {}},
+    }
+    calls = []
+
+    document = remote_sonic.collect(
+        ["lldp"], str(tmp_path), _lldp_runner(entries, calls)
+    )
+
+    assert calls == []
+    assert "lldpctl" not in document
+
+
+def test_lldp_section_does_not_take_another_port_for_the_management_port(tmp_path):
+    entries = {"LLDP_ENTRY_TABLE:eth01": {"value": {}}}
+    calls = []
+
+    document = remote_sonic.collect(
+        ["lldp"], str(tmp_path), _lldp_runner(entries, calls)
+    )
+
+    assert calls == [["docker", "exec", "lldp", "lldpctl", "-f", "json"]]
+    assert document["lldpctl"]["rc"] == 0
+
+
+def test_lldp_section_asks_lldpctl_when_the_management_port_is_not_listed(tmp_path):
+    entries = {"LLDP_ENTRY_TABLE:Ethernet0": {"value": {"lldp_rem_sys_name": "a"}}}
+    calls = []
+
+    document = remote_sonic.collect(
+        ["lldp"], str(tmp_path), _lldp_runner(entries, calls)
+    )
+
+    assert calls == [["docker", "exec", "lldp", "lldpctl", "-f", "json"]]
+    assert document["lldpctl"]["rc"] == 0
+
+
+def test_lldp_section_retries_lldpctl_with_sudo(tmp_path):
+    calls = []
+
+    document = remote_sonic.collect(
+        ["lldp"], str(tmp_path), _lldp_runner({}, calls, lldpctl_rc=1)
+    )
+
+    assert calls == [
+        ["docker", "exec", "lldp", "lldpctl", "-f", "json"],
+        ["sudo", "-n", "docker", "exec", "lldp", "lldpctl", "-f", "json"],
+    ]
+    assert document["lldpctl"] == {"rc": 0, "out": '{"lldp": {}}', "err": ""}
+
+
+def test_lldp_section_keeps_going_without_the_table(tmp_path):
+    calls = []
+
+    def run(argv, timeout=30):
+        if "lldpctl" in argv:
+            calls.append(argv)
+            return {"rc": 0, "out": '{"lldp": {}}', "err": ""}
+        return {"rc": 1, "out": "", "err": "no such table"}
+
+    document = remote_sonic.collect(["lldp"], str(tmp_path), run)
+
+    assert document["errors"] == {"APPL_DB LLDP_ENTRY_TABLE": "no such table"}
+    assert document["lldpctl"]["rc"] == 0
+    assert len(calls) == 1
