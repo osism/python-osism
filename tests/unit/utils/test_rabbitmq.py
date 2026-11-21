@@ -65,7 +65,18 @@ def setup_addresses(mocker):
 
     def _setup(*, hosts, redis_side_effect, check_output, resolve=None):
         fake_redis = mocker.MagicMock()
-        fake_redis.get.side_effect = redis_side_effect
+        # ``redis_side_effect`` lists the legacy ``ansible_facts<host>``
+        # entries in host order. The schema-prefixed key that ansible-core
+        # 2.19+ writes (``ansible_factss1_<host>``) is read first and is empty
+        # here; the fact-cache helper's own tests cover it.
+        legacy_entries = iter(redis_side_effect)
+
+        def _get(key):
+            if key.startswith("ansible_factss1_"):
+                return None
+            return next(legacy_entries)
+
+        fake_redis.get.side_effect = _get
         # Seed the lazy attribute on the package so ``utils.redis`` resolves to
         # the mock without triggering ``__getattr__`` -> ``_init_redis()``.
         mocker.patch.dict(utils_pkg.__dict__, {"redis": fake_redis})
@@ -152,7 +163,9 @@ class TestGetRabbitmqNodeAddresses:
         # Hosts are sorted before processing, so the cache is queried host1
         # first.
         assert mocks.redis.get.call_args_list == [
+            call("ansible_factss1_host1"),
             call("ansible_factshost1"),
+            call("ansible_factss1_host2"),
             call("ansible_factshost2"),
         ]
 

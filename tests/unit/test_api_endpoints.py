@@ -855,7 +855,26 @@ def test_get_host_facts_cache_miss(client):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "No facts found in cache for host 'node-1'"
-    fake_redis.get.assert_called_once_with("ansible_factsnode-1")
+    assert fake_redis.get.call_args_list == [
+        call("ansible_factss1_node-1"),
+        call("ansible_factsnode-1"),
+    ]
+
+
+def test_get_host_facts_reads_a_schema1_entry(client):
+    # ansible-core 2.19+ writes ansible_factss1_<host> as {"__payload__": ...};
+    # values from `set_fact: cacheable` carry data tags.
+    tagged = {"value": "bar", "tags": [], "__ansible_type": "_AnsibleTaggedStr"}
+    entry = json.dumps({"__payload__": json.dumps({"a_fact": tagged})}).encode()
+    fake_redis = MagicMock()
+    fake_redis.get.side_effect = lambda key: (
+        entry if key == "ansible_factss1_node-1" else None
+    )
+
+    response = get_with_redis(client, fake_redis, "/v1/inventory/hosts/node-1/facts")
+
+    assert response.status_code == 200
+    assert response.json()["facts"] == [{"name": "a_fact", "value": "bar"}]
 
 
 def test_get_host_facts_returns_sorted_facts(client):

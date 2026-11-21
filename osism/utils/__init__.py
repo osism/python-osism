@@ -608,33 +608,26 @@ def is_task_locked():
 def check_ansible_facts(max_age=None):
     """Check if Ansible facts exist in Redis and are not stale.
 
-    Scans Redis for ansible_facts* keys and checks the
+    Looks at every host's cached facts, in both of the fact cache's key
+    schemas (see osism.utils.fact_cache), and checks the newest entry's
     ansible_date_time.epoch field to determine freshness.
 
     Args:
         max_age: Maximum age in seconds (default: settings.FACTS_MAX_AGE)
     """
-    import json
+    from osism.utils import fact_cache
 
     if max_age is None:
         max_age = settings.FACTS_MAX_AGE
 
     try:
         r = _init_redis()
-
-        # Find all ansible_facts keys
-        keys = []
-        cursor = 0
-        while True:
-            cursor, batch = r.scan(cursor, match="ansible_facts*", count=100)
-            keys.extend(batch)
-            if cursor == 0:
-                break
+        hosts = fact_cache.scan_host_keys(r)
     except Exception as e:
         logger.warning(f"Could not check Ansible facts freshness: {e}")
         return
 
-    if not keys:
+    if not hosts:
         logger.warning(
             "No Ansible facts found in Redis cache. "
             "Run 'osism sync facts' to gather facts."
@@ -644,43 +637,45 @@ def check_ansible_facts(max_age=None):
     now = time.time()
     stale_hosts = []
 
-    for key in keys:
-        data = None
-        try:
-            key_str = key.decode() if isinstance(key, bytes) else key
-            hostname = key_str.replace("ansible_facts", "", 1)
-
-            # Skip localhost and friends: their facts are never refreshed via
-            # 'osism sync facts', so reporting them as stale is misleading.
-            if hostname in LOCAL_FACT_HOSTS:
-                continue
-
-            data = r.get(key)
-            if not data:
-                continue
-            facts = json.loads(data)
-            date_time = facts.get("ansible_date_time", {})
-            epoch = date_time.get("epoch")
-            if epoch is None:
-                logger.debug(
-                    f"Host '{hostname}': facts missing ansible_date_time.epoch"
-                )
-                continue
-            age = now - float(epoch)
-            if age > max_age:
-                stale_hosts.append((hostname, int(age)))
-        except (json.JSONDecodeError, ValueError, TypeError):
-            truncated_value = data
-            if isinstance(truncated_value, (bytes, str)):
-                truncated_value = truncated_value[:200]
-            # loguru formats with str.format and knows no exc_info kwarg, so
-            # printf-style placeholders would be logged verbatim and the
-            # traceback dropped.
-            logger.opt(exception=True).debug(
-                f"Skipping malformed ansible_facts entry for key {key!r}: "
-                f"{truncated_value!r}"
-            )
+    for hostname, keys in hosts.items():
+        # Skip localhost and friends: their facts are never refreshed via
+        # 'osism sync facts', so reporting them as stale is misleading.
+        if hostname in LOCAL_FACT_HOSTS:
             continue
+
+        entries = []
+        for key in keys:
+            data = None
+            try:
+                data = r.get(key)
+                if not data:
+                    continue
+                entries.append(fact_cache.decode(data))
+            except (ValueError, TypeError):
+                truncated_value = data
+                if isinstance(truncated_value, (bytes, str)):
+                    truncated_value = truncated_value[:200]
+                # loguru formats with str.format and knows no exc_info kwarg, so
+                # printf-style placeholders would be logged verbatim and the
+                # traceback dropped.
+                logger.opt(exception=True).debug(
+                    f"Skipping malformed ansible_facts entry for key {key!r}: "
+                    f"{truncated_value!r}"
+                )
+        if not entries:
+            continue
+
+        epoch = fact_cache.newest(entries).get("ansible_date_time", {}).get("epoch")
+        if epoch is None:
+            logger.debug(f"Host '{hostname}': facts missing ansible_date_time.epoch")
+            continue
+        try:
+            age = now - float(epoch)
+        except (TypeError, ValueError):
+            logger.debug(f"Host '{hostname}': unusable ansible_date_time.epoch")
+            continue
+        if age > max_age:
+            stale_hosts.append((hostname, int(age)))
 
     if stale_hosts:
         logger.warning(

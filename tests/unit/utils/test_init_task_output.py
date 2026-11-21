@@ -635,6 +635,54 @@ def test_check_ansible_facts_one_fresh_host_no_warning(mocker, loguru_logs):
     assert not any("stale" in m for m in warnings)
 
 
+def _schema1_payload(epoch):
+    """Return JSON bytes shaped like an ansible-core 2.19+ fact-cache entry."""
+    import json
+
+    inner = json.dumps({"ansible_date_time": {"epoch": epoch}})
+    return json.dumps({"__payload__": inner}).encode("utf-8")
+
+
+def test_check_ansible_facts_fresh_schema1_entry_beats_stale_legacy(
+    mocker, loguru_logs
+):
+    # osism-ansible on ansible-core 2.19+ refreshes ansible_factss1_<host>
+    # while the legacy key ages; the host is fresh.
+    import time as time_mod
+
+    now = time_mod.time()
+    entries = {
+        b"ansible_factshost-a": _facts_payload(now - 9999),
+        b"ansible_factss1_host-a": _schema1_payload(now - 1),
+    }
+    mock_r = mocker.MagicMock()
+    mock_r.scan.return_value = (0, list(entries))
+    mock_r.get.side_effect = entries.get
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    utils_pkg.check_ansible_facts(max_age=10)
+
+    warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
+    assert not any("stale" in m for m in warnings)
+
+
+def test_check_ansible_facts_stale_schema1_entry_names_the_host(mocker, loguru_logs):
+    import time as time_mod
+
+    now = time_mod.time()
+    mock_r = mocker.MagicMock()
+    mock_r.scan.return_value = (0, [b"ansible_factss1_host-a"])
+    mock_r.get.return_value = _schema1_payload(now - 9999)
+    mocker.patch("osism.utils._init_redis", return_value=mock_r)
+
+    utils_pkg.check_ansible_facts(max_age=10)
+
+    warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
+    assert any("stale for 1 host(s)" in m for m in warnings)
+    assert any("Host 'host-a'" in m for m in warnings)
+    assert not any("s1_host-a" in m for m in warnings)
+
+
 def test_check_ansible_facts_mix_of_fresh_and_stale(mocker, loguru_logs):
     import time as time_mod
 
@@ -752,7 +800,7 @@ def test_check_ansible_facts_non_numeric_epoch_skipped(mocker, loguru_logs):
     utils_pkg.check_ansible_facts(max_age=10)
 
     debug_messages = [r["message"] for r in loguru_logs if r["level"] == "DEBUG"]
-    assert any("Skipping malformed ansible_facts entry" in m for m in debug_messages)
+    assert any("unusable ansible_date_time.epoch" in m for m in debug_messages)
     warnings = [r["message"] for r in loguru_logs if r["level"] == "WARNING"]
     assert not any("stale" in m for m in warnings)
 

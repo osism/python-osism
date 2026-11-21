@@ -7,7 +7,7 @@ import json
 import os
 import re
 import subprocess
-from typing import Optional, Dict, Any, List, cast
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 
 from fastapi import (
@@ -26,6 +26,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from osism.tasks import reconciler, openstack
 from osism import utils
+from osism.utils import fact_cache
 from osism.utils.inventory import get_hosts_from_inventory, get_inventory_path
 from osism.services.listener import BaremetalEvents
 from osism.services.websocket_manager import websocket_manager
@@ -941,22 +942,21 @@ async def get_host_hostvar(host: str, variable: str) -> HostvarSingleResponse:
 async def get_host_facts(host: str) -> FactsResponse:
     """Get all cached Ansible facts for a specific host."""
     try:
-        data = cast(bytes | None, utils.redis.get(f"ansible_facts{host}"))
+        facts_data = fact_cache.get_host_facts(utils.redis, host)
 
-        if not data:
+        if not facts_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No facts found in cache for host '{host}'",
             )
 
-        facts_data = json.loads(data)
         facts = [
             FactEntry(name=name, value=value)
             for name, value in sorted(facts_data.items())
         ]
 
         return FactsResponse(host=host, facts=facts, count=len(facts), from_cache=True)
-    except json.JSONDecodeError as e:
+    except ValueError as e:
         logger.error(f"Error parsing facts JSON for {host}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -980,15 +980,13 @@ async def get_host_facts(host: str) -> FactsResponse:
 async def get_host_fact(host: str, fact: str) -> FactSingleResponse:
     """Get a specific cached Ansible fact for a host."""
     try:
-        data = cast(bytes | None, utils.redis.get(f"ansible_facts{host}"))
+        facts_data = fact_cache.get_host_facts(utils.redis, host)
 
-        if not data:
+        if not facts_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No facts found in cache for host '{host}'",
             )
-
-        facts_data = json.loads(data)
 
         if fact not in facts_data:
             raise HTTPException(
@@ -999,7 +997,7 @@ async def get_host_fact(host: str, fact: str) -> FactSingleResponse:
         return FactSingleResponse(
             host=host, name=fact, value=facts_data[fact], from_cache=True
         )
-    except json.JSONDecodeError as e:
+    except ValueError as e:
         logger.error(f"Error parsing facts JSON for {host}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
