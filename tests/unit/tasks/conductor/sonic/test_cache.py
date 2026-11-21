@@ -183,6 +183,35 @@ def test_get_device_interfaces_handles_empty_filter_result(mock_nb):
 
 
 # ---------------------------------------------------------------------------
+# InterfaceCache.set_device_interfaces
+# ---------------------------------------------------------------------------
+
+
+def test_set_device_interfaces_serves_later_lookups_without_fetching(mock_nb):
+    cache = InterfaceCache()
+    interfaces = [MagicMock(name="Eth1/1"), MagicMock(name="Eth1/2")]
+
+    cache.set_device_interfaces(7, interfaces)
+
+    assert cache.get_device_interfaces(7) == interfaces
+    mock_nb.dcim.interfaces.filter.assert_not_called()
+    assert cache.get_cache_stats() == {"cached_devices": 1, "total_interfaces": 2}
+
+
+def test_set_device_interfaces_stores_a_copy_and_replaces_an_entry(mock_nb):
+    cache = InterfaceCache()
+    interfaces = [MagicMock()]
+    cache.set_device_interfaces(7, interfaces)
+    interfaces.append(MagicMock())
+
+    assert len(cache.get_device_interfaces(7)) == 1
+
+    cache.set_device_interfaces(7, [])
+
+    assert cache.get_device_interfaces(7) == []
+
+
+# ---------------------------------------------------------------------------
 # InterfaceCache.clear
 # ---------------------------------------------------------------------------
 

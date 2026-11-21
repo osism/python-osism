@@ -14,11 +14,13 @@ import pytest
 
 from osism.utils.ssh import (
     KNOWN_HOSTS_PATH,
+    OPERATOR_KEY_PATH,
     backup_known_hosts,
     cleanup_ssh_known_hosts_for_node,
     ensure_known_hosts_file,
     get_host_identifiers,
     remove_known_hosts_entries,
+    run_remote,
 )
 
 # ---------------------------------------------------------------------------
@@ -619,3 +621,61 @@ def test_cleanup_remove_raises(mocker, loguru_logs):
 
     assert cleanup_ssh_known_hosts_for_node("node01") is False
     assert _has_log(loguru_logs, "ERROR", "Error during SSH known_hosts cleanup")
+
+
+# ---------------------------------------------------------------------------
+# run_remote
+# ---------------------------------------------------------------------------
+
+
+def test_run_remote_builds_a_batch_mode_ssh_call(mocker):
+    result = _run_result(stdout="ok")
+    run = mocker.patch("osism.utils.ssh.subprocess.run", return_value=result)
+
+    assert run_remote("192.0.2.1", "dragon", "uname -a") is result
+
+    argv = run.call_args.args[0]
+    assert argv[0] == "/usr/bin/ssh"
+    assert argv[argv.index("-i") + 1] == OPERATOR_KEY_PATH
+    options = [argv[i + 1] for i, item in enumerate(argv) if item == "-o"]
+    assert options == [
+        "BatchMode=yes",
+        "StrictHostKeyChecking=no",
+        "LogLevel=ERROR",
+        f"UserKnownHostsFile={KNOWN_HOSTS_PATH}",
+        "ConnectTimeout=10",
+    ]
+    assert argv[-2:] == ["dragon@192.0.2.1", "uname -a"]
+    assert run.call_args.kwargs == {
+        "input": None,
+        "capture_output": True,
+        "text": True,
+        "timeout": 60,
+    }
+
+
+def test_run_remote_pipes_stdin_and_passes_the_timeout(mocker):
+    run = mocker.patch("osism.utils.ssh.subprocess.run", return_value=_run_result())
+
+    run_remote(
+        "leaf-1a",
+        "admin",
+        "python3 -",
+        stdin="print(1)",
+        timeout=5,
+        known_hosts_path="/tmp/kh",
+    )
+
+    assert run.call_args.kwargs["input"] == "print(1)"
+    assert run.call_args.kwargs["timeout"] == 5
+    assert "UserKnownHostsFile=/tmp/kh" in run.call_args.args[0]
+
+
+def test_run_remote_lets_the_timeout_propagate(mocker):
+    mocker.patch(
+        "osism.utils.ssh.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd="ssh", timeout=5),
+    )
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_remote("192.0.2.1", "dragon", "true", timeout=5)
