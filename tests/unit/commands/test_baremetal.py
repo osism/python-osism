@@ -1025,6 +1025,75 @@ def test_deploy_frr_parameters_extend_play():
     deep_decrypt.assert_called_once_with({"frr_local_as": 65000}, vault)
 
 
+def _first_boot_device(first_boot, **top_level):
+    local = {**top_level, "first_boot": first_boot}
+    device = MagicMock()
+    device.name = "node1"
+    device.local_context_data = local
+    device.config_context = dict(local)
+    device.custom_fields = {}
+    return device
+
+
+def _netbox_with(device):
+    nb = MagicMock()
+    nb.dcim.devices.get.return_value = device
+    return nb
+
+
+def test_deploy_first_boot_overrides_top_level():
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = FakeNode()
+    device = _first_boot_device({"operator_user": "osism"}, operator_user="dragon")
+
+    _, captured, _, _ = _run_deploy(["node1"], conn, nb=_netbox_with(device))
+
+    play = captured["playbook"][0]
+    assert play["vars"]["operator_user"] == "osism"
+    assert "first_boot" not in play["vars"]
+
+
+def test_deploy_builder_and_extra_win_over_first_boot():
+    node = FakeNode(
+        extra={
+            "frr_parameters": json.dumps({"frr_local_as": 65000}),
+            "netplan_parameters": json.dumps({"network_ethernets": {"eth0": {}}}),
+        }
+    )
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = node
+    device = _first_boot_device(
+        {
+            "hostname_name": "wrong",
+            "frr_local_as": 1,
+            "network_ethernets": {"x": {}},
+        }
+    )
+
+    _, captured, _, _ = _run_deploy(["node1"], conn, nb=_netbox_with(device))
+
+    play = captured["playbook"][0]
+    assert play["vars"]["hostname_name"] == "node1"
+    assert play["vars"]["frr_local_as"] == 65000
+    assert play["vars"]["network_ethernets"] == {"eth0": {}}
+
+
+def test_deploy_invalid_first_boot_skips_node(loguru_logs):
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = FakeNode()
+    device = _first_boot_device(["not", "a", "mapping"])
+
+    rc, _, _, _ = _run_deploy(["node1"], conn, nb=_netbox_with(device))
+
+    assert rc == 1
+    conn.baremetal.set_node_provision_state.assert_not_called()
+    assert any(
+        record["level"] == "WARNING"
+        and "Failed to build config drive" in record["message"]
+        for record in loguru_logs
+    )
+
+
 def test_deploy_supermicro_sets_cdrom_boot_device():
     node = FakeNode(properties={"vendor": "  Supermicro "})
     conn = MagicMock()
@@ -1229,6 +1298,95 @@ def test_dump_netbox_device_by_name(capsys):
     assert "osism.commons.network" in play["roles"]
     assert "osism.services.frr" in play["roles"]
     deep_decrypt.assert_called_once_with({"frr_local_as": 65000}, vault)
+
+
+def test_dump_ironic_first_boot_overrides_top_level(capsys):
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = FakeNode()
+    device = _first_boot_device({"operator_user": "osism"}, operator_user="dragon")
+
+    _run_dump(["node1", "--ironic"], conn=conn, nb=_netbox_with(device))
+
+    play = yaml.safe_load(capsys.readouterr().out)[0]
+    assert play["vars"]["operator_user"] == "osism"
+    assert "first_boot" not in play["vars"]
+
+
+def test_dump_netbox_first_boot_overrides_top_level(capsys):
+    device = _first_boot_device({"operator_user": "osism"}, operator_user="dragon")
+
+    rc, _, _ = _run_dump(["node1"], nb=_netbox_with(device))
+
+    assert rc is None
+    play = yaml.safe_load(capsys.readouterr().out)[0]
+    assert play["vars"]["operator_user"] == "osism"
+    assert "first_boot" not in play["vars"]
+
+
+def test_dump_netbox_custom_fields_win_over_first_boot(capsys):
+    device = _first_boot_device({"frr_local_as": 1})
+    device.custom_fields = {"frr_parameters": {"frr_local_as": 65000}}
+
+    _run_dump(["node1"], nb=_netbox_with(device))
+
+    play = yaml.safe_load(capsys.readouterr().out)[0]
+    assert play["vars"]["frr_local_as"] == 65000
+
+
+def _play_from_builder(builder, device, capsys):
+    """Build the first-boot play with one of the three builders."""
+    nb = _netbox_with(device)
+    if builder == "deploy":
+        conn = MagicMock()
+        conn.baremetal.find_node.return_value = FakeNode()
+        _, captured, _, _ = _run_deploy(["node1"], conn, nb=nb)
+        return captured["playbook"][0]
+    if builder == "dump-ironic":
+        conn = MagicMock()
+        conn.baremetal.find_node.return_value = FakeNode()
+        _run_dump(["node1", "--ironic"], conn=conn, nb=nb)
+    else:
+        _run_dump(["node1"], nb=nb)
+    return yaml.safe_load(capsys.readouterr().out)[0]
+
+
+@pytest.mark.parametrize("builder", ["deploy", "dump-ironic", "dump-netbox"])
+def test_builders_apply_first_boot_from_site_context_only(builder, capsys):
+    device = MagicMock()
+    device.name = "node1"
+    device.local_context_data = {"operator_user": "dragon"}
+    device.config_context = {
+        "operator_user": "dragon",
+        "first_boot": {"operator_user": "osism"},
+    }
+    device.custom_fields = {}
+
+    play = _play_from_builder(builder, device, capsys)
+
+    assert play["vars"]["operator_user"] == "osism"
+
+
+@pytest.mark.parametrize("builder", ["deploy", "dump-ironic", "dump-netbox"])
+def test_builders_log_found_device(builder, capsys, loguru_logs):
+    device = _first_boot_device({"b": 2}, a=1)
+
+    _play_from_builder(builder, device, capsys)
+
+    infos = [r["message"] for r in loguru_logs if r["level"] == "INFO"]
+    assert any(m.startswith("Found NetBox device node1") for m in infos)
+    assert not any("Using NetBox context data" in m for m in infos)
+
+
+def test_dump_netbox_invalid_first_boot_returns_1(capsys, loguru_logs):
+    device = _first_boot_device("not a mapping")
+
+    rc, _, _ = _run_dump(["node1"], nb=_netbox_with(device))
+
+    assert rc == 1
+    assert capsys.readouterr().out == ""
+    assert any(
+        "Failed to generate playbook" in record["message"] for record in loguru_logs
+    )
 
 
 def test_dump_netbox_device_via_inventory_hostname(capsys):
