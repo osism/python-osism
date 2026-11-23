@@ -7,6 +7,7 @@ from argparse import (
     RawDescriptionHelpFormatter,
 )
 from datetime import datetime, timezone
+from typing import Any
 from textwrap import dedent
 
 import tempfile
@@ -119,6 +120,56 @@ def _raid_recreate_blocker(node, raid, fleet):
         return "it has no target_raid_config"
 
     return None
+
+
+FIRST_BOOT_KEY = "first_boot"
+
+# NOTE: Context keys that never become first-boot play vars. FRR and netplan
+#       parameters reach the play through their own updates, and first_boot is
+#       applied by its contents, not as one variable.
+_NOT_FIRST_BOOT_VARS = ("frr_parameters", "netplan_parameters", FIRST_BOOT_KEY)
+
+
+def _first_boot_vars(device: Any) -> dict[str, Any]:
+    """Return the vars of the first-boot play for a NetBox device.
+
+    The top-level keys of the device's local_context_data are host variables
+    of the inventory; the first boot applies them too. The mapping under
+    first_boot holds values for the first boot only and wins over them. It is
+    read from the rendered config_context, so a site or segment config context
+    can provide a default that the device's local_context_data overrides. The
+    builder's own values (hostname, MetalBox entries) and the netplan and FRR
+    parameters are applied after these and win over both.
+    """
+    if device is None:
+        return {}
+
+    local = getattr(device, "local_context_data", None)
+    if not isinstance(local, dict):
+        local = {}
+    play_vars = {k: v for k, v in local.items() if k not in _NOT_FIRST_BOOT_VARS}
+    count = len(play_vars)
+    logger.info(
+        f"First-boot vars for device {device.name}: "
+        f"{count} key{'' if count == 1 else 's'} from local_context_data"
+    )
+
+    rendered = getattr(device, "config_context", None)
+    source = rendered if isinstance(rendered, dict) else local
+    first_boot = source.get(FIRST_BOOT_KEY)
+    if first_boot is None:
+        return play_vars
+    if not isinstance(first_boot, dict):
+        raise ValueError(
+            f"{FIRST_BOOT_KEY} of device {device.name} must be a mapping, "
+            f"got {type(first_boot).__name__}"
+        )
+
+    logger.info(
+        f"Applying {FIRST_BOOT_KEY} keys {sorted(first_boot)} for device {device.name}"
+    )
+    play_vars.update(first_boot)
+    return play_vars
 
 
 def _apply_metalbox_vars(play_vars, device):

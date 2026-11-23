@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 import json
 import os
 import subprocess
@@ -389,6 +390,128 @@ def test_apply_metalbox_vars_leaves_vars_untouched_without_ip():
         baremetal._apply_metalbox_vars(play_vars, MagicMock())
 
     assert play_vars == {"existing": True}
+
+
+# --- _first_boot_vars ---
+
+
+def _context_device(local, rendered):
+    device = MagicMock()
+    device.name = "node1"
+    device.local_context_data = local
+    device.config_context = rendered
+    return device
+
+
+def test_first_boot_vars_logs_top_level_count(loguru_logs):
+    local = {"a": 1, "b": 2, "frr_parameters": {}}
+
+    baremetal._first_boot_vars(_context_device(local, dict(local)))
+
+    assert any(
+        r["level"] == "INFO"
+        and r["message"]
+        == "First-boot vars for device node1: 2 keys from local_context_data"
+        for r in loguru_logs
+    )
+
+
+def test_first_boot_vars_logs_singular_key(loguru_logs):
+    local = {"a": 1}
+
+    baremetal._first_boot_vars(_context_device(local, dict(local)))
+
+    assert any(
+        r["level"] == "INFO"
+        and r["message"]
+        == "First-boot vars for device node1: 1 key from local_context_data"
+        for r in loguru_logs
+    )
+
+
+def test_first_boot_vars_none_device():
+    assert baremetal._first_boot_vars(None) == {}
+
+
+def test_first_boot_vars_top_level_only_as_today():
+    local = {
+        "a": 1,
+        "frr_parameters": {"frr_local_as": 1},
+        "netplan_parameters": {"network_ethernets": {}},
+    }
+    rendered = {**local, "site_var": 2}
+
+    result = baremetal._first_boot_vars(_context_device(local, rendered))
+
+    assert result == {"a": 1}
+
+
+def test_first_boot_overrides_top_level():
+    local = {
+        "operator_user": "dragon",
+        "operator_user_id": 1,
+        "first_boot": {"operator_user": "osism"},
+    }
+
+    result = baremetal._first_boot_vars(_context_device(local, dict(local)))
+
+    assert result == {"operator_user": "osism", "operator_user_id": 1}
+
+
+def test_first_boot_override_is_shallow():
+    local = {
+        "operator_authorized_keys": ["k1"],
+        "first_boot": {"operator_authorized_keys": ["k2"]},
+    }
+
+    result = baremetal._first_boot_vars(_context_device(local, dict(local)))
+
+    assert result["operator_authorized_keys"] == ["k2"]
+
+
+def test_first_boot_from_site_context_without_local_data():
+    rendered = {"first_boot": {"operator_authorized_keys": ["site"]}, "ntp": 1}
+
+    result = baremetal._first_boot_vars(_context_device(None, rendered))
+
+    assert result == {"operator_authorized_keys": ["site"]}
+
+
+def test_first_boot_falls_back_to_local_when_config_context_missing():
+    device = _context_device({"first_boot": {"x": 1}}, MagicMock())
+
+    assert baremetal._first_boot_vars(device) == {"x": 1}
+
+
+def test_first_boot_vars_both_contexts_absent():
+    assert baremetal._first_boot_vars(_context_device(None, MagicMock())) == {}
+
+
+def test_first_boot_null_is_absent():
+    local = {"a": 1, "first_boot": None}
+
+    result = baremetal._first_boot_vars(_context_device(local, dict(local)))
+
+    assert result == {"a": 1}
+
+
+@pytest.mark.parametrize("bad", [["x"], "x", 1])
+def test_first_boot_not_a_mapping_raises(bad):
+    local = {"first_boot": bad}
+
+    with pytest.raises(
+        ValueError, match="first_boot of device node1 must be a mapping"
+    ):
+        baremetal._first_boot_vars(_context_device(local, dict(local)))
+
+
+def test_does_not_mutate_local_context_data():
+    local = {"a": 1, "frr_parameters": {}, "first_boot": {"b": 2}}
+    original = copy.deepcopy(local)
+
+    baremetal._first_boot_vars(_context_device(local, dict(local)))
+
+    assert local == original
 
 
 # --- Cloud setup failure guard (identical in every command of the module) ---
