@@ -484,8 +484,9 @@ class BaremetalDeploy(Command):
                     continue
                 # NOTE: Prepare osism config drive
                 try:
-                    # Get default vars from NetBox local_context_data if available
-                    default_vars = {}
+                    # NOTE: Only the NetBox lookup may fail softly here. The play vars
+                    #       are computed outside it, so an invalid first_boot fails
+                    #       the build instead of yielding a play without its values.
                     device = None
                     if utils.nb:
                         try:
@@ -500,23 +501,9 @@ class BaremetalDeploy(Command):
                                 if devices:
                                     device = devices[0]
 
-                            # Extract local_context_data if device found and has the field.
-                            # Remove frr_parameters and netplan_parameters as they are
-                            # handled separately via Ironic node extra.
-                            if (
-                                device
-                                and hasattr(device, "local_context_data")
-                                and device.local_context_data
-                            ):
-                                default_vars = device.local_context_data
-                                default_vars.pop("frr_parameters", None)
-                                default_vars.pop("netplan_parameters", None)
+                            if device:
                                 logger.info(
-                                    f"Using NetBox local_context_data for node {node.name}"
-                                )
-                            else:
-                                logger.debug(
-                                    f"No local_context_data found for node {node.name} in NetBox"
+                                    f"Found NetBox device {device.name} for node {node.name}"
                                 )
                         except Exception as e:
                             logger.warning(
@@ -529,7 +516,7 @@ class BaremetalDeploy(Command):
                         "hosts": "localhost",
                         "connection": "local",
                         "gather_facts": True,
-                        "vars": default_vars.copy(),
+                        "vars": _first_boot_vars(device),
                         "roles": [
                             "osism.commons.hostname",
                             "osism.commons.hosts",
@@ -703,8 +690,9 @@ class BaremetalDump(Command):
                     logger.error(f"Could not find node {name} in Ironic")
                     return 1
 
-                # Get default vars from NetBox local_context_data if available
-                default_vars = {}
+                # NOTE: Only the NetBox lookup may fail softly here. The play vars
+                #       are computed outside it, so an invalid first_boot fails
+                #       the build instead of yielding a play without its values.
                 device = None
                 if utils.nb:
                     try:
@@ -719,23 +707,9 @@ class BaremetalDump(Command):
                             if devices:
                                 device = devices[0]
 
-                        # Extract local_context_data if device found and has the field.
-                        # Remove frr_parameters and netplan_parameters as they are
-                        # handled separately via Ironic node extra.
-                        if (
-                            device
-                            and hasattr(device, "local_context_data")
-                            and device.local_context_data
-                        ):
-                            default_vars = device.local_context_data
-                            default_vars.pop("frr_parameters", None)
-                            default_vars.pop("netplan_parameters", None)
+                        if device:
                             logger.info(
-                                f"Using NetBox local_context_data for node {node.name}"
-                            )
-                        else:
-                            logger.debug(
-                                f"No local_context_data found for node {node.name} in NetBox"
+                                f"Found NetBox device {device.name} for node {node.name}"
                             )
                     except Exception as e:
                         logger.warning(
@@ -748,7 +722,7 @@ class BaremetalDump(Command):
                     "hosts": "localhost",
                     "connection": "local",
                     "gather_facts": True,
-                    "vars": default_vars.copy(),
+                    "vars": _first_boot_vars(device),
                     "roles": [
                         "osism.commons.hostname",
                         "osism.commons.hosts",
@@ -838,21 +812,7 @@ class BaremetalDump(Command):
                     logger.error(f"Could not find device {name} in NetBox")
                     return 1
 
-                # Get default vars from NetBox local_context_data if available.
-                # Remove frr_parameters and netplan_parameters as they are
-                # handled separately via custom fields.
-                default_vars = {}
-                if hasattr(device, "local_context_data") and device.local_context_data:
-                    default_vars = device.local_context_data
-                    default_vars.pop("frr_parameters", None)
-                    default_vars.pop("netplan_parameters", None)
-                    logger.info(
-                        f"Using NetBox local_context_data for device {device.name}"
-                    )
-                else:
-                    logger.debug(
-                        f"No local_context_data found for device {device.name} in NetBox"
-                    )
+                logger.info(f"Found NetBox device {device.name}")
 
                 playbook = []
                 play = {
@@ -860,7 +820,7 @@ class BaremetalDump(Command):
                     "hosts": "localhost",
                     "connection": "local",
                     "gather_facts": True,
-                    "vars": default_vars.copy(),
+                    "vars": _first_boot_vars(device),
                     "roles": [
                         "osism.commons.hostname",
                         "osism.commons.hosts",
