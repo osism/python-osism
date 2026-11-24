@@ -8,6 +8,88 @@ from tabulate import tabulate
 from osism import utils
 
 
+class Clock(Command):
+    """Show the clock of each Redfish manager next to the conductor clock.
+
+    The conductor clock is the clock of the conductor worker that reads the
+    managers, not of the machine running this command. The offset is Redfish
+    time minus conductor time in whole seconds, positive when the controller
+    is ahead. It is an estimate good to roughly +/-1 second.
+    """
+
+    def get_parser(self, prog_name):
+        parser = super(Clock, self).get_parser(prog_name)
+        parser.add_argument(
+            "hostname",
+            type=str,
+            help="Hostname of the target system",
+        )
+        parser.add_argument(
+            "--format",
+            type=str,
+            choices=["table", "json"],
+            default="table",
+            help="Output format (default: table)",
+        )
+        return parser
+
+    def take_action(self, parsed_args):
+        # Check if tasks are locked before proceeding
+        utils.check_task_lock_and_exit()
+
+        hostname = parsed_args.hostname
+        output_format = parsed_args.format
+        logger.info(
+            f"Redfish clock command called with hostname: {hostname}, format: {output_format}"
+        )
+
+        from osism.tasks.conductor import get_redfish_clock
+
+        result = get_redfish_clock.delay(hostname).get()
+
+        if output_format == "json":
+            print(json.dumps(result, indent=2) if result else "[]")
+            return
+
+        if not result:
+            print(f"No manager clock found for {hostname}")
+            return
+
+        table_data = []
+        for clock in result:
+            offset_seconds = clock["offset_seconds"]
+            if offset_seconds is not None:
+                # Whole seconds: the reading is only good to about a second
+                offset_seconds = f"{round(offset_seconds):+d}"
+            row = [
+                clock["manager_id"],
+                clock["datetime"],
+                clock["datetime_local_offset"],
+                clock["conductor_datetime"],
+                offset_seconds,
+            ]
+            row = ["N/A" if value is None else value for value in row]
+            row.append(clock["error"] or "")
+            table_data.append(row)
+
+        # disable_numparse keeps the signed offset as rendered, e.g. "+1"
+        print(
+            tabulate(
+                table_data,
+                headers=[
+                    "Manager",
+                    "Redfish Time",
+                    "Redfish UTC Offset",
+                    "Conductor Time",
+                    "Offset (s)",
+                    "Error",
+                ],
+                tablefmt="grid",
+                disable_numparse=True,
+            )
+        )
+
+
 class List(Command):
     def _normalize_column_name(self, column_name):
         """Normalize column name to lowercase with underscores instead of spaces."""

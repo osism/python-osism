@@ -7,7 +7,7 @@ import pytest
 
 from osism.commands import redfish
 
-from ._helpers import assert_not_called_before_lock_check
+from ._helpers import assert_not_called_before_lock_check, make_command, parse_args
 
 ETHERNET_INTERFACES = [
     {
@@ -296,3 +296,183 @@ def test_take_action_table_no_result(capsys):
     _run(["host1", "EthernetInterfaces"], None)
     out = capsys.readouterr().out
     assert "No EthernetInterfaces resources found for host1" in out
+
+
+# --- Clock ---
+
+CLOCK_ROW = {
+    "manager_id": "1",
+    "datetime": "2026-11-24T10:15:32+00:00",
+    "datetime_local_offset": "+00:00",
+    "conductor_datetime": "2026-11-24T10:15:31.000+00:00",
+    "offset_seconds": 1.0,
+    "error": None,
+}
+
+
+def _clock_row(**overrides):
+    return {**CLOCK_ROW, **overrides}
+
+
+def _clock_task(result=None):
+    task = MagicMock()
+    task.delay.return_value.get.return_value = result
+    return task
+
+
+def _run_clock(args, task, lock_mock=None):
+    cmd, parsed_args = parse_args(redfish.Clock, args)
+    with patch(
+        "osism.commands.redfish.utils.check_task_lock_and_exit",
+        lock_mock or MagicMock(),
+    ), patch("osism.tasks.conductor.get_redfish_clock", task):
+        return cmd.take_action(parsed_args)
+
+
+def test_clock_parser_defaults_to_table():
+    _, parsed_args = parse_args(redfish.Clock, ["host1"])
+    assert parsed_args.hostname == "host1"
+    assert parsed_args.format == "table"
+
+
+def test_clock_parser_accepts_json():
+    _, parsed_args = parse_args(redfish.Clock, ["host1", "--format", "json"])
+    assert parsed_args.format == "json"
+
+
+def test_clock_parser_rejects_unknown_format():
+    parser = make_command(redfish.Clock).get_parser("test")
+    with pytest.raises(SystemExit):
+        parser.parse_args(["host1", "--format", "xml"])
+
+
+def test_clock_checks_task_lock_before_dispatch():
+    task = _clock_task([])
+    lock_mock = MagicMock(side_effect=assert_not_called_before_lock_check(task.delay))
+
+    _run_clock(["host1"], task, lock_mock)
+
+    lock_mock.assert_called_once_with()
+    task.delay.assert_called_once_with("host1")
+
+
+def test_clock_table_shows_headers_and_row(capsys):
+    _run_clock(["host1"], _clock_task([CLOCK_ROW]))
+
+    out = capsys.readouterr().out
+    assert "+=" in out
+    for text in [
+        "Manager",
+        "Redfish Time",
+        "Redfish UTC Offset",
+        "Conductor Time",
+        "Offset (s)",
+        "Error",
+        "| 1 ",
+        "2026-11-24T10:15:32+00:00",
+        "| +00:00 ",
+        "2026-11-24T10:15:31.000+00:00",
+        "| +1 ",
+    ]:
+        assert text in out
+    assert "Local Time" not in out
+
+
+@pytest.mark.parametrize(
+    "offset, rendered",
+    [
+        (1.0, "| +1 "),
+        (-3.0, "| -3 "),
+        (1.6, "| +2 "),
+        (-0.4, "| +0 "),
+    ],
+)
+def test_clock_table_renders_offset_in_whole_seconds(capsys, offset, rendered):
+    _run_clock(["host1"], _clock_task([_clock_row(offset_seconds=offset)]))
+    assert rendered in capsys.readouterr().out
+
+
+def test_clock_table_shows_error_row(capsys):
+    error_row = _clock_row(
+        manager_id="/redfish/v1/Managers/1",
+        datetime=None,
+        datetime_local_offset=None,
+        conductor_datetime=None,
+        offset_seconds=None,
+        error="Unable to connect to https://bmc. Error: timed out",
+    )
+
+    _run_clock(["host1"], _clock_task([error_row, CLOCK_ROW]))
+
+    out = capsys.readouterr().out
+    assert "/redfish/v1/Managers/1" in out
+    assert "Unable to connect to https://bmc. Error: timed out" in out
+    assert out.count("N/A") == 4
+    assert "No manager clock found" not in out
+
+
+def test_clock_table_renders_missing_values_as_na(capsys):
+    row = _clock_row(datetime=None, datetime_local_offset=None, offset_seconds=None)
+    _run_clock(["host1"], _clock_task([row]))
+    # The Error column stays empty for a row that was read
+    assert capsys.readouterr().out.count("N/A") == 3
+
+
+def test_clock_json_keeps_numbers_and_nulls(capsys):
+    result = [
+        CLOCK_ROW,
+        _clock_row(manager_id="2", datetime=None, offset_seconds=None),
+        _clock_row(
+            manager_id="/redfish/v1/Managers/3",
+            datetime=None,
+            datetime_local_offset=None,
+            conductor_datetime=None,
+            offset_seconds=None,
+            error="timed out",
+        ),
+    ]
+
+    rc = _run_clock(["host1", "--format", "json"], _clock_task(result))
+
+    out = capsys.readouterr().out
+    assert out == json.dumps(result, indent=2) + "\n"
+    assert '"offset_seconds": 1.0' in out
+    assert '"offset_seconds": null' in out
+    assert '"error": null' in out
+    assert '"error": "timed out"' in out
+    assert rc is None
+
+
+@pytest.mark.parametrize("result", [[], None])
+def test_clock_table_empty_result_prints_notice(capsys, result):
+    rc = _run_clock(["host1"], _clock_task(result))
+    assert capsys.readouterr().out == "No manager clock found for host1\n"
+    assert rc is None
+
+
+@pytest.mark.parametrize("result", [[], None])
+def test_clock_json_empty_result_prints_empty_array(capsys, result):
+    rc = _run_clock(["host1", "--format", "json"], _clock_task(result))
+    assert capsys.readouterr().out == "[]\n"
+    assert rc is None
+
+
+def test_clock_large_offset_prints_only_the_table(capsys):
+    rc = _run_clock(["host1"], _clock_task([_clock_row(offset_seconds=86400.0)]))
+
+    out = capsys.readouterr().out
+    assert rc is None
+    assert "| +86400 " in out
+    assert all(line.startswith(("+", "|")) for line in out.splitlines())
+
+
+def test_clock_propagates_task_error(capsys):
+    error = RuntimeError("boom")
+    task = _clock_task()
+    task.delay.return_value.get.side_effect = error
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _run_clock(["host1"], task)
+
+    assert excinfo.value is error
+    assert capsys.readouterr().out == ""
