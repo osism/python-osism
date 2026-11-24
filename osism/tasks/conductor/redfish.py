@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import re
+from datetime import datetime, timedelta, timezone
+
+from dateutil import parser as dateutil_parser
 from loguru import logger
 from osism.tasks.conductor.utils import get_redfish_connection
 
@@ -297,4 +301,142 @@ def _get_network_device_functions(hostname):
 
     except Exception as exc:
         logger.error(f"Error retrieving NetworkDeviceFunctions from {hostname}: {exc}")
+        return []
+
+
+def _utcnow():
+    """Return the current time in UTC. Tests patch this to control the clock."""
+    return datetime.now(timezone.utc)
+
+
+def _parse_redfish_datetime(value, local_offset=None):
+    """
+    Parse a Redfish DateTime into a timezone-aware datetime.
+
+    Args:
+        value (str): The DateTime property of a Redfish manager
+        local_offset (str): The DateTimeLocalOffset property, used when value
+            carries no UTC offset of its own
+
+    Returns:
+        datetime: Timezone-aware datetime, or None if value cannot be parsed
+            or its UTC offset is unknown
+    """
+    try:
+        parsed = dateutil_parser.isoparse(value)
+    except (ValueError, TypeError):
+        return None
+
+    if parsed.tzinfo is not None:
+        return parsed
+
+    if not isinstance(local_offset, str):
+        return None
+    match = re.fullmatch(r"([+-])(\d{2}):(\d{2})", local_offset)
+    if not match:
+        return None
+
+    sign, hours, minutes = match.groups()
+    offset = timedelta(hours=int(hours), minutes=int(minutes))
+    try:
+        tz = timezone(-offset if sign == "-" else offset)
+    except ValueError:
+        return None
+
+    return parsed.replace(tzinfo=tz)
+
+
+def get_clock(hostname):
+    """
+    Get the clock of every Redfish manager of a system next to the conductor clock.
+
+    Conductor time is the midpoint of two timestamps the conductor worker
+    takes directly before and after the GET of each manager resource. The
+    offset is Redfish time minus conductor time in seconds, positive when the
+    controller clock is ahead.
+
+    The offset is an estimate good to roughly +/-1 second: BMCs usually
+    report DateTime in whole seconds, and the window around the GET also
+    covers any retry sushy makes after a transient connection error.
+
+    A manager that cannot be read is returned as a row with its identity as
+    manager_id, None for the clock fields and the exception text in error.
+    Every other row has error set to None.
+
+    Args:
+        hostname (str): The hostname of the target system
+
+    Returns:
+        list: One dictionary per manager or empty list if failed
+    """
+    try:
+        redfish_conn = get_redfish_connection(hostname, ignore_ssl_errors=True)
+
+        if not redfish_conn:
+            logger.error(f"Could not establish Redfish connection to {hostname}")
+            return []
+
+        collection = redfish_conn.get_manager_collection()
+        clocks = []
+
+        for identity in collection.members_identities:
+            try:
+                # sushy issues the GET for the manager resource in get_member
+                before = _utcnow()
+                manager = collection.get_member(identity)
+                after = _utcnow()
+                conductor_time = before + (after - before) / 2
+
+                manager_id = manager.identity
+                value = manager.datetime
+                local_offset = manager.datetimelocaloffset
+                redfish_time = _parse_redfish_datetime(value, local_offset)
+
+                if value is None:
+                    logger.warning(
+                        f"Manager {manager_id} on {hostname} does not report DateTime"
+                    )
+                elif redfish_time is None:
+                    logger.warning(
+                        f"Manager {manager_id} on {hostname} reports DateTime {value!r} that cannot be compared with the conductor clock"
+                    )
+
+                offset_seconds = None
+                if redfish_time is not None:
+                    conductor_time = conductor_time.astimezone(redfish_time.tzinfo)
+                    offset_seconds = round(
+                        (redfish_time - conductor_time).total_seconds(), 3
+                    )
+
+                clocks.append(
+                    {
+                        "manager_id": manager_id,
+                        "datetime": value,
+                        "datetime_local_offset": local_offset,
+                        "conductor_datetime": conductor_time.isoformat(
+                            timespec="milliseconds"
+                        ),
+                        "offset_seconds": offset_seconds,
+                        "error": None,
+                    }
+                )
+
+            except Exception as exc:
+                logger.warning(f"Error reading manager {identity} on {hostname}: {exc}")
+                clocks.append(
+                    {
+                        "manager_id": identity,
+                        "datetime": None,
+                        "datetime_local_offset": None,
+                        "conductor_datetime": None,
+                        "offset_seconds": None,
+                        "error": str(exc),
+                    }
+                )
+
+        logger.info(f"Retrieved {len(clocks)} manager clocks from {hostname}")
+        return clocks
+
+    except Exception as exc:
+        logger.error(f"Error retrieving manager clocks from {hostname}: {exc}")
         return []
