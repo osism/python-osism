@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
+import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import DEFAULT, MagicMock, patch
 
 import pytest
+from sushy import exceptions as sushy_exceptions
 
+from osism.tasks import conductor
 from osism.tasks.conductor import redfish
 
 # ---------------------------------------------------------------------------
@@ -154,6 +158,43 @@ def _conn_with_chassis(chassis_list):
     conn = MagicMock()
     conn.get_chassis_collection.return_value.get_members.return_value = chassis_list
     return conn
+
+
+def _utc(hour, minute, second):
+    return datetime(2026, 11, 24, hour, minute, second, tzinfo=timezone.utc)
+
+
+def _make_manager(identity="1", datetime_value=None, local_offset=None):
+    manager = MagicMock()
+    manager.identity = identity
+    manager.datetime = datetime_value
+    manager.datetimelocaloffset = local_offset
+    return manager
+
+
+def _conn_with_managers(members):
+    """Return a connection whose manager collection holds ``members``.
+
+    ``members`` maps each identity to the manager ``get_member`` returns for
+    it, or to the exception ``get_member`` raises for it.
+    """
+    conn = MagicMock()
+    collection = conn.get_manager_collection.return_value
+    collection.members_identities = tuple(members)
+
+    def get_member(identity):
+        member = members[identity]
+        if isinstance(member, Exception):
+            raise member
+        return member
+
+    collection.get_member.side_effect = get_member
+    return conn
+
+
+def _patch_utcnow(*instants):
+    """Patch ``_utcnow`` to return ``instants`` one call after another."""
+    return patch.object(redfish, "_utcnow", side_effect=list(instants))
 
 
 # ---------------------------------------------------------------------------
@@ -609,3 +650,266 @@ def test_get_network_device_functions_without_ethernet_strips_macs():
     ]
     assert "mac_address" not in result[0]
     assert "permanent_mac_address" not in result[0]
+
+
+# ---------------------------------------------------------------------------
+# _parse_redfish_datetime
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2026-11-24T10:15:32Z",
+        "2026-11-24T10:15:32+00:00",
+        "2026-11-24T11:15:32+01:00",
+    ],
+)
+def test_parse_redfish_datetime_aware_value(value):
+    parsed = redfish._parse_redfish_datetime(value)
+
+    assert parsed.tzinfo is not None
+    assert parsed == _utc(10, 15, 32)
+
+
+@pytest.mark.parametrize(
+    "local_offset, expected",
+    [
+        ("+02:00", timedelta(hours=2)),
+        ("-05:30", -timedelta(hours=5, minutes=30)),
+    ],
+)
+def test_parse_redfish_datetime_naive_value_uses_local_offset(local_offset, expected):
+    parsed = redfish._parse_redfish_datetime("2026-11-24T10:15:32", local_offset)
+
+    assert parsed.utcoffset() == expected
+    assert parsed.replace(tzinfo=None) == datetime(2026, 11, 24, 10, 15, 32)
+
+
+def test_parse_redfish_datetime_embedded_offset_wins_over_local_offset():
+    parsed = redfish._parse_redfish_datetime("2026-11-24T10:15:32+00:00", "+02:00")
+
+    assert parsed.utcoffset() == timedelta(0)
+    assert parsed == _utc(10, 15, 32)
+
+
+@pytest.mark.parametrize("value", [None, "", "not-a-date", 12345])
+def test_parse_redfish_datetime_invalid_value_returns_none(value):
+    assert redfish._parse_redfish_datetime(value) is None
+
+
+@pytest.mark.parametrize("local_offset", [None, "", "UTC", "+99:00"])
+def test_parse_redfish_datetime_naive_value_without_usable_offset_returns_none(
+    local_offset,
+):
+    assert redfish._parse_redfish_datetime("2026-11-24T10:15:32", local_offset) is None
+
+
+# ---------------------------------------------------------------------------
+# get_clock
+# ---------------------------------------------------------------------------
+
+
+def test_get_clock_measures_offset_against_request_midpoint(loguru_logs):
+    manager = _make_manager("1", "2026-11-24T10:15:32+00:00", "+00:00")
+    conn = _conn_with_managers({"/redfish/v1/Managers/1": manager})
+
+    with _patch_connection(conn), _patch_utcnow(_utc(10, 15, 30), _utc(10, 15, 32)):
+        result = redfish.get_clock("node-1")
+
+    assert result == [
+        {
+            "manager_id": "1",
+            "datetime": "2026-11-24T10:15:32+00:00",
+            "datetime_local_offset": "+00:00",
+            "conductor_datetime": "2026-11-24T10:15:31.000+00:00",
+            "offset_seconds": 1.0,
+            "error": None,
+        }
+    ]
+    assert _no_problem_logs(loguru_logs)
+    assert _has_log(loguru_logs, "INFO", "Retrieved 1 manager clocks from node-1")
+
+
+def test_get_clock_controller_behind_gives_negative_offset():
+    manager = _make_manager("1", "2026-11-24T10:15:29+00:00", "+00:00")
+    conn = _conn_with_managers({"/redfish/v1/Managers/1": manager})
+
+    with _patch_connection(conn), _patch_utcnow(_utc(10, 15, 30), _utc(10, 15, 32)):
+        result = redfish.get_clock("node-1")
+
+    assert result[0]["offset_seconds"] == -2.0
+
+
+def test_get_clock_renders_conductor_time_in_redfish_utc_offset():
+    manager = _make_manager("1", "2026-11-24T11:15:32+01:00", "+01:00")
+    conn = _conn_with_managers({"/redfish/v1/Managers/1": manager})
+
+    with _patch_connection(conn), _patch_utcnow(_utc(10, 15, 30), _utc(10, 15, 32)):
+        result = redfish.get_clock("node-1")
+
+    assert result[0]["conductor_datetime"] == "2026-11-24T11:15:31.000+01:00"
+    assert result[0]["offset_seconds"] == 1.0
+
+
+def test_get_clock_reads_managers_one_by_one_in_collection_order():
+    conn = _conn_with_managers(
+        {
+            "/redfish/v1/Managers/1": _make_manager("1", "2026-11-24T10:15:32Z"),
+            "/redfish/v1/Managers/2": _make_manager("2", "2026-11-24T10:15:35Z"),
+        }
+    )
+    clock = _patch_utcnow(
+        _utc(10, 15, 30), _utc(10, 15, 32), _utc(10, 15, 33), _utc(10, 15, 35)
+    )
+
+    with _patch_connection(conn), clock as utcnow:
+        result = redfish.get_clock("node-1")
+
+    assert [row["manager_id"] for row in result] == ["1", "2"]
+    assert [row["offset_seconds"] for row in result] == [1.0, 1.0]
+    assert utcnow.call_count == 4
+    conn.get_manager_collection.return_value.get_members.assert_not_called()
+
+
+def test_get_clock_result_is_json_serializable():
+    conn = _conn_with_managers(
+        {
+            "/redfish/v1/Managers/1": _make_manager("1", "2026-11-24T10:15:32Z"),
+            "/redfish/v1/Managers/2": _make_manager("2"),
+        }
+    )
+    clock = _patch_utcnow(
+        _utc(10, 15, 30), _utc(10, 15, 32), _utc(10, 15, 33), _utc(10, 15, 35)
+    )
+
+    with _patch_connection(conn), clock:
+        result = redfish.get_clock("node-1")
+
+    assert json.loads(json.dumps(result)) == result
+
+
+def test_get_clock_no_connection_returns_empty(loguru_logs):
+    with _patch_connection(None):
+        result = redfish.get_clock("node-1")
+
+    assert result == []
+    assert _has_log(
+        loguru_logs, "ERROR", "Could not establish Redfish connection to node-1"
+    )
+
+
+def test_get_clock_without_managers_returns_empty(loguru_logs):
+    conn = _conn_with_managers({})
+
+    with _patch_connection(conn):
+        result = redfish.get_clock("node-1")
+
+    assert result == []
+    assert _no_problem_logs(loguru_logs)
+
+
+def test_get_clock_without_manager_collection_returns_empty(loguru_logs):
+    conn = MagicMock()
+    conn.get_manager_collection.side_effect = sushy_exceptions.MissingAttributeError(
+        attribute="Managers/@odata.id", resource="/redfish/v1/"
+    )
+
+    with _patch_connection(conn):
+        result = redfish.get_clock("node-1")
+
+    assert result == []
+    assert _has_log(loguru_logs, "ERROR", "Error retrieving manager clocks from node-1")
+
+
+def test_get_clock_reports_manager_that_cannot_be_read(loguru_logs):
+    error = sushy_exceptions.ConnectionError(
+        url="https://bmc.example.com", error="timed out"
+    )
+    conn = _conn_with_managers(
+        {
+            "/redfish/v1/Managers/1": error,
+            "/redfish/v1/Managers/2": _make_manager("2", "2026-11-24T10:15:32Z"),
+        }
+    )
+    # The failed read takes only the timestamp before its request.
+    clock = _patch_utcnow(_utc(10, 15, 29), _utc(10, 15, 30), _utc(10, 15, 32))
+
+    with _patch_connection(conn), clock:
+        result = redfish.get_clock("node-1")
+
+    assert result[0] == {
+        "manager_id": "/redfish/v1/Managers/1",
+        "datetime": None,
+        "datetime_local_offset": None,
+        "conductor_datetime": None,
+        "offset_seconds": None,
+        "error": str(error),
+    }
+    assert result[1]["manager_id"] == "2"
+    assert result[1]["offset_seconds"] == 1.0
+    assert result[1]["error"] is None
+    assert json.loads(json.dumps(result)) == result
+    assert _has_log(loguru_logs, "WARNING", "Error reading manager")
+
+
+def test_get_clock_keeps_manager_without_datetime(loguru_logs):
+    conn = _conn_with_managers({"/redfish/v1/Managers/1": _make_manager("1")})
+
+    with _patch_connection(conn), _patch_utcnow(_utc(10, 15, 30), _utc(10, 15, 32)):
+        result = redfish.get_clock("node-1")
+
+    assert len(result) == 1
+    assert result[0]["datetime"] is None
+    assert result[0]["offset_seconds"] is None
+    assert result[0]["conductor_datetime"].endswith("+00:00")
+    assert result[0]["error"] is None
+    assert _has_log(loguru_logs, "WARNING", "does not report DateTime")
+
+
+@pytest.mark.parametrize(
+    "value, local_offset",
+    [
+        pytest.param("not-a-date", "+00:00", id="unparseable"),
+        pytest.param("2026-11-24T10:15:32", None, id="naive-without-offset"),
+    ],
+)
+def test_get_clock_keeps_manager_with_incomparable_datetime(
+    loguru_logs, value, local_offset
+):
+    manager = _make_manager("1", value, local_offset)
+    conn = _conn_with_managers({"/redfish/v1/Managers/1": manager})
+
+    with _patch_connection(conn), _patch_utcnow(_utc(10, 15, 30), _utc(10, 15, 32)):
+        result = redfish.get_clock("node-1")
+
+    assert len(result) == 1
+    assert result[0]["datetime"] == value
+    assert result[0]["offset_seconds"] is None
+    assert result[0]["error"] is None
+    assert _has_log(
+        loguru_logs, "WARNING", "cannot be compared with the conductor clock"
+    )
+
+
+def test_get_clock_ignores_ssl_errors():
+    with _patch_connection(_conn_with_managers({})) as connect:
+        redfish.get_clock("node-1")
+
+    connect.assert_called_once_with("node-1", ignore_ssl_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# get_redfish_clock task
+# ---------------------------------------------------------------------------
+
+
+def test_get_redfish_clock_task_delegates_to_get_clock():
+    with patch.object(
+        conductor, "_get_redfish_clock", return_value=["sentinel"]
+    ) as get_clock:
+        result = conductor.get_redfish_clock.__wrapped__("node-1")
+
+    assert result == ["sentinel"]
+    get_clock.assert_called_once_with("node-1")
+    assert "get_redfish_clock" in conductor.__all__
