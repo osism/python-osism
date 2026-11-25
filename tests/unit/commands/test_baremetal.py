@@ -2701,3 +2701,214 @@ def test_delete_all_continues_after_node_failure(loguru_logs):
         record["level"] == "ERROR" and "Failed to delete node" in record["message"]
         for record in loguru_logs
     )
+
+
+# --- First-boot operator key warning ---
+
+NO_KEY = "installs no operator key"
+KEY = "ssh-ed25519 AAAAtest site"
+
+
+def _no_key_warnings(loguru_logs):
+    return [
+        r["message"]
+        for r in loguru_logs
+        if r["level"] == "WARNING" and NO_KEY in r["message"]
+    ]
+
+
+def _nb_raising():
+    nb = MagicMock()
+    nb.dcim.devices.get.side_effect = RuntimeError("netbox down")
+    return nb
+
+
+def _nb_not_found():
+    nb = MagicMock()
+    nb.dcim.devices.get.return_value = None
+    nb.dcim.devices.filter.return_value = []
+    return nb
+
+
+def test_lookup_netbox_device_not_configured():
+    with patch.dict("osism.utils.__dict__", {"nb": None}):
+        assert baremetal._lookup_netbox_device("node1") == (
+            None,
+            "NetBox is not configured",
+        )
+
+
+def test_lookup_netbox_device_raises():
+    with patch.dict("osism.utils.__dict__", {"nb": _nb_raising()}):
+        assert baremetal._lookup_netbox_device("node1") == (
+            None,
+            "NetBox lookup failed: netbox down",
+        )
+
+
+def test_lookup_netbox_device_not_found():
+    with patch.dict("osism.utils.__dict__", {"nb": _nb_not_found()}):
+        assert baremetal._lookup_netbox_device("node1") == (
+            None,
+            "no NetBox device node1 (by name or inventory_hostname)",
+        )
+
+
+def test_lookup_netbox_device_found():
+    device = _first_boot_device({})
+    with patch.dict("osism.utils.__dict__", {"nb": _netbox_with(device)}):
+        assert baremetal._lookup_netbox_device("node1") == (device, None)
+
+
+def _case_netbox(case):
+    if case == "not-configured":
+        return None, "NetBox is not configured"
+    if case == "raises":
+        return _nb_raising(), "NetBox lookup failed: netbox down"
+    if case == "not-found":
+        return _nb_not_found(), "no NetBox device node1 (by name or inventory_hostname)"
+    return (
+        _netbox_with(_first_boot_device({}, base_var="x")),
+        "no operator_authorized_keys, operator_additional_authorized_keys or "
+        "operator_authorized_github_accounts in first_boot or local_context_data "
+        "of NetBox device node1",
+    )
+
+
+@pytest.mark.parametrize("builder", ["deploy", "dump-ironic"])
+@pytest.mark.parametrize(
+    "case", ["not-configured", "raises", "not-found", "device-without-key"]
+)
+def test_builders_warn_without_operator_key(builder, case, capsys, loguru_logs):
+    nb, reason = _case_netbox(case)
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = FakeNode()
+
+    if builder == "deploy":
+        _run_deploy(["node1"], conn, nb=nb)
+        conn.baremetal.set_node_provision_state.assert_called_once()
+    else:
+        rc, _, _ = _run_dump(["node1", "--ironic"], conn=conn, nb=nb)
+        assert rc is None
+
+    warnings = _no_key_warnings(loguru_logs)
+    assert len(warnings) == 1
+    assert warnings[0] == (
+        f"node1: the first boot installs no operator key ({reason}). After the "
+        "deploy the node is reachable only through credentials built into the "
+        "image, if it has any."
+    )
+
+
+def test_dump_netbox_warns_for_device_without_key(capsys, loguru_logs):
+    device = _first_boot_device({}, base_var="x")
+
+    rc, _, _ = _run_dump(["node1"], nb=_netbox_with(device))
+
+    assert rc is None
+    warnings = _no_key_warnings(loguru_logs)
+    assert len(warnings) == 1
+    assert "of NetBox device node1)" in warnings[0]
+
+
+def _device_with_key(source):
+    if source == "first_boot":
+        return _first_boot_device({"operator_authorized_keys": [KEY]})
+    if source == "top-level":
+        device = _first_boot_device(None, operator_authorized_keys=[KEY])
+        return device
+    return _first_boot_device(
+        {"operator_user": "osism", "operator_authorized_keys": [KEY]}
+    )
+
+
+@pytest.mark.parametrize("builder", ["deploy", "dump-ironic", "dump-netbox"])
+@pytest.mark.parametrize("source", ["first_boot", "top-level", "other-user"])
+def test_builders_no_warning_with_key(builder, source, capsys, loguru_logs):
+    play = _play_from_builder(builder, _device_with_key(source), capsys)
+
+    assert play["vars"]["operator_authorized_keys"] == [KEY]
+    assert _no_key_warnings(loguru_logs) == []
+
+
+@pytest.mark.parametrize("builder", ["deploy", "dump-ironic", "dump-netbox"])
+@pytest.mark.parametrize("empty", [[], None])
+def test_builders_warn_on_empty_key_list(builder, empty, capsys, loguru_logs):
+    device = _first_boot_device(
+        {"operator_authorized_keys": empty}, operator_authorized_keys=[KEY]
+    )
+
+    _play_from_builder(builder, device, capsys)
+
+    assert len(_no_key_warnings(loguru_logs)) == 1
+
+
+def test_deploy_all_warns_only_for_keyless_node(loguru_logs):
+    conn = MagicMock()
+    conn.baremetal.nodes.return_value = [
+        FakeNode(id="uuid-1", name="node1"),
+        FakeNode(id="uuid-2", name="node2"),
+    ]
+    with_key = _first_boot_device({"operator_authorized_keys": [KEY]})
+    without_key = _first_boot_device({}, base_var="x")
+    without_key.name = "node2"
+    nb = MagicMock()
+    nb.dcim.devices.get.side_effect = lambda name: {
+        "node1": with_key,
+        "node2": without_key,
+    }[name]
+
+    _run_deploy(["--all"], conn, nb=nb)
+
+    warnings = _no_key_warnings(loguru_logs)
+    assert len(warnings) == 1
+    assert warnings[0].startswith("node2: ")
+    assert conn.baremetal.set_node_provision_state.call_count == 2
+
+
+def test_dump_ironic_lookup_error_still_dumps(capsys, loguru_logs):
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = FakeNode()
+
+    rc, _, _ = _run_dump(["node1", "--ironic"], conn=conn, nb=_nb_raising())
+
+    assert rc is None
+    assert yaml.safe_load(capsys.readouterr().out)[0]["vars"]["hostname_name"] == (
+        "node1"
+    )
+    assert "netbox down" in _no_key_warnings(loguru_logs)[0]
+
+
+@pytest.mark.parametrize("builder", ["deploy", "dump-ironic", "dump-netbox"])
+@pytest.mark.parametrize(
+    "key_var,value",
+    [
+        ("operator_additional_authorized_keys", [KEY]),
+        ("operator_authorized_github_accounts", ["someone"]),
+    ],
+)
+def test_builders_no_warning_with_other_key_sources(
+    builder, key_var, value, capsys, loguru_logs
+):
+    device = _first_boot_device({key_var: value})
+
+    _play_from_builder(builder, device, capsys)
+
+    assert _no_key_warnings(loguru_logs) == []
+
+
+def test_deploy_reason_names_device_found_by_inventory_hostname(loguru_logs):
+    conn = MagicMock()
+    conn.baremetal.find_node.return_value = FakeNode()
+    device = _first_boot_device({}, base_var="x")
+    device.name = "rack1-srv07"
+    nb = MagicMock()
+    nb.dcim.devices.get.return_value = None
+    nb.dcim.devices.filter.return_value = [device]
+
+    _run_deploy(["node1"], conn, nb=nb)
+
+    warnings = _no_key_warnings(loguru_logs)
+    assert len(warnings) == 1
+    assert warnings[0].startswith("node1: ")
+    assert "of NetBox device rack1-srv07)" in warnings[0]

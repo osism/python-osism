@@ -172,6 +172,66 @@ def _first_boot_vars(device: Any) -> dict[str, Any]:
     return play_vars
 
 
+def _lookup_netbox_device(name: str) -> tuple[Any | None, str | None]:
+    """Find the NetBox device of a node for its first-boot play.
+
+    Looks the device up by name, then by the inventory_hostname custom field.
+    Returns (device, None) when it is found, else (None, reason). The lookup
+    fails softly: a NetBox error is logged and reported as the reason, so the
+    deploy goes on without device data, as it always has.
+    """
+    if not utils.nb:
+        return None, "NetBox is not configured"
+    try:
+        device = utils.nb.dcim.devices.get(name=name)
+        if not device:
+            devices = utils.nb.dcim.devices.filter(cf_inventory_hostname=name)
+            if devices:
+                device = devices[0]
+    except Exception as e:
+        logger.warning(f"Failed to fetch NetBox data for node {name}: {e}")
+        return None, f"NetBox lookup failed: {e}"
+    if not device:
+        return None, f"no NetBox device {name} (by name or inventory_hostname)"
+    logger.info(f"Found NetBox device {device.name} for node {name}")
+    return device, None
+
+
+# NOTE: The variables from which the operator role of osism.commons installs
+#       SSH keys for the operator user.
+_OPERATOR_KEY_SOURCES = (
+    "operator_authorized_keys",
+    "operator_additional_authorized_keys",
+    "operator_authorized_github_accounts",
+)
+
+
+def _warn_if_no_operator_key(
+    name: str, play_vars: dict, device: Any | None, reason: str | None
+) -> None:
+    """Warn when the first-boot play installs no operator key on the node.
+
+    The play's operator role installs the keys in operator_authorized_keys,
+    operator_additional_authorized_keys and operator_authorized_github_accounts.
+    Without any of them the node is reachable after the deploy only through
+    credentials built into the image, if it has any; nothing here can tell
+    whether it does.
+    """
+    if any(play_vars.get(source) for source in _OPERATOR_KEY_SOURCES):
+        return
+    if reason is None and device is not None:
+        reason = (
+            "no operator_authorized_keys, operator_additional_authorized_keys or "
+            "operator_authorized_github_accounts in first_boot or "
+            f"local_context_data of NetBox device {device.name}"
+        )
+    logger.warning(
+        f"{name}: the first boot installs no operator key ({reason}). After the "
+        "deploy the node is reachable only through credentials built into the "
+        "image, if it has any."
+    )
+
+
 def _apply_metalbox_vars(play_vars, device):
     metalbox_ip = _get_metalbox_primary_ip4(device)
     if metalbox_ip:
@@ -487,28 +547,7 @@ class BaremetalDeploy(Command):
                     # NOTE: Only the NetBox lookup may fail softly here. The play vars
                     #       are computed outside it, so an invalid first_boot fails
                     #       the build instead of yielding a play without its values.
-                    device = None
-                    if utils.nb:
-                        try:
-                            # Try to find device by name first
-                            device = utils.nb.dcim.devices.get(name=node.name)
-
-                            # If not found by name, try by inventory_hostname custom field
-                            if not device:
-                                devices = utils.nb.dcim.devices.filter(
-                                    cf_inventory_hostname=node.name
-                                )
-                                if devices:
-                                    device = devices[0]
-
-                            if device:
-                                logger.info(
-                                    f"Found NetBox device {device.name} for node {node.name}"
-                                )
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to fetch NetBox data for node {node.name}: {e}"
-                            )
+                    device, netbox_reason = _lookup_netbox_device(node.name)
 
                     playbook = []
                     play = {
@@ -561,6 +600,9 @@ class BaremetalDeploy(Command):
                         )
                         play["vars"].update(frr_params)
                         play["roles"].append("osism.services.frr")
+                    _warn_if_no_operator_key(
+                        node.name, play["vars"], device, netbox_reason
+                    )
                     playbook.append(play)
                     with tempfile.TemporaryDirectory() as tmp_dir:
                         with open(os.path.join(tmp_dir, "playbook.yml"), "w") as file:
@@ -693,28 +735,7 @@ class BaremetalDump(Command):
                 # NOTE: Only the NetBox lookup may fail softly here. The play vars
                 #       are computed outside it, so an invalid first_boot fails
                 #       the build instead of yielding a play without its values.
-                device = None
-                if utils.nb:
-                    try:
-                        # Try to find device by name first
-                        device = utils.nb.dcim.devices.get(name=node.name)
-
-                        # If not found by name, try by inventory_hostname custom field
-                        if not device:
-                            devices = utils.nb.dcim.devices.filter(
-                                cf_inventory_hostname=node.name
-                            )
-                            if devices:
-                                device = devices[0]
-
-                        if device:
-                            logger.info(
-                                f"Found NetBox device {device.name} for node {node.name}"
-                            )
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to fetch NetBox data for node {node.name}: {e}"
-                        )
+                device, netbox_reason = _lookup_netbox_device(node.name)
 
                 playbook = []
                 play = {
@@ -770,6 +791,7 @@ class BaremetalDump(Command):
                     play["vars"].update(frr_params)
                     play["roles"].append("osism.services.frr")
 
+                _warn_if_no_operator_key(node.name, play["vars"], device, netbox_reason)
                 playbook.append(play)
 
                 # Output playbook to stdout
@@ -870,6 +892,7 @@ class BaremetalDump(Command):
                     play["vars"].update(frr_params)
                     play["roles"].append("osism.services.frr")
 
+                _warn_if_no_operator_key(name, play["vars"], device, None)
                 playbook.append(play)
 
                 # Output playbook to stdout
