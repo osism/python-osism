@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from osism.utils import render
+from osism.utils import inventory
 from osism.utils.render import (
     RenderError,
     build_stack,
@@ -108,7 +108,7 @@ def test_render_batch_is_one_argv_run_with_neutral_cwd(tmp_path, mocker):
             json.dump({"values": {}, "closures": {}}, fp)
         return mocker.Mock(returncode=0, stdout="", stderr="")
 
-    mocker.patch.object(render.subprocess, "run", side_effect=fake_run)
+    mocker.patch.object(inventory.subprocess, "run", side_effect=fake_run)
     render_batch(
         "node;rm -rf /",
         {"names": ["a"], "secrets": [], "raw": {}, "raw_all": {}},
@@ -140,7 +140,7 @@ def test_render_batch_is_one_argv_run_with_neutral_cwd(tmp_path, mocker):
 def test_render_batch_ansible_failure_raises_unsafe(tmp_path, mocker):
     root = _envs(tmp_path)
     mocker.patch.object(
-        render.subprocess,
+        inventory.subprocess,
         "run",
         return_value=mocker.Mock(returncode=4, stdout="", stderr="boom"),
     )

@@ -14,14 +14,13 @@ that one run.
 
 import json
 import os
-import subprocess
-import tempfile
 from dataclasses import dataclass
 from typing import cast
 
 import yaml
 
 from osism import settings
+from osism.utils.inventory import HostContextResolutionError, run_in_host_context
 from osism.utils.template_deps import UnsafeText
 
 _PLUGIN = """\
@@ -192,68 +191,19 @@ def render_batch(
     host, request, inventory_path, stack, vault_password, facts=None, timeout=300
 ):
     _check(stack)
-    with tempfile.TemporaryDirectory(prefix="osism-render-") as workdir:
-        with open(os.path.join(workdir, "osism_render.py"), "w") as fp:
-            fp.write(_PLUGIN)
-        vault_file = os.path.join(workdir, "vault")
-        with open(os.open(vault_file, os.O_WRONLY | os.O_CREAT, 0o600), "w") as fp:
-            fp.write(vault_password)
-        request_file = os.path.join(workdir, "request.json")
-        with open(request_file, "w") as fp:
-            json.dump(request, fp)
-        dest = os.path.join(workdir, "out.json")
-        command = [
-            "ansible",
+    try:
+        text = run_in_host_context(
             host,
-            "-i",
             inventory_path,
-            "-c",
-            "local",
-            "-m",
             "osism_render",
-            "-a",
-            json.dumps({"request": request_file, "dest": dest}),
-            "--vault-password-file",
-            vault_file,
-        ]
-        # A later -e wins. In a play, facts rank below extra-vars, so the
-        # cached facts go before the stack files.
-        if facts:
-            facts_path = os.path.join(workdir, "facts.json")
-            with open(facts_path, "w") as fp:
-                json.dump(facts, fp)
-            command += ["-e", f"@{facts_path}"]
-        for path in stack.files:
-            command += ["-e", f"@{path}"]
-        env = os.environ.copy()
-        env.update(
-            ANSIBLE_GATHERING="explicit",
-            ANSIBLE_NOCOLOR="1",
-            ANSIBLE_FORCE_COLOR="0",
-            ANSIBLE_RETRY_FILES_ENABLED="False",
+            _PLUGIN,
+            {},
+            request=request,
+            facts=facts,
+            extra_vars_files=stack.files,
+            vault_password=vault_password,
+            timeout=timeout,
         )
-        env["ANSIBLE_ACTION_PLUGINS"] = os.pathsep.join(
-            p for p in (workdir, env.get("ANSIBLE_ACTION_PLUGINS")) if p
-        )
-        try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                env=env,
-                cwd=workdir,
-                stdin=subprocess.DEVNULL,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise RenderError(f"ansible timed out after {timeout}s") from exc
-        if result.returncode != 0:
-            detail = (result.stdout or "").strip() or (result.stderr or "").strip()
-            raise RenderError(
-                detail or f"ansible exited {result.returncode}", safe=False
-            )
-        try:
-            with open(dest) as fp:
-                return json.load(fp)
-        except OSError as exc:
-            raise RenderError("ansible wrote no result") from exc
+    except HostContextResolutionError as exc:
+        raise RenderError(str(exc), safe=not exc.from_ansible) from exc
+    return json.loads(text)
