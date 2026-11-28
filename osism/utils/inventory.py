@@ -28,7 +28,15 @@ class ActionModule(ActionBase):
 
 
 class HostContextResolutionError(Exception):
-    """Raised when an expression cannot be templated in a host's context."""
+    """Raised when an expression cannot be templated in a host's context.
+
+    ``from_ansible`` is True when the message is Ansible's own output, which
+    may quote variable values; it is False for messages composed here.
+    """
+
+    def __init__(self, message: str, from_ansible: bool = False):
+        super().__init__(message)
+        self.from_ansible = from_ansible
 
 
 def get_inventory_path(base_path: str, prefer_minified: bool = True) -> str:
@@ -133,28 +141,87 @@ def resolve_in_host_context(
             expression. The message carries Ansible's own explanation, which
             names the undefined variable or attribute.
     """
-    env = os.environ.copy()
-    # The module runs locally, but be explicit: never gather facts, so a host
-    # that is down cannot turn a lookup into an SSH timeout.
-    env["ANSIBLE_GATHERING"] = "explicit"
-    env["ANSIBLE_RETRY_FILES_ENABLED"] = "False"
-    env["ANSIBLE_NOCOLOR"] = "1"
-
-    with tempfile.TemporaryDirectory(prefix="osism-resolve-") as workdir:
-        action_path = os.path.join(workdir, "osism_resolve.py")
-        with open(action_path, "w") as fp:
-            fp.write(_RESOLVE_ACTION_PLUGIN)
-        configured_action_plugins = env.get("ANSIBLE_ACTION_PLUGINS")
-        env["ANSIBLE_ACTION_PLUGINS"] = os.pathsep.join(
-            part for part in (workdir, configured_action_plugins) if part
-        )
-
-        value_path = os.path.join(workdir, "value")
+    return run_in_host_context(
+        host,
+        inventory_path,
+        "osism_resolve",
+        _RESOLVE_ACTION_PLUGIN,
         # JSON module args rather than key=value, so a value containing spaces
         # survives.
-        module_args = json.dumps(
-            {"content": "{{ %s }}" % expression, "dest": value_path}
+        {"content": "{{ %s }}" % expression},
+        facts=facts,
+        timeout=timeout,
+    )
+
+
+def run_in_host_context(
+    host: str,
+    inventory_path: str,
+    plugin_name: str,
+    plugin_source: str,
+    args: dict,
+    request: object = None,
+    facts: dict | None = None,
+    extra_vars_files: tuple = (),
+    vault_password: str | None = None,
+    timeout: int = 60,
+) -> str:
+    """Run a controller-side action plugin in a host's variable context.
+
+    The one engine behind ``resolve_in_host_context`` and the batch renderer
+    of ``osism dump inventory`` (``osism.utils.render``). Each brings its own
+    plugin, because what it templates differs; everything around the plugin
+    lives here once:
+
+    - The plugin is installed into a temporary directory, which is also the
+      working directory, so no ``group_vars/`` next to the caller's current
+      directory leaks into the run.
+    - ``-c local`` with an action plugin: no connection, no module launched
+      with the target's interpreter, so a host that is down still resolves.
+      Facts are never gathered and stdin is closed.
+    - Facts travel as an extra-vars file, ahead of ``extra_vars_files``: a
+      later ``-e`` wins, and in a play extra vars outrank facts.
+    - The plugin writes its result to the file named by the ``dest``
+      argument, which is read back byte-exact instead of parsed out of
+      Ansible's output, whose format differs between ansible-core versions.
+
+    Args:
+        args: Module arguments; ``dest`` is added, and ``request`` when a
+            request is given. Ansible templates them in the host's context.
+        request: Optional JSON data for the plugin, passed as a file so that
+            Ansible does not template it.
+        vault_password: Optional; given to Ansible as a password file.
+
+    Returns:
+        The text the plugin wrote.
+
+    Raises:
+        HostContextResolutionError: Ansible failed (``from_ansible`` set; the
+            message is its output), timed out, or wrote nothing.
+    """
+    env = os.environ.copy()
+    env.update(
+        ANSIBLE_GATHERING="explicit",
+        ANSIBLE_NOCOLOR="1",
+        # ANSIBLE_FORCE_COLOR in the caller's environment beats NOCOLOR.
+        ANSIBLE_FORCE_COLOR="0",
+        ANSIBLE_RETRY_FILES_ENABLED="False",
+    )
+
+    with tempfile.TemporaryDirectory(prefix="osism-host-context-") as workdir:
+        with open(os.path.join(workdir, f"{plugin_name}.py"), "w") as fp:
+            fp.write(plugin_source)
+        env["ANSIBLE_ACTION_PLUGINS"] = os.pathsep.join(
+            part for part in (workdir, env.get("ANSIBLE_ACTION_PLUGINS")) if part
         )
+
+        dest = os.path.join(workdir, "value")
+        args = dict(args, dest=dest)
+        if request is not None:
+            args["request"] = os.path.join(workdir, "request.json")
+            with open(args["request"], "w") as fp:
+                json.dump(request, fp)
+
         command = [
             "ansible",
             host,
@@ -163,15 +230,22 @@ def resolve_in_host_context(
             "-c",
             "local",
             "-m",
-            "osism_resolve",
+            plugin_name,
             "-a",
-            module_args,
+            json.dumps(args),
         ]
+        if vault_password is not None:
+            vault_file = os.path.join(workdir, "vault")
+            with open(os.open(vault_file, os.O_WRONLY | os.O_CREAT, 0o600), "w") as fp:
+                fp.write(vault_password)
+            command += ["--vault-password-file", vault_file]
         if facts:
             facts_path = os.path.join(workdir, "facts.json")
             with open(facts_path, "w") as fp:
                 json.dump(facts, fp)
             command += ["-e", f"@{facts_path}"]
+        for path in extra_vars_files:
+            command += ["-e", f"@{path}"]
 
         try:
             result = subprocess.run(
@@ -180,6 +254,8 @@ def resolve_in_host_context(
                 text=True,
                 timeout=timeout,
                 env=env,
+                cwd=workdir,
+                stdin=subprocess.DEVNULL,
             )
         except subprocess.TimeoutExpired as exc:
             raise HostContextResolutionError(
@@ -192,11 +268,11 @@ def resolve_in_host_context(
             # so take whichever of the two is non-empty and do not parse it.
             detail = (result.stdout or "").strip() or (result.stderr or "").strip()
             raise HostContextResolutionError(
-                detail or f"ansible exited {result.returncode}"
+                detail or f"ansible exited {result.returncode}", from_ansible=True
             )
 
         try:
-            with open(value_path) as fp:
+            with open(dest) as fp:
                 return fp.read()
         except OSError as exc:
             raise HostContextResolutionError("ansible wrote no value") from exc
