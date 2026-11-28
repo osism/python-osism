@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "a108955cbfc01f3a727e822fa934d94df15f739018279c94acd9b9beedd9a668"
+            "sha256": "7a1a61d6a2cc5611a304ccc501ce85cda5565135241144adba16c92da5749e26"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -2089,12 +2089,12 @@
         },
         "openstacksdk": {
             "hashes": [
-                "sha256:23c3157032d142e2b6ad5e7582a307cbc513b240509ee2dfdcc8dea8773d2096",
-                "sha256:a7eb1c330128d9fd776e57449e53e9949d1f7a6d53dd95525b3bbc9c2a686143"
+                "sha256:ab89b8a378af9ba74de87cf37c3f48219cdf4bf0189638a638eb0bd844888b0d",
+                "sha256:e230401a4f0df3c239c7945c4abb8b5edef8059d11afb8b208b38503a20aad9e"
             ],
             "index": "pypi",
             "markers": "python_version >= '3.11'",
-            "version": "==4.25.0"
+            "version": "==4.26.0"
         },
         "orderly-set": {
             "hashes": [
@@ -2146,11 +2146,11 @@
         },
         "platformdirs": {
             "hashes": [
-                "sha256:1e34af590de4d978631b751eb2202f2fee4497537a17c1720b12fcf57b331392",
-                "sha256:96893d686e84e9e6f358a9ea41a8de544df66dbf2ba6cda250e7dc73acf85b9b"
+                "sha256:c6b188e03ffd4dfe1bf8c4bcb47cd94711af244a9852dbff60297bd753684d5d",
+                "sha256:d0d3a23e7ff282cfa94b77f5a22b81030dcb68ba0430f90c74f4bd8d090782ea"
             ],
             "markers": "python_version >= '3.11'",
-            "version": "==4.14.8"
+            "version": "==4.14.9"
         },
         "pluggy": {
             "hashes": [
